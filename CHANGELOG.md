@@ -3,6 +3,14 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.4.25] — 2026-10-23
+
+### Fix — Container-Assistent im dunklen Design lesbar
+- Die drei Wahlmöglichkeiten („Container ist schon eingehängt“ / BitLocker / VeraCrypt) hatten einen eigenen Stil ohne
+  `BasedOn` und fielen dadurch auf den WPF-Standard-Knopf zurück: schwarze Überschriften auf dunklem Grund (Herberts
+  Screenshot beim ersten echten Durchlauf). Stil baut jetzt auf dem WPF-UI-Knopf auf, Schrift `TextFillColorPrimaryBrush`;
+  Test `Auswahl_im_dunklen_Design_lesbar`.
+
 ## [0.4.24] — 2026-10-23
 
 ### Feature (ADR-0063) — Story-Assistent: Sätze in eigenen Worten, lokale Sprach-KI nur für die Absicht, Collage-Bild

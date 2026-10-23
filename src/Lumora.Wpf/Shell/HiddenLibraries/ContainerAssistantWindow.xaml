@@ -44,8 +44,10 @@
             <Setter Property="Margin" Value="0,2,0,0" />
             <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCautionBrush}" />
         </Style>
-        <Style x:Key="ChoiceRadio" TargetType="RadioButton">
+        <!-- BasedOn: sonst fällt der Knopf auf den WPF-Standard zurück (schwarze Schrift, im dunklen Design unlesbar) -->
+        <Style x:Key="ChoiceRadio" TargetType="RadioButton" BasedOn="{StaticResource {x:Type RadioButton}}">
             <Setter Property="Margin" Value="0,12,0,0" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
             <Setter Property="GroupName" Value="ContainerChoice" />
         </Style>
     </Window.Resources>

@@ -404,6 +404,29 @@ public sealed class ContainerAssistantTests
     }).Task.Unwrap().WaitAsync(Timeout);
 
     [Fact]
+    public Task Auswahl_im_dunklen_Design_lesbar() => TestUiThread.Dispatcher.InvokeAsync(() =>
+    {
+        // 0.4.25: der eigene Stil ohne BasedOn ergab den WPF-Standard-Knopf mit schwarzer Schrift auf dunklem Grund.
+        var vm = new ContainerAssistantViewModel(new RecordingCreation(), new ScriptedPicker());
+        var window = new ContainerAssistantWindow(vm);
+        window.Show();
+        try
+        {
+            window.UpdateLayout();
+            var style = (System.Windows.Style)window.FindResource("ChoiceRadio");
+            style.BasedOn.Should().NotBeNull("der Stil baut auf dem Lumora/WPF-UI-Knopf auf");
+            var radio = window.FindName("ExistingRadio").Should().BeOfType<System.Windows.Controls.RadioButton>().Subject;
+            var brush = radio.Foreground.Should().BeOfType<System.Windows.Media.SolidColorBrush>().Subject;
+            var c = brush.Color;
+            (0.2126 * c.R + 0.7152 * c.G + 0.0722 * c.B).Should().BeGreaterThan(160, "helle Schrift im dunklen Design");
+        }
+        finally
+        {
+            window.Close();
+        }
+    }).Task.WaitAsync(Timeout);
+
+    [Fact]
     public Task Closing_the_window_with_x_cancels() => TestUiThread.Dispatcher.InvokeAsync(() =>
     {
         var vm = new ContainerAssistantViewModel(new RecordingCreation(), new ScriptedPicker());
