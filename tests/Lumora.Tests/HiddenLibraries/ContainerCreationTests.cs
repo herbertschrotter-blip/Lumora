@@ -1,4 +1,3 @@
-using System.Text;
 using Lumora.Services.HiddenLibraries;
 using Lumora.Services.HiddenLibraries.Containers;
 using Lumora.Services.Infrastructure;
@@ -6,13 +5,14 @@ using Lumora.Services.Infrastructure;
 namespace Lumora.Tests.HiddenLibraries;
 
 /// <summary>
-/// ADR-0061: Container-Assistent — nur mit Fakes, nie echt: kein diskpart, keine UAC-Rückfrage, kein BitLocker, kein
-/// winget, kein VeraCrypt. Geprüft wird, WAS Lumora starten würde (Programm, Befehlszeile, Skriptinhalt) und dass nichts
-/// liegen bleibt.
+/// ADR-0061: Container-Assistent — nur mit Fakes, nie echt: keine VHDX, keine UAC-Rückfrage, kein BitLocker, kein
+/// winget, kein VeraCrypt. Geprüft wird, WAS Lumora starten würde (Programm, Befehlszeile) und dass nichts liegen bleibt.
 /// </summary>
 public sealed class ContainerCreationTests : IDisposable
 {
     private const long Gb = 1024L * 1024 * 1024;
+
+    private const string SelfExe = @"C:\Programme\Lumora\Lumora.exe";
 
     private readonly string _root = Path.Combine(Path.GetTempPath(), "Lumora.Tests", "container-" + Guid.NewGuid().ToString("N"));
     private readonly FakeDevices _devices = new() { ['C'] = @"\Device\HarddiskVolume3" };
@@ -35,7 +35,7 @@ public sealed class ContainerCreationTests : IDisposable
 
     private string DriveRoot => Path.GetPathRoot(_root)!;
 
-    private ContainerCreationService CreateService(string? systemRoot = @"Q:\", IReadOnlyList<string>? cloud = null, long free = 500 * Gb, string fileSystem = "NTFS")
+    private ContainerCreationService CreateService(string? systemRoot = @"Q:\", IReadOnlyList<string>? cloud = null, long free = 500 * Gb, string fileSystem = "NTFS", string? self = SelfExe)
         => new(
             _containers,
             _locator,
@@ -47,45 +47,27 @@ public sealed class ContainerCreationTests : IDisposable
             _installer,
             systemRoot,
             () => cloud ?? [],
-            (_, _) => Task.CompletedTask);
+            (_, _) => Task.CompletedTask,
+            () => self);
 
     private VhdxPlan Plan(string name = "sicherung.vhdx", char letter = 'X', int size = 50, string label = "Daten")
         => new(Path.Combine(_root, "Daten Ordner", name), size, letter, label);
-
-    [Fact]
-    public void Diskpart_script_has_the_right_commands_quoted_paths_and_no_password()
-    {
-        var script = VhdxScript.Build(new VhdxPlan(@"D:\Meine Daten\sicherung.vhdx", 50, 'x', "Daten 1"));
-        var lines = script.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
-
-        lines.Should().ContainInOrder(
-            "create vdisk file=\"D:\\Meine Daten\\sicherung.vhdx\" maximum=51200 type=expandable",
-            "select vdisk file=\"D:\\Meine Daten\\sicherung.vhdx\"",
-            "attach vdisk",
-            "convert gpt",
-            "create partition primary",
-            "format fs=ntfs label=\"Daten 1\" quick",
-            "assign letter=X",
-            "exit");
-        script.Should().NotContainAny("password", "kennwort", "Kennwort", "bitlocker", "manage-bde");
-        script.All(c => c < 128).Should().BeTrue("diskpart bekommt ein reines ASCII-Skript");
-        Action quote = () => VhdxScript.Quote("a\"b");
-        quote.Should().Throw<ArgumentException>();
-    }
 
     [Theory]
     [InlineData(@"D:\Daten\lumora-test-7f3a.vhdx", null)]
     [InlineData(@"D:\Daten\sicherung.vhd", "vhdx")]
     [InlineData(@"\\server\share\sicherung.vhdx", "lokalen")]
-    [InlineData(@"D:\Bücher\sicherung.vhdx", "Umlaute")]
+    [InlineData(@"D:\Bücher\sicherung.vhdx", null)] // seit 0.4.26 kein ASCII-Zwang mehr (Windows-Funktionen statt Skript)
+    [InlineData("D:\\Da\"ten\\sicherung.vhdx", "unzulässige")]
     [InlineData(@"D:\OneDrive - Firma\sicherung.vhdx", "Cloud")]
     [InlineData(@"D:\Users\x\Dropbox\sicherung.vhdx", "Cloud")]
     [InlineData(@"D:\Google Drive\sicherung.vhdx", "Cloud")]
     [InlineData(@"E:\Wolke\a\sicherung.vhdx", "Cloud")]
     [InlineData("sicherung.vhdx", "Speicherort")]
+    [InlineData(@"D:\ Backup\sicherung.vhdx", "Leerzeichen")]
     public void Vhdx_path_rules(string path, string? problem)
     {
-        var result = VhdxScript.ValidatePath(path, [@"E:\Wolke"]);
+        var result = VhdxRules.ValidatePath(path, [@"E:\Wolke"]);
         if (problem is null)
         {
             result.Should().BeNull();
@@ -104,7 +86,7 @@ public sealed class ContainerCreationTests : IDisposable
     [InlineData("Äpfel", false)]
     [InlineData("123456789012345678901234567890123", false)]
     public void Volume_label_rules(string label, bool ok)
-        => (VhdxScript.ValidateLabel(label) is null).Should().Be(ok);
+        => (VhdxRules.ValidateLabel(label) is null).Should().Be(ok);
 
     [Fact]
     public void Suggestion_prefers_a_non_system_drive_neutral_name_and_last_free_letter()
@@ -112,7 +94,7 @@ public sealed class ContainerCreationTests : IDisposable
         var service = new ContainerCreationService(
             _containers, _locator, _devices,
             new FakeDrives(new DriveSpace(@"C:\", 900 * Gb), new DriveSpace(DriveRoot, 300 * Gb), new DriveSpace(@"U:\", 2000 * Gb, "exFAT")),
-            _elevated, _launcher, _bitLocker, _installer, systemRoot: @"C:\", cloudFolders: () => []);
+            _elevated, _launcher, _bitLocker, _installer, systemRoot: @"C:\", cloudFolders: () => [], selfExecutable: () => SelfExe);
         _devices['Z'] = @"\Device\HarddiskVolume9";
 
         var suggestion = service.SuggestVhdx();
@@ -125,18 +107,18 @@ public sealed class ContainerCreationTests : IDisposable
         suggestion.FilePath.Should().EndWith(@"Daten\sicherung.vhdx").And.NotStartWith(@"U:\", "exFAT-Laufwerke taugen nicht für eine VHDX");
         suggestion.DriveLetter.Should().Be('Y', "Z: ist belegt");
         suggestion.VolumeLabel.Should().Be("Daten");
-        VhdxScript.SuggestSizeGigabytes(300 * Gb).Should().Be(150);
-        VhdxScript.SuggestSizeGigabytes(35 * Gb).Should().Be(17);
-        VhdxScript.SuggestSizeGigabytes(57 * Gb).Should().Be(20);
-        VhdxScript.SuggestSizeGigabytes(5 * Gb).Should().Be(2);
-        VhdxScript.SuggestSizeGigabytes(0).Should().Be(1);
-        VhdxScript.SuggestSizeGigabytes(10_000 * Gb).Should().Be(1024);
+        VhdxRules.SuggestSizeGigabytes(300 * Gb).Should().Be(150);
+        VhdxRules.SuggestSizeGigabytes(35 * Gb).Should().Be(17);
+        VhdxRules.SuggestSizeGigabytes(57 * Gb).Should().Be(20);
+        VhdxRules.SuggestSizeGigabytes(5 * Gb).Should().Be(2);
+        VhdxRules.SuggestSizeGigabytes(0).Should().Be(1);
+        VhdxRules.SuggestSizeGigabytes(10_000 * Gb).Should().Be(1024);
         service.SystemDriveHint(@"C:\Daten\x.vhdx").Should().Contain("Systemlaufwerk");
         service.SystemDriveHint(@"D:\Daten\x.vhdx").Should().BeNull();
     }
 
     [Fact]
-    public async Task Create_runs_diskpart_elevated_and_the_script_exists_only_in_the_elevated_run()
+    public async Task Create_starts_lumora_itself_elevated_with_a_readable_command()
     {
         _elevated.OnRun = (_, _) =>
         {
@@ -150,27 +132,54 @@ public sealed class ContainerCreationTests : IDisposable
         result.Success.Should().BeTrue();
         result.Message.Should().Contain("X:");
         var call = _elevated.Calls.Single();
-        call.File.Should().Be(Path.Combine(Environment.SystemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe"));
-        call.Args.Should().StartWith("-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -EncodedCommand ");
-        var command = Decode(call.Args);
-        command.Should().Contain($"create vdisk file=\"{Plan().FilePath}\" maximum=51200 type=expandable")
-            .And.Contain("assign letter=X").And.Contain("label=\"Daten\"")
-            .And.Contain("Join-Path $env:SystemRoot 'Temp'").And.Contain("'System32\\diskpart.exe'").And.Contain("& $diskpart /s $f")
-            .And.Contain("} finally {\r\nRemove-Item -LiteralPath $f").And.Contain("detach vdisk")
-            .And.Contain("exit $code");
-        command.Should().NotContainAny("LocalAppData", "password", "Kennwort", "manage-bde");
-        Directory.Exists(Path.Combine(_root, "appdata")).Should().BeFalse("kein Skript im Benutzerordner");
+        call.File.Should().Be(SelfExe, "der erhöhte Schritt ist Lumora selbst");
+        call.Args.Should().Be($"--container-create-vhdx --path \"{Plan().FilePath}\" --size-mb 51200 --letter X --label \"Daten\"");
+        call.Args.Should().NotContainAny("powershell", "PowerShell", "-EncodedCommand", "diskpart", "Bypass", "-Command", "cmd.exe");
+        Directory.Exists(Path.Combine(_root, "appdata")).Should().BeFalse("keine Datei als Übergabe");
     }
 
     [Fact]
-    public void Elevated_command_quotes_paths_for_powershell_and_diskpart()
+    public async Task Create_refuses_when_the_running_program_is_not_lumora()
     {
-        var command = VhdxScript.BuildElevatedPowerShell(new VhdxPlan(@"D:\Herbert's Daten\a $b.vhdx", 1, 'T', "Daten"));
-        command.Should().Contain(@"Test-Path -LiteralPath 'D:\Herbert''s Daten\a $b.vhdx'")
-            .And.Contain(@"Remove-Item -LiteralPath 'D:\Herbert''s Daten\a $b.vhdx'")
-            .And.Contain("create vdisk file=\"D:\\Herbert's Daten\\a $b.vhdx\" maximum=1024");
-        var lines = command.Split("\r\n");
-        lines.Count(l => l == "'@,[Text.Encoding]::ASCII)").Should().Be(2, "beide Here-Strings enden am Zeilenanfang");
+        var result = await CreateService(self: @"C:\Program Files\dotnet\dotnet.exe").CreateVhdxAsync(Plan());
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("Lumora.exe");
+        (await CreateService(self: null).CreateVhdxAsync(Plan())).Success.Should().BeFalse();
+        _elevated.Calls.Should().BeEmpty();
+        Directory.Exists(Path.GetDirectoryName(Plan().FilePath)).Should().BeFalse();
+
+        ContainerCreationService.IsOwnExecutable(@"C:\Programme\Lumora\Lumora.exe").Should().BeTrue();
+        ContainerCreationService.IsOwnExecutable(@"E:\Portable\Lumora-0.4.26.exe").Should().BeTrue("eine umbenannte Lumora.exe hat denselben Einsprung");
+        ContainerCreationService.IsOwnExecutable(@"C:\x\testhost.exe").Should().BeFalse();
+        ContainerCreationService.IsOwnExecutable(@"C:\x\Lumora.dll").Should().BeFalse();
+        ContainerCreationService.IsOwnExecutable("Lumora.exe").Should().BeFalse("nur ein voller Pfad");
+    }
+
+    [Fact]
+    public async Task Elevated_start_blocked_by_windows_is_explained()
+    {
+        _elevated.OnRun = (_, _) => new ElevatedRunResult(false, -1, false, StartFailed: true);
+
+        var result = await CreateService().CreateVhdxAsync(Plan());
+
+        result.Message.Should().Contain("nicht mit Administratorrechten starten").And.Contain("Sicherheitsprogramm").And.Contain("nichts angelegt");
+        Directory.Exists(Path.GetDirectoryName(Plan().FilePath)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task A_refused_check_never_claims_a_foreign_file()
+    {
+        var plan = Plan();
+        _elevated.OnRun = (_, _) =>
+        {
+            File.WriteAllText(plan.FilePath, "fremd"); // inzwischen von jemand anderem angelegt
+            return new ElevatedRunResult(false, (int)VhdxJobExit.FileExists, false);
+        };
+
+        var result = await CreateService().CreateVhdxAsync(plan);
+
+        result.Message.Should().Contain("gibt es schon").And.Contain("nichts angelegt").And.NotContain("Auswerfen");
+        File.Exists(plan.FilePath).Should().BeTrue("Lumora löscht nichts, was es nicht angelegt hat");
     }
 
     [Fact]
@@ -205,23 +214,23 @@ public sealed class ContainerCreationTests : IDisposable
     }
 
     [Fact]
-    public async Task Diskpart_failure_and_timeout_explain_what_is_left()
+    public async Task Failures_and_timeout_explain_what_is_left()
     {
         var plan = Plan();
         _elevated.OnRun = (_, _) =>
         {
             File.WriteAllText(plan.FilePath, "halb");
-            return new ElevatedRunResult(false, 5, false);
+            return new ElevatedRunResult(false, (int)VhdxJobExit.FormatFailed, false);
         };
         var halfway = await CreateService().CreateVhdxAsync(plan);
         halfway.Success.Should().BeFalse();
-        halfway.Message.Should().Contain("diskpart meldet 5").And.Contain("Auswerfen");
+        halfway.Message.Should().Contain("nicht formatieren").And.Contain("Fehler 7116").And.Contain("Auswerfen");
 
         File.Delete(plan.FilePath);
         Directory.Delete(Path.GetDirectoryName(plan.FilePath)!);
-        _elevated.OnRun = (_, _) => new ElevatedRunResult(false, 2, false); // das Skript hat selbst aufgeräumt
+        _elevated.OnRun = (_, _) => new ElevatedRunResult(false, (int)VhdxJobExit.AttachFailed, false); // hat selbst aufgeräumt
         var nothing = await CreateService().CreateVhdxAsync(Plan("andere.vhdx"));
-        nothing.Message.Should().Contain("nichts angelegt");
+        nothing.Message.Should().Contain("nicht einhängen").And.Contain("nichts angelegt");
         Directory.Exists(Path.GetDirectoryName(plan.FilePath)).Should().BeFalse();
 
         _elevated.OnRun = (_, _) => new ElevatedRunResult(false, -1, TimedOut: true);
@@ -230,8 +239,39 @@ public sealed class ContainerCreationTests : IDisposable
         Directory.Exists(Path.GetDirectoryName(plan.FilePath)).Should().BeTrue("der erhöhte Lauf arbeitet vielleicht noch — nichts wegräumen");
     }
 
-    private static string Decode(string args)
-        => Encoding.Unicode.GetString(Convert.FromBase64String(args[(args.LastIndexOf(' ') + 1)..]));
+    [Theory]
+    [InlineData(1)]
+    [InlineData(-1)]
+    [InlineData(unchecked((int)0xC0000409))]
+    [InlineData(0)]
+    public async Task A_run_ended_from_outside_is_explained_as_security_software(int exitCode)
+    {
+        _elevated.OnRun = (_, _) => new ElevatedRunResult(false, exitCode, false);
+
+        var result = await CreateService().CreateVhdxAsync(Plan());
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("Sicherheitsprogramm").And.Contain("VeraCrypt").And.Contain("schon eingehängt").And.Contain("nichts angelegt");
+        Directory.Exists(Path.GetDirectoryName(Plan().FilePath)).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Exit_codes_become_understandable_messages()
+    {
+        ContainerCreationService.DescribeFailure(7111, 'X', fileLeft: false).Should().Contain("nicht anlegen").And.Contain("nichts angelegt");
+        ContainerCreationService.DescribeFailure(7117, 'X', fileLeft: true).Should().Contain("X:").And.Contain("Auswerfen");
+        ContainerCreationService.DescribeFailure(7105, 'T', fileLeft: false).Should().Contain("T: ist inzwischen belegt");
+        ContainerCreationService.DescribeFailure(7108, 'X', fileLeft: false).Should().Contain("ohne Administratorrechte");
+        ContainerCreationService.DescribeFailure(0, 'X', fileLeft: true).Should().Contain("nicht erschienen");
+        ContainerCreationService.DescribeFailure(1, 'X', fileLeft: true).Should().Contain("Sicherheitsprogramm").And.Contain("Auswerfen");
+        foreach (var exit in Enum.GetValues<VhdxJobExit>().Where(e => e != VhdxJobExit.Success))
+        {
+            var text = ContainerCreationService.DescribeFailure((int)exit, 'X', fileLeft: false);
+            text.Should().Contain($"Fehler {(int)exit}").And.NotContain("Sicherheitsprogramm");
+            text.Should().NotContainAny("diskpart", "PowerShell");
+        }
+    }
+
     [Fact]
     public void BitLocker_wizard_is_the_windows_one_for_the_new_drive()
     {

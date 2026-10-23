@@ -20,6 +20,8 @@
     <ChangelogFile>$(MSBuildThisFileDirectory)..\..\CHANGELOG.md</ChangelogFile>
     <Version Condition="Exists('$(ChangelogFile)')">$([System.Text.RegularExpressions.Regex]::Match($([System.IO.File]::ReadAllText('$(ChangelogFile)')), '(?m)(?&lt;=^## \[)\d+\.\d+\.\d+(?=\])').Value)</Version>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <!-- Eigener Einsprung (0.4.26, ADR-0061 Nachtrag): erkennt den erhöhten Container-Schritt vor dem Start der App -->
+    <StartupObject>Lumora.Program</StartupObject>
   </PropertyGroup>
 
   <ItemGroup>

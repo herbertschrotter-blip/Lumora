@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Lumora.Services.HiddenLibraries.Containers;
 
 /// <summary>Freier Platz und Dateisystem eines lokalen Laufwerks.</summary>
@@ -38,7 +40,8 @@ public sealed class LocalDriveSpaceSource : IDriveSpaceSource
 public sealed record VhdxSuggestion(string FilePath, int SizeGigabytes, char? DriveLetter, string VolumeLabel);
 
 /// <summary>
-/// „Neuen verschlüsselten Container erstellen“ (ADR-0061): BitLocker-VHDX über ein erhöhtes diskpart-Skript plus den
+/// „Neuen verschlüsselten Container erstellen“ (ADR-0061): BitLocker-VHDX über einen erhöhten Lumora-Lauf mit lesbarem
+/// Auftrag (Windows-Funktionen für virtuelle Festplatten und Storage-Verwaltung, Nachtrag 0.4.26) plus den
 /// Windows-BitLocker-Assistenten, oder VeraCrypt (Installation über winget nach Bestätigung, Assistent
 /// <c>VeraCrypt Format.exe</c>, Einhängen wie „Container öffnen…“). Lumora sieht nie ein Container-Kennwort und
 /// protokolliert nichts davon (schon „Container angelegt“ wäre im normalen Protokoll eine Spur, ADR-0049).
@@ -66,7 +69,10 @@ public interface IContainerCreation
     /// <summary>Hinweis (kein Fehler), wenn der Container auf dem Systemlaufwerk liegen soll; sonst null.</summary>
     string? SystemDriveHint(string? path);
 
-    /// <summary>Erhöht ausführen (eine Windows-Rückfrage), das Skript existiert nur im erhöhten Lauf. Abgelehnt → nichts bleibt.</summary>
+    /// <summary>
+    /// Startet <c>Lumora.exe --container-create-vhdx …</c> erhöht (eine Windows-Rückfrage, Auftrag lesbar in der
+    /// Befehlszeile). Abgelehnt → nichts bleibt.
+    /// </summary>
     Task<ContainerCommandResult> CreateVhdxAsync(VhdxPlan plan, CancellationToken ct = default);
 
     /// <summary>Öffnet den Windows-eigenen BitLocker-Assistenten („BitLocker aktivieren“) für das Laufwerk.</summary>
@@ -92,7 +98,8 @@ public interface IContainerCreation
 /// <inheritdoc cref="IContainerCreation" />
 public sealed class ContainerCreationService : IContainerCreation
 {
-    private static readonly TimeSpan DiskpartTimeout = TimeSpan.FromMinutes(5);
+    /// <summary>Höchstens so lange auf den erhöhten Lauf warten (wie vor 0.4.26).</summary>
+    private static readonly TimeSpan ElevatedTimeout = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan DriveCacheTime = TimeSpan.FromSeconds(10);
     private const long Gigabyte = 1024L * 1024 * 1024;
 
@@ -107,6 +114,7 @@ public sealed class ContainerCreationService : IContainerCreation
     private readonly string _systemRoot;
     private readonly Func<IReadOnlyList<string>> _cloudFolders;
     private readonly Func<TimeSpan, CancellationToken, Task> _delay;
+    private readonly Func<string?> _selfExecutable;
     private IReadOnlyList<DriveSpace>? _driveCache;
     private long _driveCacheTicks;
 
@@ -121,7 +129,8 @@ public sealed class ContainerCreationService : IContainerCreation
         IVeraCryptInstaller installer,
         string? systemRoot = null,
         Func<IReadOnlyList<string>>? cloudFolders = null,
-        Func<TimeSpan, CancellationToken, Task>? delay = null)
+        Func<TimeSpan, CancellationToken, Task>? delay = null,
+        Func<string?>? selfExecutable = null)
     {
         _containers = containers;
         _veraCrypt = veraCrypt;
@@ -134,6 +143,7 @@ public sealed class ContainerCreationService : IContainerCreation
         _systemRoot = systemRoot ?? Path.GetPathRoot(Environment.SystemDirectory) ?? @"C:\";
         _cloudFolders = cloudFolders ?? HiddenLibraryFolderRules.OneDriveFolders;
         _delay = delay ?? Task.Delay;
+        _selfExecutable = selfExecutable ?? (() => Environment.ProcessPath);
     }
 
     public string? BitLockerUnavailableReason => _bitLocker.UnavailableReason;
@@ -151,22 +161,22 @@ public sealed class ContainerCreationService : IContainerCreation
         var best = drives.Where(d => !IsSystemDrive(d.Root)).OrderByDescending(d => d.FreeBytes).FirstOrDefault()
                    ?? drives.OrderByDescending(d => d.FreeBytes).FirstOrDefault()
                    ?? new DriveSpace(_systemRoot, 0);
-        var folder = Path.Combine(best.Root, VhdxScript.DefaultFolderName);
-        var path = Path.Combine(folder, VhdxScript.DefaultFileName + VhdxScript.Extension);
+        var folder = Path.Combine(best.Root, VhdxRules.DefaultFolderName);
+        var path = Path.Combine(folder, VhdxRules.DefaultFileName + VhdxRules.Extension);
         for (var n = 2; File.Exists(path) && n < 100; n++)
         {
-            path = Path.Combine(folder, $"{VhdxScript.DefaultFileName}-{n}{VhdxScript.Extension}");
+            path = Path.Combine(folder, $"{VhdxRules.DefaultFileName}-{n}{VhdxRules.Extension}");
         }
 
         var free = GetFreeDriveLetters();
-        return new VhdxSuggestion(path, VhdxScript.SuggestSizeGigabytes(best.FreeBytes), free.Count > 0 ? free[^1] : null, VhdxScript.DefaultLabel);
+        return new VhdxSuggestion(path, VhdxRules.SuggestSizeGigabytes(best.FreeBytes), free.Count > 0 ? free[^1] : null, VhdxRules.DefaultLabel);
     }
 
     public long? GetFreeBytes(string path) => DriveOf(path)?.FreeBytes;
 
     public string? ValidateVhdx(VhdxPlan plan)
     {
-        if (VhdxScript.ValidatePath(plan.FilePath, _cloudFolders()) is { } pathProblem)
+        if (VhdxRules.ValidatePath(plan.FilePath, _cloudFolders()) is { } pathProblem)
         {
             return pathProblem;
         }
@@ -181,9 +191,9 @@ public sealed class ContainerCreationService : IContainerCreation
             return $"Die Containerdatei muss auf einem NTFS-Laufwerk liegen (dieses ist {drive.FileSystem}). Bitte ein anderes Laufwerk wählen.";
         }
 
-        if (plan.SizeGigabytes < VhdxScript.MinSizeGigabytes || plan.SizeGigabytes > VhdxScript.MaxSizeGigabytes)
+        if (plan.SizeGigabytes < VhdxRules.MinSizeGigabytes || plan.SizeGigabytes > VhdxRules.MaxSizeGigabytes)
         {
-            return $"Die Größe muss zwischen {VhdxScript.MinSizeGigabytes} und {VhdxScript.MaxSizeGigabytes} GB liegen.";
+            return $"Die Größe muss zwischen {VhdxRules.MinSizeGigabytes} und {VhdxRules.MaxSizeGigabytes} GB liegen.";
         }
 
         if ((long)plan.SizeGigabytes * Gigabyte > drive.FreeBytes)
@@ -191,7 +201,7 @@ public sealed class ContainerCreationService : IContainerCreation
             return $"Auf diesem Laufwerk sind nur {drive.FreeBytes / Gigabyte} GB frei. Bitte eine kleinere Größe oder ein anderes Laufwerk wählen.";
         }
 
-        if (VhdxScript.ValidateLabel(plan.VolumeLabel) is { } labelProblem)
+        if (VhdxRules.ValidateLabel(plan.VolumeLabel) is { } labelProblem)
         {
             return labelProblem;
         }
@@ -228,6 +238,14 @@ public sealed class ContainerCreationService : IContainerCreation
             return new ContainerCommandResult(false, problem);
         }
 
+        // Der erhöhte Schritt ist Lumora selbst (ADR-0061, Nachtrag 0.4.26) — nie ein anderes Programm. Unter einem fremden
+        // Host (dotnet.exe, Testläufer) gibt es keinen eigenen Einsprung.
+        var self = _selfExecutable();
+        if (!IsOwnExecutable(self))
+        {
+            return new ContainerCommandResult(false, "Der Container lässt sich nur aus der Lumora-App (Lumora.exe) heraus anlegen.");
+        }
+
         var file = Path.GetFullPath(plan.FilePath.Trim());
         var letter = char.ToUpperInvariant(plan.DriveLetter);
         var folder = Path.GetDirectoryName(file)!;
@@ -245,18 +263,26 @@ public sealed class ContainerCreationService : IContainerCreation
             return new ContainerCommandResult(false, $"Der Ordner für die Containerdatei kann nicht angelegt werden: {ex.Message}");
         }
 
-        // Das diskpart-Skript entsteht erst im erhöhten Lauf (VhdxScript.BuildElevatedPowerShell) — keine Datei im
-        // Benutzerordner, die ein anderer Prozess zwischen Schreiben und UAC-Rückfrage austauschen könnte.
+        // Lesbarer Auftrag in der Befehlszeile, keine Datei als Übergabe: zwischen Windows-Rückfrage und Lauf kann nichts
+        // ausgetauscht werden; der erhöhte Lauf prüft alles noch einmal (VhdxElevatedJob.Validate).
         var run = await _elevated.RunElevatedAsync(
-            BitLockerPlatform.PowerShellPath,
-            VhdxScript.ElevatedArguments(plan with { FilePath = file, DriveLetter = letter }),
-            DiskpartTimeout,
+            self!,
+            VhdxElevatedCommand.BuildArguments(plan with { FilePath = file, DriveLetter = letter }),
+            ElevatedTimeout,
             ct).ConfigureAwait(false);
         _driveCache = null;
         if (run.Declined)
         {
             RemoveFolderIfCreated(folder, createdFolder);
             return new ContainerCommandResult(false, "Abgebrochen: Die Windows-Rückfrage (Administratorrechte) wurde abgelehnt. Es wurde nichts angelegt.");
+        }
+
+        if (run.StartFailed)
+        {
+            RemoveFolderIfCreated(folder, createdFolder);
+            return new ContainerCommandResult(false,
+                "Windows konnte Lumora nicht mit Administratorrechten starten — vermutlich hat ein Sicherheitsprogramm Lumora.exe "
+                + "gesperrt. Es wurde nichts angelegt. " + Alternatives);
         }
 
         if (run.TimedOut)
@@ -269,20 +295,60 @@ public sealed class ContainerCreationService : IContainerCreation
 
         if (run.ExitCode == 0 && await WaitForDriveAsync(letter, ct).ConfigureAwait(false))
         {
-            return new ContainerCommandResult(true, $"Der Container ist angelegt und als {letter}: eingehängt.");
+            return new ContainerCommandResult(true, VhdxElevatedCommand.Describe(VhdxJobExit.Success, letter));
         }
 
-        if (!File.Exists(file))
+        // Bei einer abgelehnten Prüfung hat der erhöhte Lauf nichts angelegt — eine Datei dort gehört nicht ihm
+        var fileLeft = File.Exists(file) && !VhdxElevatedCommand.IsRefusedBeforeCreate(run.ExitCode);
+        if (!fileLeft)
         {
             RemoveFolderIfCreated(folder, createdFolder);
-            return new ContainerCommandResult(false, $"Windows konnte den Container nicht anlegen (diskpart meldet {run.ExitCode}). Es wurde nichts angelegt.");
         }
 
-        return new ContainerCommandResult(false, run.ExitCode == 0
-            ? $"Der Container wurde angelegt, aber Laufwerk {letter}: ist nicht erschienen. Bitte im Explorer nachsehen; sonst die Containerdatei per Rechtsklick „Auswerfen“ und löschen."
-            : $"Windows konnte den Container nicht fertig einrichten (diskpart meldet {run.ExitCode}), und die angelegte Containerdatei ließ sich nicht entfernen. "
-              + "Bitte die Datei im Explorer per Rechtsklick „Auswerfen“ (falls eingehängt) und dann löschen.");
+        return new ContainerCommandResult(false, DescribeFailure(run.ExitCode, letter, fileLeft));
     }
+
+    /// <summary>Hinweis, wenn die angelegte Datei liegen blieb (ohne Pfad — der steht im Assistenten).</summary>
+    private const string EjectAndDelete = "Die angelegte Containerdatei ließ sich nicht entfernen — bitte im Explorer per Rechtsklick „Auswerfen“ (falls eingehängt) und dann löschen.";
+
+    /// <summary>
+    /// Exit-Code des erhöhten Laufs → Meldung. Ein Code, der nicht von Lumora stammt (oder 0 ohne Laufwerk und ohne Datei),
+    /// heißt: der Lauf wurde von außen beendet bzw. nicht gestartet — meist durch ein Sicherheitsprogramm.
+    /// </summary>
+    public static string DescribeFailure(int exitCode, char letter, bool fileLeft)
+    {
+        if (exitCode == 0)
+        {
+            return fileLeft
+                ? $"Der Container wurde angelegt, aber Laufwerk {letter}: ist nicht erschienen. Bitte im Explorer nachsehen; sonst die Containerdatei per Rechtsklick „Auswerfen“ und löschen."
+                : BlockedMessage(fileLeft);
+        }
+
+        if (!VhdxElevatedCommand.IsOwnExitCode(exitCode))
+        {
+            return BlockedMessage(fileLeft);
+        }
+
+        var text = VhdxElevatedCommand.Describe((VhdxJobExit)exitCode, letter);
+        return string.Create(CultureInfo.InvariantCulture, $"{text} (Fehler {exitCode}) ") + (fileLeft ? EjectAndDelete : "Es wurde nichts angelegt.");
+    }
+
+    private const string Alternatives =
+        "Alternativ „Neu mit VeraCrypt“ wählen — oder den Container selbst anlegen und „Container ist schon eingehängt“ nehmen.";
+
+    private static string BlockedMessage(bool fileLeft)
+        => "Ein Sicherheitsprogramm hat den Schritt vermutlich blockiert: Lumora wurde mit Administratorrechten gestartet, hat "
+           + "aber nicht zurückgemeldet. "
+           + (fileLeft ? EjectAndDelete + " " : "Es wurde nichts angelegt. ")
+           + Alternatives;
+
+    /// <summary>Eine eigene Programmdatei (.exe), nicht der .NET-Host — nur sie kennt das Verb <c>--container-create-vhdx</c>.</summary>
+    public static bool IsOwnExecutable(string? path)
+        => !string.IsNullOrWhiteSpace(path)
+           && Path.IsPathFullyQualified(path)
+           && string.Equals(Path.GetExtension(path), ".exe", StringComparison.OrdinalIgnoreCase)
+           && !string.Equals(Path.GetFileName(path), "dotnet.exe", StringComparison.OrdinalIgnoreCase)
+           && !Path.GetFileName(path).StartsWith("testhost", StringComparison.OrdinalIgnoreCase);
 
     public ContainerCommandResult OpenBitLockerWizard(char driveLetter)
     {
@@ -350,7 +416,7 @@ public sealed class ContainerCreationService : IContainerCreation
             return "Bitte die eben erstellte Containerdatei wählen.";
         }
 
-        return VhdxScript.IsInCloudFolder(containerFile, _cloudFolders())
+        return VhdxRules.IsInCloudFolder(containerFile, _cloudFolders())
             ? "Die Containerdatei liegt in OneDrive oder einem anderen Cloud-Ordner — dort darf sie nicht bleiben. Bitte in einen "
               + "Ordner außerhalb verschieben (VeraCrypt muss dafür ausgehängt sein) und erneut wählen."
             : null;
@@ -391,7 +457,7 @@ public sealed class ContainerCreationService : IContainerCreation
         return _driveCache;
     }
 
-    /// <summary>Das neue Laufwerk erscheint gleich nach diskpart; kurz nachsehen (höchstens ≈ 10 s).</summary>
+    /// <summary>Das neue Laufwerk erscheint gleich nach dem erhöhten Lauf; kurz nachsehen (höchstens ≈ 10 s).</summary>
     private async Task<bool> WaitForDriveAsync(char letter, CancellationToken ct)
     {
         for (var attempt = 0; attempt < 40; attempt++)

@@ -1,7 +1,8 @@
 # ADR-0061: Container-Assistent für versteckte Bibliotheken — BitLocker-VHDX oder VeraCrypt, Kennwörter nur in Windows/VeraCrypt
 
-- **Status:** Accepted
-- **Datum:** 2026-10-22
+- **Status:** Accepted (Nachtrag 0.4.26: die VHDX legt Lumora selbst über Windows-Schnittstellen an — kein PowerShell,
+  kein Skript mehr; ersetzt den VHDX-Teil von Punkt 2, 4 und 5 sowie die Begründung „Skript erst im erhöhten Lauf“)
+- **Datum:** 2026-10-22 (Nachtrag 2026-10-23)
 - **Entscheider:** Herbert Schrotter (Wahl beim Anlegen, BitLocker und VeraCrypt, verstecktes Volume als Standard,
   Installation über winget nach Bestätigung), Claude (Umsetzung und Detailentscheidungen ohne Rückfrage, siehe unten)
 - **Bezogen auf:** [ADR-0049](0049-versteckte-bibliotheken.md) (versteckte Bibliotheken, Spurenfreiheit,
@@ -126,3 +127,98 @@ mit Fakes.
   `tests/Lumora.Wpf.Tests/HiddenLibraries/ContainerAssistantTests.cs`
 - Microsoft-Dokumentation diskpart (`create vdisk`, `attach vdisk`, `convert gpt`, `format`, `assign`); winget
   „install“ und Rückgabewerte; VeraCrypt-Dokumentation „Hidden Volume“ und „Command Line Usage“
+
+## Nachtrag 0.4.26 — VHDX über Windows-Schnittstellen statt PowerShell/diskpart
+
+### Anlass
+
+Beim ersten echten Durchlauf (Herbert, 23.10.2026 03:07) startete „Container erstellen“ per `runas` ein
+`powershell.exe -EncodedCommand …`, das ein diskpart-Skript nach `%SystemRoot%\Temp` schrieb und `diskpart /s` aufrief.
+Kaspersky (Verhaltensanalyse) sperrte daraufhin die UAC-Erhöhung („PDM:Exploit.Win32.Generic“), beendete Lumora als
+„PDM:Trojan.Win32.Generic“ und stellte Lumora.exe unter Quarantäne. Das Muster „unbekanntes Programm +
+Administratorrechte + PowerShell mit Base64-Befehl + diskpart“ ist typisch für Erpresser-Software. Herberts Entscheidung:
+**Windows-Schnittstellen** — Lumora legt die VHDX selbst über offizielle Windows-Funktionen an, in einem eigenen
+Administrator-Schritt mit lesbarem Auftrag; kein PowerShell, kein diskpart, nichts kodiert, keine Skriptdateien.
+
+### Entscheidung
+
+1. **Der erhöhte Schritt ist Lumora selbst** mit einem klaren Verb:
+   `Lumora.exe --container-create-vhdx --path "D:\Daten\sicherung.vhdx" --size-mb 51200 --letter X --label "Daten"`
+   per `runas` (`IElevatedRunner`, Ziel `Environment.ProcessPath`; ist das keine eigene `.exe` — z. B. `dotnet.exe` oder
+   ein Testläufer —, lehnt der Dienst ab; eine umbenannte Lumora.exe funktioniert). Windows zeigt Programm und Auftrag lesbar in der Rückfrage. Keine Datei als Übergabe — zwischen
+   Rückfrage und Lauf kann nichts ausgetauscht werden. Befehlszeile: `VhdxElevatedCommand.BuildArguments`/`TryParse`.
+2. **Eigener Einsprung** `src/Lumora.Wpf/Program.cs` (`<StartupObject>Lumora.Program</StartupObject>`): erkennt das
+   Verb vor allem anderen — vor Datenordner-Umzug, Logger, Katalog, Hintergrunddiensten, Oberfläche und `_hidden` — und
+   führt nur `VhdxElevatedJob` aus. Kein Fenster, kein Protokoll, Ergebnis nur als **Exit-Code**. Ohne das Verb startet
+   die App wie bisher (`new App(); InitializeComponent(); Run()`; der Exit-Code der App bleibt erhalten).
+3. **Strenge Prüfung im erhöhten Lauf** (`VhdxElevatedJob.Validate`; die Befehlszeile könnte jeder Prozess des Benutzers
+   zusammensetzen): genau Verb + vier Optionen, je einmal; Größe nur Ziffern im Bereich 1 GB–64 TB; Buchstabe D–Z und
+   frei; Bezeichnung wie in der Oberfläche (A–Z, Ziffern, Leerzeichen, `- _ .`, ohne Rand-Leerzeichen); Pfad nur
+   `X:\Ordner\Datei.vhdx` — voller lokaler Pfad, nur Rückstriche, keine leeren/`.`/`..`-Teile, keine Teile mit Punkt oder
+   Leerzeichen am Rand, kein `:` nach dem Laufwerk (Datenströme), kein UNC-/Geräte-Pfad (`\\server`, `\\?\`, `\\.\`),
+   `GetFullPath` darf nichts umschreiben; Datei existiert noch nicht; Ordner existiert (legt die Oberfläche an); **keine
+   Verknüpfung (Junction/Symlink) im Pfad**; kein Cloud-Ordner (Ordnernamen + OneDrive-Umgebung); Laufwerk lokal, fest,
+   NTFS/ReFS. Ohne Administratorrechte: eigener Code, nichts versucht.
+4. **Windows-Funktionen** hinter `IVirtualDiskApi` (Tests: Fake), echt in `WindowsVirtualDiskApi`:
+   `CreateVirtualDisk` (VHDX, Version 2, dynamisch), `OpenVirtualDisk` + `AttachVirtualDisk` mit
+   `ATTACH_VIRTUAL_DISK_FLAG_PERMANENT_LIFETIME` (bleibt eingehängt bis Auswerfen/Neustart — wie vorher),
+   `GetVirtualDiskPhysicalPath` → Datenträgernummer (P/Invoke in `VirtualDiskNative`); dann die **Storage-Verwaltung**
+   (WMI `root\Microsoft\Windows\Storage`, dieselben Klassen wie `Initialize-Disk`/`New-Partition`/`Format-Volume`):
+   `MSFT_Disk` ggf. `Online`, `Initialize` (GPT), `CreatePartition` (größte Größe, **ohne** Buchstaben),
+   `MSFT_Volume.Format` (NTFS, Bezeichnung, schnell), zuletzt `MSFT_Partition.AddAccessPath("X:\")` — der Buchstabe erst
+   nach dem Formatieren, sonst fragt der Explorer „Datenträger formatieren?“. Datenträger und Volume meldet Windows mit
+   kurzer Verzögerung → bis 20 s nachfragen; WMI-Aufrufe je 2 Minuten Zeitgrenze. Einhängen, Datenträgernummer und
+   Abhängen laufen über **denselben** virtdisk-Handle (die eingehängte VHDX wird nicht ein zweites Mal geöffnet). Meldet `AttachVirtualDisk` „Recht
+   fehlt“ (1314), schaltet Lumora `SeManageVolumePrivilege` im eigenen erhöhten Prozess ein und versucht es einmal neu.
+5. **Aufräumen:** Scheitert ein Schritt, hängt der Lauf die VHDX ab und löscht sie — nur, was er selbst angelegt hat (die
+   Datei gab es vorher nicht; auch ein Rest eines gescheiterten `CreateVirtualDisk` wird gelöscht, außer Windows meldet
+   „Datei existiert“ 80/183). Ist inzwischen ein Ordner im Pfad eine Verknüpfung geworden, löscht er nicht (das Löschen
+   könnte sonst woanders landen). Bleibt die Datei liegen, sieht das die Oberfläche und rät zu „Auswerfen und löschen“; bei
+   einer abgelehnten Prüfung (7101–7108) hat der Lauf nichts angelegt — dann behauptet Lumora das auch nicht. Zeitgrenze für den ganzen Schritt wie bisher 5 Minuten; danach „läuft eventuell noch“, nichts weggeräumt.
+6. **Exit-Codes** `VhdxJobExit` im Bereich **7101–7120** (je Prüfung und je Schritt), in verständliche Meldungen
+   übersetzt (`ContainerCreationService.DescribeFailure`, mit „Fehler 71xx“). Startet Windows den Lauf gar nicht
+   (`ElevatedRunResult.StartFailed`, z. B. Lumora.exe gesperrt/in Quarantäne): „Windows konnte Lumora nicht mit
+   Administratorrechten starten …“. Endet er mit einem fremden Code oder meldet 0 ohne Laufwerk und ohne Datei, sagt Lumora:
+   **„Ein Sicherheitsprogramm hat den Schritt vermutlich blockiert …“** mit den Auswegen „Neu mit VeraCrypt“ bzw.
+   Container selbst anlegen und „Container ist schon eingehängt“. UAC abgelehnt (1223) wie bisher.
+7. **Entfernt:** `VhdxScript` (diskpart-Skript, Aufräum-Skript, PowerShell-Befehl, Base64-Übergabe, Quoting) samt
+   Tests. Die Regeln (Pfad, Bezeichnung, Größenvorschlag, `VhdxPlan`) heißen jetzt `VhdxRules`. Der **ASCII-Zwang für den
+   Pfad entfällt** (er kam nur von diskpart); Anführungs- und Steuerzeichen bleiben verboten, und die Oberfläche verlangt
+   dieselbe strenge Pfadform wie der erhöhte Lauf (`VhdxElevatedJob.IsStrictLocalPath`) — abgelehnt wird vor der Rückfrage. Unverändert:
+   BitLocker-Assistent `BitLockerWizardElev.exe X:\ T`, die Statusprüfung über `System.Volume.BitLockerProtection` (eine
+   PowerShell **ohne** Administratorrechte, Klartext-Befehl), VeraCrypt-Weg, Oberfläche (nur Texte).
+8. **Paket:** `System.Management` (Microsoft, schon zentral in `Directory.Packages.props` für die Speicher-Messung, 9.0.0)
+   jetzt auch in `Lumora.Services` — statt `Microsoft.Management.Infrastructure`, weil es ohne zusätzliche native
+   Laufzeitteile auskommt, im Repo schon eingeführt ist und für die wenigen Methodenaufrufe genügt.
+
+### Begründung
+
+- **Lesbar statt verschleiert:** Was Lumora mit Administratorrechten tut, steht im Klartext in der Windows-Rückfrage;
+  ein Virenschutz sieht ein Programm, das sich selbst mit einem eigenen Schalter startet und Windows-APIs aufruft — keinen
+  Skript-Interpreter, keine kodierte Befehlszeile, keine Skriptdatei, kein diskpart.
+- **virtdisk + Storage-WMI statt eigener IOCTLs:** offizielle, dokumentierte Schnittstellen; die Storage-Verwaltung nimmt
+  Lumora Partitionstabelle, Ausrichtung und Formatieren ab (keine eigene Low-Level-Logik).
+- **Prüfen im erhöhten Lauf:** Die Oberfläche prüft für die Bedienung, der erhöhte Lauf noch einmal für die Sicherheit —
+  er vertraut der Befehlszeile nicht.
+- **Exit-Codes statt Ausgabe:** Bei `runas` ist die Ausgabe des erhöhten Prozesses nicht lesbar; ein eigener
+  Code-Bereich unterscheidet „Lumora meldet Fehler X“ von „von außen beendet“.
+
+### Konsequenzen
+
+- Positiv: kein PowerShell-/Skriptweg mehr beim Anlegen; Umlaute im Pfad möglich; jeder Fehler hat eine eigene Meldung.
+- Negativ: `WindowsVirtualDiskApi` ist nur über Fakes und Strukturgrößen-Tests geprüft — der **echte Lauf mit Herbert
+  (Kaspersky aktiv)** steht aus (CHANGELOG 0.4.26 „Offen“). Ein unsigniertes Programm, das sich selbst erhöht, kann einem
+  Virenschutz trotzdem auffallen; dafür gibt es die Meldung mit den Auswegen. Nur 64-Bit-Prozesse (Strukturen nach
+  `virtdisk.h` für x64).
+- Neutral: `IElevatedRunner`/`ElevatedProcessRunner` bleiben; Tests prüfen zusätzlich den Quelltext (kein
+  `EncodedCommand`, kein diskpart, `runas` nur in `ContainerProcesses.cs`, PowerShell im Container-Ordner nur in der
+  Statusabfrage).
+
+### Referenzen (Nachtrag)
+
+- Code: `src/Lumora.Wpf/Program.cs`, `src/Lumora.Services/HiddenLibraries/Containers/VhdxElevatedCommand.cs`,
+  `VhdxElevatedJob.cs`, `IVirtualDiskApi.cs`, `WindowsVirtualDiskApi.cs`, `VirtualDiskNative.cs`, `VhdxRules.cs`
+- Tests: `tests/Lumora.Tests/HiddenLibraries/VhdxElevatedJobTests.cs`, `ContainerCreationTests.cs`,
+  `tests/Lumora.Wpf.Tests/Shell/ProgramEntryTests.cs`, `HiddenLibraries/ContainerAssistantTests.cs`
+- Microsoft-Dokumentation: Virtual Disk API (`CreateVirtualDisk`, `OpenVirtualDisk`, `AttachVirtualDisk`,
+  `GetVirtualDiskPhysicalPath`), Windows Storage Management API (`MSFT_Disk`, `MSFT_Partition`, `MSFT_Volume`)

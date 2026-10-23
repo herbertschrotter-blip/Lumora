@@ -22,6 +22,14 @@
     <PackageReference Include="Microsoft.Data.Sqlite" />
     <PackageReference Include="SharpCompress" />
     <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" />
+    <!-- Container-Assistent (ADR-0061, Nachtrag 0.4.26): Storage-Verwaltung von Windows (WMI root\Microsoft\Windows\Storage)
+         für Initialisieren/Partition/Formatieren der neuen VHDX im erhöhten Lumora-Lauf -->
+    <PackageReference Include="System.Management" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Strukturgrößen der virtdisk-P/Invokes prüfen (VirtualDiskNative, ADR-0061 Nachtrag 0.4.26) -->
+    <InternalsVisibleTo Include="Lumora.Tests" />
   </ItemGroup>
 
   <ItemGroup>

@@ -3,6 +3,50 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.4.26] — 2026-10-23
+
+### Fix (ADR-0061, Nachtrag) — BitLocker-Container ohne PowerShell und diskpart: Lumora legt die VHDX selbst über Windows-Funktionen an
+- **Anlass:** Beim ersten echten Durchlauf startete „Container erstellen“ per `runas` ein `powershell.exe -EncodedCommand …`,
+  das ein diskpart-Skript nach `%SystemRoot%\Temp` schrieb und `diskpart /s` aufrief. Kaspersky (Verhaltensanalyse) sperrte
+  die UAC-Erhöhung, beendete Lumora als „PDM:Trojan.Win32.Generic“ und stellte Lumora.exe unter Quarantäne — das Muster
+  „Admin + PowerShell mit Base64 + diskpart“ ist typisch für Erpresser-Software.
+- **Neu:** Der erhöhte Schritt ist **Lumora selbst** mit lesbarem Auftrag
+  `Lumora.exe --container-create-vhdx --path "<Datei>" --size-mb <n> --letter <X> --label "<Text>"` (so auch in der
+  UAC-Rückfrage unter „Details“). Eigener Einsprung `Program.Main` (`StartupObject`) erkennt das Verb **vor allem anderen** —
+  kein Fenster, kein Katalog, kein Datenordner-Umzug, keine Hintergrunddienste, kein Protokoll, kein `_hidden`-Zwang;
+  Ergebnis nur als Exit-Code.
+- **Im erhöhten Lauf** (`VhdxElevatedJob`): strenge Prüfung der Befehlszeile (genau vier Optionen, je einmal), des Pfads
+  (voller lokaler Pfad, nur `X:\…\Datei.vhdx`, keine `..`/`.`/leeren Teile, kein UNC/`\\?\`/`\\.\`, kein `:`-Datenstrom,
+  keine Punkte/Leerzeichen am Rand, keine Verknüpfung im Pfad, kein Cloud-Ordner, NTFS/ReFS, Datei neu), der Größe
+  (1 GB–64 TB), des Buchstabens (D–Z, frei) und der Bezeichnung. Dann `CreateVirtualDisk` (VHDX, dynamisch),
+  `AttachVirtualDisk` (dauerhaft wie bisher), `GetVirtualDiskPhysicalPath` über **virtdisk.dll** und die
+  **Storage-Verwaltung** (WMI `MSFT_Disk.Initialize` GPT, `CreatePartition` über den ganzen Platz, `MSFT_Volume.Format`
+  NTFS, Buchstabe erst danach per `AddAccessPath`). Jeder Fehler räumt auf (abhängen + löschen, nur was der Lauf selbst
+  angelegt hat; nicht durch eine inzwischen entstandene Verknüpfung hindurch).
+- **Meldungen:** Exit-Codes 7101–7120 je Prüfung/Schritt in verständlichen Texten („… nicht formatieren (NTFS). (Fehler
+  7116) …“). Fremder Code, Lauf nicht gestartet oder 0 ohne Laufwerk und Datei → **„Ein Sicherheitsprogramm hat den Schritt
+  vermutlich blockiert …“** mit den Auswegen „Neu mit VeraCrypt“ bzw. Container selbst anlegen und „Container ist schon
+  eingehängt“. UAC abgelehnt, Zeitüberschreitung (5 min) wie bisher.
+- **Entfernt:** `VhdxScript` (diskpart-Skript, PowerShell-Befehl, Base64) samt Tests; Regeln heißen jetzt `VhdxRules`.
+  Pfade dürfen jetzt Umlaute enthalten (der ASCII-Zwang kam nur von diskpart). Unverändert: BitLocker-Assistent
+  `BitLockerWizardElev.exe X:\ T`, Statusprüfung (PowerShell **ohne** Adminrechte, Klartext), VeraCrypt-Weg, Oberfläche
+  (nur der Hinweistext „Was jetzt passiert“).
+- **Paket:** `System.Management` (Microsoft, war schon zentral für die Speicher-Messung) jetzt auch in `Lumora.Services`.
+- **Tests:** Services 1198 → 1251 (2 übersprungen wie vorher), Wpf 1080 → 1087 (7 übersprungen wie vorher; Suite dreimal grün) — u. a.
+  Befehlszeile lesbar und über `CommandLineToArgvW` verlustfrei, Ablehnung kaputter Befehlszeilen und Pfad-Tricks, Ablauf
+  mit Fake je Schritt inkl. Aufräumen, Exit-Code → Meldung, P/Invoke-Strukturgrößen nach `virtdisk.h`, Quelltext ohne
+  `EncodedCommand`/diskpart und `runas` nur in `ContainerProcesses.cs`, Einsprung erkennt das Verb ohne App-Start.
+  Kein echter VHDX-/Admin-Lauf in Tests oder Rauchtest. Rauchtest (startet Lumora jetzt über `Program.Main`): 46 Schritte
+  OK, 0 Binding-Fehler, kein ERR/FTL; im ersten Lauf 1× der bekannte Wackler „Story-Seite: Story unter Angeheftet“.
+
+### Offen
+- **Echter Test mit Herbert (Kaspersky aktiv) steht aus:** „Neu mit BitLocker“ → „Container erstellen“ einmal echt
+  durchlaufen (UAC-Rückfrage zeigt „Lumora“ + Auftrag; Laufwerk erscheint; BitLocker-Assistent; Fehlerfall prüfen). Die
+  Windows-Seite (`WindowsVirtualDiskApi`) ist bisher nur über Fakes und Strukturgrößen geprüft. Greift Kaspersky trotzdem
+  ein, ggf. Lumora.exe signieren bzw. als vertrauenswürdig eintragen.
+- Die BitLocker-Statusprüfung nutzt weiter eine (nicht erhöhte) PowerShell mit Klartext-Befehl; falls auch sie auffällt,
+  auf die Shell-Eigenschaft direkt aus C# umstellen.
+
 ## [0.4.25] — 2026-10-23
 
 ### Fix — Container-Assistent im dunklen Design lesbar

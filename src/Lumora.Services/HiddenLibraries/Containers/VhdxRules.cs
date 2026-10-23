@@ -1,6 +1,3 @@
-using System.Globalization;
-using System.Text;
-
 namespace Lumora.Services.HiddenLibraries.Containers;
 
 /// <summary>Was „Neuen BitLocker-Container erstellen“ anlegen soll (ADR-0061).</summary>
@@ -11,11 +8,11 @@ namespace Lumora.Services.HiddenLibraries.Containers;
 public sealed record VhdxPlan(string FilePath, int SizeGigabytes, char DriveLetter, string VolumeLabel);
 
 /// <summary>
-/// Prüft einen <see cref="VhdxPlan"/> und erzeugt das diskpart-Skript dafür: VHDX anlegen (dynamisch), anhängen, als GPT
-/// initialisieren, eine Partition, NTFS schnell formatieren, Buchstabe zuweisen. Das Skript enthält nie ein Kennwort —
-/// verschlüsselt wird danach im BitLocker-Assistenten von Windows.
+/// Regeln für eine neue BitLocker-VHDX (ADR-0061, Nachtrag 0.4.26): Speicherort, Bezeichnung, Größenvorschlag. Gelten in
+/// der Oberfläche und noch einmal streng im erhöhten Lauf (<see cref="VhdxElevatedJob"/>). Nichts davon enthält ein
+/// Kennwort — verschlüsselt wird danach im BitLocker-Assistenten von Windows.
 /// </summary>
-public static class VhdxScript
+public static class VhdxRules
 {
     public const int MinSizeGigabytes = 1;
 
@@ -77,11 +74,18 @@ public static class VhdxScript
             return "Die Containerdatei muss auf „.vhdx“ enden.";
         }
 
-        // diskpart liest das Skript nicht zuverlässig mit Umlauten — der Pfad bleibt deshalb bei ASCII
-        if (full.Any(c => c > 126 || c < 32 || c == '"'))
+        // Der Pfad geht als lesbares Argument an den erhöhten Lumora-Lauf — Anführungszeichen und Steuerzeichen haben dort
+        // nichts zu suchen (Windows erlaubt sie in Dateinamen ohnehin nicht).
+        if (full.Any(c => c == '"' || char.IsControl(c)))
         {
-            return "Bitte im Pfad der Containerdatei nur Buchstaben ohne Umlaute, Ziffern und einfache Zeichen verwenden "
-                   + "(Windows-Werkzeug diskpart).";
+            return "Der Pfad der Containerdatei enthält unzulässige Zeichen.";
+        }
+
+        // Dieselbe strenge Form, die der erhöhte Lauf verlangt — hier abgelehnt statt erst nach der Windows-Rückfrage
+        if (!VhdxElevatedJob.IsStrictLocalPath(full))
+        {
+            return "Ordner- und Dateinamen im Pfad dürfen nicht mit einem Leerzeichen beginnen oder enden, nicht mit einem Punkt "
+                   + "enden und keinen Doppelpunkt enthalten.";
         }
 
         if (Path.GetFileNameWithoutExtension(full).Length == 0)
@@ -127,94 +131,6 @@ public static class VhdxScript
             || segment.StartsWith(marker + " - ", StringComparison.OrdinalIgnoreCase) // „OneDrive - Firma“
             || (marker.Length > 4 && segment.StartsWith(marker, StringComparison.OrdinalIgnoreCase))));
     }
-
-    /// <summary>Pfad für diskpart: in doppelte Anführungszeichen (Leerzeichen); <c>"</c> ist in Windows-Pfaden unzulässig.</summary>
-    public static string Quote(string value)
-    {
-        if (value.Contains('"', StringComparison.Ordinal))
-        {
-            throw new ArgumentException("Anführungszeichen sind hier unzulässig.", nameof(value));
-        }
-
-        return "\"" + value + "\"";
-    }
-
-    /// <summary>Das diskpart-Skript (ASCII, eine Anweisung je Zeile). Vorher <see cref="ValidatePath"/>/<see cref="ValidateLabel"/>.</summary>
-    public static string Build(VhdxPlan plan)
-    {
-        var file = Quote(Path.GetFullPath(plan.FilePath.Trim()));
-        var label = Quote(plan.VolumeLabel.Trim());
-        var letter = char.ToUpperInvariant(plan.DriveLetter);
-        if (!char.IsAsciiLetterUpper(letter))
-        {
-            throw new ArgumentException("Ungültiger Laufwerksbuchstabe.", nameof(plan));
-        }
-
-        var megabytes = (long)plan.SizeGigabytes * 1024;
-        var script = new StringBuilder();
-        script.AppendLine("rem Lumora: virtuelle Festplatte fuer BitLocker anlegen (ADR-0061)");
-        script.AppendLine(CultureInfo.InvariantCulture, $"create vdisk file={file} maximum={megabytes} type=expandable");
-        script.AppendLine(CultureInfo.InvariantCulture, $"select vdisk file={file}");
-        script.AppendLine("attach vdisk");
-        script.AppendLine("convert gpt");
-        script.AppendLine("create partition primary");
-        script.AppendLine(CultureInfo.InvariantCulture, $"format fs=ntfs label={label} quick");
-        script.AppendLine(CultureInfo.InvariantCulture, $"assign letter={letter}");
-        script.AppendLine("exit");
-        return script.ToString();
-    }
-
-    /// <summary>Aufräumen nach einem halben Lauf: die eben angelegte VHDX abhängen (danach löscht das Skript die Datei).</summary>
-    public static string BuildCleanup(string filePath)
-    {
-        var file = Quote(Path.GetFullPath(filePath.Trim()));
-        var script = new StringBuilder();
-        script.AppendLine(CultureInfo.InvariantCulture, $"select vdisk file={file}");
-        script.AppendLine("detach vdisk");
-        script.AppendLine("exit");
-        return script.ToString();
-    }
-
-    /// <summary>
-    /// Der erhöhte Lauf als PowerShell-Befehl (für <c>-EncodedCommand</c>): schreibt das diskpart-Skript erst mit
-    /// Administratorrechten nach <c>%SystemRoot%\Temp</c> (dort können normale Prozesse die Datei weder lesen noch
-    /// austauschen — anders als ein Skript im Benutzerordner zwischen Schreiben und UAC-Rückfrage), führt
-    /// <c>diskpart /s</c> aus, hängt bei einem Fehler eine schon angelegte VHDX wieder ab und löscht sie, und löscht das
-    /// Skript immer. Exit-Code = der von diskpart. Enthält kein Kennwort.
-    /// </summary>
-    public static string BuildElevatedPowerShell(VhdxPlan plan)
-    {
-        var vhdx = PowerShellLiteral(Path.GetFullPath(plan.FilePath.Trim()));
-        var nl = "\r\n";
-        return string.Join(nl,
-            "$ErrorActionPreference='Stop'",
-            "$diskpart=Join-Path $env:SystemRoot 'System32\\diskpart.exe'",
-            "$f=Join-Path (Join-Path $env:SystemRoot 'Temp') ('lumora-'+[guid]::NewGuid().ToString('N')+'.txt')",
-            "$code=1",
-            "try {",
-            "[IO.File]::WriteAllText($f,@'",
-            Build(plan) + "'@,[Text.Encoding]::ASCII)",
-            "& $diskpart /s $f | Out-Null",
-            "$code=$LASTEXITCODE",
-            $"if($code -ne 0 -and (Test-Path -LiteralPath {vhdx})){{",
-            "[IO.File]::WriteAllText($f,@'",
-            BuildCleanup(plan.FilePath) + "'@,[Text.Encoding]::ASCII)",
-            "& $diskpart /s $f | Out-Null",
-            $"Remove-Item -LiteralPath {vhdx} -Force -ErrorAction SilentlyContinue",
-            "}",
-            "} finally {",
-            "Remove-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue",
-            "}",
-            "exit $code");
-    }
-
-    /// <summary>Befehlszeile für <c>powershell.exe</c>: ohne Profil, ohne Rückfragen, Befehl Base64 (UTF-16).</summary>
-    public static string ElevatedArguments(VhdxPlan plan)
-        => "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -EncodedCommand "
-           + Convert.ToBase64String(Encoding.Unicode.GetBytes(BuildElevatedPowerShell(plan)));
-
-    /// <summary>Einfach gequoteter PowerShell-Text (<c>'</c> verdoppelt).</summary>
-    public static string PowerShellLiteral(string value) => "'" + value.Replace("'", "''", StringComparison.Ordinal) + "'";
 
     /// <summary>
     /// Größenvorschlag aus dem freien Platz: die Hälfte, ab 20 GB auf 10 GB abgerundet, höchstens 1024 GB, mindestens 1 GB

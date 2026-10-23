@@ -7,7 +7,8 @@ namespace Lumora.Services.HiddenLibraries.Containers;
 /// <summary>Ergebnis eines erhöht gestarteten Programms (ADR-0061).</summary>
 /// <param name="Declined">Die Windows-Rückfrage (UAC) wurde abgelehnt — das Programm lief gar nicht.</param>
 /// <param name="ExitCode">Exit-Code; -1, wenn das Programm nicht startete oder nicht rechtzeitig endete.</param>
-public sealed record ElevatedRunResult(bool Declined, int ExitCode, bool TimedOut);
+/// <param name="StartFailed">Windows hat das Programm nicht gestartet (nicht wegen abgelehnter Rückfrage, z. B. gesperrt).</param>
+public sealed record ElevatedRunResult(bool Declined, int ExitCode, bool TimedOut, bool StartFailed = false);
 
 /// <summary>
 /// Startet ein Programm mit Administratorrechten (<c>Verb=runas</c>, genau eine Windows-Rückfrage) und wartet auf sein
@@ -81,12 +82,12 @@ public sealed class ElevatedProcessRunner : IElevatedRunner
         }
         catch (Win32Exception)
         {
-            return new ElevatedRunResult(Declined: false, -1, TimedOut: false);
+            return new ElevatedRunResult(Declined: false, -1, TimedOut: false, StartFailed: true);
         }
 
         if (process is null)
         {
-            return new ElevatedRunResult(Declined: false, -1, TimedOut: false);
+            return new ElevatedRunResult(Declined: false, -1, TimedOut: false, StartFailed: true);
         }
 
         using (process)

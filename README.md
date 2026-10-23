@@ -931,10 +931,13 @@ selbst einhängen) und von denen Lumora im Alltag **nichts zeigt** (ADR-0049).
 - **Container-Assistent (seit 0.4.18, ADR-0061):** „Versteckte Bibliothek anlegen…“ fragt zuerst:
   - **Container ist schon eingehängt** → weiter wie unten.
   - **Neu mit BitLocker** (Windows Pro/Enterprise/Education, ohne Zusatzprogramm): Speicherort der Containerdatei
-    (Vorschlag z. B. `D:\Daten\sicherung.vhdx`, neutraler Name, nur Buchstaben ohne Umlaute, nur auf einem NTFS-Laufwerk; nie in OneDrive/Cloud —
+    (Vorschlag z. B. `D:\Daten\sicherung.vhdx`, neutraler Name, nur auf einem NTFS-Laufwerk; nie in OneDrive/Cloud —
     Lumora lehnt das ab; Systemlaufwerk geht, mit Hinweis), Größe (Vorschlag aus dem freien Platz; die Datei wächst erst
     mit dem Inhalt), freier Laufwerksbuchstabe und Bezeichnung. **Container erstellen** → Windows fragt einmal nach
-    Administratorrechten, Lumora legt die VHDX an, hängt sie ein und formatiert sie (NTFS). Dann **BitLocker-Assistent
+    Administratorrechten — für **Lumora selbst** mit dem lesbaren Auftrag `--container-create-vhdx --path "…" --size-mb …
+    --letter X --label "…"` (unter „Details anzeigen“). Lumora legt die VHDX dann über Windows-Funktionen an (seit 0.4.26
+    kein PowerShell und kein Skript mehr), hängt sie ein und formatiert sie (NTFS). Blockiert ein Virenschutz den Schritt,
+    sagt Lumora das und schlägt VeraCrypt bzw. „Container ist schon eingehängt“ vor. Dann **BitLocker-Assistent
     öffnen** (der von Windows): Kennwort wählen, Wiederherstellungsschlüssel **in Datei speichern oder drucken — nicht im
     Microsoft-Konto**, „Automatisch entsperren“ **nicht** einschalten, Verschlüsselung starten → **Verschlüsselung
     prüfen** → **Bibliothek auf X: anlegen**. Später hängt ein Doppelklick auf die `.vhdx` im Explorer sie wieder ein

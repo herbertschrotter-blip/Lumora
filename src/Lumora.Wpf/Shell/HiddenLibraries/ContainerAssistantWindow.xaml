@@ -131,7 +131,7 @@
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
                             <TextBlock Style="{StaticResource Hint}" FontWeight="SemiBold" Text="Was jetzt passiert" />
-                            <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,0" Text="• Windows fragt einmal nach Administratorrechten. Lumora legt die VHDX an (dynamisch erweiterbar), hängt sie ein und formatiert sie (NTFS)." />
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,0" Text="• Windows fragt einmal nach Administratorrechten — für „Lumora“ selbst, mit dem Auftrag „--container-create-vhdx“. Lumora legt die VHDX dann über Windows-Funktionen an (dynamisch erweiterbar), hängt sie ein und formatiert sie (NTFS)." />
                             <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0" Text="• Danach verschlüsseln Sie das neue Laufwerk im BitLocker-Assistenten von Windows." />
                             <TextBlock Style="{StaticResource Warning}" Text="• Nie in OneDrive oder einem anderen Cloud-Ordner ablegen." />
                         </StackPanel>

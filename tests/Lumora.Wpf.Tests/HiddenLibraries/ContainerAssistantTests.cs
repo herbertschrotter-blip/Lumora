@@ -16,7 +16,7 @@ namespace Lumora.Wpf.Tests.HiddenLibraries;
 /// <summary>
 /// ADR-0061: Zustandsmaschine des Container-Assistenten (Wahl → Erstellen → verschlüsselt/eingehängt → Bibliothek
 /// anlegen), Abbruch an jeder Stelle ohne Seiteneffekte, Übergabe an „Versteckte Bibliothek anlegen“ und kein Pfad,
-/// keine Bezeichnung, kein Kennwort im Protokoll. Alles mit Fakes — nie echt diskpart, BitLocker, winget oder VeraCrypt.
+/// keine Bezeichnung, kein Kennwort im Protokoll. Alles mit Fakes — nie echt eine VHDX, BitLocker, winget oder VeraCrypt.
 /// </summary>
 [Collection(UiTestCollection.Name)]
 public sealed class ContainerAssistantTests
@@ -325,7 +325,8 @@ public sealed class ContainerAssistantTests
                 new WingetVeraCryptInstaller(outputs, () => @"C:\winget.exe"),
                 systemRoot: @"Q:\",
                 cloudFolders: () => [],
-                delay: (_, _) => Task.CompletedTask);
+                delay: (_, _) => Task.CompletedTask,
+                selfExecutable: () => @"C:\Programme\Lumora\Lumora.exe");
             var vm = new ContainerAssistantViewModel(creation, new ScriptedPicker { Vhdx = Path.Combine(root, "Geheimordner", "tarnname.vhdx") });
 
             vm.IsBitLockerChoice = true;
@@ -366,7 +367,7 @@ public sealed class ContainerAssistantTests
             text.Should().NotContain("Geheimordner").And.NotContain("tarnname").And.NotContain("Tarnlabel")
                 .And.NotContain("geheim-123").And.NotContain("Tresorname").And.NotContain("Kennwort");
             sink.Events.Should().BeEmpty("der Container-Assistent protokolliert nichts (schon „angelegt“ wäre eine Spur)");
-            elevated.Script.Should().Contain("tarnname.vhdx").And.NotContain("geheim-123");
+            elevated.Arguments.Should().Contain("tarnname.vhdx").And.NotContain("geheim-123");
         }
         finally
         {
@@ -596,16 +597,19 @@ public sealed class ContainerAssistantTests
         public string? GetDeviceName(char driveLetter) => Present.Contains(char.ToUpperInvariant(driveLetter)) ? @"\Device\HarddiskVolume42" : null;
     }
 
-    /// <summary>„erhöhte PowerShell“: liest den Befehl, legt die Datei an und lässt das Laufwerk erscheinen — nichts davon echt.</summary>
+    /// <summary>„erhöhter Lumora-Lauf“: liest den lesbaren Auftrag, legt die Datei an und lässt das Laufwerk erscheinen — nichts davon echt.</summary>
     private sealed class MountingElevated(LetterDevices devices, char letter) : IElevatedRunner
     {
-        public string Script { get; private set; } = string.Empty;
+        public string Arguments { get; private set; } = string.Empty;
 
         public Task<ElevatedRunResult> RunElevatedAsync(string fileName, string argumentLine, TimeSpan timeout, CancellationToken ct)
         {
-            Script = System.Text.Encoding.Unicode.GetString(Convert.FromBase64String(argumentLine[(argumentLine.LastIndexOf(' ') + 1)..]));
-            var file = Script.Split('"')[1];
-            File.WriteAllText(file, "vhdx");
+            Arguments = argumentLine;
+            var args = System.Text.RegularExpressions.Regex.Matches(argumentLine, "\"([^\"]*)\"|(\\S+)")
+                .Select(m => m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value)
+                .ToArray();
+            VhdxElevatedCommand.TryParse(args, out var request).Should().BeTrue();
+            File.WriteAllText(request!.FilePath, "vhdx");
             devices.Present.Add(letter);
             return Task.FromResult(new ElevatedRunResult(false, 0, false));
         }

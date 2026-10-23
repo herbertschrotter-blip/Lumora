@@ -226,7 +226,7 @@ public sealed partial class ContainerAssistantViewModel : ObservableObject
     private string? _selectedLetter;
 
     [ObservableProperty]
-    private string _volumeLabel = VhdxScript.DefaultLabel;
+    private string _volumeLabel = VhdxRules.DefaultLabel;
 
     /// <summary>Freier Platz und ggf. Hinweis „Systemlaufwerk“ zum gewählten Speicherort.</summary>
     public string VhdxHint

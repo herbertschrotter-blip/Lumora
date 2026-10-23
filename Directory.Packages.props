@@ -11,7 +11,7 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0" />
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.0" />
 
-    <!-- Storage-Profile-Detection (Spike #6) -->
+    <!-- Storage-Profile-Detection (Spike #6); seit 0.4.26 auch Services: VHDX-Datenträger einrichten (ADR-0061, Nachtrag) -->
     <PackageVersion Include="System.Management" Version="9.0.0" />
 
     <!-- Transitive Security-Pins (NU1902/NU1903), greifen dank CentralPackageTransitivePinningEnabled=true:
