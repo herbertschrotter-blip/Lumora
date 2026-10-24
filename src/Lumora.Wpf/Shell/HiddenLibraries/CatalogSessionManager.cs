@@ -41,6 +41,18 @@ public interface ICatalogHostSwitcher
 
     /// <summary>Lightbox und Dialoge schließen, solange die Dienste noch leben; false, wenn ein Fenster ablehnt.</summary>
     Task<bool> CloseSecondaryWindowsAsync();
+
+    /// <summary>
+    /// Sicherheits-Check (ADR-0064), Option „Lumora nach dem Zusperren ganz beenden“: beendet Lumora, statt die normale
+    /// Bibliothek aufzubauen. <c>App.OnExit</c> schließt dann die versteckte Sitzung wie beim normalen Beenden
+    /// (Sitzung, Protokoll im Container, ggf. Aushängen).
+    /// </summary>
+    void ShutdownAfterLock()
+    {
+        // Ohne Anwendung (sollte nie vorkommen) lieber normal zusperren als die Sitzung offen stehen zu lassen
+        var app = Application.Current ?? throw new InvalidOperationException("Keine laufende Anwendung zum Beenden.");
+        app.Shutdown();
+    }
 }
 
 /// <summary>Der Container ist unter einem anderen Laufwerksbuchstaben eingehängt als beim Anlegen der Bibliothek.</summary>
@@ -414,6 +426,23 @@ public sealed class CatalogSessionManager : ICatalogSessionManager
             _logger.LogWarning("Fenster vor dem Zusperren nicht geschlossen ({Type})", ex.GetType().Name);
         }
 
+        // Sicherheits-Check (ADR-0064): „Lumora nach dem Zusperren ganz beenden“ — von Hand wie nach Untätigkeit. Die
+        // Sitzung bleibt bis App.OnExit offen (PrepareExit merkt sich das Aushängen); keine normale Oberfläche dazwischen.
+        if (await ShouldShutdownAfterLockAsync().ConfigureAwait(true))
+        {
+            StopIdleWatch();
+            _modeEnded = true;
+            try
+            {
+                Switcher.ShutdownAfterLock();
+                return HiddenSessionResult.Ok(); // _switching bleibt gesetzt: kein Wechsel mehr bis zum Ende
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Beenden nach dem Zusperren fehlgeschlagen ({Type}) — zurück zur normalen Bibliothek", ex.GetType().Name);
+            }
+        }
+
         try
         {
             StopIdleWatch();
@@ -447,6 +476,33 @@ public sealed class CatalogSessionManager : ICatalogSessionManager
         }
 
         return HiddenSessionResult.Ok(dismount.Success ? null : dismount.Message);
+    }
+
+    /// <summary>Einstellung aus dem versteckten Katalog (Dienste der Sitzung leben noch); nicht lesbar = normal zusperren.</summary>
+    private async Task<bool> ShouldShutdownAfterLockAsync()
+    {
+        try
+        {
+            var services = _switcher?.CurrentServices;
+            // Zuerst der Stand im Speicher: ein eben umgelegter Schalter gilt, auch wenn das Speichern noch läuft
+            if (services?.GetService<Lumora.Services.HiddenLibraries.SecurityCheck.ISecurityCheckService>() is { HasSettings: true } check)
+            {
+                return check.Settings.ExitAfterLock;
+            }
+
+            if (services?.GetService<Lumora.Services.HiddenLibraries.SecurityCheck.ISecurityCheckSettingsStore>() is not { } store)
+            {
+                return false;
+            }
+
+            var settings = await store.LoadAsync().WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(true);
+            return settings.ExitAfterLock;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning("Einstellung „nach dem Zusperren beenden“ nicht lesbar ({Type})", ex.GetType().Name);
+            return false;
+        }
     }
 
     public async Task<bool> CheckIdleAsync()

@@ -55,14 +55,16 @@ public sealed class HiddenLibraryLocatorTests : IDisposable
     public void Folder_rules_allow_drive_root_or_one_level_and_refuse_everything_else()
     {
         var none = Array.Empty<string>();
-        HiddenLibraryFolderRules.Validate(@"X:\", none).Should().BeNull();
-        HiddenLibraryFolderRules.Validate(@"X:\Fotos", none).Should().BeNull();
-        HiddenLibraryFolderRules.Validate(@"X:\Fotos\2024", none).Should().Contain("direkt auf dem Laufwerk");
-        HiddenLibraryFolderRules.Validate(@"X:\Fotos\2024", none, maxDepth: int.MaxValue).Should().BeNull("nur der Rauchtest erlaubt mehr");
+        // freier Buchstabe: auf X: kann auf dem Entwickler-PC eine echte versteckte Bibliothek eingehängt sein
+        var d = FreeDriveLetter();
+        HiddenLibraryFolderRules.Validate($@"{d}:\", none).Should().BeNull();
+        HiddenLibraryFolderRules.Validate($@"{d}:\Fotos", none).Should().BeNull();
+        HiddenLibraryFolderRules.Validate($@"{d}:\Fotos\2024", none).Should().Contain("direkt auf dem Laufwerk");
+        HiddenLibraryFolderRules.Validate($@"{d}:\Fotos\2024", none, maxDepth: int.MaxValue).Should().BeNull("nur der Rauchtest erlaubt mehr");
         HiddenLibraryFolderRules.Validate(@"\\server\freigabe\Fotos", none).Should().Contain("Netzwerkpfad");
         HiddenLibraryFolderRules.Validate("relativ", none).Should().NotBeNull();
         HiddenLibraryFolderRules.Validate(null, none).Should().NotBeNull();
-        HiddenLibraryFolderRules.Validate(@"X:\.lumora", none).Should().Contain("Katalogordner");
+        HiddenLibraryFolderRules.Validate($@"{d}:\.lumora", none).Should().Contain("Katalogordner");
 
         // nicht in OneDrive/Lumora-Daten und nicht oberhalb davon
         HiddenLibraryFolderRules.Validate(@"D:\OneDrive", [@"D:\OneDrive"]).Should().Contain("OneDrive");
@@ -72,6 +74,21 @@ public sealed class HiddenLibraryLocatorTests : IDisposable
         var existing = Directory.CreateDirectory(Path.Combine(_root, "schon")).FullName;
         _store.Create(existing, "Schon da", "kennwort-1");
         HiddenLibraryFolderRules.Validate(existing, none, int.MaxValue).Should().Contain("bereits");
+    }
+
+    /// <summary>Ein Laufwerksbuchstabe, der auf diesem PC nicht belegt ist (von Z: abwärts).</summary>
+    private static char FreeDriveLetter()
+    {
+        var used = DriveInfo.GetDrives().Select(x => char.ToUpperInvariant(x.Name[0])).ToHashSet();
+        for (var c = 'Z'; c >= 'D'; c--)
+        {
+            if (!used.Contains(c))
+            {
+                return c;
+            }
+        }
+
+        throw new InvalidOperationException("Kein freier Laufwerksbuchstabe für den Test.");
     }
 
     [Theory]

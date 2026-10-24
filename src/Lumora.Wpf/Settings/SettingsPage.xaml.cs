@@ -32,7 +32,8 @@ public partial class SettingsPage : UserControl
         Places.Styles.MapStyleSettingsViewModel? mapStyles = null,
         Stories.StorySettingsViewModel? stories = null,
         Places.TrackSettings.PlacesSettingsViewModel? places = null,
-        Stories.Assistant.AssistantSettingsViewModel? assistant = null)
+        Stories.Assistant.AssistantSettingsViewModel? assistant = null,
+        Shell.HiddenLibraries.SecurityCheck.SecurityCheckViewModel? securityCheck = null)
     {
         _sections = sections;
         InitializeComponent();
@@ -50,6 +51,7 @@ public partial class SettingsPage : UserControl
         InfoView.DataContext = info;
         library.SetFooter(new SettingsWatchSection { DataContext = viewModel });
         Shell.HiddenLibraries.HiddenLibrariesUi.AddSettingsTab(Tabs, hiddenLibraries); // nur mit „_hidden“ (ADR-0049)
+        Shell.HiddenLibraries.SecurityCheck.SecurityCheckUi.AddSettingsTab(Tabs, securityCheck); // nur in der versteckten Sitzung (ADR-0064)
 
         SelectTab(sections.SelectedSection);
         Tabs.SelectionChanged += OnTabsSelectionChanged;

@@ -61,10 +61,13 @@ public static class NavigationTags
     /// </summary>
     public const string SettingsHiddenLibraries = "settings-hidden";
 
+    /// <summary>Einstellungen › Sicherheits-Check (ADR-0064) — nur in der geöffneten versteckten Sitzung, deshalb nicht in <see cref="SettingsSections"/>.</summary>
+    public const string SettingsSecurityCheck = "settings-security";
+
     /// <summary>true, wenn <paramref name="tag"/> ein Reiter der Einstellungen ist (keine eigene Seite).</summary>
     public static bool IsSettingsSection(string? tag)
     {
-        if (string.Equals(tag, SettingsHiddenLibraries, StringComparison.Ordinal))
+        if (string.Equals(tag, SettingsHiddenLibraries, StringComparison.Ordinal) || string.Equals(tag, SettingsSecurityCheck, StringComparison.Ordinal))
         {
             return true;
         }

@@ -22,6 +22,8 @@ public static class HiddenLibrariesServiceCollectionExtensions
         if (setup.IsHidden)
         {
             services.AddHiddenCatalog(paths, setup.NormalAppDataRoot);
+            // Sicherheits-Check (ADR-0064): Prüfungen, Einstellungen, Reiter — nur in der versteckten Sitzung, sonst keine Spur
+            SecurityCheck.SecurityCheckUi.AddSecurityCheckUi(services, setup.Sessions);
         }
 
         services.TryAddSingleton<IHiddenLibraryDialogs, HiddenLibraryDialogs>();

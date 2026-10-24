@@ -80,7 +80,8 @@ public sealed partial class StatusBarViewModel : ObservableObject, IDisposable
         Lumora.Services.Faces.Indexing.IFaceIndexService? faceIndex = null,
         Lumora.Services.Motifs.IMotifIndexService? motifIndex = null,
         ILibraryScope? libraryScope = null,
-        Lumora.Duplicates.IDuplicatesPageNavigator? duplicates = null)
+        Lumora.Duplicates.IDuplicatesPageNavigator? duplicates = null,
+        Lumora.Services.HiddenLibraries.SecurityCheck.ISecurityCheckService? securityCheck = null)
     {
         _libraryScope = libraryScope; // Anzeige „Alle verknüpften (Name)“ (ADR-0048)
         _messenger = messenger ?? WeakReferenceMessenger.Default;
@@ -119,6 +120,7 @@ public sealed partial class StatusBarViewModel : ObservableObject, IDisposable
         InitQuality(); // Foto-Güte: Fortschritt (ADR-0057, StatusBarViewModel.Quality.cs)
         InitStories(); // Story-Erkennung: „Storys aktuell“ (ADR-0060, StatusBarViewModel.Stories.cs)
         InitGeoTracks(); // Ungenaue Orte und GPS-Spuren (ADR-0062, StatusBarViewModel.GeoTracks.cs)
+        InitSecurityCheck(securityCheck); // Sicherheits-Check nur in der versteckten Sitzung (ADR-0064, StatusBarViewModel.SecurityCheck.cs)
     }
 
     /// <summary>Datei-Operationen, die auf einen laufenden Scan derselben Bibliothek warten (Hinweis + „Abbrechen“).</summary>

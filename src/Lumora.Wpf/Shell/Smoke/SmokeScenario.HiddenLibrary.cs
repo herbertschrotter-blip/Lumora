@@ -98,6 +98,7 @@ internal sealed partial class SmokeScenario
                 "Vorschaubilder im Container").ConfigureAwait(true);
             Check(Directory.EnumerateFiles(Path.Combine(catalog, "logs"), CatalogLoggers.HiddenFilePattern.Replace("-.log", "-*.log")).Any(), "Protokoll im Container");
             Check((new DirectoryInfo(catalog).Attributes & FileAttributes.Hidden) != 0, ".lumora ist versteckt");
+            await SecurityCheckInHiddenSessionAsync(hidden).ConfigureAwait(true); // Sicherheits-Check mit Fake-Lesern (ADR-0064)
 
             // (2) Untätigkeit → automatisch zugesperrt, Aushängen angestoßen
             sessions.Idle.Timeout = TimeSpan.Zero;
@@ -146,6 +147,7 @@ internal sealed partial class SmokeScenario
         var filesAfter = await next.DbScalarAsync<int>("SELECT COUNT(*) FROM Files WHERE LibraryId = $lib", ("$lib", _libraryId)).ConfigureAwait(true);
         Check(librariesAfter == librariesBefore && filesAfter == filesBefore, $"normale Bibliothek unverändert ({librariesAfter} Bibliothek(en), {filesAfter} Dateien)");
         _successor = next;
+        await NoSecurityCheckInNormalSessionAsync(next, services).ConfigureAwait(true); // normal: kein Reiter (ADR-0064)
 
         // (7) Spurenprüfung: Name, Pfad und Dateinamen kommen im AppData-Testordner nirgends vor. Vorher den WAL des
         // normalen Katalogs zurückschreiben und gesperrte Dateien kurz erneut lesen: Direkt nach dem Sitzungswechsel

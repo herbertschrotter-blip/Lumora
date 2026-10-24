@@ -2,6 +2,7 @@ using System.IO;
 using Microsoft.Extensions.DependencyInjection;
 using Lumora.Domain.Enums;
 using Lumora.Services.HiddenLibraries;
+using Lumora.Services.HiddenLibraries.SecurityCheck;
 using Lumora.Services.Infrastructure;
 using Lumora.Services.Library;
 using Lumora.Services.Scanning;
@@ -57,7 +58,7 @@ internal sealed class FakeHostSwitcher : ICatalogHostSwitcher
         }
 
         LastScan = new FakeScan();
-        var services = Build(libraries, LastScan);
+        var services = Build(libraries, LastScan, HiddenSecuritySettings, HiddenSecurityService);
         if (prepare is not null)
         {
             await prepare(services);
@@ -86,14 +87,39 @@ internal sealed class FakeHostSwitcher : ICatalogHostSwitcher
         return Task.FromResult(WindowsClose);
     }
 
+    /// <summary>Einstellungen des Sicherheits-Checks im versteckten Katalog (ADR-0064); null = nicht registriert.</summary>
+    public ISecurityCheckSettingsStore? HiddenSecuritySettings { get; set; }
+
+    /// <summary>Dienst des Sicherheits-Checks im versteckten Container (Stand im Speicher); null = nicht registriert.</summary>
+    public ISecurityCheckService? HiddenSecurityService { get; set; }
+
+    /// <summary>„Lumora nach dem Zusperren ganz beenden“ (ADR-0064) — statt Application.Shutdown nur gezählt.</summary>
+    public int ShutdownCalls { get; private set; }
+
+    public void ShutdownAfterLock()
+    {
+        Calls.Add("shutdown");
+        ShutdownCalls++;
+    }
+
     internal static LibraryInfo NewInfo(int id, string name, string root)
         => new(id, name, root, DateTime.UtcNow, DateTime.UtcNow, 0, 0, true,
             [new LibraryRootInfo(id * 10, id, root, LibraryRootRole.Archive, name, 0, true)]);
 
-    private static ServiceProvider Build(FakeLibraries libraries, FakeScan scan)
+    private static ServiceProvider Build(FakeLibraries libraries, FakeScan scan, ISecurityCheckSettingsStore? securitySettings = null, ISecurityCheckService? securityService = null)
     {
         var services = new ServiceCollection();
         services.AddLogging();
+        if (securitySettings is not null)
+        {
+            services.AddSingleton(securitySettings); // Sicherheits-Check (ADR-0064): nur in versteckten Sitzungen
+        }
+
+        if (securityService is not null)
+        {
+            services.AddSingleton(securityService);
+        }
+
         services.AddSingleton<ILibraryService>(libraries);
         services.AddSingleton<IScanService>(scan);
         return services.BuildServiceProvider();

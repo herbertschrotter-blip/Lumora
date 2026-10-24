@@ -313,6 +313,16 @@
                     <TextBlock Style="{StaticResource StatusText}" Text="{Binding StoryIndexText}" />
                     <Border Style="{StaticResource StatusSeparator}" />
                 </StackPanel>
+                <!-- Sicherheits-Check (ADR-0064): nur in der versteckten Sitzung „Sicherheits-Check: x von y erfüllt“ -->
+                <StackPanel Orientation="Horizontal"
+                            AutomationProperties.Name="Sicherheits-Check"
+                            AutomationProperties.AutomationId="StatusSecurityCheck"
+                            ToolTip="Einstellungen › Sicherheits-Check: Windows-Stellen, die sich etwas merken. Lumora ändert keine Windows-Einstellung."
+                            Visibility="{Binding SecurityCheckText, Converter={StaticResource NullToVis}}">
+                    <ui:SymbolIcon Symbol="ShieldCheckmark24" Style="{StaticResource StatusIcon}" />
+                    <TextBlock Style="{StaticResource StatusText}" Text="{Binding SecurityCheckText}" />
+                    <Border Style="{StaticResource StatusSeparator}" />
+                </StackPanel>
                 <StackPanel Orientation="Horizontal"
                             Visibility="{Binding IsBackgroundActive, Converter={StaticResource BoolToVis}}">
                     <Ellipse Width="7" Height="7" Margin="0,0,6,0" VerticalAlignment="Center"

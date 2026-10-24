@@ -3,6 +3,57 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.4.28] — 2026-10-24
+
+### Feature (ADR-0064) — Sicherheits-Check der versteckten Bibliothek (Mockup 14)
+- **Reiter Einstellungen › Sicherheits-Check** hinter „Versteckte Bibliotheken“ — nur in der geöffneten versteckten
+  Sitzung (`{ IsHiddenModeEnabled: true, IsHiddenSessionActive: true }`); alle Dienste nur im DI-Container der
+  versteckten Sitzung. Im normalen Modus keine Spur: kein Reiter, kein Dienst, keine Einstellung, keine Protokollzeile.
+- **Prüfungen (nur lesend):** BitLocker auf C: (Shell-Eigenschaft `System.Volume.BitLockerProtection` direkt aus C# über
+  `PSGetPropertyKeyFromName`/`SHGetPropertyStoreFromParsingName` — kein PowerShell), Ruhezustand (`HibernateEnabled`),
+  Schnellstart (`HiberbootEnabled` + Richtlinie, ohne Ruhezustand erfüllt), Auslagerungsdatei leeren
+  (`ClearPageFileAtShutdown`, ohne Auslagerungsdatei erfüllt), Zuletzt-Liste/Sprunglisten (`Start_TrackDocs` +
+  `NoRecentDocsHistory`), Aktivitätsverlauf (nur die dokumentierten Richtlinien, sonst „Unbekannt“), Miniaturbilder
+  (`IconsOnly` + `DisableThumbnails`/`NoThumbnailCache`), Windows-Suche auf dem Container-Laufwerk (Dienst `WSearch` bzw.
+  Einschluss-Regeln des Crawl-Scope-Managers), VeraCrypt „Verlauf nie speichern“ (`SaveVolumeHistory`, alte
+  `History.xml`; ohne VeraCrypt „nicht zutreffend“). Je Punkt Erfüllt / Nicht erfüllt / Unbekannt; ein Leser-Fehler wird
+  „Unbekannt“ mit Hinweis, nie ein Absturz. Registry-Orte, Wertbedeutungen und Quellen in ADR-0064.
+- **Gefahren-Stufe** (Ausgeschalteter PC / Mitbenutzer / Fachmännische Untersuchung, Standard Mitbenutzer) bestimmt, was
+  zählt (1 / 9 / 10 Punkte, Tabelle im ADR); Ring „x/y“, **Erneut prüfen**, **Erfüllte ausblenden**; je Punkt Etikett
+  (wichtigster Punkt / empfohlen / Lumora-Einstellung / Zusatz), ein Satz, **Einstellung öffnen** und ⓘ-Anleitung; Info
+  „Nicht abschaltbar: Programm- und Laufwerksprotokolle“.
+- **„Einstellung öffnen“** nur über einen Starter mit fester Positivliste: `control.exe` (BitLocker, Energieoptionen,
+  Ordneroptionen, Indizierungsoptionen), `secpol.msc` (nur wenn vorhanden), `ms-settings:personalization-start`,
+  `ms-settings:privacy-activityhistory`, `ms-settings:deviceencryption` (Home), VeraCrypt ohne Argumente. Keine freien
+  Befehlszeilen; fehlt ein Ziel, ist der Knopf aus und die Anleitung gilt.
+- **„Lumora nach dem Zusperren ganz beenden“** (Standard aus): beim Zusperren von Hand und nach Untätigkeit beendet sich
+  Lumora ganz (`ICatalogHostSwitcher.ShutdownAfterLock` → `App.OnExit` schließt die Sitzung wie beim Beenden, Aushängen
+  nach Einstellung) statt die normale Bibliothek aufzubauen.
+- Gefahren-Stufe und Option in der **Settings-Tabelle des versteckten Katalogs** (`securitycheck.level`,
+  `securitycheck.exitAfterLock`), keine Migration.
+- **Statusleiste:** „Sicherheits-Check: x von y erfüllt“ nur in der versteckten Sitzung (erste Prüfung 2 s nach dem Öffnen).
+- **Protokoll:** nur Punkt + Fehlertyp, nie Pfade, Laufwerksbuchstaben oder Ausnahme-Objekte.
+- **Tests:** Services 1251 → 1304 (3 übersprungen: Modell, Messung, neu die Messung `SecurityCheckRealWindowsTests`); Wpf 1087 → 1097 (7 übersprungen wie vorher; Suite dreimal: 2× grün, 1× Wackler `TraceScanLockedRangeTests.Kurz_ganz_gesperrte_Datei…` „library.db-wal (nicht lesbar)“ unter Last) — je Prüfung Fake-Leser (Wert da/fehlt/0/1/Richtlinie
+  überschreibt/Fehler), Wertung je Stufe, Starter-Positivliste inkl. Befehlszeilen-Injektion, Einstellungen im Katalog,
+  Protokoll ohne Pfade, Quelltext-Wächter (keine Registry-Schreibzugriffe, kein PowerShell, kein Programmstart außer über
+  den Starter), Reiter nur in der versteckten Sitzung (normal/versteckt/nach Zusperren), „ganz beenden“ von Hand und nach
+  Untätigkeit, Registrierung nur im versteckten Container, Statusleiste. Messung `SecurityCheckRealWindowsTests` nur mit
+  `LUMORA_SECURITYCHECK_REAL=1` (auf Herberts PC: alle Leser liefern ohne Administratorrechte Werte).
+- **Rauchtest:** Schritt „Versteckte Bibliothek“ prüft zusätzlich den Sicherheits-Check mit Fake-Lesern (Statusleiste,
+  Reiter, Wertung, Stufe, Ausblenden, Starter-Fake, Anleitung, Screenshots `70-sicherheits-check-hell/-dunkel`) und danach
+  im normalen Modus: kein Reiter, kein Dienst, kein Statusleisten-Text, keine Einstellung. Ergebnis: 46 Schritte OK, 4 Binding-Fehler (die bekannten `GalleryListBoxItem`-Bindungen wie im Ausgangsstand), kein ERR/FTL; in zwei Vorläufen je ein bekannter Wackler („Bibliotheks-Trennung: A wieder allein“ mit Folgefehler „Motive“, „Story-Seite: Story unter Angeheftet“), der neue Teil war in allen drei Läufen grün.
+
+### Offen
+- **Echter Durchlauf mit Herbert:** Reiter in der versteckten Sitzung öffnen, Werte mit den Windows-Einstellungen
+  vergleichen (v. a. Windows-Suche, Aktivitätsverlauf, VeraCrypt-Verlauf), jeden „Einstellung öffnen“-Knopf einmal
+  drücken, „ganz beenden“ von Hand und nach Untätigkeit ausprobieren (Container wird ausgehängt?).
+- `HiddenLibraryLocatorTests.Folder_rules_allow_drive_root_or_one_level…` hängt von der Umgebung ab: Ist auf dem PC gerade
+  eine echte versteckte Bibliothek unter `X:\Fotos` eingehängt, meldet `Validate(@"X:\Fotos")` „bereits eine versteckte
+  Bibliothek“ (beim Bau von 0.4.28 so aufgetreten, Code unverändert). Test sollte einen Laufwerksbuchstaben nutzen, den es
+  sicher nicht gibt, oder das Dateisystem ersetzen.
+- `BitLockerPlatform` (Container-Assistent) könnte die neue `ShellVolumePropertyReader` nutzen — dann gäbe es im
+  Container-Ordner gar kein PowerShell mehr.
+
 ## [0.4.27] — 2026-10-24
 
 ### Docs — Mockup 14 „Sicherheits-Check“, abgenommen

@@ -916,7 +916,8 @@ bleiben verschoben und sind rückgängig machbar). Rechts: Hinweise
 Orte: „GPS-Spuren: n / m Dateien“ beim Einlesen, „Orte prüfen: n / m“, sonst „Orte: n geschätzt · m Vorschläge · k
 Garmin-Aktivitäten“;
 Fortschritt der Doppelten-Erkennung und „N Dateien im Eingang sind schon in der Bibliothek — Anzeigen“;
-unvollständige oder fehlgeschlagene Dateivorgänge mit Details im Tooltip; Bibliothek offline) und die
+unvollständige oder fehlgeschlagene Dateivorgänge mit Details im Tooltip; Bibliothek offline; nur in einer geöffneten
+versteckten Bibliothek „Sicherheits-Check: x von y erfüllt“) und die
 Hintergrund-Aktivität („Bereit“, wenn nichts läuft).
 
 ### Versteckte Bibliotheken
@@ -972,6 +973,26 @@ selbst einhängen) und von denen Lumora im Alltag **nichts zeigt** (ADR-0049).
   Eintrag im Umschalter, kein Reiter —, wie ein normaler Start. Wieder öffnen nur nach einem Neustart mit `_hidden`.
 - **Einstellungen › Versteckte Bibliotheken** (Kennwort, Zusperr-Zeit, Aushängen) gibt es nur, solange eine versteckte
   Bibliothek geöffnet ist; in der normalen Bibliothek nie.
+- **Einstellungen › Sicherheits-Check (seit 0.4.28, ADR-0064)** — ebenfalls nur in der geöffneten versteckten Bibliothek:
+  zeigt, wo **Windows** sich etwas merkt, und öffnet die passende Windows-Einstellung. **Lumora liest nur und ändert
+  selbst keine Windows-Einstellung** (kein Registry-Schreiben, keine Administratorrechte, kein PowerShell).
+  - Punkte: BitLocker auf C: (wichtigster Punkt), Ruhezustand, Schnellstart, Auslagerungsdatei beim Herunterfahren
+    leeren, zuletzt geöffnete Elemente/Sprunglisten, Aktivitätsverlauf, Explorer-Miniaturbilder, Windows-Suche auf dem
+    Container-Laufwerk, VeraCrypt „Verlauf nie speichern“ (ohne VeraCrypt „nicht zutreffend“) und die Lumora-Option
+    **„Lumora nach dem Zusperren ganz beenden“** (Standard aus; beim Zusperren von Hand und nach Untätigkeit beendet sich
+    Lumora dann ganz, statt zur normalen Bibliothek zu wechseln — Container wird wie beim Beenden ausgehängt). Dazu der
+    Hinweis „Nicht abschaltbar: Programm- und Laufwerksprotokolle“.
+  - Je Punkt: grün erfüllt, rot/gelb offen, grau Zusatz bzw. „unbekannt“ (Windows lieferte den Wert nicht oder er ist
+    nicht dokumentiert, z. B. der Schalter des Aktivitätsverlaufs ohne Gruppenrichtlinie) — Lumora rät nie. **Einstellung
+    öffnen** startet nur die Windows-Oberfläche (Systemsteuerung, Einstellungen-App, Lokale Sicherheitsrichtlinie, Ordner-
+    und Indizierungsoptionen) bzw. VeraCrypt; fehlt etwas (z. B. die Lokale Sicherheitsrichtlinie bei Windows Home), zeigt
+    **ⓘ** den Weg.
+  - **Wovor möchten Sie sich schützen?** Ausgeschalteter PC (nur BitLocker zählt), Mitbenutzer (Standard, alle
+    Windows-Punkte) oder fachmännische Untersuchung (auch die Lumora-Option). Oben „x von y erfüllt“ mit Ring,
+    **Erneut prüfen**, **Erfüllte ausblenden**; in der Statusleiste „Sicherheits-Check: x von y erfüllt“ (nur in der
+    versteckten Sitzung). Stufe und Option stehen im Katalog der versteckten Bibliothek (im Container).
+  - Geänderte Windows-Einstellungen (Schnellstart, Auslagerungsdatei) wirken erst nach einem Neustart; der Check zeigt die
+    Einstellung, nicht den laufenden Zustand.
 - **Container aushängen** (Standard an, in den Einstellungen der geöffneten versteckten Bibliothek abschaltbar): beim
   Zusperren und Beenden hängt Lumora ein VeraCrypt-Volume über die VeraCrypt-Befehlszeile bzw. eine eingehängte VHDX
   über `Dismount-DiskImage` aus; sind noch Dateien offen oder ist es kein erkennbarer Container, erscheint ein Hinweis.
@@ -986,7 +1007,9 @@ selbst einhängen) und von denen Lumora im Alltag **nichts zeigt** (ADR-0049).
   Standard-App öffnen** gesperrt (Windows würde sich die Pfade merken); der Katalog kann nicht umziehen.
 - **Grenzen:** Windows merkt sich im Dateidialog („Container öffnen… → Durchsuchen“) ggf. den zuletzt besuchten Ordner,
   VeraCrypt kann eine eigene Verlaufsliste führen, Auslagerungsdatei und Ruhezustand können Speicherinhalte enthalten,
-  in der Prozessliste steht `_hidden`. Ein VeraCrypt-Volume, das „als Wechselmedium“ eingehängt ist, wird nicht gefunden.
+  in der Prozessliste steht `_hidden`. Welche dieser Stellen auf Ihrem PC offen sind, zeigt der **Sicherheits-Check**
+  (oben); Prefetch, eingehängte Laufwerke und Ordneransichten des Explorers lassen sich nicht abschalten (mit BitLocker
+  auf C: liegen sie verschlüsselt). Ein VeraCrypt-Volume, das „als Wechselmedium“ eingehängt ist, wird nicht gefunden.
 
 ## Datenablage
 
@@ -1022,6 +1045,7 @@ werden dabei zurückgesetzt und unfertige Dateivorgänge gemeldet.
 | `LUMORA_MAP_TILES` | `off` → keine Kartenkacheln laden (graue Karte, kein Netzzugriff); im Rauchtest immer aus |
 | `LUMORA_FACE_SAMPLE_DIR` | Nur für die lokale Messung (`FaceRecognitionMeasurementTests`): Ordner mit Fotos, aus dem eine Stichprobe gelesen wird; Ausgabe nur zusammengefasste Zahlen |
 | `LUMORA_MOTIF_MODEL` | Ordner mit dem Motiv-Modell (SigLIP 2) statt `models\siglip2-base-patch16-224\` (Entwicklung, Tests; dann kein Download). Tests mit echtem Modell laufen nur mit dieser Variable |
+| `LUMORA_SECURITYCHECK_REAL` | Nur für die lokale Messung (`SecurityCheckRealWindowsTests`): `1` → die Leser des Sicherheits-Checks lesen die echte Registry/Shell dieses PCs (nur lesend); Ausgabe nur Punkt + Status |
 | `LUMORA_MOTIF_SAMPLE_DIR` | Nur für die lokale Messung (`MotifMeasurementTests`, Spike 14): Fotoordner für die Stichprobe (`LUMORA_MOTIF_SAMPLE` = Anzahl, Standard 200); Ausgabe nur zusammengefasste Zahlen |
 
 Das Ergebnis des Rauchtests steht in `<AppData>\smoke-result.txt` und im Log (Zeilen „Rauchtest …“).
