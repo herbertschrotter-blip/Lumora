@@ -106,6 +106,8 @@ public static class ServiceCollectionExtensions
         services.AddStories();
         // Story-Assistent: Satz → lokale Sprach-KI (Ollama, nur Absicht) → Filter + Aktion, Collage-Bild (Services/Assistant, ADR-0063)
         Assistant.StoryAssistantServiceCollectionExtensions.AddStoryAssistant(services);
+        // Ordner in den Papierkorb, Fehlende aus der Bibliothek entfernen (Services/Removal, ADR-0065)
+        Removal.RemovalServiceCollectionExtensions.AddRemoval(services);
 
         return services;
     }

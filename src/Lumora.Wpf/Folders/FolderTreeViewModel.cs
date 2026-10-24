@@ -83,8 +83,10 @@ public sealed partial class FolderTreeViewModel : ObservableObject
         ILogger<FolderTreeViewModel> logger,
         Libraries.IInboxActions? inboxActions = null,
         Gallery.CaptureDates.CaptureDateActions? captureDateActions = null,
-        ILibraryScope? scope = null)
+        ILibraryScope? scope = null,
+        Removal.RemovalActions? removalActions = null)
     {
+        _removalActions = removalActions; // Ordner in den Papierkorb, Fehlende entfernen (ADR-0065, FolderTreeViewModel.Removal.cs)
         _scope = scope ?? new LibraryScope(factory); // Bereich: Bibliothek bzw. „Alle verknüpften“ (ADR-0048)
         _inboxActions = inboxActions; // „Eingang hinzufügen…“ im Seitenkopf (ADR-0042, FolderTreeViewModel.AddInbox.cs)
         _captureDateActions = captureDateActions; // „Datum setzen…“ (ADR-0046, FolderTreeViewModel.CaptureDate.cs)
@@ -329,6 +331,7 @@ public sealed partial class FolderTreeViewModel : ObservableObject
 
             List<FolderRow> rows;
             Dictionary<int, int> counts;
+            Dictionary<int, int> missing; // fehlende je Ordner (ADR-0065)
             await using (var ctx = _factory.Create())
             {
                 rows = await ctx.Folders.AsNoTracking()
@@ -336,16 +339,19 @@ public sealed partial class FolderTreeViewModel : ObservableObject
                     .Select(f => new FolderRow(f.Id, f.ParentId, f.RootId, f.Name, f.Path, f.LibraryId))
                     .ToListAsync()
                     .ConfigureAwait(true);
-                counts = await ctx.Files.AsNoTracking()
+                var grouped = await ctx.Files.AsNoTracking()
                     .Where(f => libraryIds.Contains(f.LibraryId))
                     .GroupBy(f => f.FolderId)
-                    .Select(g => new { FolderId = g.Key, Count = g.Count() })
-                    .ToDictionaryAsync(x => x.FolderId, x => x.Count)
+                    .Select(g => new { FolderId = g.Key, Count = g.Count(), Missing = g.Sum(f => f.Missing ? 1 : 0) }) // fehlende: ADR-0065
+                    .ToListAsync()
                     .ConfigureAwait(true);
+                counts = grouped.ToDictionary(x => x.FolderId, x => x.Count);
+                missing = grouped.Where(x => x.Missing > 0).ToDictionary(x => x.FolderId, x => x.Missing);
             }
 
             _libraryOfFolder = rows.ToDictionary(r => r.Id, r => r.LibraryId);
             BuildIndex(rows, counts);
+            BuildMissingIndex(missing); // ADR-0065
             if (scope.IsAllLinked)
             {
                 AddLibraryHeaders(libraries);
@@ -601,7 +607,8 @@ public sealed partial class FolderTreeViewModel : ObservableObject
             _totalCounts.GetValueOrDefault(row.Id),
             _childrenByParent.ContainsKey(row.Id),
             RoleLabelOf(row),
-            row.RootId is { } rootId && _rootsById.TryGetValue(rootId, out var root) && root.IsInbox);
+            row.RootId is { } rootId && _rootsById.TryGetValue(rootId, out var root) && root.IsInbox,
+            missingCount: _totalMissing.GetValueOrDefault(row.Id)); // ADR-0065
 
     private void ResetSelection()
     {

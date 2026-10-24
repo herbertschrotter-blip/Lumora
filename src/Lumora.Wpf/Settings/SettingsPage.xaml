@@ -115,7 +115,7 @@
                 <tracks:SettingsPlacesSection x:Name="PlacesView" />
             </TabItem>
             <TabItem Header="Speicher &amp; Wartung" Tag="{x:Static shell:NavigationTags.SettingsStorage}">
-                <sections:SettingsStorageSection />
+                <sections:SettingsStorageSection x:Name="StorageView" />
             </TabItem>
             <TabItem Header="Info" Tag="{x:Static shell:NavigationTags.SettingsInfo}">
                 <info:InfoSection x:Name="InfoView" />

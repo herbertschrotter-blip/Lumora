@@ -35,10 +35,73 @@ public sealed partial class WindowsRecycleBin
         var match = Lookup(bin, fullPath, DateTime.SpecifyKind(deletedAfterUtc, DateTimeKind.Utc) - DeletionTolerance)
                     ?? throw new FileNotFoundException("Die Datei liegt nicht (mehr) im Papierkorb.", fullPath);
 
+        if (!File.Exists(match.DataPath))
+        {
+            throw new FileNotFoundException("Unter diesem Pfad liegt ein Ordner im Papierkorb, keine Datei.", fullPath);
+        }
+
         File.Move(match.DataPath, fullPath);
+        DeleteInfo(match.InfoPath);
+    }
+
+    /// <summary>
+    /// Ordner samt Inhalt zurückholen (ADR-0065, Rückgängig von „Ordner in den Papierkorb“): wie
+    /// <see cref="RestoreFromRecycleBin"/>, nur ist die <c>$R</c>-Seite des Paars ein Ordner, der in einem Schritt an den
+    /// Ursprungsort verschoben wird (gleiches Laufwerk).
+    /// </summary>
+    public void RestoreDirectoryFromRecycleBin(string originalPath, DateTime deletedAfterUtc)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(originalPath);
+        var fullPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(originalPath));
+        if (Directory.Exists(fullPath) || File.Exists(fullPath))
+        {
+            throw new IOException($"Am Ursprungsort liegt schon ein Ordner oder eine Datei: {fullPath}");
+        }
+
+        var root = Path.GetPathRoot(fullPath);
+        var sid = WindowsIdentity.GetCurrent().User?.Value;
+        if (string.IsNullOrEmpty(root) || sid is null)
+        {
+            throw new IOException($"Papierkorb für {fullPath} nicht bestimmbar.");
+        }
+
+        var bin = Path.Combine(root, "$Recycle.Bin", sid);
+        var match = Lookup(bin, fullPath, DateTime.SpecifyKind(deletedAfterUtc, DateTimeKind.Utc) - DeletionTolerance);
+        if (match is null || !Directory.Exists(match.DataPath))
+        {
+            throw new DirectoryNotFoundException($"Der Ordner liegt nicht (mehr) im Papierkorb: {fullPath}");
+        }
+
+        var parent = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrEmpty(parent))
+        {
+            Directory.CreateDirectory(parent);
+        }
+
+        Directory.Move(match.DataPath, fullPath);
+        DeleteInfo(match.InfoPath);
+    }
+
+    /// <inheritdoc />
+    public bool ContainsDirectory(string originalPath, DateTime deletedAfterUtc)
+    {
+        var fullPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(originalPath));
+        var root = Path.GetPathRoot(fullPath);
+        var sid = WindowsIdentity.GetCurrent().User?.Value;
+        if (string.IsNullOrEmpty(root) || sid is null)
+        {
+            return false;
+        }
+
+        var entry = FindEntry(Path.Combine(root, "$Recycle.Bin", sid), fullPath, DateTime.SpecifyKind(deletedAfterUtc, DateTimeKind.Utc) - DeletionTolerance);
+        return entry is not null && Directory.Exists(entry.DataPath);
+    }
+
+    private static void DeleteInfo(string infoPath)
+    {
         try
         {
-            File.Delete(match.InfoPath);
+            File.Delete(infoPath);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -72,11 +135,11 @@ public sealed partial class WindowsRecycleBin
                 _index.Value.Entries.Remove(originalPath, out entry);
             }
 
-            return entry is not null && File.Exists(entry.DataPath) ? entry : null;
+            return entry is not null && (File.Exists(entry.DataPath) || Directory.Exists(entry.DataPath)) ? entry : null; // Ordner: ADR-0065
         }
     }
 
-    /// <summary>Jüngster Eintrag mit diesem Ursprungspfad, dessen <c>$R</c>-Datei noch da ist.</summary>
+    /// <summary>Jüngster Eintrag mit diesem Ursprungspfad, dessen <c>$R</c>-Datei (bzw. -Ordner) noch da ist.</summary>
     public static RecycleEntry? FindEntry(string binDirectory, string originalPath, DateTime notBeforeUtc)
         => BuildIndex(binDirectory, notBeforeUtc).GetValueOrDefault(originalPath);
 
@@ -97,7 +160,7 @@ public sealed partial class WindowsRecycleBin
             }
 
             var data = Path.Combine(binDirectory, "$R" + Path.GetFileName(info)[2..]);
-            if (!File.Exists(data))
+            if (!File.Exists(data) && !Directory.Exists(data)) // $R-Seite eines gelöschten Ordners ist ein Ordner (ADR-0065)
             {
                 continue;
             }

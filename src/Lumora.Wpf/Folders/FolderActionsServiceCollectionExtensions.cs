@@ -11,6 +11,7 @@ public static class FolderActionsServiceCollectionExtensions
     {
         services.TryAddSingleton<IFolderAdoptionPicker, FolderAdoptionPicker>();
         services.TryAddSingleton<FolderActions>();
+        Lumora.Removal.RemovalUiServiceCollectionExtensions.AddRemovalUi(services); // Ordner in den Papierkorb, Fehlende entfernen (ADR-0065)
         return services;
     }
 }

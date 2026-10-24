@@ -130,6 +130,26 @@ public static class CatalogRowSnapshot
         return TryInsert(connection, tx, "Files", row);
     }
 
+    /// <summary>
+    /// Files-Zeile mit der alten Id und allen erfassten Werten zurückschreiben, nur Ordner und Missing von jetzt (ADR-0065:
+    /// „Fehlende entfernen“ bzw. „Ordner in den Papierkorb“ rückgängig — die Datei fehlt evtl. weiterhin, Größe und
+    /// Änderungszeit bleiben die erfassten); false, wenn die Id oder der Platz (Ordner + Name) belegt ist oder die
+    /// Bibliothek fehlt. Ohne FTS (macht der Aufrufer).
+    /// </summary>
+    public static bool RestoreFileRowAsCaptured(SqliteConnection connection, SqliteTransaction tx, Snapshot snapshot, int folderId, bool missing)
+    {
+        if (Scalar(connection, tx, "SELECT 1 FROM Files WHERE Id = $id", snapshot.FileId) is not null
+            || Scalar(connection, tx, "SELECT 1 FROM Libraries WHERE Id = $id", snapshot.LibraryId) is null)
+        {
+            return false;
+        }
+
+        var row = snapshot.File.ToDictionary(kv => kv.Key, kv => kv.Value);
+        row["FolderId"] = (long)folderId;
+        row["Missing"] = missing ? 1L : 0L;
+        return TryInsert(connection, tx, "Files", row);
+    }
+
     /// <summary>Abhängige Zeilen zurückschreiben; liefert (geschrieben, übersprungen).</summary>
     public static (int Restored, int Skipped) RestoreDependents(SqliteConnection connection, SqliteTransaction tx, Snapshot snapshot)
     {
@@ -191,7 +211,7 @@ public static class CatalogRowSnapshot
     }
 
     /// <summary>Eine Zeile in einem Sicherungspunkt einfügen (nur Spalten, die es noch gibt); false bei Konflikt oder fehlendem Bezug.</summary>
-    private static bool TryInsert(SqliteConnection connection, SqliteTransaction tx, string table, IReadOnlyDictionary<string, object?> row)
+    internal static bool TryInsert(SqliteConnection connection, SqliteTransaction tx, string table, IReadOnlyDictionary<string, object?> row)
     {
         var existing = Columns(connection, tx, table);
         var columns = row.Keys.Where(existing.Contains).ToList();
@@ -263,7 +283,7 @@ public static class CatalogRowSnapshot
         return set;
     }
 
-    private static List<Dictionary<string, object?>> ReadRows(SqliteConnection connection, SqliteTransaction? tx, string table, string column, IReadOnlyList<long> ids)
+    internal static List<Dictionary<string, object?>> ReadRows(SqliteConnection connection, SqliteTransaction? tx, string table, string column, IReadOnlyList<long> ids)
     {
         var rows = new List<Dictionary<string, object?>>();
         foreach (var chunk in ids.Chunk(500))
@@ -287,7 +307,7 @@ public static class CatalogRowSnapshot
         return rows;
     }
 
-    private static void WriteRow(Utf8JsonWriter writer, IReadOnlyDictionary<string, object?> row)
+    internal static void WriteRow(Utf8JsonWriter writer, IReadOnlyDictionary<string, object?> row)
     {
         writer.WriteStartObject();
         foreach (var (key, value) in row)
@@ -324,7 +344,7 @@ public static class CatalogRowSnapshot
         writer.WriteEndObject();
     }
 
-    private static IReadOnlyDictionary<string, object?> ReadRow(JsonElement element)
+    internal static IReadOnlyDictionary<string, object?> ReadRow(JsonElement element)
     {
         var row = new Dictionary<string, object?>(StringComparer.Ordinal);
         foreach (var property in element.EnumerateObject())

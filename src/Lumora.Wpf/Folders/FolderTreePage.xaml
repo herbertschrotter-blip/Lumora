@@ -12,10 +12,16 @@
              d:DesignWidth="1100"
              d:DesignHeight="700">
     <UserControl.Resources>
-        <shell:BoolToVisibilityConverter x:Key="BoolToVis" />
-        <shell:BoolToVisibilityConverter x:Key="InvBoolToVis" Invert="True" />
-        <shell:NullToVisibilityConverter x:Key="NullToVis" />
-        <shell:NullToBoolConverter x:Key="NullToBool" />
+        <ResourceDictionary>
+            <!-- Knoten-Vorlage mit deutlicher Auswahl (0.4.30) -->
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="FolderTreeStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <shell:BoolToVisibilityConverter x:Key="BoolToVis" />
+            <shell:BoolToVisibilityConverter x:Key="InvBoolToVis" Invert="True" />
+            <shell:NullToVisibilityConverter x:Key="NullToVis" />
+            <shell:NullToBoolConverter x:Key="NullToBool" />
+        </ResourceDictionary>
     </UserControl.Resources>
 
     <Grid>
@@ -116,7 +122,18 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="{Binding ResultText}" TextWrapping="Wrap" FontSize="12" />
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="{Binding ResultText}" TextWrapping="Wrap" FontSize="12" />
+                                <!-- ADR-0065: Rückgängig für „In den Papierkorb“ / „Fehlende entfernen“ -->
+                                <ui:Button Content="Rückgängig"
+                                           Icon="{ui:SymbolIcon ArrowUndo16}"
+                                           Padding="8,3"
+                                           Margin="0,6,0,0"
+                                           HorizontalAlignment="Left"
+                                           AutomationProperties.Name="Ordner-Aktion rückgängig"
+                                           Command="{Binding UndoRemovalCommand}"
+                                           Visibility="{Binding CanUndoRemoval, Converter={StaticResource BoolToVis}}" />
+                            </StackPanel>
                             <ui:Button Grid.Column="1"
                                        Appearance="Transparent"
                                        Padding="4"
@@ -138,6 +155,7 @@
                     <!-- Ablegen von Galerie-Dateien (ADR-0054): verknüpfen, mit Umschalt verschieben (GalleryDragData) -->
                     <TreeView x:Name="FolderTree"
                               ItemsSource="{Binding Roots}"
+                              ItemTemplate="{StaticResource FolderNodeTemplate}"
                               AllowDrop="True"
                               DragOver="OnTreeDragOver"
                               Drop="OnTreeDrop"
@@ -199,48 +217,25 @@
                                                       Icon="{ui:SymbolIcon CalendarEdit24}"
                                                       Command="{Binding PlacementTarget.Tag.SetFolderCaptureDateCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                                       CommandParameter="{Binding}" />
+                                            <!-- ADR-0065: Ordner in den Papierkorb (Bestätigung mit Zahlen), fehlende Dateien vergessen (nur bei n > 0) -->
+                                            <Separator Visibility="{Binding PlacementTarget.Tag.HasRemovalActions, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BoolToVis}}" />
+                                            <MenuItem Header="In den Papierkorb…"
+                                                      Icon="{ui:SymbolIcon Delete24}"
+                                                      ToolTip="Ordner samt Inhalt in den Windows-Papierkorb verschieben (rückgängig machbar)"
+                                                      Visibility="{Binding PlacementTarget.Tag.HasRemovalActions, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BoolToVis}}"
+                                                      Command="{Binding PlacementTarget.Tag.RecycleFolderCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                      CommandParameter="{Binding}" />
+                                            <MenuItem Header="{Binding RemoveMissingHeader}"
+                                                      Icon="{ui:SymbolIcon DismissCircle24}"
+                                                      ToolTip="Dateien, die es auf der Platte nicht mehr gibt, aus der Bibliothek entfernen (mit Unterordnern) — es wird keine Datei gelöscht"
+                                                      Visibility="{Binding HasMissing, Converter={StaticResource BoolToVis}}"
+                                                      Command="{Binding PlacementTarget.Tag.RemoveMissingInFolderCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                      CommandParameter="{Binding}" />
                                         </ContextMenu>
                                     </Setter.Value>
                                 </Setter>
                             </Style>
                         </TreeView.ItemContainerStyle>
-                        <TreeView.ItemTemplate>
-                            <HierarchicalDataTemplate DataType="{x:Type local:FolderNode}" ItemsSource="{Binding Children}">
-                                <StackPanel Orientation="Horizontal" ToolTip="{Binding Path}">
-                                    <ui:SymbolIcon Symbol="Folder16"
-                                                   FontSize="14"
-                                                   Margin="0,0,6,0"
-                                                   VerticalAlignment="Center"
-                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
-                                    <!-- Rolle der Wurzel (ADR-0020) -->
-                                    <Border Margin="6,0,0,0" Padding="5,0" CornerRadius="8" VerticalAlignment="Center"
-                                            Background="{DynamicResource AccentFillColorTertiaryBrush}"
-                                            Visibility="{Binding RoleLabel, Converter={StaticResource NullToVis}}">
-                                        <TextBlock Text="{Binding RoleLabel}" FontSize="10" FontWeight="SemiBold"
-                                                   Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
-                                    </Border>
-                                    <TextBlock Margin="8,0,0,0"
-                                               FontSize="11"
-                                               VerticalAlignment="Center"
-                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Text" Value="{Binding FileCount, StringFormat=N0}" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding DataContext.IncludeSubfolders, RelativeSource={RelativeSource AncestorType={x:Type local:FolderTreePage}}}" Value="True">
-                                                        <Setter Property="Text" Value="{Binding TotalFileCount, StringFormat=N0}" />
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding IsPlaceholder}" Value="True">
-                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
-                                </StackPanel>
-                            </HierarchicalDataTemplate>
-                        </TreeView.ItemTemplate>
                     </TreeView>
 
                     <ui:ProgressRing IsIndeterminate="True"

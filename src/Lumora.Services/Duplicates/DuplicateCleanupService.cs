@@ -162,7 +162,7 @@ public sealed class DuplicateCleanupService : IDuplicateCleanupService
     {
         await using var ctx = _factory.Create();
         var latest = await ctx.DuplicateCleanupUndo.AsNoTracking()
-            .Where(u => u.UndoneAtUtc == null)
+            .Where(u => u.UndoneAtUtc == null && u.KeptFileId != 0) // KeptFileId 0 = Abzüge von „Ordner in den Papierkorb“/„Fehlende entfernen“ (ADR-0065)
             .Join(ctx.OperationBatches.AsNoTracking(), u => u.BatchId, b => b.Id, (u, b) => new { u.BatchId, b.Status, b.CreatedAtUtc, b.Description })
             .Where(x => x.Status == BatchStatus.Applied || x.Status == BatchStatus.Undone) // Undone: teilweise zurückgeholt, Rest noch offen
             .OrderByDescending(x => x.BatchId)
@@ -173,7 +173,7 @@ public sealed class DuplicateCleanupService : IDuplicateCleanupService
             return null;
         }
 
-        var count = await ctx.DuplicateCleanupUndo.CountAsync(u => u.BatchId == latest.BatchId && u.UndoneAtUtc == null, ct).ConfigureAwait(false);
+        var count = await ctx.DuplicateCleanupUndo.CountAsync(u => u.BatchId == latest.BatchId && u.UndoneAtUtc == null && u.KeptFileId != 0, ct).ConfigureAwait(false);
         return new DuplicateUndoInfo(latest.BatchId, count, latest.CreatedAtUtc, latest.Description);
     }
 
@@ -186,7 +186,7 @@ public sealed class DuplicateCleanupService : IDuplicateCleanupService
             await using (var ctx = _factory.Create())
             {
                 rows = await ctx.DuplicateCleanupUndo.AsNoTracking()
-                    .Where(u => u.BatchId == batchId && u.UndoneAtUtc == null)
+                    .Where(u => u.BatchId == batchId && u.UndoneAtUtc == null && u.KeptFileId != 0) // ADR-0065
                     .OrderByDescending(u => u.Id)
                     .ToListAsync(ct)
                     .ConfigureAwait(false);

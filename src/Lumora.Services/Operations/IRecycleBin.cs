@@ -26,4 +26,26 @@ public interface IRecycleBin
     /// </summary>
     void RestoreFromRecycleBin(string originalPath, DateTime deletedAfterUtc)
         => throw new NotSupportedException("Dieser Papierkorb kann nichts zurückholen.");
+
+    // ---- ADR-0065: Ordner in den Papierkorb ----
+
+    /// <summary>
+    /// Grund, warum für <paramref name="path"/> kein Papierkorb verfügbar ist (Netz, Wechsel-/VeraCrypt-Laufwerk …), oder
+    /// null, wenn es einen gibt. Ohne Dateizugriff. Standard: verfügbar (Fakes).
+    /// </summary>
+    string? GetUnavailableReasonFor(string path) => null;
+
+    /// <summary>
+    /// Holt den zuletzt (nach <paramref name="deletedAfterUtc"/>) gelöschten Ordner mit diesem Ursprungspfad samt Inhalt aus
+    /// dem Papierkorb an seinen Platz zurück (Rückgängig von „Ordner in den Papierkorb“). Wirft, wenn er nicht (mehr) im
+    /// Papierkorb liegt oder der Platz belegt ist. Standard: nicht unterstützt.
+    /// </summary>
+    void RestoreDirectoryFromRecycleBin(string originalPath, DateTime deletedAfterUtc)
+        => throw new NotSupportedException("Dieser Papierkorb kann keine Ordner zurückholen.");
+
+    /// <summary>
+    /// Liegt der Ordner (gelöscht nach <paramref name="deletedAfterUtc"/>) wirklich im Papierkorb? false, wenn die Shell ihn
+    /// endgültig gelöscht hat (z. B. zu groß für den Papierkorb und im Shell-Dialog bestätigt). Standard: ja.
+    /// </summary>
+    bool ContainsDirectory(string originalPath, DateTime deletedAfterUtc) => true;
 }

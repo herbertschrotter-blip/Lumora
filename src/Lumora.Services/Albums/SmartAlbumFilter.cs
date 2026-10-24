@@ -133,6 +133,7 @@ public sealed record SmartAlbumFilter
         {
             case "Inbox": parts.Add("noch im Eingang"); break;
             case "Library": parts.Add("in der Bibliothek"); break;
+            case "Missing": parts.Add("nur fehlende"); break; // ADR-0065
         }
 
         if (Place is not null)

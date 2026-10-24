@@ -78,6 +78,14 @@ public static class SmokeTestRunner
         // „Ort setzen…“ (ADR-0050): vorgegebene Antwort, vor AddPlacesUi (TryAdd)
         services.AddSingleton<Smoke.SmokePlaceDialog>();
         services.AddSingleton<Gallery.Places.IPlaceDialogService>(sp => sp.GetRequiredService<Smoke.SmokePlaceDialog>());
+        // „Ordner in den Papierkorb“ / „Fehlende entfernen“ (ADR-0065): Papierkorb mit Testmodus für den eigenen Schritt (Replace,
+        // AddLumoraServices hat den echten registriert), Bestätigungen automatisch „Ja“ (vor AddFolderActions, TryAdd)
+        services.AddSingleton(sp => new Smoke.SmokeRecycleBin(
+            OperatingSystem.IsWindows() ? new Services.Operations.WindowsRecycleBin() : throw new PlatformNotSupportedException(),
+            Path.Combine(sp.GetRequiredService<IAppDataPaths>().AppDataRoot, "smoke-papierkorb")));
+        services.Replace(ServiceDescriptor.Singleton<Services.Operations.IRecycleBin>(sp => sp.GetRequiredService<Smoke.SmokeRecycleBin>()));
+        services.AddSingleton<Smoke.SmokeRemovalDialogs>();
+        services.AddSingleton<Removal.IRemovalDialogs>(sp => sp.GetRequiredService<Smoke.SmokeRemovalDialogs>());
         return services;
     }
 

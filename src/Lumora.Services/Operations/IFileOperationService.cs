@@ -101,6 +101,83 @@ public interface IFileOperationService
     /// </summary>
     Task<FileOperationBatchResult?> RestoreRecycledAsync(int batchId, RecycleRestoreCatalog? restoreCatalog = null, CancellationToken ct = default)
         => throw new NotSupportedException("Zurückholen aus dem Papierkorb wird nicht unterstützt.");
+
+    // ---- ADR-0065: Ordner in den Papierkorb, Fehlende aus der Bibliothek entfernen (FileOperationService.RecycleFolder.cs / .RemoveMissing.cs) ----
+
+    /// <summary>
+    /// Ordner samt Inhalt in den Windows-Papierkorb (RecycleFolder-Batch): Katalogzeilen der Dateien darin (mit Abzug für
+    /// „Rückgängig“), Thumbnails, FTS und Folders-Zeilen werden entfernt. Abgelehnt (ohne Änderung): Wurzel selbst, Ordner mit
+    /// einer Wurzel darin, Laufwerk nicht erreichbar, Ordner nicht vorhanden. Hat das Laufwerk keinen Papierkorb, passiert ohne
+    /// <paramref name="allowPermanentDelete"/> nichts (<see cref="FolderRecycleResult.NeedsPermanentConsent"/>); mit
+    /// Zustimmung wird endgültig gelöscht (DeleteFolder-Batch, nicht rückgängig zu machen). Standard: nicht unterstützt.
+    /// </summary>
+    Task<FolderRecycleResult> RecycleFolderAsync(int folderId, bool allowPermanentDelete = false, CancellationToken ct = default)
+        => throw new NotSupportedException("Ordner in den Papierkorb wird nicht unterstützt.");
+
+    /// <summary>
+    /// Fehlende Dateien aus dem Katalog entfernen (RemoveFromCatalog-Batch) — keine Datei wird angefasst. Je Datei: nur wenn
+    /// als fehlend markiert, die Wurzel erreichbar ist (Offline-vs-Missing-Guard, PLAN Kap. 12) und die Datei wirklich nicht
+    /// da ist (sonst „wieder da“: Missing zurücksetzen). Abzug je Zeile für „Rückgängig“, danach Thumbnails, Cache-Datei,
+    /// FTS (alte Werte), Verknüpfungen gesichert (ADR-0054). Anschließend leere, nicht mehr vorhandene Ordner (unterhalb von
+    /// <paramref name="pruneUnderFolderId"/> bzw. auf dem Weg der entfernten Dateien) aus dem Baum. Standard: nicht unterstützt.
+    /// </summary>
+    Task<MissingRemovalBatchResult> RemoveMissingAsync(IReadOnlyList<int> fileIds, int? pruneUnderFolderId = null, CancellationToken ct = default)
+        => throw new NotSupportedException("Fehlende entfernen wird nicht unterstützt.");
+}
+
+/// <summary>Ergebnis von <see cref="IFileOperationService.RecycleFolderAsync"/> (ADR-0065).</summary>
+/// <param name="BatchId">Protokoll-Batch (0, wenn nichts geschah).</param>
+/// <param name="Success">Ordner ist weg und der Katalog gebucht.</param>
+/// <param name="Permanent">Endgültig gelöscht statt Papierkorb (kein Papierkorb, Zustimmung gegeben).</param>
+/// <param name="FilesRemoved">Katalogzeilen entfernt.</param>
+/// <param name="FilesFailed">Dateien, die noch da sind (z. B. gesperrt).</param>
+/// <param name="FoldersRemoved">Folders-Zeilen entfernt.</param>
+/// <param name="Error">Grund bei Ablehnung oder Fehler.</param>
+/// <param name="NeedsPermanentConsent">Laufwerk ohne Papierkorb: nichts geschehen, Rückfrage „endgültig löschen?“ nötig.</param>
+/// <param name="NoRecycleBinReason">Warum es keinen Papierkorb gibt (für die Rückfrage).</param>
+/// <param name="FolderGone">Der Ordner ist von der Platte weg (auch wenn die Katalog-Buchung danach scheiterte).</param>
+public sealed record FolderRecycleResult(
+    int BatchId,
+    bool Success,
+    bool Permanent,
+    int FilesRemoved,
+    int FilesFailed,
+    int FoldersRemoved,
+    string? Error,
+    bool NeedsPermanentConsent = false,
+    string? NoRecycleBinReason = null,
+    bool FolderGone = false)
+{
+    public bool CanUndo => Success && !Permanent && BatchId > 0;
+
+    /// <summary>Etwas liegt im Papierkorb, das „Rückgängig“ zurückholen kann (auch bei Teilerfolg oder gescheiterter Buchung).</summary>
+    public bool CanUndoPartially => !Permanent && BatchId > 0 && (FilesRemoved > 0 || FolderGone);
+
+    public static FolderRecycleResult Rejected(string error) => new(0, false, false, 0, 0, 0, error);
+}
+
+/// <summary>Ergebnis von <see cref="IFileOperationService.RemoveMissingAsync"/> (ADR-0065).</summary>
+/// <param name="BatchId">Protokoll-Batch (0, wenn nichts entfernt wurde).</param>
+/// <param name="Removed">Aus dem Katalog entfernt.</param>
+/// <param name="Reappeared">Datei war wieder da: nicht entfernt, „fehlt“ zurückgesetzt.</param>
+/// <param name="SkippedOffline">Wurzel nicht erreichbar: nicht entfernt (gelten als offline, nicht als fehlend).</param>
+/// <param name="SkippedNotMissing">Nicht als fehlend markiert: nicht entfernt.</param>
+/// <param name="FoldersRemoved">Leere, nicht mehr vorhandene Ordner aus dem Baum entfernt.</param>
+/// <param name="Failed">Katalog-Buchung gescheitert.</param>
+/// <param name="OfflineRoots">Nicht erreichbare Wurzeln (Pfade, nur für die Anzeige).</param>
+public sealed record MissingRemovalBatchResult(
+    int BatchId,
+    int Removed,
+    int Reappeared,
+    int SkippedOffline,
+    int SkippedNotMissing,
+    int FoldersRemoved,
+    int Failed,
+    IReadOnlyList<string> OfflineRoots)
+{
+    public static MissingRemovalBatchResult Empty { get; } = new(0, 0, 0, 0, 0, 0, 0, []);
+
+    public bool CanUndo => BatchId > 0 && Removed > 0;
 }
 
 /// <summary>Eine aus dem Papierkorb zurückgeholte Datei, die noch in den Katalog muss.</summary>

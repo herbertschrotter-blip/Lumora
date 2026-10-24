@@ -61,6 +61,9 @@ public sealed partial class GalleryPageSource
             case GalleryLocation.Library:
                 parts.Add(ArchiveClause);
                 break;
+            case GalleryLocation.Missing:
+                parts.Add("AND f.Missing = 1"); // „Nur fehlende“ (ADR-0065)
+                break;
         }
 
         parts.AddRange(BuildPlaceClauses(filter)); // Ort und Kartenausschnitt (ADR-0050, GalleryPageSource.Places.cs)

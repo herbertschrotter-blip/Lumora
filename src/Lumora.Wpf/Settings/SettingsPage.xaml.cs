@@ -33,7 +33,8 @@ public partial class SettingsPage : UserControl
         Stories.StorySettingsViewModel? stories = null,
         Places.TrackSettings.PlacesSettingsViewModel? places = null,
         Stories.Assistant.AssistantSettingsViewModel? assistant = null,
-        Shell.HiddenLibraries.SecurityCheck.SecurityCheckViewModel? securityCheck = null)
+        Shell.HiddenLibraries.SecurityCheck.SecurityCheckViewModel? securityCheck = null,
+        Removal.MissingFilesSettingsViewModel? missingFiles = null)
     {
         _sections = sections;
         InitializeComponent();
@@ -44,6 +45,9 @@ public partial class SettingsPage : UserControl
         StoriesView.DataContext = stories; // Reiter „Storys“ samt Diashow (ADR-0060, ADR-0059); ohne Dienst leer
         PlacesView.DataContext = places; // Reiter „Orte“: Garmin-Aktivitäten, Zeitabgleich (ADR-0062); ohne Dienst leer
         AssistantView.DataContext = assistant; // Reiter „Assistent“ (ADR-0063); ohne Dienst leer
+        // Speicher & Wartung › Fehlende Dateien (ADR-0065); ohne Dienst ausgeblendet
+        StorageView.MissingFilesCard.DataContext = missingFiles;
+        StorageView.MissingFilesCard.Visibility = missingFiles is null ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible;
 
         LibraryTab.Content = library;
         TagsTab.Content = tags;
@@ -58,6 +62,7 @@ public partial class SettingsPage : UserControl
         sections.PropertyChanged += OnSectionsPropertyChanged;
 
         Loaded += (_, _) => _ = viewModel.LoadCommand.ExecuteAsync(null);
+        Loaded += (_, _) => _ = missingFiles?.RefreshAsync(); // ADR-0065
     }
 
     /// <summary>Tag des angezeigten Reiters (Rauchtest, Tests).</summary>

@@ -29,8 +29,9 @@ public sealed partial class FolderNode : ObservableObject
         Path = string.Empty;
     }
 
-    public FolderNode(FolderTreeViewModel owner, int id, string name, string path, int fileCount, int totalFileCount, bool hasChildren, string? roleLabel = null, bool isInInbox = false, bool isLibraryHeader = false)
+    public FolderNode(FolderTreeViewModel owner, int id, string name, string path, int fileCount, int totalFileCount, bool hasChildren, string? roleLabel = null, bool isInInbox = false, bool isLibraryHeader = false, int missingCount = 0)
     {
+        MissingCount = missingCount; // ADR-0065
         IsInInbox = isInInbox;
         IsLibraryHeader = isLibraryHeader;
         _owner = owner;
@@ -90,6 +91,14 @@ public sealed partial class FolderNode : ObservableObject
     [RelayCommand]
     private Task FavoriteAllAsync(string? value)
         => _owner is null || IsLibraryHeader ? Task.CompletedTask : _owner.FavoriteFolderAsync(this, string.Equals(value, "true", System.StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Fehlende Dateien in diesem Ordner samt Unterordnern (ADR-0065).</summary>
+    public int MissingCount { get; }
+
+    /// <summary>Kontextmenü „Fehlende entfernen (n)“ nur bei echten Ordnern mit n &gt; 0.</summary>
+    public bool HasMissing => IsFolder && MissingCount > 0;
+
+    public string RemoveMissingHeader => $"Fehlende entfernen ({MissingCount:N0})";
 
     /// <summary>Umbenennen nur für normale Ordner (Wurzeln sind Bibliothekseinstellung, Platzhalter nichts).</summary>
     public bool CanRename => !IsPlaceholder && !IsLibraryRoot;

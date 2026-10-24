@@ -219,7 +219,7 @@ Kopfzeile (0.2.43, ADR-0041):
   sind erlaubt): **Strg+F** springt hinein, **Enter** sucht sofort, sonst sucht es nach einer kurzen Tipp-Pause; **Esc**
   oder ✕ leert die Suche.
 - **Filterkarte**, Zeile **Datei**: Dateiart (Alle / Bilder / Videos / Archive), **Nur Favoriten**, **Bewertung**
-  (egal / ab 1–4 Sternen / nur 5 Sterne), **Ablage** (Überall / Noch im Eingang / In der Bibliothek) und rechts
+  (egal / ab 1–4 Sternen / nur 5 Sterne), **Ablage** (Überall / Noch im Eingang / In der Bibliothek / **Nur fehlende** — seit 0.4.30) und rechts
   **Filter zurücksetzen** mit der Zahl der aktiven Filter. Zeile **Inhalt**: **Tags**, **Personen** (sobald es Personen
   oder Gesichter gibt), **Kategorien** (sobald es Kategorien gibt) und **Doppelte** (nur Dateien, die es im Bereich
   byte-gleich ein zweites Mal gibt — seit 0.3.1); wirkende Filter erscheinen in Akzentfarbe mit
@@ -522,6 +522,16 @@ werden protokolliert umbenannt und lassen sich mit Rückgängig zurücknehmen), 
 unter einem Eingang, siehe „Eingang und Bibliotheksordner“) sowie **Bewertung für alle Dateien** (1–5 Sterne oder
 entfernen), **Favorit für alle**, **Kategorie für alle…** und **Tags für alle…** — wirken auf alle Dateien des Ordners
 samt Unterordnern, nach einer Bestätigung mit Anzahl. Das Ergebnis steht über dem Baum (✕ blendet es aus).
+Seit 0.4.30 (ADR-0065) außerdem: **In den Papierkorb…** — der Ordner samt Inhalt (auch Nicht-Medien und Unterordner)
+kommt in den Windows-Papierkorb; die Bestätigung nennt Dateien auf der Platte, davon in der Bibliothek, Unterordner und
+was an Benutzerdaten dranhängt (Sterne/Favorit, benannte Personen, Alben, Tags/Kategorien). **Rückgängig** im Ergebnisfeld
+(oder in der Galerie) holt Ordner und Dateien zurück und bringt die Katalogeinträge mit denselben Ids und allen Angaben
+wieder. Nicht möglich für die Wurzel selbst und Ordner, in denen eine Wurzel liegt (Hinweis auf Einstellungen ›
+Bibliotheken & Eingänge), in „Alle verknüpften“ und bei nicht erreichbarem Laufwerk. Hat das Laufwerk **keinen
+Papierkorb** (Netz, USB-/VeraCrypt-Laufwerk), fragt Lumora eigens „Dieses Laufwerk hat keinen Papierkorb — endgültig
+löschen?“ mit eigenem Knopf; sonst passiert nichts (endgültig gelöscht lässt sich nicht zurücknehmen). **Fehlende
+entfernen (n)** erscheint, wenn der Ordner (samt Unterordnern) n Dateien hat, die es auf der Platte nicht mehr gibt: Lumora
+vergisst diese Einträge (keine Datei wird gelöscht) und nimmt danach leere, nicht mehr vorhandene Ordner aus dem Baum.
 **Eingang hinzufügen…** oben neben „Ordner“ nimmt einen unsortierten Quellordner als Eingang der aktiven Bibliothek auf
 (gleicher Ablauf wie in den Einstellungen, danach Angebot „Jetzt aktualisieren“; die Seite bleibt offen).
 
@@ -592,12 +602,26 @@ Reiter oben (ADR-0042):
 - **Storys** (seit 0.4.15) — Story-Arten an/aus, Zu Hause, Pause, Mindestgröße, Highlights-Anteil und die Karte
   **Diashow** (siehe „Storys“).
 - **Speicher & Wartung** — Speicherorte mit „Ordner öffnen“ und **Ändern…** (siehe „Speicherort des Katalogs“),
-  Thumbnail-Cache (Belegung, **Cache leeren** — Vorschaubilder werden bei Bedarf neu erzeugt), FFmpeg-Status mit
-  kopierbarem winget-Befehl, unterstützte Bild- und Videoformate.
+  Thumbnail-Cache (Belegung, **Cache leeren** — Vorschaubilder werden bei Bedarf neu erzeugt), Karte **Fehlende Dateien**
+  mit **Alle fehlenden entfernen (n)** für die aktuelle Bibliothek (seit 0.4.30, siehe „Fehlende Dateien entfernen“),
+  FFmpeg-Status mit kopierbarem winget-Befehl, unterstützte Bild- und Videoformate.
 - **Info** — Kopf mit App-Symbol und Schriftzug, Version (= oberster Eintrag der CHANGELOG), Build-Datum, Debug/Release; Entwicklung, dieses System (.NET,
   Windows, Grafikkarte, Gesichtsmodell, Katalogzahlen), Speicherorte zum Öffnen, verwendete Bausteine mit Versionen und
   **Alle Lizenzen anzeigen…**; **Versionsinfo kopieren** (für Fehlermeldungen, ohne Pfade) und **Änderungsprotokoll**
   (öffnet die CHANGELOG.md neben der App).
+
+#### Fehlende Dateien entfernen (seit 0.4.30, ADR-0065)
+Findet „Aktualisieren“ eine Datei nicht mehr, bleibt ihr Eintrag mit Sternen, Personen, Alben usw. als **„fehlt“** stehen —
+sie könnte ja zurückkommen (Laufwerk wieder da, Datei zurückverschoben). Wer sie wirklich los ist, lässt Lumora die Einträge
+**vergessen** — es wird **keine Datei gelöscht**. Drei Wege: Reiter **Ordner** › Rechtsklick › **Fehlende entfernen (n)**
+(Ordner samt Unterordnern), **Galerie** › Filter **Ablage: Nur fehlende**, Auswahl › **Aus der Bibliothek entfernen** (nur
+wenn alle gewählten fehlen; bei gemischter Auswahl kommt ein Hinweis) und **Einstellungen › Speicher & Wartung** › **Alle
+fehlenden entfernen (n)**. Die Bestätigung nennt die Zahl der Dateien und davon die mit Sternen/Favorit, benannten Personen,
+in Alben und mit Tags/Kategorien — diese Angaben gehen verloren; **Rückgängig** bringt sie zurück (Galerie bzw. das
+Ergebnisfeld). Sicherheit: Ist das Laufwerk einer Wurzel **nicht erreichbar**, entfernt Lumora dort nichts („Laufwerk
+nicht erreichbar — Dateien gelten als offline, nicht als fehlend“); vor dem Entfernen prüft es jede Datei noch einmal —
+ist sie wieder da, bleibt sie und „fehlt“ verschwindet. Gilt nur im aktuellen Bereich; in „Alle verknüpften“ gesperrt;
+in einer versteckten Bibliothek nur in ihrem eigenen Katalog.
 
 #### Speicherort des Katalogs
 **Einstellungen › Speicher & Wartung → Speicherorte → Datenbank → Ändern…** zieht Katalog (`library.db`) und Vorschaubilder (`thumbs\`) in

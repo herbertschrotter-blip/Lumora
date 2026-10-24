@@ -431,7 +431,8 @@ public sealed partial class FileOperationService : IFileOperationService, IDispo
             var batchId = await ctx.OperationBatches
                 .Where(b => b.Status == BatchStatus.Applied
                             && (b.OperationType == OperationType.Move || b.OperationType == OperationType.Rename || b.OperationType == OperationType.RenameFolder
-                                || b.OperationType == OperationType.AdoptFolder))
+                                || b.OperationType == OperationType.AdoptFolder
+                                || b.OperationType == OperationType.RecycleFolder || b.OperationType == OperationType.RemoveFromCatalog)) // ADR-0065
                 .OrderByDescending(b => b.Id)
                 .Select(b => (int?)b.Id)
                 .FirstOrDefaultAsync(ct)
@@ -1044,7 +1045,7 @@ public sealed partial class FileOperationService : IFileOperationService, IDispo
 
         if (!CanUndo(batch.OperationType, batch.Status))
         {
-            var reason = batch.OperationType is OperationType.Move or OperationType.Rename or OperationType.RenameFolder or OperationType.AdoptFolder
+            var reason = IsUndoableType(batch.OperationType)
                 ? $"Batch {batch.Id} hat Status {batch.Status} und ist nicht (mehr) rückgängig machbar."
                 : $"Batch {batch.Id} ({batch.OperationType}) ist nicht rückgängig machbar.";
             var items = ops.Count > 0
@@ -1067,6 +1068,10 @@ public sealed partial class FileOperationService : IFileOperationService, IDispo
             else if (batch.OperationType == OperationType.AdoptFolder)
             {
                 results.AddRange(await UndoAdoptFolderAsync(ctx, ops, changes, own, ct).ConfigureAwait(false)); // ADR-0034
+            }
+            else if (batch.OperationType is OperationType.RecycleFolder or OperationType.RemoveFromCatalog)
+            {
+                results.AddRange(await UndoRemovalAsync(ctx, batch, ops, changes, own, ct).ConfigureAwait(false)); // ADR-0065
             }
             else
             {
@@ -1997,7 +2002,11 @@ public sealed partial class FileOperationService : IFileOperationService, IDispo
     }
 
     private static bool CanUndo(OperationType type, BatchStatus status)
-        => status == BatchStatus.Applied && type is OperationType.Move or OperationType.Rename or OperationType.RenameFolder or OperationType.AdoptFolder;
+        => status == BatchStatus.Applied && IsUndoableType(type);
+
+    private static bool IsUndoableType(OperationType type)
+        => type is OperationType.Move or OperationType.Rename or OperationType.RenameFolder or OperationType.AdoptFolder
+            or OperationType.RecycleFolder or OperationType.RemoveFromCatalog; // ADR-0065
 
     /// <summary>Voller Pfad ohne abschließende Trennzeichen; Laufwerks-/UNC-Wurzeln behalten ihres („E:\“).</summary>
     private static string NormalizeDirectoryPath(string path)

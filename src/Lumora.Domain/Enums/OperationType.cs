@@ -32,4 +32,22 @@ public enum OperationType
     /// Werte und alte Bytes stehen in <c>GeoTagUndo</c>, „Rückgängig“ stellt sie wieder her.
     /// </summary>
     SetGeoLocation = 8,
+
+    // ---- ADR-0065: Ordner in den Papierkorb, Fehlende aus der Bibliothek entfernen ----
+
+    /// <summary>
+    /// Ordner samt Inhalt in den Windows-Papierkorb (ADR-0065): eine Ordner-Operation (FileId null), dazu eine
+    /// Recycle-Operation je katalogisierter Datei darin. Abzüge der Katalogzeilen liegen in <c>DuplicateCleanupUndo</c>
+    /// (KeptFileId 0); „Rückgängig“ holt den Ordner zurück und schreibt die Zeilen mit denselben FileIds zurück.
+    /// </summary>
+    RecycleFolder = 9,
+
+    /// <summary>Ordner endgültig gelöscht, weil das Laufwerk keinen Papierkorb hat und der Benutzer zugestimmt hat (ADR-0065); nicht rückgängig zu machen.</summary>
+    DeleteFolder = 10,
+
+    /// <summary>
+    /// Fehlende Dateien aus der Bibliothek entfernt (ADR-0065) — nur Katalog, keine Datei wird angefasst. Je Datei eine
+    /// Operation; Abzüge in <c>DuplicateCleanupUndo</c> (KeptFileId 0), „Rückgängig“ schreibt sie zurück.
+    /// </summary>
+    RemoveFromCatalog = 11,
 }

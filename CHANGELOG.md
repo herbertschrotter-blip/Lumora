@@ -3,6 +3,60 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.4.30] — 2026-10-25
+
+### Feature (ADR-0065) — Ordner in den Papierkorb und fehlende Dateien bewusst aus der Bibliothek entfernen
+- **Reiter „Ordner“ › Rechtsklick › „In den Papierkorb…“:** Ordner samt Inhalt (auch Nicht-Medien, Unterordner) in einem
+  Schritt in den Windows-Papierkorb. Bestätigung mit Zahlen (Dateien auf der Platte, davon in der Bibliothek, Unterordner,
+  Sterne/Favorit, benannte Personen, Alben, Tags/Kategorien). Protokolliert als RecycleFolder-Batch (ADR-0012) mit Abzug je
+  Katalogzeile vorher; danach Verknüpfungen gesichert (ADR-0054), FTS mit alten Werten, Thumbnails-Zeilen, Files-Zeilen,
+  Cache-Dateien, Folders-Zeilen. **Rückgängig** (im Ergebnisfeld des Ordnerbaums oder über die Galerie-Taste) holt den
+  Ordner aus dem Papierkorb und schreibt alle Zeilen mit **denselben FileIds und Angaben** zurück.
+  Abgelehnt: Wurzel selbst bzw. Ordner mit einer Wurzel darin (Hinweis auf die Einstellungen), „Alle verknüpften“,
+  Laufwerk nicht erreichbar, Ordner nicht mehr vorhanden. **Laufwerk ohne Papierkorb** (Netz, USB, VeraCrypt): eigene
+  Rückfrage „Dieses Laufwerk hat keinen Papierkorb — endgültig löschen?“ mit Knopf „Endgültig löschen“, sonst passiert
+  nichts (DeleteFolder-Batch, nicht rückgängig). Die Ordnerüberwachung sieht den Baum als eigen (kein Diff-Scan, keine
+  „fehlt“-Flut).
+- **Fehlende entfernen** (Lumora vergisst Dateien, die es nicht mehr gibt — keine Datei wird gelöscht), an drei Stellen:
+  Ordner-Kontextmenü **„Fehlende entfernen (n)“** (samt Unterordnern, nur bei n > 0; leere, nicht mehr vorhandene Ordner
+  gehen mit aus dem Baum), Galerie Ablage **„Nur fehlende“** + **„Aus der Bibliothek entfernen“** für die Auswahl (nur wenn
+  alle fehlen, sonst Hinweis), **Einstellungen › Speicher & Wartung › „Alle fehlenden entfernen (n)“** für die aktuelle
+  Bibliothek. Offline-vs-Missing-Guard je Wurzel („Laufwerk nicht erreichbar — Dateien gelten als offline, nicht als
+  fehlend“), erneute Existenzprüfung („wieder da“ → „fehlt“ zurückgesetzt), Bestätigung „… — diese Angaben gehen
+  verloren“ mit Zahlen, RemoveFromCatalog-Batch mit Rückgängig. Nur im aktuellen Bereich, in „Alle verknüpften“ gesperrt,
+  versteckte Bibliothek nur im eigenen Katalog; Protokoll auf Info-Level nur mit Zahlen.
+- **Technik:** `IFileOperationService.RecycleFolderAsync`/`RemoveMissingAsync` (+ Undo-Zweig), `FolderRemovalRules`,
+  `RemovalUndoStore` (Abzüge in `DuplicateCleanupUndo` mit `KeptFileId = 0` — **keine Migration**; die Seite „Doppelte“
+  blendet sie aus), `IRecycleBin.GetUnavailableReasonFor`/`RestoreDirectoryFromRecycleBin` (Windows: `$R`-Ordner über den
+  `$I`-Kopf), `CatalogRowSnapshot.RestoreFileRowAsCaptured`, `FileLinkUndoStore.DiscardAsync`, neue `OperationType`-Werte
+  9–11, `Services/Removal` (`IRemovalService`: Vorschau, Zahlen, Guard), Wpf `Removal/RemovalActions` (Abläufe mit
+  Bestätigung über `IRemovalDialogs`), `MissingFilesSettingsViewModel`, `GalleryLocation.Missing`.
+- **Reiter „Ordner“ — gewählter Ordner deutlich erkennbar** (Nachtrag Herbert): Akzent-Balken links (3 px), Akzent-Tönung
+  als Hintergrund, Ordnersymbol in Akzentfarbe, Name halbfett — nur DynamicResource, hell und dunkel; Knoten-Vorlage jetzt in
+  `Folders/FolderTreeStyles.xaml`. Fokus und Aufklappen bleiben beim TreeViewItem-Stil.
+- **Tests:** Services 1251 → 1271 (2 übersprungen wie vorher; dazu 1× `HiddenLibraryLocatorTests.Folder_rules_…` rot schon
+  im Ausgangsstand — umgebungsabhängig: am geprüften Ort liegt auf diesem Rechner bereits eine versteckte Bibliothek), Wpf 1087 → 1202
+  (7 übersprungen wie vorher; Suite dreimal grün; +96 durch „Nur fehlende“ in `GalleryFilterCombinationTests`) — u. a.
+  Ordner in den Papierkorb + Rückgängig mit denselben FileIds/Tags/Album, Wurzel/Wurzel darin/offline/fehlend abgelehnt,
+  ohne Papierkorb erst Rückfrage dann endgültig (nicht rückgängig), Shell löscht doch endgültig → DeleteFolder,
+  Papierkorb-Fehler ändert nichts, Rückgängig nach Katalogfehler holt beim zweiten Versuch nur den Katalog nach, Baum für die
+  Ordnerüberwachung eigen, Seite „Doppelte“ ignoriert die Abzüge; Fehlende am Ordner/Auswahl/Bibliothek mit Zahlen, Katalog
+  sauber (Thumbnails, Cache-Datei, FTS, Kaskaden, `FileLinkUndo`), leere verschwundene Ordner weg (nicht bei Verknüpfung),
+  „wieder da“, Offline-Guard (auch im Dienst selbst), andere Bibliothek unberührt, Rückgängig als „fehlt“; `$R`-Ordner im
+  nachgebauten Papierkorb; ViewModels Ordnerbaum (Zähler, Menü nur bei n > 0, Rückgängig, „Alle verknüpften“ gesperrt),
+  Galerie (Filter, Knopf, gemischte Auswahl), Einstellungs-Karte, Bestätigungstexte; Ordner-Auswahl im dunklen Design.
+- **Rauchtest:** neuer Schritt „Ordner löschen und Fehlende entfernen“ vor „Versteckte Bibliothek“ (Unterordner mit 2 Fotos,
+  in den Test-Papierkorb + Rückgängig, Datei löschen → „fehlt“, Zähler, Galerie „Nur fehlende“, Einstellungen-Zahl,
+  „Fehlende entfernen (1)“, Screenshots `21`–`23` hell/dunkel; der Rauchtest-Papierkorb legt im Schritt nur im
+  Rauchtest-AppData ab). Drei Läufe: 47/47 OK (4 Binding-Fehler im Schritt „Alben“ — bekannter Wackler beim Öffnen des
+  intelligenten Albums), 46/47 (Wackler „Lightbox: Kachel 41 realisiert und fokussiert“ — `Focus()` ohne aktives Fenster,
+  0 Binding-Fehler), 47/47 OK (wieder die 4 bekannten Binding-Fehler in „Alben“); kein ERR/FTL.
+
+### Offen
+- Vorschaubilder kommen bei „Fehlende entfernen“ → Rückgängig nicht zurück (Cache-Datei ist nach Repo-Regel gelöscht).
+- Ein echter Durchlauf von „In den Papierkorb“ + Rückgängig gegen den Windows-Papierkorb (statt Test-Papierkorb) bei Herbert
+  steht aus; die Windows-Seite ist über ein nachgebautes `$Recycle.Bin`-Verzeichnis getestet.
+
 ## [0.4.29] — 2026-10-25
 
 ### Docs — Mockup 15 „Aktivitäten unten rechts“, abgenommen

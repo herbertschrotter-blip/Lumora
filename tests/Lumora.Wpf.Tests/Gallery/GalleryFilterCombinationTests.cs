@@ -85,9 +85,10 @@ public sealed class GalleryFilterCombinationTests(GalleryFilterCombinationTests.
                 for (var i = 0; i < FileCount; i++)
                 {
                     using var cmd = connection.CreateCommand();
-                    cmd.CommandText = "UPDATE Files SET IsFavorite = $fav, Rating = $rating WHERE Id = $id;";
+                    cmd.CommandText = "UPDATE Files SET IsFavorite = $fav, Rating = $rating, Missing = $missing WHERE Id = $id;"; // Missing: Ablage „Nur fehlende“ (ADR-0065)
                     cmd.Parameters.AddWithValue("$fav", IsFavorite(i) ? 1 : 0);
                     cmd.Parameters.AddWithValue("$rating", RatingOf(i) is { } r ? r : DBNull.Value);
+                    cmd.Parameters.AddWithValue("$missing", IsMissing(i) ? 1 : 0);
                     cmd.Parameters.AddWithValue("$id", ids[i]);
                     cmd.ExecuteNonQuery();
                 }
@@ -243,6 +244,7 @@ public sealed class GalleryFilterCombinationTests(GalleryFilterCombinationTests.
             {
                 GalleryLocation.Inbox => IsInbox(i),
                 GalleryLocation.Library => !IsInbox(i),
+                GalleryLocation.Missing => IsMissing(i), // ADR-0065
                 _ => true,
             })
             .Where(i => extra?.Invoke(i) ?? true)
@@ -251,6 +253,8 @@ public sealed class GalleryFilterCombinationTests(GalleryFilterCombinationTests.
     private static bool IsInbox(int i) => i % 4 < 2;
 
     private static bool IsFavorite(int i) => i % 2 == 0;
+
+    private static bool IsMissing(int i) => i % 7 == 3;
 
     private static int? RatingOf(int i) => i % 6 == 0 ? null : i % 6;
 

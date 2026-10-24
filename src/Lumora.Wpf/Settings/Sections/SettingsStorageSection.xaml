@@ -103,6 +103,50 @@
                 </Grid>
             </Border>
 
+            <!-- ADR-0065: Fehlende Dateien der aktuellen Bibliothek vergessen; DataContext = MissingFilesSettingsViewModel (SettingsPage) -->
+            <Border x:Name="MissingFilesCard" Style="{StaticResource SectionCard}" Visibility="Collapsed">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <ui:TextBlock Grid.Row="0" Grid.ColumnSpan="2" Style="{StaticResource SectionTitle}" Text="Fehlende Dateien" />
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="{Binding SummaryText}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                    <ui:Button Grid.Row="1" Grid.Column="1" Margin="12,2"
+                               Content="{Binding ButtonText}" Icon="{ui:SymbolIcon DismissCircle24}"
+                               ToolTip="Einträge, deren Datei es nicht mehr gibt, aus der Bibliothek entfernen — es wird keine Datei gelöscht. Nicht erreichbare Laufwerke bleiben unberührt."
+                               AutomationProperties.Name="Alle fehlenden entfernen"
+                               Command="{Binding RemoveAllCommand}" />
+                    <TextBlock Grid.Row="2" Grid.ColumnSpan="2" FontSize="12" TextWrapping="Wrap" MaxWidth="640" HorizontalAlignment="Left" Margin="0,6,0,0"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               Text="Einzeln geht es im Reiter „Ordner“ (Rechtsklick › Fehlende entfernen) oder in der Galerie (Filter „Ablage: Nur fehlende“)." />
+                    <StackPanel Grid.Row="3" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,8,0,0"
+                                Visibility="{Binding ResultText, Converter={StaticResource NullToVis}}">
+                        <TextBlock Text="{Binding ResultText}" TextWrapping="Wrap" MaxWidth="560" VerticalAlignment="Center">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ResultIsWarning}" Value="True">
+                                            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCautionBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <ui:Button Content="Rückgängig" Icon="{ui:SymbolIcon ArrowUndo16}" Margin="12,0,0,0" Padding="8,3"
+                                   AutomationProperties.Name="Fehlende entfernen rückgängig"
+                                   Command="{Binding UndoCommand}"
+                                   Visibility="{Binding CanUndo, Converter={StaticResource BoolToVis}}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
             <!-- FFmpeg -->
             <Border Style="{StaticResource SectionCard}">
                 <StackPanel>

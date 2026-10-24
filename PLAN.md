@@ -116,7 +116,8 @@ src/
     Library/                          # LibraryService, LibraryCatalogCleanup
     Media/                            # MediaFormatRegistry (ADR-0016)
     Messaging/                        # Nachrichten-Records für WeakReferenceMessenger (ADR-0017)
-    Operations/                       # FileOperationService, WindowsRecycleBin (ADR-0012/0018)
+    Operations/                       # FileOperationService, WindowsRecycleBin (ADR-0012/0018); Ordner in den Papierkorb, Fehlende entfernen, RemovalUndoStore (ADR-0065)
+    Removal/                          # RemovalService: Vorschau/Zahlen, Offline-Guard, Ausführung über die Datei-Operationen (ADR-0065)
     Places/Clustering/                # GeoClusterIndex (Morton-Raster, Gruppen je Zoomstufe), MercatorProjection (ADR-0051)
     Places/Accuracy/                  # Ungenaue Orte (ADR-0062): GeoAccuracyRules, GeoJumpDetector (rein), GeoAccuracyService (Hintergrund)
     Places/Tracks/                    # GPS-Spuren (ADR-0062): TrackCodec, FitTrackReader, XmlTrackReader (GPX/TCX), GpsTrackStore, GpsTrackImportService (ZIP), GpsTrackAutoImport (Ordner/USB), GeoTrackSettings
@@ -297,6 +298,10 @@ FilesFts           -- FTS5 virtual table (Files.Name, Extension)
   OperationBatches ON DELETE CASCADE, FileId, KeptFileId, Snapshot (JSON: Files-Zeile + alle per Kaskade abhängigen Zeilen),
   Transfer (JSON: was auf die behaltene Datei übertragen wurde), CreatedAtUtc, UndoneAtUtc, IX_DuplicateCleanupUndo_Batch)`.
   Settings: `duplicates.similarThreshold` (Standard 10), `duplicates.transferMetadata` (Standard an).
+  Seit 0.4.30 (ADR-0065, keine Migration) liegen dort auch die Abzüge für „Ordner in den Papierkorb“ und „Fehlende
+  entfernen“: `KeptFileId = 0` (kein behaltenes Gegenstück; die Seite „Doppelte“ blendet sie aus), je entfernter Datei ein
+  Abzug, `FileId = 0` = Abzug der entfernten `Folders`-Zeilen samt `FolderLinks` hinein. Neue `OperationType`-Werte
+  `RecycleFolder` (9), `DeleteFolder` (10), `RemoveFromCatalog` (11) (als int gespeichert).
 - Foto-Güte — umgesetzt in 0.4.7 (Migration `AddFileQuality`, ADR-0057, nur CREATE TABLE):
   `FileQuality (FileId PK → Files ON DELETE CASCADE, Sharpness REAL, Exposure REAL, Aesthetic REAL NULL (Bildwirkung aus
   den Motiv-Vektoren), AestheticVersion NULL (Modell + Prompt-Satz), Version, SourceSize, SourceModifiedAt, ErrorCode NULL)`

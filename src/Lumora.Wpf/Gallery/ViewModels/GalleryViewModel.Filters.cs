@@ -47,6 +47,7 @@ public sealed partial class GalleryViewModel
         new(GalleryLocation.Anywhere, "Überall", "Eingänge und Bibliothek"),
         new(GalleryLocation.Inbox, "Noch im Eingang", "Dateien in Eingängen (unsortierte Quellordner)"),
         new(GalleryLocation.Library, "In der Bibliothek", "Dateien im Bibliotheksordner"),
+        new(GalleryLocation.Missing, "Nur fehlende", "Dateien, die es auf der Platte nicht mehr gibt — lassen sich aus der Bibliothek entfernen"), // ADR-0065
     ];
 
     private CancellationTokenSource? _searchDebounceCts;
@@ -125,6 +126,7 @@ public sealed partial class GalleryViewModel
     {
         GalleryLocation.Inbox => "Eingang",
         GalleryLocation.Library => "Bibliothek",
+        GalleryLocation.Missing => "Fehlt", // ADR-0065
         _ => "Überall",
     };
 
@@ -173,6 +175,7 @@ public sealed partial class GalleryViewModel
         OnPropertyChanged(nameof(LocationChipText));
         OnPropertyChanged(nameof(RatingChipText));
         OnPropertyChanged(nameof(EmptyMessage));
+        OnPropertyChanged(nameof(ShowRemoveMissingAction)); // „Aus der Bibliothek entfernen“ (ADR-0065)
         RefreshFilterIndicators();
     }
 
@@ -259,6 +262,7 @@ public sealed partial class GalleryViewModel
         return filter.Location switch
         {
             GalleryLocation.Inbox => "Nichts mehr im Eingang — alle Dateien sind in der Bibliothek. Eingänge verwaltest du unter „Bibliothek“.",
+            GalleryLocation.Missing => "Keine fehlenden Dateien — alles, was die Bibliothek kennt, liegt auch auf der Platte.", // ADR-0065
             GalleryLocation.Library => "Noch nichts in der Bibliothek — wähle Dateien und verschiebe sie mit „In die Bibliothek…“ (Strg+M) oder übernimm einen Ordner im Ordnerbaum.",
             _ => "Diese Bibliothek enthält noch keine Dateien. Starte unter „Bibliothek“ einen Scan.",
         };
@@ -361,7 +365,7 @@ public sealed partial class GalleryViewModel
 
         if (LocationFilter != GalleryLocation.Anywhere)
         {
-            list.Add((GalleryFilterConditionKind.Location, LocationFilter == GalleryLocation.Inbox ? "noch im Eingang" : "in der Bibliothek", null));
+            list.Add((GalleryFilterConditionKind.Location, LocationFilter switch { GalleryLocation.Inbox => "noch im Eingang", GalleryLocation.Missing => "nur fehlende", _ => "in der Bibliothek" }, null)); // „nur fehlende“: ADR-0065
         }
 
         list.AddRange(PlaceConditions().Select(c => (c.Kind, c.Label, (int?)null))); // Ort, Kartenausschnitt (ADR-0050)

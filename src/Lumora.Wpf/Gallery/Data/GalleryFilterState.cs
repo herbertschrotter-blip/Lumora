@@ -26,6 +26,9 @@ public enum GalleryLocation
 
     /// <summary>Unter der Bibliotheks-(Archiv-)Wurzel (Role = 1) — „In der Bibliothek“.</summary>
     Library,
+
+    /// <summary>Nur fehlende Dateien (Files.Missing = 1) — „Nur fehlende“, für „Aus der Bibliothek entfernen“ (ADR-0065).</summary>
+    Missing,
 }
 
 /// <summary>

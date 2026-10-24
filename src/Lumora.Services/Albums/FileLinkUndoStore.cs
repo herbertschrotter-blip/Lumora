@@ -85,6 +85,10 @@ internal static class FileLinkUndoStore
         return restored;
     }
 
+    /// <summary>Verwirft die Sicherung ohne Wiederherstellen — die Verknüpfungen kamen auf anderem Weg zurück (Abzug der Katalogzeile, ADR-0065).</summary>
+    public static Task<int> DiscardAsync(LibraryContext ctx, int operationId, CancellationToken ct)
+        => ctx.Database.ExecuteSqlRawAsync(DeleteSql, [Param("$op", operationId)], ct);
+
     /// <summary>Wie <see cref="RestoreAsync(LibraryContext, int, int, CancellationToken)"/> auf einer rohen Verbindung.</summary>
     public static int Restore(SqliteConnection connection, SqliteTransaction tx, int operationId, int newFileId)
     {

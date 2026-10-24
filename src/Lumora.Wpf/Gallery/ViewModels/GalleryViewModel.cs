@@ -145,8 +145,10 @@ public sealed partial class GalleryViewModel : ObservableObject
         Lumora.Albums.AlbumActions? albumActions = null,
         ISharedGalleryFilter? sharedFilter = null,
         Lumora.Shell.INavigationService? navigation = null,
-        Lumora.Slideshow.ISlideshowService? slideshow = null)
+        Lumora.Slideshow.ISlideshowService? slideshow = null,
+        Lumora.Removal.RemovalActions? removalActions = null)
     {
+        _removalActions = removalActions; // „Aus der Bibliothek entfernen“ für fehlende (ADR-0065, GalleryViewModel.MissingFiles.cs)
         _slideshow = slideshow; // Diashow (ADR-0059, GalleryViewModel.Slideshow.cs)
         InitAlbums(albumActions); // Alben und Ordner-Verknüpfungen (ADR-0054, GalleryViewModel.Albums.cs)
         _libraryScope = libraryScope ?? new Lumora.Services.Library.LibraryScope(contextFactory); // ADR-0048, GalleryViewModel.Scope.cs
@@ -1196,6 +1198,7 @@ public sealed partial class GalleryViewModel : ObservableObject
     {
         SelectedCount = _selectedIds.Count;
         SelectedArchiveCount = _selectedIds.Count(id => _currentItems.TryGetValue(id, out var it) && it.IsArchive);
+        SelectedMissingCount = _selectedIds.Count(id => _currentItems.TryGetValue(id, out var it) && it.Missing); // ADR-0065
 
         byte? common = null;
         var first = true;

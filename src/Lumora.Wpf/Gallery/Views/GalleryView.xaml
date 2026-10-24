@@ -661,6 +661,13 @@
                                    Icon="{ui:SymbolIcon Delete24}"
                                    ToolTip="Auswahl in den Papierkorb verschieben (Entf)"
                                    Command="{Binding RecycleSelectionCommand}" />
+                        <!-- ADR-0065: fehlende Dateien aus der Bibliothek entfernen (nur Katalog, keine Datei wird gelöscht) -->
+                        <ui:Button Appearance="Transparent" Content="Aus der Bibliothek entfernen"
+                                   Icon="{ui:SymbolIcon DismissCircle24}"
+                                   ToolTip="Fehlende Dateien der Auswahl aus der Bibliothek entfernen — es wird keine Datei gelöscht"
+                                   AutomationProperties.Name="Aus der Bibliothek entfernen"
+                                   Command="{Binding RemoveMissingSelectionCommand}"
+                                   Visibility="{Binding ShowRemoveMissingAction, Converter={StaticResource BoolToVis}}" />
                         <ui:Button Appearance="Transparent" Content="Entpacken…"
                                    Icon="{ui:SymbolIcon FolderZip24}"
                                    ToolTip="Ausgewählte Archive entpacken"

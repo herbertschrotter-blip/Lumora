@@ -55,6 +55,7 @@ public sealed partial class FolderTreeViewModel
     {
         ResultMessage = null;
         ResultWarning = null;
+        RemovalUndoBatchId = null; // „Rückgängig“ verschwindet mit dem Ergebnis (ADR-0065)
     }
 
     /// <summary>„Bewertung für alle Dateien“ (vom Knoten-Command aufgerufen); null entfernt die Bewertung.</summary>
@@ -78,6 +79,8 @@ public sealed partial class FolderTreeViewModel
             {
                 return;
             }
+
+            RemovalUndoBatchId = null; // ein anderes Ergebnis ersetzt das Rückgängig-Angebot (ADR-0065)
 
             ResultMessage = result.IsWarning ? null : result.Message;
             ResultWarning = result.IsWarning ? result.Message : null;

@@ -98,6 +98,9 @@ public sealed partial class WindowsRecycleBin : IRecycleBin
         }
     }
 
+    /// <inheritdoc />
+    string? IRecycleBin.GetUnavailableReasonFor(string path) => GetUnavailableReason(Path.GetFullPath(path)); // ADR-0065
+
     /// <summary>
     /// Liefert den Grund, warum für <paramref name="fullPath"/> kein Papierkorb verfügbar ist, oder
     /// <c>null</c>, wenn die Shell die Datei in den Papierkorb legen kann. Ohne Dateizugriff.
