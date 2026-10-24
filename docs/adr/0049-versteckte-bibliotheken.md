@@ -1,6 +1,7 @@
 # ADR-0049: Versteckte Bibliotheken im verschlüsselten Container
 
-- **Status:** Accepted (Nachtrag 0.4.14: Zusperren beendet den versteckten Modus, Reiter nur in geöffneter versteckter Bibliothek)
+- **Status:** Accepted (Nachtrag 0.4.14: Zusperren beendet den versteckten Modus, Reiter nur in geöffneter versteckter Bibliothek;
+  Nachtrag 0.4.31: VHDX wird ausgeworfen wie im Explorer statt per `Dismount-DiskImage`)
 - **Datum:** 2026-10-21
 - **Entscheider:** Herbert Schrotter (Anforderungen: Container, `_hidden`, Kennwort, Zusperren, Aushängen, Spurenfreiheit),
   Claude (Umsetzung und Detailentscheidungen ohne Rückfrage, siehe unten)
@@ -45,8 +46,8 @@ muss deshalb vollständig getrennt laufen — ohne Neustart, ohne Spuren außerh
    Scan oder Datei-Vorgang (Scan-Sperre belegt), wartet das automatische Zusperren bis zu dessen Ende.
 7. **Aushängen** beim Zusperren und Beenden (abschaltbar, Standard an): VeraCrypt-Volume (Gerätename
    `\Device\VeraCryptVolumeX` per `QueryDosDevice`) mit `VeraCrypt.exe /dismount X /quit /silent` (ohne `/force`;
-   bei Misserfolg `/unmount` für neuere Fassungen), sonst PowerShell `Dismount-DiskImage` für eine eingehängte
-   VHD/VHDX (`BusType = File Backed Virtual`); sonst Hinweis. Nie das Systemlaufwerk. „Container öffnen…“ startet
+   bei Misserfolg `/unmount` für neuere Fassungen), sonst für eine eingehängte VHD/VHDX (`BusType = File Backed Virtual`)
+   bis 0.4.30 PowerShell `Dismount-DiskImage`, seit 0.4.31 Auswerfen wie im Explorer (Nachtrag 0.4.31); sonst Hinweis. Nie das Systemlaufwerk. „Container öffnen…“ startet
    `VeraCrypt.exe /volume <Datei> /letter X /quit` — VeraCrypt fragt das Kennwort in seinem Fenster. Alles über
    `IContainerTools`/`IProcessRunner` (Tests und Rauchtest mit Fakes; Lumora installiert nichts).
 8. **Spurenfreiheit**: jede Sitzung hat ihren eigenen Serilog-Logger (versteckt: nur Datei in `.lumora\logs`, keine
@@ -133,3 +134,21 @@ Entscheidung per Auswahl:
 - Rauchtest: nach dem ersten Zusperren wird der Modus geprüft und ein Neustart mit `_hidden` simuliert
   (`RestartHiddenModeForSmoke`, nur Rauchtest), dann weiter wie bisher.
 
+## Nachtrag 0.4.31 — VHDX auswerfen wie im Explorer (Herbert, 2026-10-25)
+
+**Befund:** Beim Beenden mit eingehängter BitLocker-VHDX kam jedes Mal „Der Container wurde nicht ausgehängt: Laufwerk X:
+konnte nicht ausgehängt werden“. `Dismount-DiskImage` braucht Administratorrechte; Lumora läuft ohne. Explorer ›
+„Auswerfen“ geht dagegen ohne Administratorrechte.
+
+**Entscheidung:**
+- Erkennen über die Storage-Verwaltung von Windows (`MSFT_Partition` → `MSFT_Disk.BusType` = 15 „File Backed Virtual“,
+  WMI-Namensraum `root\Microsoft\Windows\Storage`, nur lesend) statt PowerShell `Get-Partition`/`Get-Disk`.
+- Auswerfen über das Shell-Verb „Eject“ auf dem Laufwerk in „Dieser PC“ (`Shell.Application`, STA-Thread) — derselbe Weg
+  wie Explorer › „Auswerfen“. Danach höchstens 20 s warten, bis das Laufwerk weg ist.
+- Neue Schnittstelle `IVirtualDiskEjector` (Windows: `ShellVirtualDiskEjector`; Tests und Rauchtest mit Fakes, nie echt).
+  `ContainerTools` startet für die VHDX keinen Prozess mehr — passt zur Linie von ADR-0061 Nachtrag 0.4.26 (kein
+  PowerShell im Container-Weg, Kaspersky).
+- Sind noch Dateien offen, meldet Windows das selbst; Lumora zeigt danach wie bisher den Hinweis auf „Auswerfen“.
+
+**Konsequenzen:** Der echte Lauf auf Herberts PC (X:, BitLocker-VHDX) steht aus — Tests prüfen nur mit Fakes und, dass
+`ContainerTools` kein PowerShell mehr enthält.

@@ -127,7 +127,7 @@ public partial class App : Application, ICatalogHostSwitcher
         var enabled = HiddenModeSwitch.IsRequested(Environment.GetCommandLineArgs().Skip(1), smoke, Environment.GetEnvironmentVariable);
         IContainerTools containers = smoke
             ? new Lumora.Shell.Smoke.SmokeContainerTools() // Rauchtest: nie echt ein-/aushängen
-            : new ContainerTools(new ProcessRunner(), new VolumeDeviceQuery(), new VeraCryptLocator());
+            : new ContainerTools(new ProcessRunner(), new VolumeDeviceQuery(), new VeraCryptLocator(), new Lumora.Services.HiddenLibraries.Containers.ShellVirtualDiskEjector());
         var logger = new SerilogLoggerFactory(Log.Logger).CreateLogger("Lumora.HiddenLibraries");
         return new CatalogSessionManager(
             new HiddenModeOptions(enabled, paths.AppDataRoot, paths.DataFolder, MaxFolderDepth: smoke ? int.MaxValue : 1),

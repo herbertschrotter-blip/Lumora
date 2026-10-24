@@ -3,6 +3,21 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.4.31] — 2026-10-25
+
+### Fix (ADR-0049, Nachtrag 0.4.31) — BitLocker-Container beim Beenden wieder aushängen
+- Beim Beenden bzw. Zusperren mit eingehängter BitLocker-VHDX kam immer „Der Container wurde nicht ausgehängt: Laufwerk X:
+  konnte nicht ausgehängt werden“ (Herbert). Ursache: PowerShell `Dismount-DiskImage` braucht Administratorrechte, Lumora
+  läuft ohne.
+- Jetzt wie Explorer › „Auswerfen“: Erkennen über die Storage-Verwaltung (`MSFT_Partition`/`MSFT_Disk`, lesend), Auswerfen
+  über das Shell-Verb „Eject“ (`ShellVirtualDiskEjector` hinter `IVirtualDiskEjector`); kein PowerShell mehr in
+  `ContainerTools`. Höchstens 20 s Wartezeit; sind noch Dateien offen, bleibt der Hinweis auf „Auswerfen“.
+- Tests: `ContainerToolsTests` mit Fake-Auswerfer (ausgeworfen, normales Laufwerk nie, hängt noch → Hinweis, Quelltext
+  ohne PowerShell).
+
+### Offen
+- Echter Lauf auf Herberts PC: Lumora mit `_hidden` beenden, X: muss danach weg sein.
+
 ## [0.4.30] — 2026-10-25
 
 ### Feature (ADR-0065) — Ordner in den Papierkorb und fehlende Dateien bewusst aus der Bibliothek entfernen

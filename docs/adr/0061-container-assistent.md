@@ -106,7 +106,7 @@ mit Fakes.
 - `HiddenLibrariesViewModel` nimmt den Assistenten optional entgegen (`IContainerAssistant? assistant = null`); ohne ihn
   (Tests) geht es wie bisher direkt zum Anlegen-Dialog.
 - Explorer-Doppelklick auf eine BitLocker-VHDX hängt sie später wieder ein (Windows fragt das BitLocker-Kennwort);
-  Aushängen wie bisher über `Dismount-DiskImage` (ADR-0049).
+  Aushängen bis 0.4.30 über `Dismount-DiskImage`, seit 0.4.31 Auswerfen wie im Explorer (ADR-0049, Nachtrag 0.4.31).
 
 ## Alternativen
 

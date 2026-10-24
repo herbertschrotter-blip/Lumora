@@ -6,7 +6,7 @@ namespace Lumora.Services.HiddenLibraries;
 /// <summary>Art des verschlüsselten Containers hinter einem Laufwerk.</summary>
 public enum ContainerKind
 {
-    /// <summary>Nicht erkannt (normales Laufwerk, BitLocker-VHDX wird erst beim Aushängen per PowerShell geprüft).</summary>
+    /// <summary>Nicht erkannt (normales Laufwerk, BitLocker-VHDX wird erst beim Aushängen über die Storage-Verwaltung geprüft).</summary>
     Unknown = 0,
 
     /// <summary>VeraCrypt- (oder TrueCrypt-)Volume: Gerätename <c>\Device\VeraCryptVolumeX</c>.</summary>
@@ -32,6 +32,22 @@ public interface IVolumeDeviceQuery
     string? GetDeviceName(char driveLetter);
 }
 
+/// <summary>
+/// Eingehängte Image-Dateien (VHD/VHDX) erkennen und wie Explorer › „Auswerfen“ abhängen — ohne Administratorrechte
+/// (Nachtrag 0.4.31, ADR-0049/ADR-0061). Tests und Rauchtest ersetzen ihn; nie echt auswerfen in Tests.
+/// </summary>
+public interface IVirtualDiskEjector
+{
+    /// <summary>true, wenn das Laufwerk auf einer eingehängten Image-Datei liegt (<c>BusType</c> „File Backed Virtual“).</summary>
+    bool IsVirtualDisk(char driveLetter);
+
+    /// <summary>
+    /// Wirft das Laufwerk aus und wartet, bis <paramref name="isMounted"/> false liefert oder <paramref name="timeout"/>
+    /// um ist. true = ausgeworfen.
+    /// </summary>
+    Task<bool> EjectAsync(char driveLetter, Func<bool> isMounted, TimeSpan timeout, CancellationToken ct);
+}
+
 /// <summary>Findet <c>VeraCrypt.exe</c> (Registry, Standardpfad); null = nicht installiert. Lumora installiert nichts.</summary>
 public interface IVeraCryptLocator
 {
@@ -48,7 +64,7 @@ public interface IContainerTools
 
     ContainerKind Detect(string driveRoot);
 
-    /// <summary>Hängt das Laufwerk aus: VeraCrypt per Befehlszeile, sonst BitLocker-VHDX per <c>Dismount-DiskImage</c>; sonst Hinweis.</summary>
+    /// <summary>Hängt das Laufwerk aus: VeraCrypt per Befehlszeile, sonst BitLocker-VHDX wie Explorer › „Auswerfen“; sonst Hinweis.</summary>
     Task<ContainerCommandResult> DismountAsync(string driveRoot, CancellationToken ct = default);
 
     /// <summary>Startet VeraCrypt zum Einhängen; VeraCrypt fragt das Kennwort selbst. Wartet, bis VeraCrypt sich beendet.</summary>
@@ -57,21 +73,23 @@ public interface IContainerTools
 
 public sealed class ContainerTools : IContainerTools
 {
-    /// <summary>Exit-Code des PowerShell-Skripts: Laufwerk ist keine eingehängte Image-Datei (VHD/VHDX).</summary>
-    internal const int NotVirtualDiskExitCode = 3;
-
     private static readonly TimeSpan DismountTimeout = TimeSpan.FromSeconds(60);
+
+    /// <summary>Auswerfen einer VHDX; beim Beenden wartet <c>DismountAfterExit</c> höchstens 30 s auf alles zusammen.</summary>
+    private static readonly TimeSpan EjectTimeout = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan MountTimeout = TimeSpan.FromMinutes(10);
 
     private readonly IProcessRunner _runner;
     private readonly IVolumeDeviceQuery _devices;
     private readonly IVeraCryptLocator _veraCrypt;
+    private readonly IVirtualDiskEjector _virtualDisks;
 
-    public ContainerTools(IProcessRunner runner, IVolumeDeviceQuery devices, IVeraCryptLocator veraCrypt)
+    public ContainerTools(IProcessRunner runner, IVolumeDeviceQuery devices, IVeraCryptLocator veraCrypt, IVirtualDiskEjector virtualDisks)
     {
         _runner = runner;
         _devices = devices;
         _veraCrypt = veraCrypt;
+        _virtualDisks = virtualDisks;
     }
 
     public bool IsVeraCryptInstalled => _veraCrypt.FindExecutable() is not null;
@@ -166,30 +184,20 @@ public sealed class ContainerTools : IContainerTools
 
     private async Task<ContainerCommandResult> DismountVirtualDiskAsync(char letter, CancellationToken ct)
     {
-        // BitLocker-VHDX: eingehängte Image-Datei (BusType „File Backed Virtual“) → Dismount-DiskImage; sonst Exit 3.
-        var script =
-            "$ErrorActionPreference='Stop';" +
-            $"$p=Get-Partition -DriveLetter {letter};" +
-            "$d=Get-Disk -Number $p.DiskNumber;" +
-            $"if($d.BusType -ne 'File Backed Virtual'){{exit {NotVirtualDiskExitCode}}};" +
-            "Dismount-DiskImage -DevicePath ('\\\\.\\PHYSICALDRIVE'+$d.Number)|Out-Null;exit 0";
-        var result = await _runner.RunAsync(
-            "powershell.exe",
-            ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script],
-            DismountTimeout,
-            ct).ConfigureAwait(false);
-
-        if (result.ExitCode == NotVirtualDiskExitCode)
+        // BitLocker-VHDX: eingehängte Image-Datei (BusType „File Backed Virtual“) → Auswerfen wie im Explorer. Bis 0.4.30
+        // per PowerShell Dismount-DiskImage — das braucht Administratorrechte und scheiterte im normalen Lumora-Prozess.
+        if (!_virtualDisks.IsVirtualDisk(letter))
         {
             return new ContainerCommandResult(false, $"Laufwerk {letter}: ist kein bekannter Container (VeraCrypt/VHDX) — bitte selbst aushängen.");
         }
 
-        if (_devices.GetDeviceName(letter) is null)
+        var ejected = await _virtualDisks.EjectAsync(letter, () => _devices.GetDeviceName(letter) is not null, EjectTimeout, ct).ConfigureAwait(false);
+        if (ejected || _devices.GetDeviceName(letter) is null)
         {
             return new ContainerCommandResult(true, $"Container {letter}: ausgehängt.");
         }
 
-        return new ContainerCommandResult(false, $"Laufwerk {letter}: konnte nicht ausgehängt werden — bitte im Explorer „Auswerfen“ wählen.");
+        return new ContainerCommandResult(false, $"Laufwerk {letter}: konnte nicht ausgehängt werden (noch Dateien geöffnet?) — bitte im Explorer „Auswerfen“ wählen.");
     }
 
     internal static char? DriveLetterOf(string driveRoot)
