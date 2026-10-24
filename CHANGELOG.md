@@ -3,6 +3,15 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.4.27] — 2026-10-24
+
+### Docs — Mockup 14 „Sicherheits-Check“, abgenommen
+- `mockups/14-sicherheits-check.html`: Einstellungs-Reiter nur in der versteckten Sitzung, der prüft, wo Windows sich
+  etwas merkt (BitLocker auf C:, Ruhezustand, Schnellstart, Auslagerungsdatei leeren, Zuletzt-Liste/Sprunglisten,
+  Aktivitätsverlauf, Explorer-Miniaturbilder, Windows-Suche auf dem Container-Laufwerk, VeraCrypt-Verlauf), je Punkt
+  die passende Windows-Einstellung öffnet und eine Anleitung zeigt; Gefahren-Stufe bestimmt, was zählt; Lumora-Option
+  „nach dem Zusperren ganz beenden“. Lumora prüft nur und ändert keine Windows-Einstellung.
+
 ## [0.4.26] — 2026-10-23
 
 ### Fix (ADR-0061, Nachtrag) — BitLocker-Container ohne PowerShell und diskpart: Lumora legt die VHDX selbst über Windows-Funktionen an
