@@ -3,6 +3,15 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.4.29] — 2026-10-25
+
+### Docs — Mockup 15 „Aktivitäten unten rechts“, abgenommen
+- `mockups/15-aktivitaeten.html`: eine Aktivitäts-Anzeige ganz rechts in der Statusleiste für alle Hintergrund-Vorgänge
+  (Verschieben, Kopieren, Papierkorb, In die Bibliothek übernehmen, Einlesen, Entpacken, Vorschaubilder, Gesichter,
+  Motive, Orte); Aufklapp-Liste „Läuft / Wartet / Zuletzt fertig“ mit Fortschritt, Ziel, Pause/Abbrechen, Rückgängig;
+  kurze Meldung beim Fertigwerden; ersetzt die Einzelanzeigen rechts.
+- PLAN.md Kap. 7: neue Vorhaben Aktivitäts-Anzeige, Ordner verschieben, Ausschlüsse beim Einlesen.
+
 ## [0.4.28] — 2026-10-24
 
 ### Feature (ADR-0064) — Sicherheits-Check der versteckten Bibliothek (Mockup 14)
