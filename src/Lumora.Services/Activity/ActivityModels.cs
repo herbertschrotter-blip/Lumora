@@ -50,6 +50,9 @@ public enum ActivityKind
 
     /// <summary>Änderungen warten auf die Schreibsperre des Katalogs (ADR-0030).</summary>
     CatalogWrite = 15,
+
+    /// <summary>Modell laden (Einstellungen › Modelle &amp; Daten, ADR-0070).</summary>
+    ModelDownload = 16,
 }
 
 /// <summary>Zustand eines Vorgangs.</summary>

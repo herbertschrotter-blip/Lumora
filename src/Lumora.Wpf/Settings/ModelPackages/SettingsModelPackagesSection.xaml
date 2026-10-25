@@ -1,0 +1,230 @@
+<UserControl x:Class="Lumora.Settings.ModelPackages.SettingsModelPackagesSection"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:local="clr-namespace:Lumora.Settings.ModelPackages"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance local:ModelPackagesViewModel}"
+             d:DesignWidth="1000">
+    <!-- Einstellungen › Modelle & Daten (ADR-0070, Mockup 19); DataContext = ModelPackagesViewModel (Code der SettingsPage) -->
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="../Sections/SettingsStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- Zustands-Marke: Punkt + Text, Farbe nach Tone -->
+            <Style x:Key="StateChip" TargetType="Border">
+                <Setter Property="CornerRadius" Value="9" />
+                <Setter Property="Padding" Value="8,1,8,2" />
+                <Setter Property="Margin" Value="8,0,0,0" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                <Setter Property="TextElement.Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding Tone}" Value="Success">
+                        <Setter Property="Background" Value="{DynamicResource SystemFillColorSuccessBackgroundBrush}" />
+                        <Setter Property="TextElement.Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Tone}" Value="Accent">
+                        <Setter Property="Background" Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
+                        <Setter Property="TextElement.Foreground" Value="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Tone}" Value="Caution">
+                        <Setter Property="Background" Value="{DynamicResource SystemFillColorCautionBackgroundBrush}" />
+                        <Setter Property="TextElement.Foreground" Value="{DynamicResource SystemFillColorCautionBrush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Tone}" Value="Critical">
+                        <Setter Property="Background" Value="{DynamicResource SystemFillColorCriticalBackgroundBrush}" />
+                        <Setter Property="TextElement.Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="MetaText" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+
+            <DataTemplate x:Key="PackageTemplate" DataType="{x:Type local:ModelPackageItemViewModel}">
+                <Border Style="{StaticResource SectionCard}" AutomationProperties.Name="{Binding Title}"
+                        AutomationProperties.AutomationId="{Binding Id}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Width="40" Height="40" CornerRadius="8" VerticalAlignment="Top" Margin="0,2,14,0"
+                                Background="{DynamicResource SubtleFillColorSecondaryBrush}">
+                            <ui:SymbolIcon Symbol="{Binding Symbol}" FontSize="20"
+                                           Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                        </Border>
+                        <StackPanel Grid.Column="1">
+                            <!-- Kopf: Zweck · Name, Zustand -->
+                            <WrapPanel>
+                                <TextBlock FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center">
+                                    <Run Text="{Binding Title, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding Name, Mode=OneWay}" />
+                                </TextBlock>
+                                <Border Style="{StaticResource StateChip}" AutomationProperties.AutomationId="State">
+                                    <TextBlock FontSize="11" FontWeight="Bold" Text="{Binding StateText}" />
+                                </Border>
+                            </WrapPanel>
+                            <TextBlock Style="{StaticResource MetaText}" Margin="0,3,0,0" Text="{Binding Purpose}" />
+                            <!-- Größe · Version · Lizenz -->
+                            <WrapPanel Margin="0,4,0,0">
+                                <TextBlock Style="{StaticResource MetaText}" Text="{Binding SizeText}" Margin="0,0,10,0"
+                                           Visibility="{Binding SizeText, Converter={StaticResource NullToVis}}" />
+                                <TextBlock Style="{StaticResource MetaText}" Text="{Binding VersionText}" Margin="0,0,10,0" />
+                                <Border CornerRadius="4" Padding="6,0,6,1" VerticalAlignment="Center">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding LicenseRestricted}" Value="True">
+                                                    <Setter Property="Background" Value="{DynamicResource SystemFillColorCautionBackgroundBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock FontSize="11" Text="{Binding LicenseText}" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                               AutomationProperties.Name="Lizenz" />
+                                </Border>
+                            </WrapPanel>
+                            <TextBlock Style="{StaticResource MetaText}" Margin="0,4,0,0" Text="{Binding Detail}"
+                                       Visibility="{Binding Detail, Converter={StaticResource NullToVis}}"
+                                       AutomationProperties.AutomationId="Detail" />
+
+                            <!-- Quelle, Speicherort, Prüfung, Updates -->
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="110" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Style="{StaticResource Label}" Text="Quelle" />
+                                <WrapPanel Grid.Column="1">
+                                    <TextBlock Style="{StaticResource MetaText}" Text="{Binding SourceText}" VerticalAlignment="Center" />
+                                    <ui:HyperlinkButton Padding="6,0" Margin="6,0,0,0" Content="{Binding WebsiteText}"
+                                                        Command="{Binding OpenWebsiteCommand}"
+                                                        Visibility="{Binding HasWebsite, Converter={StaticResource BoolToVis}}"
+                                                        AutomationProperties.Name="Website öffnen" />
+                                </WrapPanel>
+                                <TextBlock Grid.Row="1" Style="{StaticResource Label}" Text="Speicherort" Margin="0,4,12,0"
+                                           Visibility="{Binding Folder, Converter={StaticResource NullToVis}}" />
+                                <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource MetaText}" Margin="0,4,0,0"
+                                           FontFamily="Cascadia Mono, Consolas" Text="{Binding Folder}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                                           ToolTip="{Binding Folder}"
+                                           Visibility="{Binding Folder, Converter={StaticResource NullToVis}}" />
+                                <TextBlock Grid.Row="2" Style="{StaticResource Label}" Text="Geprüft" Margin="0,4,12,0"
+                                           Visibility="{Binding CheckedText, Converter={StaticResource NullToVis}}" />
+                                <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource MetaText}" Margin="0,4,0,0" Text="{Binding CheckedText}"
+                                           Visibility="{Binding CheckedText, Converter={StaticResource NullToVis}}" />
+                                <TextBlock Grid.Row="3" Style="{StaticResource Label}" Text="Updates" Margin="0,4,12,0"
+                                           Visibility="{Binding CanCheckUpdate, Converter={StaticResource BoolToVis}}" />
+                                <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource MetaText}" Margin="0,4,0,0" Text="{Binding UpdateHint}"
+                                           Visibility="{Binding CanCheckUpdate, Converter={StaticResource BoolToVis}}" />
+                            </Grid>
+                            <TextBlock Style="{StaticResource MetaText}" Margin="0,6,0,0"
+                                       Text="Ordner über eine Umgebungsvariable vorgegeben (Entwicklung/Test) — nur Anzeigen und Prüfen."
+                                       Visibility="{Binding IsOverridden, Converter={StaticResource BoolToVis}}" />
+
+                            <!-- Fortschritt beim Laden -->
+                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0"
+                                        Visibility="{Binding IsDownloading, Converter={StaticResource BoolToVis}}">
+                                <ProgressBar Width="260" Height="4" Minimum="0" Maximum="100" VerticalAlignment="Center"
+                                             Value="{Binding ProgressPercent, Mode=OneWay}" />
+                                <TextBlock Style="{StaticResource ValueText}" Margin="12,0,0,0" FontSize="12" Text="{Binding ProgressText}" />
+                                <ui:Button Content="Abbrechen" Margin="12,0,0,0" Command="{Binding CancelCommand}"
+                                           AutomationProperties.Name="Laden abbrechen" />
+                            </StackPanel>
+
+                            <!-- Meldung (Ergebnis von Laden, Prüfen, Update suchen) -->
+                            <TextBlock Margin="0,8,0,0" FontSize="12" TextWrapping="Wrap" Text="{Binding Message}"
+                                       Visibility="{Binding Message, Converter={StaticResource NullToVis}}"
+                                       AutomationProperties.AutomationId="Message">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding MessageIsError}" Value="True">
+                                                <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+
+                            <!-- Aktionen -->
+                            <WrapPanel Margin="0,10,0,0" HorizontalAlignment="Right">
+                                <ui:Button Appearance="Primary" Icon="{ui:SymbolIcon ArrowDownload24}" Content="{Binding LoadLabel}" Margin="6,0,0,0"
+                                           Command="{Binding LoadCommand}"
+                                           Visibility="{Binding CanLoad, Converter={StaticResource BoolToVis}}"
+                                           AutomationProperties.Name="Laden" />
+                                <ui:Button Icon="{ui:SymbolIcon ShieldCheckmark24}" Content="Prüfen" Margin="6,0,0,0"
+                                           Command="{Binding VerifyCommand}"
+                                           Visibility="{Binding CanVerify, Converter={StaticResource BoolToVis}}"
+                                           AutomationProperties.Name="Prüfen" />
+                                <ui:Button Icon="{ui:SymbolIcon ArrowSync24}" Content="Update suchen" Margin="6,0,0,0"
+                                           Command="{Binding CheckUpdateCommand}"
+                                           Visibility="{Binding CanCheckUpdate, Converter={StaticResource BoolToVis}}"
+                                           AutomationProperties.Name="Update suchen" />
+                                <ui:Button Content="Einstellungen › Assistent" Margin="6,0,0,0"
+                                           Command="{Binding OpenAssistantSettingsCommand}"
+                                           Visibility="{Binding IsExternal, Converter={StaticResource BoolToVis}}"
+                                           AutomationProperties.Name="Einstellungen des Assistenten öffnen" />
+                                <ui:Button Icon="{ui:SymbolIcon Delete24}" Content="Entfernen…" Margin="6,0,0,0"
+                                           Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                                           Command="{Binding RemoveCommand}"
+                                           Visibility="{Binding CanRemove, Converter={StaticResource BoolToVis}}"
+                                           AutomationProperties.Name="Entfernen" />
+                            </WrapPanel>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </DataTemplate>
+
+            <Style x:Key="GroupHeader" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="FontWeight" Value="Bold" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+                <Setter Property="Margin" Value="0,8,0,8" />
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Style="{StaticResource SectionPanel}">
+            <TextBlock Style="{StaticResource Lead}"
+                       Text="Alles, was Lumora zusätzlich zu den Programmdateien braucht. Modelle laufen vollständig auf diesem PC — Fotos verlassen den Rechner nie. Lumora lädt nur nach Ihrer Bestätigung und prüft jede Datei per SHA-256. „Update suchen“ fragt nur auf Klick beim Hersteller nach der Version; sonst wird nichts gesendet. Die versteckte Bibliothek nutzt dieselben Modelle." />
+
+            <TextBlock Style="{StaticResource GroupHeader}" Text="MODELLE" />
+            <ItemsControl x:Name="ModelList" ItemsSource="{Binding ModelItems}" ItemTemplate="{StaticResource PackageTemplate}"
+                          AutomationProperties.Name="Modelle" Focusable="False" />
+            <Border BorderThickness="1" CornerRadius="8" Padding="16,12" Margin="0,0,0,12"
+                    BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}">
+                <StackPanel Orientation="Horizontal">
+                    <ui:SymbolIcon Symbol="Add24" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Style="{StaticResource MetaText}" Margin="10,0,0,0" VerticalAlignment="Center"
+                               Text="Weitere Modelle kommen mit „Foto verbessern“ (Hochskalieren, Gesichter restaurieren, Einfärben, Entfernen) und erscheinen dann hier." />
+                </StackPanel>
+            </Border>
+
+            <TextBlock Style="{StaticResource GroupHeader}" Text="DATEN" />
+            <ItemsControl x:Name="DataList" ItemsSource="{Binding DataItems}" ItemTemplate="{StaticResource PackageTemplate}"
+                          AutomationProperties.Name="Daten" Focusable="False" />
+
+            <TextBlock Style="{StaticResource GroupHeader}" Text="EXTERN" />
+            <ItemsControl x:Name="ExternalList" ItemsSource="{Binding ExternalItems}" ItemTemplate="{StaticResource PackageTemplate}"
+                          AutomationProperties.Name="Extern" Focusable="False" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

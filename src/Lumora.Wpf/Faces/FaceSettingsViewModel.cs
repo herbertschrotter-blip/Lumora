@@ -26,6 +26,7 @@ public sealed partial class FaceSettingsViewModel : ObservableObject, IDisposabl
     private readonly IDialogService _dialogs;
     private readonly ILogger<FaceSettingsViewModel> _logger;
     private readonly IMessenger _messenger;
+    private readonly Lumora.Services.ModelPackages.IModelPackageManager? _packages; // ADR-0070: Laden über den Manager
     private CancellationTokenSource? _downloadCts;
     private bool _loading;
 
@@ -57,9 +58,11 @@ public sealed partial class FaceSettingsViewModel : ObservableObject, IDisposabl
         IDialogService dialogs,
         ILogger<FaceSettingsViewModel> logger,
         IMessenger? messenger = null,
-        Lumora.Services.Faces.Assignment.IFaceIgnoreService? ignore = null)
+        Lumora.Services.Faces.Assignment.IFaceIgnoreService? ignore = null,
+        Lumora.Services.ModelPackages.IModelPackageManager? packages = null)
     {
         _ignore = ignore;
+        _packages = packages;
         _index = index;
         _models = models;
         _dialogs = dialogs;
@@ -159,6 +162,29 @@ public sealed partial class FaceSettingsViewModel : ObservableObject, IDisposabl
     [RelayCommand(CanExecute = nameof(CanDownload))]
     private async Task DownloadModelAsync()
     {
+        if (_packages is not null)
+        {
+            // ADR-0070: dieselbe Bestätigung (Name, Quelle, Größe, Lizenz, Ziel) wie in Einstellungen › Modelle & Daten
+            Lumora.Services.ModelPackages.ModelDownloadRequest? request;
+            try
+            {
+                request = await Lumora.Settings.ModelPackages.ModelDownloadDialog.AskAsync(
+                    _dialogs, _packages, Lumora.Services.ModelPackages.ModelPackageCatalog.FacesId).ConfigureAwait(true);
+            }
+            catch (Lumora.Services.ModelPackages.ModelPackageException ex)
+            {
+                ShowMessage(ex.Message, error: true);
+                return;
+            }
+
+            if (request is not null)
+            {
+                await StartDownloadAsync(request).ConfigureAwait(true);
+            }
+
+            return;
+        }
+
         var info = _models.DownloadInfo;
         var ok = await _dialogs.ConfirmAsync(
             "Modell für die Gesichtserkennung herunterladen?",
@@ -176,8 +202,11 @@ public sealed partial class FaceSettingsViewModel : ObservableObject, IDisposabl
         await StartDownloadAsync().ConfigureAwait(true);
     }
 
-    /// <summary>Download ohne Rückfrage (nach der Bestätigung).</summary>
-    internal async Task StartDownloadAsync()
+    /// <summary>
+    /// Download ohne Rückfrage (nach der Bestätigung). Mit Manager (ADR-0070) über <paramref name="request"/>: Prüfsumme der
+    /// Dateien, Prüf-Vermerk, Aktivitäts-Anzeige; ohne (Tests) direkt über den Modell-Anbieter.
+    /// </summary>
+    internal async Task StartDownloadAsync(Lumora.Services.ModelPackages.ModelDownloadRequest? request = null)
     {
         using var cts = new CancellationTokenSource();
         _downloadCts = cts;
@@ -187,14 +216,17 @@ public sealed partial class FaceSettingsViewModel : ObservableObject, IDisposabl
         Message = null;
         try
         {
-            var progress = new Progress<FaceModelDownloadProgress>(p =>
+            if (_packages is not null && request is not null)
             {
-                DownloadPercent = p.Total > 0 ? Math.Clamp(100.0 * p.Done / p.Total, 0, 100) : DownloadPercent;
-                DownloadText = p.Total > 0
-                    ? $"{p.Stage}: {p.Done / 1048576.0:N0} von {p.Total / 1048576.0:N0} MB"
-                    : $"{p.Stage}…";
-            });
-            await _models.DownloadAsync(progress, cts.Token).ConfigureAwait(true);
+                var progress = new Progress<Lumora.Services.ModelPackages.ModelPackageProgress>(p => ShowProgress(p.Stage, p.Done, p.Total));
+                await Task.Run(() => _packages.InstallAsync(request, progress, cts.Token), cts.Token).ConfigureAwait(true);
+            }
+            else
+            {
+                var progress = new Progress<FaceModelDownloadProgress>(p => ShowProgress(p.Stage, p.Done, p.Total));
+                await _models.DownloadAsync(progress, cts.Token).ConfigureAwait(true);
+            }
+
             ShowMessage("Modell heruntergeladen und geprüft.", error: false);
             _index.RequestRun();
         }
@@ -214,6 +246,14 @@ public sealed partial class FaceSettingsViewModel : ObservableObject, IDisposabl
             DownloadText = null;
             RefreshModel();
         }
+    }
+
+    private void ShowProgress(string stage, long done, long total)
+    {
+        DownloadPercent = total > 0 ? Math.Clamp(100.0 * done / total, 0, 100) : DownloadPercent;
+        DownloadText = total > 0
+            ? $"{stage}: {done / 1048576.0:N0} von {total / 1048576.0:N0} MB"
+            : $"{stage}…";
     }
 
     private bool CanCancelDownload() => IsDownloading;

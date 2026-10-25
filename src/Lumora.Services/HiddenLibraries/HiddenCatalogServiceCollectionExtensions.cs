@@ -28,6 +28,15 @@ public static class HiddenCatalogServiceCollectionExtensions
                 sp.GetService<ILogger<FaceModelProvider>>(),
                 modelFolder: string.IsNullOrWhiteSpace(overridden) ? Path.Combine(normalAppDataRoot, "models", "buffalo_l") : null);
         });
+        // ADR-0070: Motiv-Modell und alle weiteren Modelle ebenfalls aus dem normalen Modellordner (keine Benutzerdaten;
+        // vorher hätte die versteckte Sitzung SigLIP 2 ein zweites Mal in den Container geladen)
+        services.TryAddSingleton<ModelPackages.IModelStorage>(new ModelPackages.ModelStorage(Path.Combine(normalAppDataRoot, "models")));
+        services.TryAddSingleton<Motifs.Models.IMotifModelProvider>(sp => new Motifs.Models.MotifModelProvider(
+            sp.GetRequiredService<IAppDataPaths>(),
+            sp.GetService<ILogger<Motifs.Models.MotifModelProvider>>(),
+            modelFolder: string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(Motifs.Models.IMotifModelProvider.OverrideVariable))
+                ? Path.Combine(normalAppDataRoot, "models", Motifs.Models.IMotifModelProvider.FolderName)
+                : null));
         return services;
     }
 }

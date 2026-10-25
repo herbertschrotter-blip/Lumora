@@ -687,6 +687,17 @@ Reiter oben (ADR-0042):
   und die API-Schlüssel für CARTO und MapTiler (seit 0.4.1, siehe „Kartenstile: Schlüssel anfordern“).
 - **Storys** (seit 0.4.15) — Story-Arten an/aus, Zu Hause, Pause, Mindestgröße, Highlights-Anteil und die Karte
   **Diashow** (siehe „Storys“).
+- **Modelle & Daten** (seit 0.4.42, ADR-0070, Mockup 19) — alle Bausteine, die Lumora zusätzlich braucht, in drei Gruppen:
+  **Modelle** (Gesichtserkennung InsightFace buffalo_l, Motiv-Erkennung SigLIP 2; später die Modelle von „Foto
+  verbessern“), **Daten** (Ortsnamen GeoNames — eingebaut; Kartenkacheln — bei Bedarf, mit Größe des Zwischenspeichers)
+  und **Extern** (Sprachmodell über Ollama — nur Status, Verwaltung in Einstellungen › Assistent). Je Eintrag Zweck,
+  Größe, Version, Lizenz (eingeschränkte wie „nur nicht-kommerziell“ hervorgehoben), Quelle mit Website, Speicherort,
+  Zustand (nicht geladen / geladen / Update verfügbar / defekt) und die Aktionen **Laden…** (erst nach Bestätigung mit
+  Name, Quelle, Größe, Lizenz und Ziel; Fortschritt in der Zeile und unten rechts in den Aktivitäten, abbrechbar —
+  angefangene Dateien werden verworfen; danach SHA-256-Prüfung), **Prüfen** (SHA-256 aller Dateien; falsche → „defekt“,
+  dann **Neu laden…**), **Update suchen** (nur auf Klick, fragt beim Hersteller nur die Dateiliste ab; ohne Quelle
+  „Version x, keine automatische Prüfung“) und **Entfernen…** (löscht nur die Dateien des Modells, was schon erkannt ist,
+  bleibt). Lumora lädt nie von selbst. Die versteckte Bibliothek nutzt dieselben Modelle aus dem normalen Modellordner.
 - **Speicher & Wartung** — Speicherorte mit „Ordner öffnen“ und **Ändern…** (siehe „Speicherort des Katalogs“),
   Thumbnail-Cache (Belegung, **Cache leeren** — Vorschaubilder werden bei Bedarf neu erzeugt), Karte **Fehlende Dateien**
   mit **Alle fehlenden entfernen (n)** für die aktuelle Bibliothek (seit 0.4.30, siehe „Fehlende Dateien entfernen“),
@@ -744,7 +755,8 @@ einen Fingerabdruck (512 Werte) im Katalog (ADR-0035) — vollständig auf diese
 - **Modell**: InsightFace *buffalo_l* (Erkennung SCRFD `det_10g.onnx`, Fingerabdruck ArcFace `w600k_r50.onnx`). Fehlt
   es, steht dort **„Modell herunterladen… (275 MB, InsightFace buffalo_l, nur nicht-kommerzielle Nutzung)“**: nach
   Bestätigung lädt Lumora das Paket von GitHub (InsightFace Release v0.7), prüft die SHA-256-Prüfsumme und entpackt
-  nur die zwei benötigten Dateien nach `%LocalAppData%\Lumora\models\buffalo_l\` (Fortschritt, abbrechbar). Ohne
+  nur die zwei benötigten Dateien nach `%LocalAppData%\Lumora\models\buffalo_l\` (Fortschritt, abbrechbar; seit 0.4.42 über
+  Einstellungen › Modelle & Daten mit SHA-256 der entpackten Dateien und Eintrag in den Aktivitäten). Ohne
   Klick wird nichts geladen. Die Modelle sind nur für die nicht-kommerzielle Nutzung freigegeben und liegen nie im Repo
   oder im portablen Paket.
 - **Aktivitäten** (unten rechts, seit 0.4.36): „Gesichter erkennen: 1.234 von 19.556“ mit **Pause**/**Fortsetzen** und **Abbrechen** (bis zum
@@ -765,7 +777,8 @@ Je Foto (Videos: Vorschaubild) entsteht im Hintergrund ein Bild-Vektor im Katalo
 - **Modell**: Fehlt es, steht dort **„Motiv-Modell herunterladen… (≈ 690 MB, SigLIP 2 von Google, Apache-2.0)“**: nach
   Bestätigung (Dateien, Quelle, Größen, Lizenz) lädt Lumora SigLIP 2 base als ONNX von Hugging Face
   (onnx-community/siglip2-base-patch16-224-ONNX), prüft jede Datei per SHA-256 und legt sie unter
-  `%LocalAppData%\Lumora\models\siglip2-base-patch16-224\` ab (Fortschritt, abbrechbar). Ohne Klick wird nichts
+  `%LocalAppData%\Lumora\models\siglip2-base-patch16-224\` ab (Fortschritt, abbrechbar; seit 0.4.42 über Einstellungen ›
+  Modelle & Daten, dort auch „Update suchen“). Ohne Klick wird nichts
   geladen, ohne Modell ist die Motiv-Erkennung aus. Das Modell liegt nie im Repo oder im portablen Paket.
 - **Galerie**: Chip **„Motive“** in der Zeile „Inhalt“ (sobald es Treffer gibt): Begriffe mit Anzahl, „eines der
   gewählten“ oder „alle zusammen“; oben im Flyout **Bildinhalt beschreiben** („Hund am Strand“ → die 200 ähnlichsten

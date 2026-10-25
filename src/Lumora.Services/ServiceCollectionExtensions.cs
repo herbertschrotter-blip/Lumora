@@ -117,6 +117,8 @@ public static class ServiceCollectionExtensions
         Removal.RemovalServiceCollectionExtensions.AddRemoval(services);
         // Tag- und Kategorie-Symbole: Schalter in der Settings-Tabelle, Zahlen je Ordner (Services/Marks, Mockup 16, 0.4.35)
         Marks.MarksServiceCollectionExtensions.AddMarks(services);
+        // Update-Manager „Modelle & Daten“: Liste, Laden nach Bestätigung, Prüfen, Entfernen, Update suchen (Services/ModelPackages, ADR-0070)
+        ModelPackages.ModelPackagesServiceCollectionExtensions.AddModelPackages(services);
 
         return services;
     }

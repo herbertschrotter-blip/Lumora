@@ -87,6 +87,21 @@ public sealed class HiddenCatalogTests : IDisposable
                 provider.GetRequiredService<IFaceModelProvider>().ModelFolder.Should().Be(Path.Combine(normalRoot, "models", "buffalo_l"));
             }
 
+            // ADR-0070: alle Modelle aus dem normalen Modellordner (keine Benutzerdaten, nicht ein zweites Mal in den Container)
+            provider.GetRequiredService<Lumora.Services.ModelPackages.IModelStorage>().ModelsRoot.Should().Be(Path.Combine(normalRoot, "models"));
+            if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(Lumora.Services.Motifs.Models.IMotifModelProvider.OverrideVariable)))
+            {
+                provider.GetRequiredService<Lumora.Services.Motifs.Models.IMotifModelProvider>().ModelFolder.Should().Be(Path.Combine(normalRoot, "models", "siglip2-base-patch16-224"));
+            }
+
+            var packages = provider.GetRequiredService<Lumora.Services.ModelPackages.IModelPackageManager>().Packages;
+            packages.Select(p => p.Definition.Id).Should().Equal(
+                Lumora.Services.ModelPackages.ModelPackageCatalog.FacesId, Lumora.Services.ModelPackages.ModelPackageCatalog.MotifsId,
+                Lumora.Services.ModelPackages.ModelPackageCatalog.GeoNamesId, Lumora.Services.ModelPackages.ModelPackageCatalog.MapTilesId,
+                Lumora.Services.ModelPackages.ModelPackageCatalog.AssistantId);
+            packages.Single(p => p.Definition.Id == Lumora.Services.ModelPackages.ModelPackageCatalog.MapTilesId).Folder
+                .Should().StartWith(HiddenLibraryStore.GetCatalogFolder(library), "Kartenkacheln bleiben im Container");
+
             await provider.GetRequiredService<DatabaseInitializer>().InitializeAsync();
             var libraries = provider.GetRequiredService<ILibraryService>();
             var created = await libraries.CreateAsync("Tresor", library);

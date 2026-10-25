@@ -46,13 +46,15 @@ public static class NavigationTags
     public const string SettingsPlaces = "settings-places";
     /// <summary>Einstellungen › Assistent (ADR-0063): Ollama, Sprachmodell, Grafikkarte, Verlauf, Ausprobieren.</summary>
     public const string SettingsAssistant = "settings-assistant";
+    /// <summary>Einstellungen › Modelle &amp; Daten (ADR-0070): Modelle und Datenpakete laden, prüfen, entfernen, Update suchen.</summary>
+    public const string SettingsModels = "settings-models";
     public const string SettingsStorage = "settings-storage";
     public const string SettingsInfo = "settings-info";
 
     /// <summary>Alle Reiter der Einstellungen in Anzeigereihenfolge.</summary>
     public static IReadOnlyList<string> SettingsSections { get; } =
     [
-        Library, Tags, Categories, SettingsFaces, SettingsMotifs, SettingsArchives, SettingsAppearance, SettingsStories, SettingsAssistant /* ADR-0063 */, SettingsPlaces, SettingsStorage, SettingsInfo,
+        Library, Tags, Categories, SettingsFaces, SettingsMotifs, SettingsArchives, SettingsAppearance, SettingsStories, SettingsAssistant /* ADR-0063 */, SettingsPlaces, SettingsModels /* ADR-0070 */, SettingsStorage, SettingsInfo,
     ];
 
     /// <summary>

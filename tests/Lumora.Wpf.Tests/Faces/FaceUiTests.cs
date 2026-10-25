@@ -67,6 +67,35 @@ public sealed class FaceUiTests
     }
 
     [Fact]
+    public async Task Mit_Manager_dieselbe_Bestaetigung_wie_Modelle_und_Daten_und_Laden_ueber_den_Manager()
+    {
+        // ADR-0070: der Knopf in Einstellungen › Gesichter lädt über den Update-Manager (Bestätigung, Aktivität, Vermerk)
+        var index = new FakeIndex();
+        var models = new FakeModels();
+        var source = new Lumora.Wpf.Tests.Settings.ModelPackagesViewModelTests.DelegatingSource(
+            Lumora.Services.ModelPackages.ModelPackageCatalog.Faces,
+            (p, ct) => models.DownloadAsync(p is null ? null : new Progress<FaceModelDownloadProgress>(x => p.Report(new Lumora.Services.ModelPackages.ModelPackageProgress(x.Stage, x.Done, x.Total))), ct));
+        var manager = new Lumora.Services.ModelPackages.ModelPackageManager([source], new Lumora.Wpf.Tests.Settings.ModelPackagesViewModelTests.NoMetadata());
+
+        var declined = new FaceSettingsViewModel(index, models, new FakeDialogs(false), NullLogger<FaceSettingsViewModel>.Instance, new WeakReferenceMessenger(), packages: manager);
+        declined.Load();
+        await declined.DownloadModelCommand.ExecuteAsync(null);
+        source.Downloads.Should().Be(0, "kein Download ohne Bestätigung");
+
+        var dialogs = new FakeDialogs(true);
+        var vm = new FaceSettingsViewModel(index, models, dialogs, NullLogger<FaceSettingsViewModel>.Instance, new WeakReferenceMessenger(), packages: manager);
+        vm.Load();
+        await vm.DownloadModelCommand.ExecuteAsync(null);
+
+        dialogs.LastMessage.Should().Contain("InsightFace buffalo_l").And.Contain("example.invalid").And.Contain("275 MB").And.Contain("nicht-kommerzielle");
+        source.Downloads.Should().Be(1);
+        models.Downloads.Should().Be(1);
+        vm.IsModelReady.Should().BeTrue();
+        vm.Message.Should().Be("Modell heruntergeladen und geprüft.");
+        index.RunRequests.Should().Be(1);
+    }
+
+    [Fact]
     public async Task Download_abbrechen_und_Fehler_werden_gemeldet()
     {
         var models = new FakeModels { Block = true };

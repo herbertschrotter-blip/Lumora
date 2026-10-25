@@ -3,6 +3,69 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.4.42] — 2026-10-25
+
+### Feature (ADR-0070) — Update-Manager „Modelle & Daten“ (Mockup 19, Issue #19)
+- **Einstellungen › Modelle & Daten** (neuer Reiter vor „Speicher & Wartung“): alle Bausteine, die Lumora zusätzlich
+  braucht, in den Gruppen **Modelle** (Gesichtserkennung InsightFace buffalo_l, Motiv-Erkennung SigLIP 2), **Daten**
+  (Ortsnamen GeoNames — eingebaut; Kartenkacheln — bei Bedarf, Größe des Zwischenspeichers) und **Extern** (Sprachmodell
+  über Ollama — nur Status, Knopf „Einstellungen › Assistent“). Je Karte Zweck, Größe, Version, Lizenz (eingeschränkte
+  hervorgehoben, z. B. buffalo_l „nur nicht-kommerziell“), Quelle mit Website (öffnet nur http/https auf Klick),
+  Speicherort, „Geprüft …“, Zustand **nicht geladen / geladen / Update verfügbar / defekt** und die Aktionen **Laden…**
+  (bzw. **Neu laden…**/**Update laden…**), **Prüfen**, **Update suchen**, **Entfernen…** (mit Rückfrage, nur die eigenen
+  Dateien). Hinweis auf die künftigen Modelle von „Foto verbessern“.
+- **Laden nur nach Bestätigung** im Dialog mit Name + Version, Quelle (Hersteller und Host), Größe (Download und auf der
+  Platte), Lizenz, Ziel und Zusatz (z. B. welche Dateien aus dem Archiv entpackt werden). Technisch erzwungen: der
+  Manager lädt nur mit einer von ihm erzeugten und erst nach „Laden“ bestätigten `ModelDownloadRequest`. Nach dem Laden
+  SHA-256 aller Dateien und Prüf-Vermerk `lumora-package.json` im Modellordner (Id, Version, Ergebnis, Zeitpunkt);
+  abgebrochene oder gescheiterte Downloads räumen `*.download`/`*.tmp` auf; Fortschritt in der Zeile und als Vorgang
+  „Modell laden (MB)“ unten rechts in den Aktivitäten (abbrechbar, kurze Meldung beim Fertigwerden).
+- **Update suchen** nur auf Klick und nur Metadaten (GET mit Kennung „Lumora“, ohne Parameter): SigLIP 2 vergleicht die
+  LFS-Prüfsummen der Hugging-Face-Dateiliste mit den hinterlegten — geänderte Dateien beim Hersteller ergeben einen
+  Hinweis (Lumora lädt nur geprüfte Fassungen, die mit einem Lumora-Update kommen); ohne Quelle (buffalo_l) „Version 0.7,
+  keine automatische Prüfung“. Bringt eine neuere Lumora-Version eine neuere Definition mit, zeigt ein älterer Vermerk
+  „Update verfügbar“ ohne Netzabfrage.
+- **Gesichter und Motive** laden über den Manager: die Knöpfe „Modell herunterladen…“ zeigen denselben
+  Bestätigungsdialog, Fortschritt in der Karte wie bisher, dazu SHA-256 der Dateien, Vermerk und Aktivität. Ein über
+  `LUMORA_FACE_MODELS`/`LUMORA_MOTIF_MODEL` vorgegebener Ordner wird nur angezeigt und geprüft.
+- **Versteckte Sitzung:** nutzt dieselben Modelle aus dem normalen Modellordner — **Korrektur:** SigLIP 2 wurde dort
+  bisher im Container gesucht (und hätte ein zweites Mal geladen werden müssen); jetzt wie buffalo_l der normale Ordner.
+  Kartenkacheln bleiben im Cache des Containers.
+- **Für „Foto verbessern“ (Welle 8):** neue Modelle als Definition (Ordner, Dateien mit Größe und SHA-256, Hersteller,
+  Lizenz, Version) mit `services.AddFileSetModelPackage(definition, baseUri)` registrieren — Liste, Dialog, Laden je Datei
+  mit Prüfung, Fortschritt, Prüfen und Entfernen kommen vom Manager; Nutzer hören auf `ModelPackageChangedMessage`.
+- **Technik:** Services `ModelPackages/` (`ModelPackageDefinition`, `ModelPackageCatalog`, `IModelPackageSource` mit
+  `FileModelPackageSource` → `FileSetModelPackageSource`/`FaceModelPackageSource`/`MotifModelPackageSource` und
+  `GeoNamesPackageSource`/`MapTilesPackageSource`/`OllamaPackageSource`, `IModelPackageManager`, `IModelStorage`,
+  `IModelDownloader`/`HttpModelDownloader`, `IModelMetadataClient`/`HttpModelMetadataClient`, `ModelUpdateChecker`,
+  `AddModelPackages` in `AddLumoraServices`); `ActivityKind.ModelDownload`. Wpf `Settings/ModelPackages/`
+  (`ModelPackagesViewModel`, `ModelPackageItemViewModel`, `SettingsModelPackagesSection`, `ModelDownloadDialog`,
+  `AddModelPackagesUi`), `NavigationTags.SettingsModels`. Protokoll nur mit der Id des Eintrags, nie mit Pfaden. Keine
+  Migration, keine neuen Pakete.
+- **Tests:** Services 1394 → 1417 (3 übersprungen wie vorher) — Katalog (Prüfsummen, Lizenz, Update-Quellen), ohne
+  Bestätigung kein Abruf, Laden mit SHA-256/Vermerk/Aktivität, falsche Prüfsumme beim Download verworfen bzw. nach dem
+  Laden „defekt“ und nächstes Laden holt alles neu, Abbruch (Token und Aktivitäts-Anzeige) räumt auf, Prüfen/Entfernen,
+  älterer Vermerk → „Update verfügbar“ ohne Netz und „Update laden“ holt alle Dateien neu, unvollständig, zweiter Vorgang
+  abgelehnt, Entwicklungsordner nur prüfen, Entfernen meldet das Gesichtsmodell und lässt fremde Dateien, Update suchen
+  ohne Quelle/Hugging Face (aktuell, geändert, offline), GeoNames, Kartenkacheln, Ollama (4 Zustände), HTTP-Downloader
+  (Größengrenze, Kennung), Metadaten nur HTTPS; versteckte Sitzung: Modellordner normal, Kacheln im Container. Wpf 1243 →
+  1252 (7 übersprungen wie vorher) — Liste nach Gruppen, Laden nur nach Bestätigung mit Dialogtext, Abbrechen, Prüfen →
+  defekt/Neu laden, Entfernen mit Rückfrage, Update suchen, Assistent-Knopf, Darstellung hell/dunkel ohne Binding-Fehler,
+  Dialogtext buffalo_l; Gesichter und Motive laden über den Manager. Wpf-Suite dreimal hintereinander grün.
+- **Rauchtest:** neuer Schritt „Modelle & Daten“ vor „Versteckte Bibliothek“ (Testmodell mit Fake-Downloader, der nur
+  eine `.invalid`-Adresse bedient; Liste, Ablehnung ohne Bestätigung ohne Abruf, Laden + SHA-256 + Aktivität,
+  verfälscht → defekt, Update suchen ohne Quelle, Entfernen; Screenshots `30-modelle-hell`, `30-modelle-dunkel`). Drei
+  Läufe, der neue Schritt in allen grün: 2× 45/51 (bekannter Wackler „Bibliotheks-Trennung: Ort-Flyout in A wieder ohne
+  den Ort aus B“ mit den vier bekannten Folgefehlern Motive/Orte/Doppelte/Alben, dazu „Story-Seite: Story unter
+  Angeheftet“), 1× 50/51 (nur „Story-Seite“). Binding-Fehler 0/0/40 — die 40 sind die bekannten
+  `GalleryListBoxItem`-Bindungen in „Sortierer“ und „Alben“. Vergleichslauf auf dem Ausgangsstand fc441b5: 49/50 („Story-Seite“),
+  5 Binding-Fehler.
+
+### Offen
+- Mockup 19 ist ein autonom erstellter Entwurf — Abnahme durch Herbert steht aus.
+- Modelle, die vor 0.4.42 geladen wurden, zeigen „Noch nicht geprüft.“, bis einmal „Prüfen“ geklickt wird.
+- Kartenkacheln lassen sich hier nicht leeren (Grenze 500 MB; ggf. künftig in Speicher & Wartung).
+
 ## [0.4.41] — 2026-10-25
 
 ### Fix — Rauchtest-Wackler: Alben-Bindungen, Bibliothekswechsel, Motive, Lightbox-Fokus, Story-Seite (Issue #20)

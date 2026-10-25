@@ -86,6 +86,7 @@ public sealed partial class MotifSettingsViewModel : ObservableObject, IDisposab
     private readonly IDialogService _dialogs;
     private readonly ILogger<MotifSettingsViewModel> _logger;
     private readonly IMessenger _messenger;
+    private readonly Lumora.Services.ModelPackages.IModelPackageManager? _packages; // ADR-0070: Laden über den Manager
     private CancellationTokenSource? _downloadCts;
     private bool _loading;
     private int _libraryId;
@@ -99,8 +100,10 @@ public sealed partial class MotifSettingsViewModel : ObservableObject, IDisposab
         ILibraryService libraries,
         IDialogService dialogs,
         ILogger<MotifSettingsViewModel> logger,
-        IMessenger? messenger = null)
+        IMessenger? messenger = null,
+        Lumora.Services.ModelPackages.IModelPackageManager? packages = null)
     {
+        _packages = packages;
         _index = index;
         _terms = terms;
         _models = models;
@@ -440,6 +443,29 @@ public sealed partial class MotifSettingsViewModel : ObservableObject, IDisposab
     [RelayCommand(CanExecute = nameof(CanDownload))]
     private async Task DownloadModelAsync()
     {
+        if (_packages is not null)
+        {
+            // ADR-0070: dieselbe Bestätigung (Name, Quelle, Größe, Lizenz, Ziel) wie in Einstellungen › Modelle & Daten
+            Lumora.Services.ModelPackages.ModelDownloadRequest? request;
+            try
+            {
+                request = await Lumora.Settings.ModelPackages.ModelDownloadDialog.AskAsync(
+                    _dialogs, _packages, Lumora.Services.ModelPackages.ModelPackageCatalog.MotifsId).ConfigureAwait(true);
+            }
+            catch (Lumora.Services.ModelPackages.ModelPackageException ex)
+            {
+                ShowMessage(ex.Message, error: true);
+                return;
+            }
+
+            if (request is not null)
+            {
+                await StartDownloadAsync(request).ConfigureAwait(true);
+            }
+
+            return;
+        }
+
         var ok = await _dialogs.ConfirmAsync("Motiv-Modell herunterladen?", DownloadConfirmationText(), "Herunterladen").ConfigureAwait(true);
         if (ok)
         {
@@ -447,7 +473,8 @@ public sealed partial class MotifSettingsViewModel : ObservableObject, IDisposab
         }
     }
 
-    internal async Task StartDownloadAsync()
+    /// <summary>Download nach der Bestätigung; mit Manager (ADR-0070) über <paramref name="request"/>, sonst (Tests) direkt.</summary>
+    internal async Task StartDownloadAsync(Lumora.Services.ModelPackages.ModelDownloadRequest? request = null)
     {
         using var cts = new CancellationTokenSource();
         _downloadCts = cts;
@@ -457,12 +484,17 @@ public sealed partial class MotifSettingsViewModel : ObservableObject, IDisposab
         Message = null;
         try
         {
-            var progress = new Progress<MotifModelDownloadProgress>(p =>
+            if (_packages is not null && request is not null)
             {
-                DownloadPercent = p.Total > 0 ? Math.Clamp(100.0 * p.Done / p.Total, 0, 100) : DownloadPercent;
-                DownloadText = p.Total > 0 ? $"{p.Stage}: {p.Done / 1_000_000.0:N0} von {p.Total / 1_000_000.0:N0} MB" : $"{p.Stage}…";
-            });
-            await _models.DownloadAsync(progress, cts.Token).ConfigureAwait(true);
+                var progress = new Progress<Lumora.Services.ModelPackages.ModelPackageProgress>(p => ShowProgress(p.Stage, p.Done, p.Total));
+                await Task.Run(() => _packages.InstallAsync(request, progress, cts.Token), cts.Token).ConfigureAwait(true);
+            }
+            else
+            {
+                var progress = new Progress<MotifModelDownloadProgress>(p => ShowProgress(p.Stage, p.Done, p.Total));
+                await _models.DownloadAsync(progress, cts.Token).ConfigureAwait(true);
+            }
+
             ShowMessage("Modell heruntergeladen und geprüft — die Fotos werden jetzt im Hintergrund analysiert.", error: false);
             _index.RequestRun();
         }
@@ -482,6 +514,12 @@ public sealed partial class MotifSettingsViewModel : ObservableObject, IDisposab
             DownloadText = null;
             RefreshModel();
         }
+    }
+
+    private void ShowProgress(string stage, long done, long total)
+    {
+        DownloadPercent = total > 0 ? Math.Clamp(100.0 * done / total, 0, 100) : DownloadPercent;
+        DownloadText = total > 0 ? $"{stage}: {done / 1_000_000.0:N0} von {total / 1_000_000.0:N0} MB" : $"{stage}…";
     }
 
     private bool CanCancelDownload() => IsDownloading;

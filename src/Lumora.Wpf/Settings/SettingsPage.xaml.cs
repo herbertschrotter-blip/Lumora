@@ -37,7 +37,8 @@ public partial class SettingsPage : UserControl
         Removal.MissingFilesSettingsViewModel? missingFiles = null,
         Exclusions.ScanExclusionsSettingsViewModel? scanExclusions = null,
         Marks.MarkSettingsState? markSettings = null,
-        Backup.CatalogBackupSettingsViewModel? catalogBackup = null)
+        Backup.CatalogBackupSettingsViewModel? catalogBackup = null,
+        ModelPackages.ModelPackagesViewModel? modelPackages = null)
     {
         _sections = sections;
         InitializeComponent();
@@ -51,6 +52,7 @@ public partial class SettingsPage : UserControl
         StoriesView.DataContext = stories; // Reiter „Storys“ samt Diashow (ADR-0060, ADR-0059); ohne Dienst leer
         PlacesView.DataContext = places; // Reiter „Orte“: Garmin-Aktivitäten, Zeitabgleich (ADR-0062); ohne Dienst leer
         AssistantView.DataContext = assistant; // Reiter „Assistent“ (ADR-0063); ohne Dienst leer
+        ModelsView.DataContext = modelPackages; // Reiter „Modelle & Daten“ (ADR-0070); ohne Dienst leer
         // Speicher & Wartung › Fehlende Dateien (ADR-0065); ohne Dienst ausgeblendet
         StorageView.MissingFilesCard.DataContext = missingFiles;
         StorageView.MissingFilesCard.Visibility = missingFiles is null ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible;

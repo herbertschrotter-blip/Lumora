@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lumora — Modelle &amp; Daten (Entwurf 19)</title>
+<style>
+/* =====================================================================
+   Mockup 19 · Einstellungen › Modelle & Daten (Update-Manager, GitHub-Issue #19). Tokens 1:1 aus 08–17.
+   Ein Ort für alles, was Lumora zusätzlich braucht: Modelle (Gesichter, Motive, später „Foto verbessern“),
+   eingebaute Daten (Ortsnamen), Zwischenspeicher (Kartenkacheln) und externe Dienste (Ollama, nur Status).
+   Je Eintrag Zweck, Größe, Version, Quelle mit Website, Lizenz-Hinweis, Status, Speicherort und Aktionen
+   „Laden…“, „Prüfen“, „Entfernen“, „Update suchen“. Laden NUR nach Bestätigung im Dialog (Name, Quelle, Größe,
+   Lizenz, Ziel); Fortschritt in der Aktivitäts-Anzeige unten rechts (Mockup 15); Prüfsumme SHA-256 danach.
+   „Update suchen“ nur auf Klick, nur Metadaten beim Hersteller; ohne Quelle: „Version x, keine automatische Prüfung“.
+   Hell/Dunkel über „dark“, Ansichten oben umschaltbar.
+   ENTWURF – autonom erstellt, Abnahme durch Herbert ausstehend.
+   ===================================================================== */
+   Zähler „+n“, „Alles erledigt“/„Keine Aktivität“), Klick klappt die Liste auf (Läuft mit Ziel, Balken, Restzeit,
+   Pause/Abbrechen; Wartet mit Grund; Zuletzt fertig mit Ergebnis, Rückgängig, „Fehlende zeigen“, Details), kurze
+   Meldung beim Fertigwerden. Ersetzt die Einzelanzeigen rechts in der Statusleiste.
+   ===================================================================== */
+:root {
+  --mica-base:#F3F3F3; --layer-default:rgba(255,255,255,0.7); --layer-card:#FFFFFF; --layer-subtle:rgba(0,0,0,0.026);
+  --layer-secondary:rgba(0,0,0,0.04); --layer-tertiary:rgba(0,0,0,0.06);
+  --text-primary:#1A1A1A; --text-secondary:#5C5C5C; --text-tertiary:#8B8B8B; --text-on-accent:#FFFFFF;
+  --stroke-default:rgba(0,0,0,0.0578); --stroke-divider:rgba(0,0,0,0.0803); --stroke-card:rgba(0,0,0,0.0578); --ctl-bottom:rgba(0,0,0,0.16);
+  --accent:#5B5FC7; --accent-light:#7579D8; --accent-dark:#4145A0; --accent-soft:rgba(91,95,199,0.08); --accent-soft-2:rgba(91,95,199,0.16);
+  --success:#107C10; --success-soft:rgba(16,124,16,0.10); --warning:#C29C00; --warning-soft:rgba(194,156,0,0.14); --danger:#C42B1C;
+  --shadow-card:0 2px 4px rgba(0,0,0,0.02), 0 1px 2px rgba(0,0,0,0.03); --shadow-flyout:0 8px 16px rgba(0,0,0,0.14);
+  --brand-indigo:#5B5FC7; --brand-violet:#8B5CF6; --brand-coral:#F97362; --brand-amber:#F5A524;
+  --page-bg:#E4E4EA; --smoke:rgba(0,0,0,0.3);
+}
+body.dark {
+  color-scheme:dark;
+  --mica-base:#202020; --layer-default:rgba(43,43,43,0.7); --layer-card:#2C2C2C; --layer-subtle:rgba(255,255,255,0.03);
+  --layer-secondary:rgba(255,255,255,0.0418); --layer-tertiary:rgba(255,255,255,0.0605);
+  --text-primary:#FFFFFF; --text-secondary:#D0D0D0; --text-tertiary:#A0A0A0;
+  --stroke-default:rgba(255,255,255,0.0837); --stroke-divider:rgba(255,255,255,0.0837); --stroke-card:rgba(255,255,255,0.0578); --ctl-bottom:rgba(255,255,255,0.22);
+  --accent:#818CF8; --accent-light:#A5B0FF; --accent-dark:#6066D8; --accent-soft:rgba(129,140,248,0.12); --accent-soft-2:rgba(129,140,248,0.24);
+  --success:#6CCB5F; --success-soft:rgba(108,203,95,0.12); --warning:#FCE100; --warning-soft:rgba(252,225,0,0.14); --danger:#FF6B5E;
+  --shadow-card:0 2px 4px rgba(0,0,0,0.18), 0 1px 2px rgba(0,0,0,0.22); --shadow-flyout:0 8px 16px rgba(0,0,0,0.4);
+  --brand-indigo:#818CF8; --brand-violet:#A78BFA; --brand-coral:#FB8A7A; --brand-amber:#FBBF24;
+  --page-bg:#121214; --smoke:rgba(0,0,0,0.55);
+}
+* { box-sizing:border-box; } html,body { margin:0; }
+body { background:var(--page-bg); color:var(--text-primary); font-family:'Segoe UI Variable Text','Segoe UI',system-ui,sans-serif; font-size:14px; }
+button { font:inherit; color:inherit; }
+.ic { font-family:'Segoe Fluent Icons','Segoe MDL2 Assets'; font-size:16px; line-height:1; font-style:normal; }
+.ic.s { font-size:12px; }
+.hidden { display:none !important; }
+.mock-bar { position:sticky; top:0; z-index:100; display:flex; gap:16px; align-items:center; flex-wrap:wrap; padding:7px 20px; background:#2B2B33; color:#EEE; font-size:12px; }
+.mock-bar .grp { display:flex; gap:4px; align-items:center; }
+.mock-bar button { background:#44444F; color:#EEE; border:1px solid #5A5A66; border-radius:4px; padding:3px 9px; cursor:pointer; font-size:12px; }
+.mock-bar button.on { background:#5B5FC7; border-color:#7579D8; }
+.mock-bar .note { margin-left:auto; color:#AAB; }
+.stage-wrap { padding:16px 20px 32px; display:flex; justify-content:center; }
+.win-box { position:relative; flex:none; }
+.window { position:absolute; left:0; top:0; transform-origin:0 0; background:var(--mica-base); border-radius:8px; border:1px solid var(--stroke-default);
+  box-shadow:0 16px 48px rgba(0,0,0,0.22); overflow:hidden; display:grid; grid-template-columns:232px 1fr; grid-template-rows:36px 1fr 30px; }
+.titlebar { grid-column:1/-1; display:flex; align-items:center; gap:10px; padding-left:14px; font-size:12px; color:var(--text-secondary); }
+.titlebar .tile { width:16px; height:16px; border-radius:4px; background:linear-gradient(135deg,#6366F1,#4145A0); }
+.titlebar .wc { margin-left:auto; display:flex; height:100%; } .titlebar .wc span { width:46px; display:grid; place-items:center; font-family:'Segoe Fluent Icons'; font-size:10px; color:var(--text-primary); }
+.nav { padding:2px 8px 10px; display:flex; flex-direction:column; gap:2px; }
+.wbs { font-family:'Segoe UI Variable Display','Segoe UI',sans-serif; font-size:22px; padding:2px 12px 10px;
+  background:linear-gradient(100deg,var(--brand-indigo),var(--brand-violet) 45%,var(--brand-coral) 75%,var(--brand-amber)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.lib-switch { margin:0 2px 8px; padding:8px 10px; border-radius:6px; background:var(--layer-card); border:1px solid var(--stroke-card); box-shadow:var(--shadow-card); display:flex; gap:10px; align-items:center; }
+.lib-switch b { display:block; font-weight:600; } .lib-switch small { display:block; color:var(--text-tertiary); font-size:11px; }
+.nav-item { display:flex; align-items:center; gap:12px; padding:9px 12px; border-radius:4px; position:relative; white-space:nowrap; }
+.nav-item.active { background:var(--layer-secondary); }
+.nav-item.active::before { content:''; position:absolute; left:0; top:10px; bottom:10px; width:3px; border-radius:2px; background:var(--accent); }
+.nav .spacer { flex:1; }
+.content { position:relative; min-width:0; min-height:0; background:var(--layer-default); border-top-left-radius:8px; border-left:1px solid var(--stroke-default); border-top:1px solid var(--stroke-default); overflow:auto; }
+.statusbar { grid-column:1/-1; display:flex; align-items:center; gap:18px; padding:0 14px; font-size:12px; color:var(--text-secondary); border-top:1px solid var(--stroke-divider); background:var(--mica-base); }
+.statusbar .r { margin-left:auto; display:flex; gap:10px; align-items:center; }
+.btn-acc { background:var(--accent); color:var(--text-on-accent); border:1px solid transparent; border-radius:4px; padding:5px 14px; font-size:13px; cursor:pointer; display:inline-flex; gap:6px; align-items:center; white-space:nowrap; }
+body.dark .btn-acc { color:#111; } .btn-acc:hover { background:var(--accent-light); }
+.btn-std { background:var(--layer-card); border:1px solid var(--stroke-divider); border-bottom-color:var(--ctl-bottom); border-radius:4px; padding:5px 12px; font-size:13px; cursor:pointer; display:inline-flex; gap:6px; align-items:center; white-space:nowrap; }
+.btn-std:hover { background:var(--layer-subtle); }
+.btn-std.danger { color:var(--danger); }
+.phead { padding:18px 24px 6px; } .phead h1 { font-size:28px; font-weight:600; margin:0; }
+.tabs { display:flex; gap:4px; padding:4px 24px 10px; border-bottom:1px solid var(--stroke-divider); flex-wrap:wrap; }
+.tabs span { padding:6px 12px; border-radius:4px; color:var(--text-secondary); }
+.tabs span.on { color:var(--text-primary); font-weight:600; box-shadow:inset 0 -3px 0 var(--accent); }
+.body { padding:14px 24px 24px; display:grid; gap:12px; max-width:960px; }
+.card { background:var(--layer-card); border:1px solid var(--stroke-card); border-radius:8px; box-shadow:var(--shadow-card); padding:14px 16px; }
+.card h2 { font-size:15px; margin:0 0 4px; display:flex; gap:10px; align-items:center; }
+.muted { color:var(--text-secondary); font-size:12px; line-height:1.5; }
+.opt { display:grid; grid-template-columns:1fr auto; gap:12px; align-items:center; padding:10px 0; border-top:1px solid var(--stroke-divider); }
+.opt:first-of-type { border-top:0; }
+.opt b { font-weight:600; font-size:13px; display:block; }
+.sw { width:40px; height:20px; border-radius:10px; border:1px solid var(--text-secondary); position:relative; flex:none; cursor:pointer; display:inline-block; }
+.sw::after { content:''; position:absolute; top:4px; left:4px; width:10px; height:10px; border-radius:50%; background:var(--text-secondary); transition:left .12s; }
+.sw.on { background:var(--accent); border-color:var(--accent); } .sw.on::after { left:24px; background:#fff; }
+.chk { width:16px; height:16px; border-radius:3px; border:1px solid var(--text-secondary); display:inline-grid; place-items:center; flex:none; font-family:'Segoe Fluent Icons'; font-size:10px; color:transparent; cursor:pointer; }
+.chk.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+.app { border:1px solid var(--stroke-card); border-radius:8px; background:var(--layer-card); box-shadow:var(--shadow-card); overflow:hidden; }
+.app-h { display:grid; grid-template-columns:48px 1fr auto; gap:14px; align-items:center; padding:14px 16px; cursor:pointer; }
+.app-ico { width:48px; height:48px; border-radius:10px; display:grid; place-items:center; color:#fff; font-size:22px; }
+.app-h .n { font-weight:600; font-size:15px; display:flex; gap:8px; align-items:center; }
+.app-h .d { font-size:12px; color:var(--text-secondary); margin-top:3px; }
+.state { font-size:11px; font-weight:700; border-radius:9px; padding:2px 8px; display:inline-flex; gap:5px; align-items:center; }
+.state::before { content:''; width:7px; height:7px; border-radius:50%; background:currentColor; }
+.st-run { background:var(--success-soft); color:var(--success); }
+.st-bg { background:var(--accent-soft-2); color:var(--accent-dark); } body.dark .st-bg { color:var(--accent-light); }
+.st-off { background:var(--layer-tertiary); color:var(--text-secondary); }
+.st-new { background:var(--warning-soft); color:#8A6D00; } body.dark .st-new { color:var(--warning); }
+.app-b { border-top:1px solid var(--stroke-divider); padding:12px 16px 14px; display:grid; grid-template-columns:1fr 1fr; gap:14px 24px; background:var(--layer-subtle); }
+.app-b h3 { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--text-tertiary); margin:0 0 6px; font-weight:600; }
+.perm { display:flex; gap:8px; align-items:flex-start; font-size:13px; padding:3px 0; }
+.perm small { display:block; color:var(--text-secondary); font-size:11px; }
+.kv { display:grid; grid-template-columns:150px 1fr; gap:4px 10px; font-size:12px; }
+.kv span:nth-child(odd) { color:var(--text-secondary); }
+.app-f { grid-column:1/-1; display:flex; gap:8px; justify-content:flex-end; padding-top:4px; }
+.empty { border:1px dashed var(--stroke-divider); border-radius:8px; padding:14px 16px; display:flex; gap:12px; align-items:center; color:var(--text-secondary); font-size:13px; }
+/* --- Mockup 19: Modelle & Daten --- */
+.content { display:flex; flex-direction:column; }
+.grp-h { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--text-tertiary); margin:8px 0 -4px; }
+.pk-ico { width:40px; height:40px; border-radius:8px; display:grid; place-items:center; color:#fff; font-size:18px; }
+.app-h { grid-template-columns:40px 1fr auto; padding:12px 16px; }
+.app-h .d .sep { color:var(--text-tertiary); padding:0 4px; }
+.lic { font-size:11px; font-weight:600; border-radius:4px; padding:1px 6px; background:var(--warning-soft); color:#8A6D00; }
+body.dark .lic { color:var(--warning); }
+.lic.free { background:var(--layer-tertiary); color:var(--text-secondary); }
+.st-err { background:rgba(196,43,28,0.10); color:var(--danger); }
+body.dark .st-err { background:rgba(255,107,94,0.14); }
+.st-upd { background:var(--accent-soft-2); color:var(--accent-dark); } body.dark .st-upd { color:var(--accent-light); }
+.chev { color:var(--text-tertiary); }
+.app-b { grid-template-columns:1fr; }
+.kv { grid-template-columns:130px 1fr; }
+.kv a { color:var(--accent); text-decoration:none; }
+.mono { font-family:'Cascadia Mono',Consolas,monospace; font-size:11px; color:var(--text-secondary); }
+.hint { display:flex; gap:8px; align-items:flex-start; font-size:12px; color:var(--text-secondary); border-radius:6px; padding:8px 10px; background:var(--layer-secondary); }
+.hint.err { background:rgba(196,43,28,0.08); color:var(--danger); }
+.hint.ok { background:var(--success-soft); color:var(--success); }
+.prog { height:4px; border-radius:2px; background:var(--layer-tertiary); overflow:hidden; margin-top:6px; } .prog i { display:block; height:100%; background:var(--accent); }
+.intro { display:flex; gap:12px; align-items:flex-start; }
+.intro .ic { color:var(--accent); font-size:20px; margin-top:2px; }
+.smoke { position:absolute; inset:0; background:var(--smoke); z-index:40; display:grid; place-items:center; }
+.dlg { width:560px; background:var(--layer-card); border:1px solid var(--stroke-card); border-radius:8px; box-shadow:0 24px 48px rgba(0,0,0,.3); overflow:hidden; }
+body.dark .dlg { background:#2B2B2B; }
+.dlg .in { padding:20px 24px 14px; display:grid; gap:12px; }
+.dlg h2 { margin:0; font-size:20px; font-weight:600; }
+.dlg .ft { display:flex; gap:8px; justify-content:flex-end; padding:14px 24px; background:var(--layer-subtle); border-top:1px solid var(--stroke-divider); }
+.act { margin-left:auto; display:flex; align-items:center; gap:8px; height:100%; padding:0 10px; border-left:1px solid var(--stroke-divider); }
+.act .mini { width:90px; height:4px; border-radius:2px; background:var(--layer-tertiary); overflow:hidden; } .act .mini i { display:block; height:100%; background:var(--accent); }
+.spin { width:12px; height:12px; border-radius:50%; border:2px solid var(--accent); border-right-color:transparent; animation:sp 0.9s linear infinite; }
+@keyframes sp { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="mock-bar">
+  <span><b>Mockup 19 · Modelle &amp; Daten · Entwurf (autonom)</b></span>
+  <span class="grp">Design: <button id="mbLight">Hell</button><button id="mbDark" class="on">Dunkel</button></span>
+  <span class="grp">Ansicht: <button data-v="list" class="on">Übersicht</button><button data-v="confirm">Laden… (Bestätigung)</button><button data-v="loading">Wird geladen</button><button data-v="broken">Defekt / Update suchen</button></span>
+  <span class="note">Downloads nur nach Bestätigung · nichts im Hintergrund</span>
+</div>
+
+<div class="stage-wrap"><div class="win-box" id="winBox">
+<div class="window" id="win">
+  <div class="titlebar"><span class="tile"></span> Lumora<span class="wc"><span>&#xE921;</span><span>&#xE922;</span><span>&#xE8BB;</span></span></div>
+  <nav class="nav">
+    <div class="wbs">lumora</div>
+    <div class="lib-switch"><span class="ic">&#xE8F1;</span><div><b>Familienfotos</b><small>Bibliothek wechseln</small></div></div>
+    <div class="nav-item"><span class="ic">&#xE91B;</span>Galerie</div>
+    <div class="nav-item"><span class="ic">&#xE8B7;</span>Ordner</div>
+    <div class="nav-item"><span class="ic">&#xE8F1;</span>Alben</div>
+    <div class="nav-item"><span class="ic">&#xE786;</span>Storys</div>
+    <div class="nav-item"><span class="ic">&#xE716;</span>Personen</div>
+    <div class="nav-item"><span class="ic">&#xE707;</span>Orte</div>
+    <div class="spacer"></div>
+    <div class="nav-item active"><span class="ic">&#xE713;</span>Einstellungen</div>
+  </nav>
+  <main class="content">
+    <div class="phead"><h1>Einstellungen</h1></div>
+    <div class="tabs"><span>Bibliotheken &amp; Eingänge</span><span>Tags</span><span>Kategorien</span><span>Gesichter</span><span>Motive</span><span>Archive</span><span>Darstellung</span><span>Storys</span><span>Assistent</span><span>Orte</span><span class="on">Modelle &amp; Daten</span><span>Speicher &amp; Wartung</span><span>Info</span></div>
+    <div class="body">
+      <div class="card intro"><span class="ic">&#xE72E;</span>
+        <div><h2>Modelle &amp; Daten</h2>
+          <div class="muted">Alles, was Lumora zusätzlich zu den Programmdateien braucht. Modelle laufen vollständig auf diesem PC — Fotos verlassen den Rechner nie.
+          Lumora lädt nur nach Ihrer Bestätigung und prüft jede Datei per SHA-256. „Update suchen“ fragt nur beim Hersteller nach der Version, sonst wird nichts gesendet.
+          Speicherort: Lumora-Datenordner › models (außerhalb von Programm und Bibliotheken; die versteckte Bibliothek nutzt dieselben Modelle).</div></div>
+      </div>
+
+      <div class="grp-h">Modelle</div>
+      <!-- Gesichter: geladen, aufgeklappt -->
+      <div class="app" id="pkFaces">
+        <div class="app-h"><div class="pk-ico" style="background:linear-gradient(135deg,#F97362,#C2410C)"><span class="ic">&#xE77B;</span></div>
+          <div><div class="n">Gesichtserkennung · InsightFace buffalo_l <span class="state st-run" id="faceState">geladen</span></div>
+            <div class="d">Gesichter finden und Personen wiedererkennen<span class="sep">·</span>184 MB<span class="sep">·</span>Version 0.7<span class="sep">·</span><span class="lic">nur nicht-kommerziell</span></div></div>
+          <span class="ic chev">&#xE70E;</span></div>
+        <div class="app-b">
+          <div class="kv">
+            <span>Quelle</span><span>InsightFace (deepinsight) · <a>github.com/deepinsight/insightface</a></span>
+            <span>Lizenz</span><span>Modelle nur für die nicht-kommerzielle Nutzung freigegeben (Code MIT)</span>
+            <span>Dateien</span><span>det_10g.onnx (17 MB), w600k_r50.onnx (174 MB) — aus buffalo_l.zip (275 MB)</span>
+            <span>Speicherort</span><span class="mono">…\Lumora\models\buffalo_l</span>
+            <span>Geprüft</span><span id="faceCheck">heute 10:42 · SHA-256 stimmt</span>
+            <span>Updates</span><span>Version 0.7, keine automatische Prüfung</span>
+          </div>
+          <div class="hint ok hidden" id="faceUpd"><span class="ic s">&#xE946;</span>Version 0.7, keine automatische Prüfung — der Hersteller bietet keine Versionsliste an.</div>
+          <div class="app-f"><button class="btn-std"><span class="ic s">&#xE9D9;</span>Prüfen</button><button class="btn-std" data-upd="face"><span class="ic s">&#xE895;</span>Update suchen</button><button class="btn-std danger"><span class="ic s">&#xE74D;</span>Entfernen…</button></div>
+        </div>
+      </div>
+      <!-- Motive: nicht geladen / defekt / lädt -->
+      <div class="app" id="pkMotifs">
+        <div class="app-h"><div class="pk-ico" style="background:linear-gradient(135deg,#8B5CF6,#5B5FC7)"><span class="ic">&#xE8B3;</span></div>
+          <div><div class="n">Motiv-Erkennung · SigLIP 2 base <span class="state st-off" id="motifState">nicht geladen</span></div>
+            <div class="d">Motive wie „Strand“ oder „Hund“ erkennen und suchen<span class="sep">·</span>690 MB<span class="sep">·</span>Version 2025-02<span class="sep">·</span><span class="lic free">Apache-2.0</span></div>
+            <div class="hidden" id="motifProg"><div class="muted">Wird heruntergeladen: 236 von 690 MB · Fortschritt auch unten rechts</div><div class="prog"><i style="width:34%"></i></div></div>
+            <div class="hint err hidden" id="motifErr" style="margin-top:6px"><span class="ic s">&#xE783;</span>Prüfung: onnx/vision_model.onnx stimmt nicht mit der Prüfsumme überein. „Laden…“ ersetzt die Datei.</div>
+            <div class="hint hidden" id="motifUpd" style="margin-top:6px"><span class="ic s">&#xE895;</span>Beim Hersteller (Hugging Face) gibt es keine neuere Fassung — Version 2025-02 ist aktuell.</div>
+          </div>
+          <div style="display:flex;gap:6px" id="motifBtns"><button class="btn-acc" data-v="confirm"><span class="ic s">&#xE896;</span>Laden…</button></div></div>
+      </div>
+      <div class="empty"><span class="ic">&#xE710;</span>Weitere Modelle kommen mit „Foto verbessern“ (Hochskalieren, Gesichter restaurieren, Einfärben, Entfernen) und erscheinen dann hier.</div>
+
+      <div class="grp-h">Daten</div>
+      <div class="app">
+        <div class="app-h"><div class="pk-ico" style="background:linear-gradient(135deg,#10B981,#047857)"><span class="ic">&#xE707;</span></div>
+          <div><div class="n">Ortsnamen · GeoNames <span class="state st-bg">eingebaut</span></div>
+            <div class="d">Ortsnamen offline aus GPS-Koordinaten (≈ 70 000 Orte ab 5 000 Einwohnern)<span class="sep">·</span>2 MB<span class="sep">·</span>Stand 2026-10<span class="sep">·</span><span class="lic free">CC BY 4.0</span></div></div>
+          <div style="display:flex;gap:6px"><button class="btn-std"><span class="ic s">&#xE9D9;</span>Prüfen</button></div></div>
+      </div>
+      <div class="app">
+        <div class="app-h"><div class="pk-ico" style="background:linear-gradient(135deg,#38BDF8,#0369A1)"><span class="ic">&#xE909;</span></div>
+          <div><div class="n">Kartenkacheln <span class="state st-bg">bei Bedarf</span></div>
+            <div class="d">Kartenbilder für „Orte“, werden beim Ansehen geladen und zwischengespeichert<span class="sep">·</span>Zwischenspeicher 112 MB (Grenze 500 MB)<span class="sep">·</span><span class="lic free">© OpenStreetMap · CARTO · MapTiler</span></div></div>
+          <div style="display:flex;gap:6px"><button class="btn-std"><span class="ic s">&#xE9D9;</span>Prüfen</button></div></div>
+      </div>
+
+      <div class="grp-h">Extern</div>
+      <div class="app">
+        <div class="app-h"><div class="pk-ico" style="background:linear-gradient(135deg,#F5A524,#B45309)"><span class="ic">&#xE8BD;</span></div>
+          <div><div class="n">Sprachmodell für den Story-Assistenten · Ollama <span class="state st-run">bereit</span></div>
+            <div class="d">Sätze verstehen („Urlaub mit Oma 2019“)<span class="sep">·</span>qwen2.5:3b, ca. 1,9 GB<span class="sep">·</span>Ollama 0.12<span class="sep">·</span>wird von Ollama verwaltet — Lumora installiert hier nichts</div></div>
+          <div style="display:flex;gap:6px"><button class="btn-std"><span class="ic s">&#xE9D9;</span>Prüfen</button><button class="btn-std">Einstellungen › Assistent</button></div></div>
+      </div>
+    </div>
+
+    <!-- Bestätigung vor dem Laden -->
+    <div class="smoke hidden" id="dlg"><div class="dlg"><div class="in">
+      <h2>Motiv-Erkennung laden?</h2>
+      <div class="kv">
+        <span>Name</span><span><b>SigLIP 2 base</b> (Version 2025-02)</span>
+        <span>Quelle</span><span>Google · als ONNX von Hugging Face (huggingface.co/onnx-community)</span>
+        <span>Größe</span><span>690 MB · 3 große Dateien und 4 kleine Konfigurationsdateien</span>
+        <span>Lizenz</span><span>Apache-2.0 (auch kommerziell nutzbar)</span>
+        <span>Ziel</span><span class="mono">…\Lumora\models\siglip2-base-patch16-224</span>
+      </div>
+      <div class="muted">Jede Datei wird per SHA-256 geprüft; abgebrochene oder falsche Dateien werden verworfen. Das Modell läuft danach vollständig auf diesem PC.</div>
+    </div><div class="ft"><button class="btn-acc" data-v="loading">Laden</button><button class="btn-std" data-v="list">Abbrechen</button></div></div></div>
+  </main>
+
+  <div class="statusbar">
+    <span><span class="ic s">&#xE8F1;</span> Familienfotos</span>
+    <span>5 212 Fotos und Videos</span>
+    <div class="act" id="act"></div>
+  </div>
+</div>
+</div></div>
+
+<script>
+const $=(s)=>document.querySelector(s), $$=(s)=>[...document.querySelectorAll(s)];
+const ACT={ idle:'<span class="ic s" style="color:var(--text-tertiary)">&#xE73E;</span><span style="color:var(--text-tertiary)">Keine Aktivität</span>',
+  loading:'<span class="spin"></span><span>Modell laden: SigLIP 2 base · 236 von 690 MB</span><span class="mini"><i style="width:34%"></i></span>' };
+function view(v){
+  $$('.mock-bar [data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
+  $('#dlg').classList.toggle('hidden', v!=='confirm');
+  $('#motifProg').classList.toggle('hidden', v!=='loading');
+  $('#motifErr').classList.toggle('hidden', v!=='broken');
+  $('#motifUpd').classList.toggle('hidden', v!=='broken');
+  $('#faceUpd').classList.toggle('hidden', v!=='broken');
+  const st=$('#motifState');
+  st.className='state '+({loading:'st-upd',broken:'st-err'}[v]||'st-off');
+  st.textContent=({loading:'wird geladen',broken:'defekt'}[v]||'nicht geladen');
+  $('#motifBtns').innerHTML = v==='loading' ? '<button class="btn-std"><span class="ic s">&#xE711;</span>Abbrechen</button>'
+    : v==='broken' ? '<button class="btn-acc" data-v="confirm"><span class="ic s">&#xE896;</span>Neu laden…</button><button class="btn-std"><span class="ic s">&#xE9D9;</span>Prüfen</button><button class="btn-std"><span class="ic s">&#xE895;</span>Update suchen</button><button class="btn-std danger"><span class="ic s">&#xE74D;</span>Entfernen…</button>'
+    : '<button class="btn-acc" data-v="confirm"><span class="ic s">&#xE896;</span>Laden…</button>';
+  $('#act').innerHTML = v==='loading' ? ACT.loading : ACT.idle;
+}
+document.addEventListener('click',e=>{ const v=e.target.closest('[data-v]'); if(v){ view(v.dataset.v); } });
+function fit(){ const w=1280,h=900,win=$('#win'); win.style.width=w+'px'; win.style.height=h+'px'; const s=Math.min(1,(document.documentElement.clientWidth-40)/w);
+  win.style.transform=`scale(${s})`; $('#winBox').style.width=w*s+'px'; $('#winBox').style.height=h*s+'px'; }
+function theme(d){ document.body.classList.toggle('dark',d); $('#mbLight').classList.toggle('on',!d); $('#mbDark').classList.toggle('on',d); }
+$('#mbLight').onclick=()=>theme(false); $('#mbDark').onclick=()=>theme(true);
+window.addEventListener('resize',fit); fit(); theme(true); view('list');
+</script>
+</body>
+</html>

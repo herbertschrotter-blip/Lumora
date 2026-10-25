@@ -64,6 +64,37 @@ public sealed class MotifSettingsViewModelTests
     }
 
     [Fact]
+    public async Task Mit_Manager_dieselbe_Bestaetigung_wie_Modelle_und_Daten_und_Laden_ueber_den_Manager()
+    {
+        // ADR-0070: der Knopf in Einstellungen › Motive lädt über den Update-Manager
+        var libraries = new InMemoryLibraries();
+        libraries.Add(7, "Fotos", 20, DateTime.UtcNow);
+        var index = new FakeIndex();
+        var terms = new FakeTerms { ModelAvailable = false };
+        var models = new FakeModels();
+        var dialogs = new Dialogs();
+        var source = new Lumora.Wpf.Tests.Settings.ModelPackagesViewModelTests.DelegatingSource(
+            Lumora.Services.ModelPackages.ModelPackageCatalog.Motifs,
+            (p, ct) => models.DownloadAsync(null, ct));
+        var manager = new Lumora.Services.ModelPackages.ModelPackageManager([source], new Lumora.Wpf.Tests.Settings.ModelPackagesViewModelTests.NoMetadata());
+        var vm = new MotifSettingsViewModel(index, terms, models, libraries, dialogs, NullLogger<MotifSettingsViewModel>.Instance, new WeakReferenceMessenger(), packages: manager);
+        vm.Load();
+
+        dialogs.ConfirmAnswer = false;
+        await vm.DownloadModelCommand.ExecuteAsync(null);
+        source.Downloads.Should().Be(0);
+        dialogs.LastMessage.Should().Contain("SigLIP 2 base").And.Contain("Hugging Face").And.Contain("Apache-2.0").And.Contain("SHA-256");
+
+        dialogs.ConfirmAnswer = true;
+        terms.ModelAvailable = true;
+        await vm.DownloadModelCommand.ExecuteAsync(null);
+        source.Downloads.Should().Be(1);
+        models.Downloads.Should().Be(1);
+        index.RunRequests.Should().Be(1);
+        vm.IsModelReady.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task Download_abbrechen_und_Fehler_als_Meldung()
     {
         var (vm, _, terms, models, dialogs) = Create();

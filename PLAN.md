@@ -488,7 +488,7 @@ Status (Stand 0.2.0): ✅ umgesetzt · 🟡 teilweise · ⬜ offen
 | ⬜ | **Welle 7 Android-Begleit-App** | PC stellt Katalog + Vorschaubilder im Heimnetz bereit, Handy zeigt und bewertet | Memory/Plan |
 | ⬜ | **Welle 8 Foto verbessern** | hochskalieren, Gesichter restaurieren, einfärben, entfernen, Zuschneiden/Licht; Ergebnis als neue Datei; Augen-offen/Lächeln als Gütemerkmal | Mockup 13 (abgenommen 2026-10-23) |
 | 🟡 | **Produktivbetrieb** | Katalog-Sicherung vor Migrationen (konsistent, versteckt nur im Container, ohne Sicherung keine Migration), von Hand + Wiederherstellen beim nächsten Start, portabler Modus (`lumora.portable`/`Daten\` neben der EXE, `publish.ps1 -Portable`) für eine getrennte Release-Installation mit frischem Katalog, Datenordner in Info; offen: Sicherung der Fotos (Herberts Entscheidung, README „Produktivbetrieb“) | Issue #6, ADR-0069, umgesetzt in 0.4.40 |
-| ⬜ | **Update-Manager „Modelle & Daten“** | alle heruntergeladenen Bausteine mit Version/Lizenz, Updates nur auf Wunsch, atomarer Tausch | Memory/Plan, am Schluss |
+| ✅ | **Update-Manager „Modelle & Daten“** | alle Modelle und Datenpakete mit Zweck, Größe, Version, Quelle, Lizenz und Zustand; Laden nur nach Bestätigung mit SHA-256 und Fortschritt in der Aktivitäts-Anzeige, Prüfen, Entfernen, „Update suchen“ nur auf Klick; Register für die Modelle von „Foto verbessern“ | Mockup 19 (Entwurf, Abnahme offen), ADR-0070, Issue #19, umgesetzt in 0.4.42 |
 
 ---
 
