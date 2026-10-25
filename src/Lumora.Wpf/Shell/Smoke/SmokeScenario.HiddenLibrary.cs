@@ -100,7 +100,9 @@ internal sealed partial class SmokeScenario
             Check((new DirectoryInfo(catalog).Attributes & FileAttributes.Hidden) != 0, ".lumora ist versteckt");
             await SecurityCheckInHiddenSessionAsync(hidden).ConfigureAwait(true); // Sicherheits-Check mit Fake-Lesern (ADR-0064)
 
-            // (2) Untätigkeit → automatisch zugesperrt, Aushängen angestoßen
+            // (2) Untätigkeit → automatisch zugesperrt, Aushängen angestoßen (Standard seit 0.4.38 aus → hier bewusst an)
+            Check(sessions.ActiveManifest is { DismountOnLock: false }, "Aushängen standardmäßig aus");
+            sessions.UpdateSettings(HiddenLibraryManifest.DefaultAutoLockMinutes, dismountOnLock: true);
             sessions.Idle.Timeout = TimeSpan.Zero;
             var locked = await sessions.CheckIdleAsync().ConfigureAwait(true);
             Check(locked && !sessions.IsHiddenSessionActive && !HiddenSessionPrivacy.IsHiddenSessionActive, "nach Untätigkeit zugesperrt");

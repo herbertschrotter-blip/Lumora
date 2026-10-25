@@ -1,7 +1,8 @@
 # ADR-0049: Versteckte Bibliotheken im verschlüsselten Container
 
 - **Status:** Accepted (Nachtrag 0.4.14: Zusperren beendet den versteckten Modus, Reiter nur in geöffneter versteckter Bibliothek;
-  Nachtrag 0.4.31: VHDX wird ausgeworfen wie im Explorer statt per `Dismount-DiskImage`)
+  Nachtrag 0.4.31: VHDX wird ausgeworfen wie im Explorer statt per `Dismount-DiskImage`; Nachtrag 0.4.38: Aushängen
+  standardmäßig aus — Herbert: „ich will es nicht aus Lumora aushängen“; alte Kenndateien ohne bewusste Wahl gelten als aus)
 - **Datum:** 2026-10-21
 - **Entscheider:** Herbert Schrotter (Anforderungen: Container, `_hidden`, Kennwort, Zusperren, Aushängen, Spurenfreiheit),
   Claude (Umsetzung und Detailentscheidungen ohne Rückfrage, siehe unten)

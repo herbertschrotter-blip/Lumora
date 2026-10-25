@@ -140,6 +140,7 @@ public sealed class CatalogSessionManagerTests : IDisposable
         var manager = CreateManager();
         var folder = NewContainerFolder();
         await manager.CreateAsync(folder, "Tresor", "kennwort-1");
+        manager.UpdateSettings(10, dismountOnLock: true); // Standard seit 0.4.38: aus
 
         _time.Advance(TimeSpan.FromMinutes(9));
         (await manager.CheckIdleAsync()).Should().BeFalse();
@@ -218,6 +219,7 @@ public sealed class CatalogSessionManagerTests : IDisposable
         var manager = CreateManager();
         var folder = NewContainerFolder();
         await manager.CreateAsync(folder, "Tresor", "kennwort-1");
+        manager.UpdateSettings(10, dismountOnLock: true); // Standard seit 0.4.38: aus
         _containers.DismountSucceeds = false;
         var locked = await manager.LockAsync();
         manager = CreateManager(); // Neustart mit „_hidden“ — Zusperren beendet den versteckten Modus (0.4.14)

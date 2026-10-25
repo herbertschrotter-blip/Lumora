@@ -151,6 +151,7 @@ public sealed class SecurityCheckUiTests : IDisposable
         var manager = CreateManager();
         var folder = NewContainerFolder();
         await manager.CreateAsync(folder, "Tresor", "kennwort-1");
+        manager.UpdateSettings(10, dismountOnLock: true); // Standard seit 0.4.38: aus
 
         (await manager.LockAsync()).Success.Should().BeTrue();
 

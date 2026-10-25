@@ -64,7 +64,7 @@ public sealed class HiddenLibraryStoreTests : IDisposable
 
         manifest.Name.Should().Be("Tresor");
         manifest.AutoLockMinutes.Should().Be(10, "Standard: 10 Minuten");
-        manifest.DismountOnLock.Should().BeTrue("Standard: aushängen an");
+        manifest.DismountOnLock.Should().BeFalse("Standard seit 0.4.38: nicht aushängen");
         var catalog = HiddenLibraryStore.GetCatalogFolder(folder);
         catalog.Should().Be(Path.Combine(folder, ".lumora"));
         var attributes = new DirectoryInfo(catalog).Attributes;
@@ -126,6 +126,25 @@ public sealed class HiddenLibraryStoreTests : IDisposable
 
         HiddenLibraryStore.SaveSettings(folder, 0, dismountOnLock: true).AutoLockMinutes.Should().Be(HiddenLibraryManifest.MinAutoLockMinutes);
         HiddenLibraryStore.SaveSettings(folder, 100_000, dismountOnLock: true).AutoLockMinutes.Should().Be(HiddenLibraryManifest.MaxAutoLockMinutes);
+    }
+
+    [Fact]
+    public void Old_manifest_with_unchosen_dismount_counts_as_off_until_chosen_again()
+    {
+        // Bis 0.4.37 stand „aushängen“ ungefragt auf an (ohne „dismountChosen“) — gilt jetzt als aus
+        var folder = NewLibraryFolder();
+        _store.Create(folder, "Tresor", "kennwort-1");
+        var path = HiddenLibraryStore.GetManifestPath(folder);
+        var old = File.ReadAllText(path).Replace("\"dismountOnLock\": false", "\"dismountOnLock\": true").Replace(",\n  \"dismountChosen\": true", string.Empty).Replace(",\r\n  \"dismountChosen\": true", string.Empty);
+        old.Should().Contain("\"dismountOnLock\": true").And.NotContain("dismountChosen");
+        File.WriteAllText(path, old);
+
+        HiddenLibraryStore.TryLoad(folder)!.DismountOnLock.Should().BeFalse("alte Kenndatei ohne bewusste Wahl");
+
+        HiddenLibraryStore.SaveSettings(folder, 10, dismountOnLock: true);
+        HiddenLibraryStore.TryLoad(folder)!.DismountOnLock.Should().BeTrue("bewusst eingeschaltet");
+        HiddenLibraryStore.SaveSettings(folder, 10, dismountOnLock: false);
+        HiddenLibraryStore.TryLoad(folder)!.DismountOnLock.Should().BeFalse();
     }
 
     [Fact]

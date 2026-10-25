@@ -1068,7 +1068,7 @@ selbst einhängen) und von denen Lumora im Alltag **nichts zeigt** (ADR-0049).
     versteckten Sitzung). Stufe und Option stehen im Katalog der versteckten Bibliothek (im Container).
   - Geänderte Windows-Einstellungen (Schnellstart, Auslagerungsdatei) wirken erst nach einem Neustart; der Check zeigt die
     Einstellung, nicht den laufenden Zustand.
-- **Container aushängen** (Standard an, in den Einstellungen der geöffneten versteckten Bibliothek abschaltbar): beim
+- **Container aushängen** (seit 0.4.38 Standard **aus**, in den Einstellungen der geöffneten versteckten Bibliothek einschaltbar; ist es an, muss der Container vor dem nächsten Öffnen wieder eingehängt werden — VHDX per Doppelklick im Explorer): beim
   Zusperren und Beenden hängt Lumora ein VeraCrypt-Volume über die VeraCrypt-Befehlszeile bzw. eine eingehängte VHDX
   wie Explorer › „Auswerfen“ aus (ohne Administratorrechte, seit 0.4.31); sind noch Dateien offen oder ist es kein erkennbarer Container, erscheint ein Hinweis.
   **Container öffnen…** startet VeraCrypt mit Containerdatei und Laufwerksbuchstabe — das Container-Kennwort fragt

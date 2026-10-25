@@ -110,7 +110,7 @@ public sealed class HiddenLibraryStore
             DateTime.UtcNow,
             HiddenLibraryPassword.Create(password, _iterations),
             HiddenLibraryManifest.DefaultAutoLockMinutes,
-            DismountOnLock: true);
+            DismountOnLock: false); // Standard aus (0.4.38, Herbert): Lumora hängt den Container nur auf ausdrücklichen Wunsch aus
         Write(libraryFolder, manifest);
         return manifest;
     }
@@ -137,7 +137,9 @@ public sealed class HiddenLibraryStore
                 dto.CreatedUtc,
                 dto.Password,
                 Math.Clamp(dto.AutoLockMinutes ?? HiddenLibraryManifest.DefaultAutoLockMinutes, HiddenLibraryManifest.MinAutoLockMinutes, HiddenLibraryManifest.MaxAutoLockMinutes),
-                dto.DismountOnLock ?? true);
+                // Bis 0.4.37 stand „aushängen“ ungefragt auf an; erst ein Wert, der ab 0.4.38 geschrieben wurde
+                // (DismountChosen), zählt als bewusste Wahl — alte Kenndateien gelten als „aus“.
+                dto.DismountChosen == true && (dto.DismountOnLock ?? false));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
@@ -210,6 +212,7 @@ public sealed class HiddenLibraryStore
             Password = manifest.Password,
             AutoLockMinutes = manifest.AutoLockMinutes,
             DismountOnLock = manifest.DismountOnLock,
+            DismountChosen = true,
         };
         File.WriteAllText(tmp, JsonSerializer.Serialize(dto, JsonOptions));
         File.Move(tmp, file, overwrite: true);
@@ -230,5 +233,8 @@ public sealed class HiddenLibraryStore
         public int? AutoLockMinutes { get; set; }
 
         public bool? DismountOnLock { get; set; }
+
+        /// <summary>Ab 0.4.38 gesetzt: <see cref="DismountOnLock"/> ist eine Wahl unter dem neuen Standard „aus“.</summary>
+        public bool? DismountChosen { get; set; }
     }
 }

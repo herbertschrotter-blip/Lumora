@@ -80,7 +80,7 @@ public sealed partial class HiddenLibrariesViewModel : ObservableObject
     private int _autoLockMinutes = HiddenLibraryManifest.DefaultAutoLockMinutes;
 
     [ObservableProperty]
-    private bool _dismountOnLock = true;
+    private bool _dismountOnLock;
 
     /// <summary>Auswahl für „Automatisch zusperren nach … Minuten“ (enthält immer den gespeicherten Wert).</summary>
     public System.Collections.Generic.IReadOnlyList<int> AutoLockChoices

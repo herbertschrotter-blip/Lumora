@@ -3,6 +3,18 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.4.38] — 2026-10-25
+
+### Fix (ADR-0049, Nachtrag 0.4.38) — Container standardmäßig nicht mehr aushängen
+- Seit dem Fix 0.4.31 hat Lumora die BitLocker-VHDX beim Beenden tatsächlich ausgeworfen; danach fand „Lumora Hidden“ die
+  Bibliothek nicht mehr, bis der Container wieder eingehängt war (Herbert: soll nicht aus Lumora aushängen).
+- „Container beim Zusperren und Beenden aushängen“ steht jetzt standardmäßig auf **aus**. Kenndateien von vor 0.4.38 gelten
+  als „aus“, weil der Wert damals nie bewusst gewählt wurde (neues Feld `dismountChosen` in `hidden-library.json`); wer es
+  in den Einstellungen der versteckten Bibliothek einschaltet, bekommt das Aushängen wie bisher.
+- Hinweis unter dem Schalter erklärt die Folge (Container muss vor dem nächsten Öffnen wieder eingehängt werden).
+- Tests: alte Kenndatei → aus, bewusst an/aus; Sitzungs- und Sicherheits-Check-Tests schalten das Aushängen ausdrücklich ein;
+  Rauchtest prüft „standardmäßig aus“ und schaltet es für den Fake-Ablauf ein.
+
 ## [0.4.37] — 2026-10-25
 
 ### Docs — Mockup 17 „Personen, Titelbild, Rechtsklick-Menü“ und Mockup 18 „Galerie mit Ordnerleiste“, abgenommen

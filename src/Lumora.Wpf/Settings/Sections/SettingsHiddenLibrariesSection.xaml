@@ -39,7 +39,7 @@
                                      IsChecked="{Binding DismountOnLock, Mode=TwoWay}"
                                      AutomationProperties.Name="Container beim Zusperren und Beenden aushängen" />
                     <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0"
-                               Text="Gespeichert in der versteckten Bibliothek selbst (.lumora), nie in den normalen Einstellungen. Aushängen klappt bei VeraCrypt und BitLocker-VHDX; sonst erscheint ein Hinweis." />
+                               Text="Standard aus. Ist es an, ist der Container nach dem Zusperren/Beenden weg und muss vor dem nächsten Öffnen wieder eingehängt werden (VHDX: Doppelklick im Explorer). Gespeichert in der versteckten Bibliothek selbst (.lumora), nie in den normalen Einstellungen." />
                     <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
                         <ui:Button Appearance="Primary" Content="Jetzt zusperren" Command="{Binding LockCommand}"
                                    Icon="{ui:SymbolIcon LockClosed24}" AutomationProperties.Name="Jetzt zusperren" />
