@@ -14,7 +14,7 @@
 
     Nicht im Paket: FFmpeg (Video-Vorschaubilder) — wird wie im Debug-Build im PATH bzw. unter den winget-Links gesucht
     („winget install Gyan.FFmpeg“). Daten liegen unabhängig vom Paketordner unter %LocalAppData%\Lumora
-    (bzw. im Ordner aus database-location.json) — der Ordnername bleibt trotz des Produktnamens Lumora (ADR-0047).
+    (bzw. im Ordner aus database-location.json) — außer mit -Portable (ADR-0069).
 
 .PARAMETER Runtime
     Runtime Identifier (nur win-x64 ist geprüft).
@@ -28,15 +28,25 @@
 .PARAMETER NoZip
     Nur den Ordner erzeugen.
 
+.PARAMETER Portable
+    Portable Release-Installation (ADR-0069): legt die Markierungsdatei lumora.portable neben Lumora.exe. Lumora nutzt dann
+    <Paketordner>\Daten (Katalog, Vorschaubilder, Protokolle, Sicherungen) statt %LocalAppData%\Lumora — getrennt von jeder
+    anderen Installation, frischer Katalog beim ersten Start. LUMORA_APPDATA hat weiter Vorrang (Rauchtest).
+    Paketname mit Anhang „-portable“.
+
 .EXAMPLE
     pwsh -File build\publish.ps1
+
+.EXAMPLE
+    pwsh -File build\publish.ps1 -Portable
 #>
 [CmdletBinding()]
 param(
     [string]$Runtime = 'win-x64',
     [string]$OutputRoot = '',
     [switch]$FrameworkDependent,
-    [switch]$NoZip
+    [switch]$NoZip,
+    [switch]$Portable
 )
 
 $ErrorActionPreference = 'Stop'
@@ -52,6 +62,7 @@ if (-not $match) { throw "Kein Eintrag '## [x.y.z]' in $changelog gefunden." }
 $version = $match.Matches[0].Groups[1].Value
 
 $flavor = if ($FrameworkDependent) { '-fdd' } else { '' }
+if ($Portable) { $flavor += '-portable' } # ADR-0069
 $packageName = "Lumora-$version-$Runtime$flavor"
 $outDir = Join-Path $OutputRoot $packageName
 $zipPath = "$outDir.zip"
@@ -98,6 +109,23 @@ foreach ($item in $required) {
     if (-not (Test-Path -LiteralPath (Join-Path $outDir $item))) { throw "Pflichtbestandteil fehlt im Paket: $item" }
 }
 if (Test-Path -LiteralPath (Join-Path $outDir 'libvlc\win-x86')) { throw 'libvlc\win-x86 sollte nicht im x64-Paket liegen.' }
+# Nie Daten im Paket (kein Katalog, keine Protokolle); ein Ordner Daten neben der EXE schaltete den portablen Modus ein
+if (Test-Path -LiteralPath (Join-Path $outDir 'Daten')) { throw 'Ordner Daten darf nicht im Paket liegen.' }
+
+# --- Portabler Modus (ADR-0069) ----------------------------------------------------------------------------------
+$marker = Join-Path $outDir 'lumora.portable'
+if ($Portable) {
+    $markerText = @(
+        'Lumora - portabler Modus (ADR-0069).',
+        'Solange diese Datei neben Lumora.exe liegt, speichert Lumora Katalog, Vorschaubilder, Protokolle und',
+        'Katalog-Sicherungen im Ordner Daten neben Lumora.exe statt unter %LocalAppData%\Lumora.',
+        'Datei loeschen = Standardmodus (der Ordner Daten schaltet den portablen Modus aber ebenfalls ein).'
+    )
+    Set-Content -LiteralPath $marker -Value $markerText -Encoding utf8
+    Write-Host 'Portabler Modus: lumora.portable liegt im Paket'
+} elseif (Test-Path -LiteralPath $marker) {
+    throw 'lumora.portable im Standardpaket gefunden.'
+}
 # Werkzeuge für 'dotnet ef' gehören nicht ins Paket (Data-Projekt: EF-Design-Paket ohne contentfiles, 0.2.31).
 $designOnly = @(Get-ChildItem -LiteralPath $outDir -Directory -Filter 'BuildHost-*') +
               @(Get-ChildItem -LiteralPath $outDir -File -Filter 'Microsoft.EntityFrameworkCore.Design.dll')

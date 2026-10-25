@@ -44,6 +44,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<SqlitePragmaInterceptor>();
         services.TryAddSingleton<ILibraryContextFactory, LibraryContextFactory>();
         services.TryAddSingleton<DatabaseInitializer>();
+        Database.Backup.CatalogBackupServiceCollectionExtensions.AddCatalogBackup(services); // Katalog-Sicherung vor Migrationen, von Hand, Wiederherstellen (ADR-0069)
 
         // Medienformate (Scanner, Renderer, Settings) — Factory, weil Microsoft.DI sonst den Konstruktor
         // (IEnumerable<string>, IEnumerable<string>) mit zwei LEEREN Listen wählt und kein Format erkannt wird.

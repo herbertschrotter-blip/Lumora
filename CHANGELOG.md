@@ -3,6 +3,59 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.4.40] — 2026-10-25
+
+### Feature (ADR-0069) — Produktivbetrieb vorbereiten: Katalog-Sicherung vor Migrationen und portabler Modus (refs #6)
+- **Automatische Katalog-Sicherung vor Migrationen:** Muss eine neue Version einen **bestehenden** Katalog per EF-Migration
+  aktualisieren, legt Lumora vorher eine konsistente Kopie über die **SQLite-Online-Backup-API** an (auch bei offenem WAL ein
+  stimmiger Stand, keine Dateikopie) — normal unter `<Datenordner>\backups\library-<Version>-<Zeitstempel>.db`, in einer
+  versteckten Bibliothek **nur im Container** unter `.lumora\backups`. Neue Kataloge und Starts ohne ausstehende Migration
+  sichern nicht. Die letzten 5 automatischen Sicherungen bleiben, ältere werden gelöscht. **Scheitert die Sicherung, wird
+  nicht migriert:** klare Meldung („… konnte ihn vorher aber nicht sichern … Der Katalog wurde nicht verändert“), Lumora
+  startet nicht (kein halb migrierter Zustand). Sicherungen sind eine einzelne Datei (`journal_mode=DELETE`, ohne -wal) und
+  werden nach dem Anlegen gelesen (Migrations-Tabelle); erst danach bekommt die Datei ihren Namen (vorher `.tmp`).
+- **Einstellungen › Speicher & Wartung › Katalog-Sicherung:** „Katalog jetzt sichern“, Liste der Sicherungen (Datum, Version,
+  Anlass „vor Aktualisierung“/„von Hand“/„vor Wiederherstellung“, Größe; die letzten 10 von Hand bleiben), „Ordner öffnen“,
+  „Wiederherstellen…“ **nur nach Rückfrage**: Lumora merkt die Sicherung vor (`backups\restore-request.json`), beendet sich und
+  ersetzt den Katalog **beim nächsten Start**, bevor irgendetwas die DB öffnet — der bisherige Katalog bleibt als
+  `…-vor-wiederherstellung.db` (die letzten 3) erhalten; Vormerkung abbrechbar. Nach dem Austausch werden die Vorschaubilder
+  verworfen (Thumbnails-Zeilen geleert, `thumbs\` beiseitegelegt und im Hintergrund gelöscht; eine Rückgängig-Ablage
+  `thumbs\{libraryId}\_undo\` aus ADR-0065 wandert zurück), weil der wiederhergestellte
+  Katalog FileIds nach der Sicherung neu vergibt. Fehlt die vorgemerkte Sicherung, ist sie beschädigt (`PRAGMA quick_check`) oder
+  stammt sie von einer neueren Lumora (unbekannte Migrationen), startet Lumora mit dem unveränderten Katalog, löscht die
+  Vormerkung und zeigt den Grund in der Karte; eine Sicherung einer neueren Version lässt sich gar nicht erst vormerken. Ist der
+  Katalog gerade gesperrt (Umzug, ADR-0026), sichert Lumora nicht.
+  Vorschaubilder werden nicht gesichert (ableitbar) — die Karte erklärt das, ebenso dass die Fotos selbst nicht gesichert werden.
+- **Portabler Modus für eine getrennte Release-Installation:** Liegt neben `Lumora.exe` die Datei `lumora.portable` (oder ein
+  Ordner `Daten\`), nutzt Lumora `<EXE-Ordner>\Daten` für Katalog, Vorschaubilder, Protokolle, Cache, Modelle und Sicherungen
+  statt `%LocalAppData%\Lumora`. Vorrang: `LUMORA_APPDATA` > portabel > Standard. Der Umzug aus `PhotoViewerV3` (ADR-0056)
+  läuft nur noch im Standardmodus. Geprüft: nichts außer `AppDataPaths.DefaultAppDataRoot` zeigt fest auf
+  `%LocalAppData%\Lumora` (Protokolle, Cache, Modell-Suchpfade, Speicherort-Datei hängen an der App-Wurzel).
+  `build/publish.ps1 -Portable` legt die Markierungsdatei ins Paket (`Lumora-<Version>-win-x64-portable`), prüft, dass kein
+  Ordner `Daten` im Paket liegt; `build/run-smoke.ps1` meldet, falls neben einer portablen EXE trotz `LUMORA_APPDATA` ein
+  `Daten`-Ordner entsteht.
+- **Info:** neue Zeile „Datenordner“ in „Dieses System“ — Standard / Portabel / Umgebungsvariable bzw. „Versteckte Bibliothek“,
+  ohne Pfad (auch in „Versionsinfo kopieren“). Das Protokoll nennt beim Start die Herkunft.
+- **Doku:** README-Abschnitt „Produktivbetrieb“ (Foto-Sicherung nach 3-2-1, Katalog-Sicherung, portable Release-Installation
+  Schritt für Schritt), Datenablage/Umgebungsvariablen/Portable Version nachgezogen; PLAN.md Kap. 14 und Vorhaben
+  „Produktivbetrieb“. Die Sicherung der Fotos selbst bleibt Herberts Entscheidung (Issue #6 bleibt offen).
+- **Technik:** `Services/Infrastructure/AppDataLocation.cs` (`AppDataLocationResolver`, Modus + Wurzel),
+  `Services/Database/Backup` (`ICatalogBackupService`/`CatalogBackupService`, `AddCatalogBackup` in `AddLumoraServices`),
+  `DatabaseInitializer` mit optionalem `ICatalogBackupService` (Wiederherstellung zuerst, Sicherung nur bei
+  `pending > 0 && applied > 0`; Ergebnis `BackupBeforeMigration`/`RestoredFrom`), `App` fängt `CatalogBackupException` als
+  Startabbruch; Wpf `Settings/Backup` (`CatalogBackupSettingsViewModel`, `IAppShutdownService`, `AddCatalogBackupUi`), Karte in
+  `SettingsStorageSection.xaml`, `AppDataRootOverride.ResolveLocation/ActiveLocation`. Keine Migration, keine neuen Pakete.
+- **Tests:** Services +17 (Resolver: Standard/Markierung/Ordner `Daten`/Variable mit Vorrang/alle Pfade unter `Daten`;
+  Sicherung: konsistent mit offenem WAL und einzelne Datei, vor Migration eines bestehenden Katalogs mit altem Stand und danach
+  keine zweite, neuer Katalog ohne Sicherung, gescheiterte Sicherung → keine Migration, Aufbewahrung je Anlass, versteckt nur
+  in `.lumora`, Wiederherstellen beim nächsten Start mit „vor Wiederherstellung“, fehlende Sicherung → Start läuft unverändert
+  weiter mit Grund, Sicherung einer neueren Version nicht vormerkbar, Vorschaubilder nach dem Wiederherstellen verworfen,
+  vorgemerkte bleibt beim Aufräumen, Dateiname). Wpf +12 (Karte: sichern + Liste, Wiederherstellen ohne/mit Bestätigung,
+  Abbrechen, nicht ausgeführte Wiederherstellung als Warnung, Ordner öffnen, Erklärung normal/versteckt; Info-Zeile
+  „Datenordner“ je Modus ohne Pfad; Startauflösung mit simuliertem EXE-Ordner). Rauchtest-Schritt „Katalog-Sicherung“ vor „Versteckte Bibliothek“ (Karte, „Katalog jetzt
+  sichern“ → Datei lesbar mit denselben Dateien, hell/dunkel; Test-Hook: Wegwerf-Katalog bis zur ersten Migration →
+  Sicherung vor der Migration).
+
 ## [0.4.39] — 2026-10-25
 
 ### Fix — Vorschaubild nach Rückgängig und Rückfrage bei „Neu aufbauen“ (Nachträge ADR-0065/ADR-0066)

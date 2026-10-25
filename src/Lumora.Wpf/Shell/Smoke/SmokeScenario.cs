@@ -177,6 +177,7 @@ internal sealed partial class SmokeScenario
         InitExclusionsMoveSmoke(services); // Schritt „Ausschlüsse und Ordner verschieben“ (ADR-0066, SmokeScenario.ExclusionsMove.cs)
         InitMarksSmoke(services); // Schritt „Tag- und Kategorie-Symbole“ (Mockup 16, SmokeScenario.Marks.cs)
         InitActivitiesSmoke(services); // Schritt „Aktivitäten“ (ADR-0067, SmokeScenario.Activities.cs)
+        InitCatalogBackupSmoke(services); // Schritt „Katalog-Sicherung“ (ADR-0069, SmokeScenario.CatalogBackup.cs)
         _messenger.Register<SmokeScenario, ScanCompletedMessage>(this, static (r, m) => r._lastScan = m.Result);
     }
 
@@ -262,6 +263,7 @@ internal sealed partial class SmokeScenario
         await StepAsync("Ausschlüsse und Ordner verschieben: Bild in „.thumbs“ nicht eingelesen, Ordner ausschließen + aus dem Katalog (Rückfrage mit Zahl), im Baum ausgeblendet, in den Einstellungen aufheben → wieder eingelesen, Ordner verschieben + Rückgängig (dieselbe FileId), aufgeräumt", ExclusionsMoveAsync).ConfigureAwait(true); // ADR-0066
         await StepAsync("Tag- und Kategorie-Symbole: 2 Fotos mit Tag, 1 mit Kategorie → Marken auf den Kacheln, Zahl im Ordnerbaum (direkt im Ordner), Lightbox-Leiste mit Namen, Schalter aus → weg (Settings-Tabelle), wieder an, aufgeräumt (hell/dunkel)", TagCategoryMarksAsync).ConfigureAwait(true); // Mockup 16
         await StepAsync("Aktivitäten: Verschieben wartet auf die Scan-Sperre → Statusleiste und Liste „Wartet“ (hell), fertig → „Zuletzt fertig“ mit Rückgängig + kurze Meldung (dunkel), Rückgängig über die Liste (dieselbe FileId), aufgeräumt", ActivitiesAsync).ConfigureAwait(true); // ADR-0067
+        await StepAsync("Katalog-Sicherung: Speicher & Wartung zeigt die Karte, „Katalog jetzt sichern“ → Datei lesbar mit denselben Dateien, in der Liste (hell/dunkel), Test-Hook: Wegwerf-Katalog bis zur ersten Migration → Sicherung vor der Migration mit altem Stand, ohne Migration keine Sicherung", CatalogBackupAsync).ConfigureAwait(true); // ADR-0069
         await StepAsync("Versteckte Bibliothek: anlegen (_hidden simuliert), Fotos im eigenen Katalog im Container, Zusperren nach Untätigkeit + Aushängen (Fake), falsches Kennwort, wieder öffnen, normale Bibliothek unverändert, keine Spuren im AppData, Sicherheits-Check (Fake-Leser, hell/dunkel, im normalen Modus kein Reiter)", HiddenLibraryAsync).ConfigureAwait(true); // ADR-0049
         // Nach dem Katalogwechsel ist die normale Sitzung neu aufgebaut — die restlichen Schritte laufen mit deren Diensten
         await RunAfterHiddenLibraryAsync(async s =>

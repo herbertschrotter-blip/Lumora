@@ -105,6 +105,9 @@ außerhalb von OneDrive), `-NoZip` lässt das ZIP weg, `-FrameworkDependent` bau
 - **Daten** liegen auch bei der portablen Version unter `%LocalAppData%\Lumora` (bzw. im Ordner aus
   `database-location.json`), nicht im Paketordner — ein neues Paket übernimmt Katalog und Vorschaubilder. Die
   Formatregister sind fest im Code, es gibt keine Konfigurationsdateien neben der EXE.
+- **`-Portable`** (seit 0.4.40, ADR-0069) legt die Markierungsdatei `lumora.portable` ins Paket
+  (`artifacts\Lumora-<Version>-win-x64-portable\`): Lumora speichert dann alles im Ordner `Daten\` neben `Lumora.exe` —
+  eine eigene Installation mit eigenem Katalog, siehe [Produktivbetrieb](#produktivbetrieb).
 - **FFmpeg** ist nicht im Paket; es wird wie beim Debug-Build im `PATH` bzw. unter den winget-Links gesucht
   (`winget install Gyan.FFmpeg`).
 - **Pfadlänge:** Die LibVLC-Plugins liegen bis zu ~120 Zeichen tief im Paket (`Lumora-…\libvlc\win-x64\…`);
@@ -112,6 +115,51 @@ außerhalb von OneDrive), `-NoZip` lässt das ZIP weg, `-FrameworkDependent` bau
   260-Zeichen-Limit von Windows.
 - **Rauchtest gegen das Paket** (Testbibliothek siehe [Tests](#tests)):
   `pwsh -File build\run-smoke.ps1 -Exe artifacts\Lumora-<Version>-win-x64\Lumora.exe -TestLib <Testbibliothek>`
+
+## Produktivbetrieb
+
+Ab der Release-Version gilt der Katalog als echte Arbeit (Bewertungen, Tags, Alben, Personen, Orte). Drei Dinge gehören
+dazu (seit 0.4.40, ADR-0069):
+
+### 1. Fotos sichern — das macht Lumora nicht
+Lumora verwaltet die Fotos an Ort und Stelle und sichert sie **nicht**. Die Sicherung der Fotos und Videos selbst ist eine
+eigene Aufgabe, am besten nach der **3-2-1-Regel**: **3** Kopien (Original + 2 Sicherungen), auf **2** verschiedenen
+Datenträgern (z. B. interne Platte + externe Platte/NAS), davon **1** an einem anderen Ort (außer Haus oder Cloud).
+Eine Sicherung erst als Sicherung zählen, wenn das Zurückholen einmal ausprobiert wurde. Synchronisierung (OneDrive o. Ä.)
+ist keine Sicherung — ein Löschen wird mitsynchronisiert.
+
+### 2. Katalog-Sicherung
+- **Automatisch vor jeder Aktualisierung:** Muss eine neue Lumora-Version den bestehenden Katalog aktualisieren
+  (EF-Migration), legt sie vorher eine Sicherung an: `<Datenordner>\backups\library-<Version>-<Zeitstempel>.db`. Die
+  letzten **5** bleiben, ältere werden gelöscht. Geht die Sicherung nicht (z. B. Platte voll), **aktualisiert Lumora
+  nicht** und startet mit einer Meldung nicht — der Katalog bleibt unverändert; Platz schaffen und neu starten.
+- **Von Hand:** Einstellungen › Speicher & Wartung › **Katalog-Sicherung** › **Katalog jetzt sichern** (die letzten 10
+  bleiben). Die Liste zeigt Datum, Version, Anlass und Größe; **Ordner öffnen** zeigt den Sicherungsordner.
+- **Wiederherstellen…** an einer Sicherung fragt nach, merkt sie vor und **beendet Lumora**. Beim nächsten Start ersetzt
+  Lumora den Katalog durch die Sicherung; der bisherige bleibt als `…-vor-wiederherstellung.db` daneben liegen. Änderungen
+  seit der Sicherung fehlen danach, die Fotos bleiben unberührt; die Vorschaubilder entstehen neu. Eine Vormerkung lässt
+  sich bis dahin abbrechen. Fehlt die Sicherung beim Start oder ist sie beschädigt, startet Lumora mit dem bisherigen
+  Katalog und nennt den Grund in der Karte. Sicherungen einer **neueren** Lumora-Version lassen sich nicht wiederherstellen.
+- **Nicht gesichert:** Vorschaubilder (Lumora erzeugt sie bei Bedarf neu) und die Fotos selbst (siehe oben).
+- Sicherungen sind einzelne SQLite-Dateien und lassen sich zusätzlich mit den Fotos mitsichern.
+- In einer **versteckten Bibliothek** liegen ihre Sicherungen nur im Container (`.lumora\backups`), nie außerhalb.
+
+### 3. Getrennte Release-Installation (portabel)
+So läuft die Release-Version mit **frischem Katalog** neben der Test-Installation, ohne sie zu berühren:
+1. Paket bauen: `pwsh -File build\publish.ps1 -Portable` → `artifacts\Lumora-<Version>-win-x64-portable.zip`.
+2. Einen eigenen Ordner anlegen, z. B. `D:\Lumora-Release` (lokales Laufwerk, beschreibbar — nicht unter
+   `C:\Program Files`, nicht in OneDrive, nicht in einem Fotoordner; Pfad kurz halten, siehe „Pfadlänge“ oben).
+3. Das ZIP dort entpacken. Neben `Lumora.exe` liegt `lumora.portable` — sie schaltet den portablen Modus ein.
+4. `Lumora.exe` starten. Lumora legt `Daten\` neben der EXE an (Katalog, Vorschaubilder, Protokolle, Sicherungen, Cache,
+   Modelle). **Einstellungen › Info › Dieses System › Datenordner** zeigt „Portabel“.
+5. Unter **Einstellungen › Bibliotheken & Eingänge** die Bibliothek neu anlegen und einlesen. Gesichtserkennung und Motive
+   brauchen ihre Modelle erneut (Download in den Einstellungen; sie landen unter `Daten\models\`).
+6. Für ein Update der Release-Version: Lumora beenden, das neue Paket über den Ordner entpacken (`Daten\` bleibt) — vor der
+   Katalog-Aktualisierung sichert Lumora automatisch.
+
+Vorrang der Datenordner: Umgebungsvariable `LUMORA_APPDATA` > portabel (`lumora.portable` oder Ordner `Daten\` neben
+der EXE) > Standard `%LocalAppData%\Lumora`. Die Test-Installation (Debug-Build, Pakete ohne `-Portable`) bleibt beim
+Standard; der einmalige Umzug aus `PhotoViewerV3` (ADR-0056) läuft nur dort.
 
 ## Bedienung
 
@@ -642,9 +690,10 @@ Reiter oben (ADR-0042):
 - **Speicher & Wartung** — Speicherorte mit „Ordner öffnen“ und **Ändern…** (siehe „Speicherort des Katalogs“),
   Thumbnail-Cache (Belegung, **Cache leeren** — Vorschaubilder werden bei Bedarf neu erzeugt), Karte **Fehlende Dateien**
   mit **Alle fehlenden entfernen (n)** für die aktuelle Bibliothek (seit 0.4.30, siehe „Fehlende Dateien entfernen“),
-  FFmpeg-Status mit kopierbarem winget-Befehl, unterstützte Bild- und Videoformate.
+  Karte **Katalog-Sicherung** (seit 0.4.40: jetzt sichern, Liste, Ordner öffnen, Wiederherstellen…, siehe
+  [Produktivbetrieb](#produktivbetrieb)), FFmpeg-Status mit kopierbarem winget-Befehl, unterstützte Bild- und Videoformate.
 - **Info** — Kopf mit App-Symbol und Schriftzug, Version (= oberster Eintrag der CHANGELOG), Build-Datum, Debug/Release; Entwicklung, dieses System (.NET,
-  Windows, Grafikkarte, Gesichtsmodell, Katalogzahlen), Speicherorte zum Öffnen, verwendete Bausteine mit Versionen und
+  Windows, Grafikkarte, Gesichtsmodell, Katalogzahlen, **Datenordner** Standard/Portabel/Variable ohne Pfad), Speicherorte zum Öffnen, verwendete Bausteine mit Versionen und
   **Alle Lizenzen anzeigen…**; **Versionsinfo kopieren** (für Fehlermeldungen, ohne Pfade) und **Änderungsprotokoll**
   (öffnet die CHANGELOG.md neben der App).
 
@@ -1092,7 +1141,7 @@ selbst einhängen) und von denen Lumora im Alltag **nichts zeigt** (ADR-0049).
 ## Datenablage
 
 Alles liegt unter `%LocalAppData%\Lumora` (Fotos und Videos bleiben an Ort und Stelle; der Ordnername bleibt
-trotz des Produktnamens Lumora, ADR-0047). Katalog und
+trotz des Produktnamens Lumora, ADR-0047) — im portablen Modus unter `Daten\` neben `Lumora.exe` (ADR-0069). Katalog und
 Vorschaubilder können in den Einstellungen in einen anderen Ordner umziehen; dann liegen `library.db` und `thumbs\`
 dort, Protokolle und `database-location.json` bleiben hier:
 
@@ -1101,19 +1150,21 @@ dort, Protokolle und `database-location.json` bleiben hier:
 | `database-location.json` | Nur nach einem Umzug: gewählter Ordner für Katalog und Vorschaubilder, alte Dateien zum Löschen beim nächsten Start |
 | `library.db` (+ `-wal`, `-shm`) | SQLite-Katalog: Bibliotheken, Ordner, Dateien, Thumbnails-Status, OperationBatches/FileOperations, Settings, FTS5-Index |
 | `thumbs\{libraryId}\{fileId}_320_still.jpg` | Vorschaubilder (320 px, FileId-basiert, atomar geschrieben) |
+| `backups\library-<Version>-<Zeitstempel>[-manuell\|-vor-wiederherstellung].db` | Katalog-Sicherungen (vor Aktualisierung: letzte 5, von Hand: 10, vor Wiederherstellung: 3); `restore-request.json` = für den nächsten Start vorgemerkte Wiederherstellung |
 | `logs\lumora-YYYYMMDD.log` | Serilog-Protokoll, täglich rollierend, 14 Tage |
 | `cache\maptiles\<stil>\z\x\y.png` | Kartenkacheln der Seite „Orte“ je Stil (`osm`, `carto-voyager`, `carto-positron`, `carto-darkmatter`, `maptiler-satellite`), zusammen höchstens 500 MB, am längsten unbenutzte zuerst gelöscht; CARTO/MapTiler höchstens 30 Tage |
 | `models\buffalo_l\` | Nur nach dem Download in den Einstellungen: Modelle der Gesichtserkennung (`det_10g.onnx`, `w600k_r50.onnx`); bleibt beim Umzug des Katalogs hier |
 | `models\siglip2-base-patch16-224\` | Nur nach dem Download in den Einstellungen: Motiv-Modell SigLIP 2 (`onnx\vision_model.onnx`, `onnx\text_model_int8.onnx`, `tokenizer.json` + Konfiguration); bleibt beim Umzug des Katalogs hier |
 
-Die Datenbank wird beim Start per EF-Core-Migration auf den aktuellen Stand gebracht; unterbrochene Thumbnail-Jobs
+Die Datenbank wird beim Start per EF-Core-Migration auf den aktuellen Stand gebracht (ein bestehender Katalog wird
+vorher nach `backups\` gesichert, ADR-0069); unterbrochene Thumbnail-Jobs
 werden dabei zurückgesetzt und unfertige Dateivorgänge gemeldet.
 
 ## Umgebungsvariablen
 
 | Variable | Wirkung |
 |---|---|
-| `LUMORA_APPDATA` | Anderer AppData-Root (DB, Thumbnails, Logs, `database-location.json`) — z. B. für Tests mit frischer Datenbank, ohne den eigenen Katalog anzufassen |
+| `LUMORA_APPDATA` | Anderer AppData-Root (DB, Thumbnails, Logs, `database-location.json`, Sicherungen) — z. B. für Tests mit frischer Datenbank, ohne den eigenen Katalog anzufassen; hat Vorrang vor dem portablen Modus (ADR-0069) |
 | `LUMORA_SMOKE_ROOT` | Startet nach dem Laden des Hauptfensters den Rauchtest gegen diesen Bibliotheksordner. **Dateien darin werden verschoben und in den Papierkorb gelegt** — nur mit einer Kopie verwenden. |
 | `LUMORA_SMOKE_SHOTS` | Ordner für PNG-Screenshots der Hauptansichten (optional) |
 | `LUMORA_SMOKE_EXIT` | `1` → App nach dem Rauchtest beenden; ExitCode 0 = alle Schritte OK, 2 = mindestens ein Schritt FAIL |

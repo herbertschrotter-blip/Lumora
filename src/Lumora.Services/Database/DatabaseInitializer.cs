@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Lumora.Domain.Enums;
+using Lumora.Services.Database.Backup;
 
 namespace Lumora.Services.Database;
 
@@ -11,21 +12,30 @@ namespace Lumora.Services.Database;
 /// verändert: ihr Zustand ist die Grundlage für den späteren Recovery-Dialog.
 /// V0.1-Strategie laut ADR-0005: bis erste produktive Nutzung darf DB neu erzeugt werden,
 /// ab V0.2 strict Migrations + versioniertes Backup.
+/// Seit 0.4.40 (ADR-0069): vorgemerkte Wiederherstellung zuerst ausführen; vor Migrationen auf einem bestehenden
+/// Katalog (mindestens eine Migration schon angewendet) eine konsistente Sicherung anlegen — scheitert sie, wird NICHT
+/// migriert (<see cref="CatalogBackupException"/>, der Start bricht ab, der Katalog bleibt unverändert).
 /// </summary>
 public sealed class DatabaseInitializer
 {
     private readonly ILibraryContextFactory _factory;
     private readonly ILogger<DatabaseInitializer> _logger;
+    private readonly ICatalogBackupService? _backup;
 
-    public DatabaseInitializer(ILibraryContextFactory factory, ILogger<DatabaseInitializer> logger)
+    /// <param name="backup">Katalog-Sicherung (ADR-0069); null = ohne Sicherung (ältere Tests, Spikes).</param>
+    public DatabaseInitializer(ILibraryContextFactory factory, ILogger<DatabaseInitializer> logger, ICatalogBackupService? backup = null)
     {
         _factory = factory;
         _logger = logger;
+        _backup = backup;
     }
 
     public async Task<DatabaseInitResult> InitializeAsync(CancellationToken ct = default)
     {
         _logger.LogInformation("Library-DB initialisieren: {Path}", _factory.DatabasePath);
+
+        // ADR-0069: vorgemerkte Wiederherstellung, bevor irgendetwas die DB öffnet
+        var restored = _backup?.ApplyScheduledRestore();
 
         await using var ctx = _factory.Create();
 
@@ -33,6 +43,23 @@ public sealed class DatabaseInitializer
         var applied = (await ctx.Database.GetAppliedMigrationsAsync(ct).ConfigureAwait(false)).ToArray();
 
         var migrated = false;
+        CatalogBackupInfo? backup = null;
+        if (pending.Length > 0 && applied.Length > 0 && _backup is not null)
+        {
+            // ADR-0069: bestehender Katalog → erst sichern; ohne Sicherung keine Migration
+            try
+            {
+                backup = await _backup.CreateBackupAsync(CatalogBackupKind.BeforeMigration, ct).ConfigureAwait(false);
+            }
+            catch (CatalogBackupException ex)
+            {
+                _logger.LogError(ex, "Sicherung vor der Migration fehlgeschlagen — Migration wird nicht ausgeführt");
+                throw new CatalogBackupException(
+                    $"Lumora muss den Katalog für diese Version aktualisieren ({pending.Length} Schritt(e)), konnte ihn vorher aber nicht sichern:\n" +
+                    $"{ex.Message}\n\nDer Katalog wurde nicht verändert.", ex);
+            }
+        }
+
         if (pending.Length > 0)
         {
             _logger.LogInformation(
@@ -80,7 +107,9 @@ public sealed class DatabaseInitializer
             AppliedMigrations: (applied.Length + (migrated ? pending.Length : 0)),
             NewlyMigrated: migrated ? pending.Length : 0,
             StaleThumbnailsRecovered: staleRecovered,
-            UnfinishedBatches: unfinishedBatches);
+            UnfinishedBatches: unfinishedBatches,
+            BackupBeforeMigration: backup,
+            RestoredFrom: restored);
     }
 }
 
@@ -89,4 +118,6 @@ public sealed record DatabaseInitResult(
     int AppliedMigrations,
     int NewlyMigrated,
     int StaleThumbnailsRecovered,
-    int UnfinishedBatches = 0);
+    int UnfinishedBatches = 0,
+    CatalogBackupInfo? BackupBeforeMigration = null,
+    CatalogBackupInfo? RestoredFrom = null);

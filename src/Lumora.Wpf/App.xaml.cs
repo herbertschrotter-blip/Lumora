@@ -71,22 +71,29 @@ public partial class App : Application, ICatalogHostSwitcher
         // DB und Thumbnails liegen dort oder im Ordner aus database-location.json (Einstellungen → Speicherorte, ADR-0026).
         // Bis 0.4.2 hieß die App-Wurzel %LocalAppData%\PhotoViewerV3: einmal umbenennen, bevor Logger und DB sie öffnen
         // (ADR-0056). Nie bei umgelenkter Wurzel (Tests, Rauchtests).
-        var migration = AppDataRootOverride.IsSet
+        // ADR-0069: Vorrang LUMORA_APPDATA > portabler Modus (lumora.portable/Daten neben der EXE) > Standard; der Umzug
+        // aus PhotoViewerV3 (ADR-0056) nur im Standardmodus
+        var location = AppDataRootOverride.ResolveLocation();
+        var migration = location.Mode != AppDataLocationMode.Standard
             ? null
             : LegacyAppDataMigration.Run(LegacyAppDataMigration.DefaultLegacyRoot, AppDataPaths.DefaultAppDataRoot);
-        var defaultRoot = migration?.Root ?? AppDataPaths.DefaultAppDataRoot;
+        if (migration?.Root is { } migratedRoot)
+        {
+            location = location with { Root = migratedRoot };
+        }
+
+        AppDataRootOverride.ActiveLocation = location;
 
         AppDataPaths paths;
         try
         {
-            paths = AppDataRootOverride.Resolve(defaultRoot);
+            paths = AppDataPaths.Resolve(location.Root);
         }
         catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
         {
             // Nur für das Protokoll; OnStartup bricht ab, bevor eine DB geöffnet wird (sonst entstünde am Standardort ein leerer Katalog).
             _locationError = ex.Message;
-            var root = Environment.GetEnvironmentVariable(AppDataRootOverride.EnvironmentVariable);
-            paths = new AppDataPaths(string.IsNullOrWhiteSpace(root) ? defaultRoot : Path.GetFullPath(root));
+            paths = new AppDataPaths(location.Root);
         }
 
         _paths = paths;
@@ -177,6 +184,7 @@ public partial class App : Application, ICatalogHostSwitcher
         services.AddTagManagement(); // Seite „Tags“ (Wpf/Settings/TagManagement, ADR-0021)
         services.AddCategoryManagement(); // Seite „Kategorien“ (Wpf/Settings/CategoryManagement, ADR-0027)
         services.AddSettingsInfo(); // Einstellungen › Info (Wpf/Settings/Info, ADR-0042)
+        Lumora.Settings.Backup.CatalogBackupUiServiceCollectionExtensions.AddCatalogBackupUi(services); // Speicher & Wartung › Katalog-Sicherung (Wpf/Settings/Backup, ADR-0069)
         services.AddFacesUi(); // Gesichtserkennung: WIC-Lader + Einstellungs-Abschnitt (Wpf/Faces, ADR-0035)
         services.AddPersonsUi(); // Seite „Personen“: Zuordnen, Gruppen, Gesichts-Ausschnitte (Wpf/Persons, ADR-0037)
         services.AddFaceDataSettings(); // „Gesichtsdaten löschen…“ in den Einstellungen (Wpf/Settings/FaceData, 0.2.38)
@@ -230,7 +238,7 @@ public partial class App : Application, ICatalogHostSwitcher
         var paths = services.GetRequiredService<IAppDataPaths>();
         if (firstStart)
         {
-            Log.Information("Lumora startet — AppData: {AppDataRoot}, Katalog: {Database}", _paths.AppDataRoot, _paths.LibraryDatabasePath);
+            Log.Information("Lumora startet — AppData: {AppDataRoot} ({Mode}), Katalog: {Database}", _paths.AppDataRoot, AppDataRootOverride.ActiveLocation.Mode, _paths.LibraryDatabasePath);
             if (CheckDatabaseLocation() is { } locationProblem)
             {
                 throw new SessionStartException(locationProblem);
@@ -245,6 +253,11 @@ public partial class App : Application, ICatalogHostSwitcher
             Log.Information(
                 "Library-DB bereit: {Path} — {Migrated} neu migriert, {Stale} Stale-Thumbnails wiederhergestellt",
                 result.DatabasePath, result.NewlyMigrated, result.StaleThumbnailsRecovered);
+        }
+        catch (Lumora.Services.Database.Backup.CatalogBackupException backupEx)
+        {
+            // ADR-0069: ohne Sicherung keine Migration bzw. Wiederherstellung nicht möglich — Katalog unverändert, Start abbrechen
+            throw new SessionStartException($"{backupEx.Message}\n\nLumora wird beendet.", backupEx);
         }
         catch (Exception dbEx)
         {

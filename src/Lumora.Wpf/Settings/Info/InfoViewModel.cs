@@ -48,8 +48,14 @@ public sealed partial class InfoViewModel : ObservableObject
         ILogger<InfoViewModel> logger,
         IFaceIndexService? faceIndex = null,
         IFaceModelProvider? faceModels = null,
-        string? appDirectory = null)
+        string? appDirectory = null,
+        ICatalogContext? catalog = null,
+        AppDataLocation? dataLocation = null)
     {
+        // ADR-0069: aktiver Datenordner (Standard/portabel/Variable) — Anzeige ohne Pfad
+        DataFolderText = catalog?.IsHidden == true
+            ? "Versteckte Bibliothek (Katalog im Container)"
+            : (dataLocation ?? AppDataRootOverride.ActiveLocation).DisplayText;
         _paths = paths;
         _factory = factory;
         _libraries = libraries;
@@ -92,6 +98,9 @@ public sealed partial class InfoViewModel : ObservableObject
 
     public string DatabasePath { get; }
 
+    /// <summary>Herkunft des Datenordners ohne Pfad: „Standard (%LocalAppData%\Lumora)“, „Portabel …“, „Umgebungsvariable …“ (ADR-0069).</summary>
+    public string DataFolderText { get; }
+
     public string ThumbnailsPath { get; }
 
     public string LogsPath { get; }
@@ -118,6 +127,7 @@ public sealed partial class InfoViewModel : ObservableObject
             new("Grafikkarte", (gpu.Count == 0 ? "unbekannt" : string.Join(", ", gpu)) + FaceExecutionText()),
             new("Gesichtsmodell", FaceModelText()),
             new("Katalog", catalog),
+            new("Datenordner", DataFolderText), // ADR-0069
         ];
         Components = BuildComponents(_appDirectory, sqlite);
     }

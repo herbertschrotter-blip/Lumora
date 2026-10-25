@@ -487,6 +487,7 @@ Status (Stand 0.2.0): ✅ umgesetzt · 🟡 teilweise · ⬜ offen
 | ⬜ | **Fotos in andere Programme kopieren** | Ziehen nach außen und Strg+C als Datei-Kopie, nie verschieben, versteckte Bibliothek gesperrt | Herbert 2026-10-25, Issue #25 |
 | ⬜ | **Welle 7 Android-Begleit-App** | PC stellt Katalog + Vorschaubilder im Heimnetz bereit, Handy zeigt und bewertet | Memory/Plan |
 | ⬜ | **Welle 8 Foto verbessern** | hochskalieren, Gesichter restaurieren, einfärben, entfernen, Zuschneiden/Licht; Ergebnis als neue Datei; Augen-offen/Lächeln als Gütemerkmal | Mockup 13 (abgenommen 2026-10-23) |
+| 🟡 | **Produktivbetrieb** | Katalog-Sicherung vor Migrationen (konsistent, versteckt nur im Container, ohne Sicherung keine Migration), von Hand + Wiederherstellen beim nächsten Start, portabler Modus (`lumora.portable`/`Daten\` neben der EXE, `publish.ps1 -Portable`) für eine getrennte Release-Installation mit frischem Katalog, Datenordner in Info; offen: Sicherung der Fotos (Herberts Entscheidung, README „Produktivbetrieb“) | Issue #6, ADR-0069, umgesetzt in 0.4.40 |
 | ⬜ | **Update-Manager „Modelle & Daten“** | alle heruntergeladenen Bausteine mit Version/Lizenz, Updates nur auf Wunsch, atomarer Tausch | Memory/Plan, am Schluss |
 
 ---
@@ -807,6 +808,15 @@ App-Start
     → Bei Erfolg: normal weiter
     → Bei Fehler: Restore-Dialog mit Backup-Pfad + Log
 ```
+
+### Umsetzung seit 0.4.40 (ADR-0069)
+- `DatabaseInitializer` → vorgemerkte Wiederherstellung zuerst, dann bei `pending > 0 && applied > 0` Sicherung per
+  SQLite-Online-Backup-API nach `<App-Wurzel>\backups\library-<Version>-<yyyyMMdd-HHmmss-fff>.db` (versteckt
+  `.lumora\backups`), erst danach `MigrateAsync`. Kein Checkpoint/keine Dateikopie nötig (die Backup-API nimmt den WAL mit).
+- Sicherung gescheitert → **keine Migration**, Startabbruch mit Meldung, Katalog unverändert.
+- Aufbewahrung: 5 vor Migration, 10 von Hand, 3 vor Wiederherstellung. Wiederherstellen nur aus den Einstellungen als
+  Vormerkung für den nächsten Start (alter Katalog als `…-vor-wiederherstellung.db`); ein Restore-Dialog direkt nach einem
+  Migrationsfehler ist nicht gebaut — die Sicherung liegt vor, Wiederherstellen geht über eine ältere Version bzw. von Hand.
 
 ### Bei Migrationsfehler
 ```

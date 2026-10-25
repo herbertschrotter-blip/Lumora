@@ -36,7 +36,8 @@ public partial class SettingsPage : UserControl
         Shell.HiddenLibraries.SecurityCheck.SecurityCheckViewModel? securityCheck = null,
         Removal.MissingFilesSettingsViewModel? missingFiles = null,
         Exclusions.ScanExclusionsSettingsViewModel? scanExclusions = null,
-        Marks.MarkSettingsState? markSettings = null)
+        Marks.MarkSettingsState? markSettings = null,
+        Backup.CatalogBackupSettingsViewModel? catalogBackup = null)
     {
         _sections = sections;
         InitializeComponent();
@@ -53,6 +54,10 @@ public partial class SettingsPage : UserControl
         // Speicher & Wartung › Fehlende Dateien (ADR-0065); ohne Dienst ausgeblendet
         StorageView.MissingFilesCard.DataContext = missingFiles;
         StorageView.MissingFilesCard.Visibility = missingFiles is null ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible;
+        // ADR-0069: Speicher & Wartung › Katalog-Sicherung; ohne Dienst ausgeblendet
+        StorageView.CatalogBackupCard.DataContext = catalogBackup;
+        StorageView.CatalogBackupCard.Visibility = catalogBackup is null ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible;
+        Loaded += (_, _) => _ = catalogBackup?.RefreshAsync();
 
         LibraryTab.Content = library;
         TagsTab.Content = tags;

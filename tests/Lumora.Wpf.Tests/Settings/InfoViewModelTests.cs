@@ -139,7 +139,7 @@ public sealed class InfoViewModelTests
         vm.Development.Should().NotContain(l => l.Value.Contains('@'), "keine E-Mail-Adresse");
 
         await vm.LoadAsync();
-        vm.SystemInfo.Select(l => l.Label).Should().Equal("Laufzeit", "Grafikkarte", "Gesichtsmodell", "Katalog");
+        vm.SystemInfo.Select(l => l.Label).Should().Equal("Laufzeit", "Grafikkarte", "Gesichtsmodell", "Katalog", "Datenordner");
         vm.SystemInfo[0].Value.Should().StartWith($".NET {Environment.Version}").And.Contain("Windows");
         vm.SystemInfo[3].Value.Should().Be($"2 Bibliotheken · {1248:N0} Dateien · noch nicht angelegt");
 
@@ -159,6 +159,28 @@ public sealed class InfoViewModelTests
         copied.Should().StartWith($"Lumora {AppInfo.Version}").And.Contain("Laufzeit: .NET").And.Contain("SharpCompress");
         copied.Should().NotContain("Katalog:", "keine Bibliotheksnamen/-zahlen in der kopierten Versionsinfo").And.NotContain(@"C:\");
         vm.Message.Should().Be("Versionsinfo in die Zwischenablage kopiert.");
+    }
+
+    [Theory]
+    [InlineData(AppDataLocationMode.Standard, false, @"Standard (%LocalAppData%\Lumora)")]
+    [InlineData(AppDataLocationMode.Portable, false, "Portabel (Ordner „Daten“ neben Lumora.exe)")]
+    [InlineData(AppDataLocationMode.EnvironmentVariable, false, "Umgebungsvariable LUMORA_APPDATA")]
+    [InlineData(AppDataLocationMode.Portable, true, "Versteckte Bibliothek (Katalog im Container)")]
+    public async Task Shows_the_active_data_folder_without_a_path(AppDataLocationMode mode, bool hidden, string expected)
+    {
+        // ADR-0069: Info nennt, welcher Datenordner aktiv ist — ohne Pfad, auch in der kopierten Versionsinfo
+        var paths = new FakePaths(@"C:\Portabel\Lumora-0.5.0\Daten");
+        var actions = new RecordingActions();
+        var vm = new InfoViewModel(
+            paths, NullService.Create<ILibraryContextFactory>(), new InMemoryLibraries(), actions, NullLogger<InfoViewModel>.Instance,
+            appDirectory: AppContext.BaseDirectory, catalog: new CatalogContext(paths, hidden), dataLocation: new AppDataLocation(mode, paths.AppDataRoot));
+
+        await vm.LoadAsync();
+
+        vm.DataFolderText.Should().Be(expected);
+        vm.SystemInfo.Should().Contain(new InfoLine("Datenordner", expected));
+        vm.CopyVersionInfoCommand.Execute(null);
+        actions.Copied[0].Should().Contain($"Datenordner: {expected}").And.NotContain(paths.AppDataRoot);
     }
 
     /// <summary>Liefert vorgegebene Eigenschaftswerte (Status, Settings, State) — sonst null.</summary>

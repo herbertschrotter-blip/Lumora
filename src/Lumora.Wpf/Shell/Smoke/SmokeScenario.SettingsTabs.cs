@@ -99,7 +99,9 @@ internal sealed partial class SmokeScenario
         Check(_settingsPage.SelectedTabTag == NavigationTags.SettingsInfo, "letzter Reiter = Info");
 
         // (4) Info: Version = oberster CHANGELOG-Eintrag (neben der App), Build, System, Bausteine
-        await WaitUntilAsync(() => _info.SystemInfo.Count == 4, ShortWait, "Info geladen").ConfigureAwait(true);
+        await WaitUntilAsync(() => _info.SystemInfo.Count == 5, ShortWait, "Info geladen").ConfigureAwait(true); // 5. Zeile „Datenordner“ (ADR-0069)
+        Check(_info.SystemInfo.Any(l => l.Label == "Datenordner" && l.Value.Contains("LUMORA_APPDATA", StringComparison.Ordinal)),
+            "Info › Datenordner: Umgebungsvariable (Rauchtest), ohne Pfad"); // ADR-0069
         var changelog = AppInfo.FindChangelog(AppInfo.AppDirectory);
         var top = changelog is null ? null : AppInfo.ReadTopChangelogVersion(await File.ReadAllTextAsync(changelog).ConfigureAwait(true));
         Check(top is not null && _info.Version == top && _info.HeaderText.StartsWith($"Version {top}", StringComparison.Ordinal),

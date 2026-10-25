@@ -84,6 +84,7 @@ foreach ($name in 'APPDATA', 'SMOKE_ROOT', 'SMOKE_SHOTS', 'SMOKE_EXIT', 'SMOKE_C
     [Environment]::SetEnvironmentVariable("PHOTOVIEWERV3_$name", [Environment]::GetEnvironmentVariable("LUMORA_$name"))
 }
 
+$portableDataBefore = Test-Path -LiteralPath (Join-Path (Split-Path -Parent $exePath) 'Daten') # ADR-0069
 $stdout = Join-Path $appdata 'stdout.txt'
 $stderr = Join-Path $appdata 'stderr.txt'
 $sw = [Diagnostics.Stopwatch]::StartNew()
@@ -117,6 +118,18 @@ if (-not $NoShots) {
     Write-Output "`n== Screenshots =="
     Get-ChildItem -LiteralPath $shots -Filter *.png -ErrorAction SilentlyContinue | ForEach-Object { '{0,8} {1}' -f $_.Length, $_.Name }
 }
+# Portables Paket (ADR-0069): LUMORA_APPDATA hat Vorrang — neben der EXE darf kein Ordner Daten entstanden sein
+$exeDir = Split-Path -Parent $exePath
+if (Test-Path -LiteralPath (Join-Path $exeDir 'lumora.portable')) {
+    Write-Output "`n== Portabler Modus =="
+    if ($portableDataBefore -or -not (Test-Path -LiteralPath (Join-Path $exeDir 'Daten'))) {
+        Write-Output 'lumora.portable im Paket — Rauchtest lief über LUMORA_APPDATA, kein neuer Ordner Daten'
+    } else {
+        Write-Output 'FEHLER: Ordner Daten neben der EXE angelegt, obwohl LUMORA_APPDATA gesetzt war'
+        $exit = 'PORTABLE'
+    }
+}
+
 Write-Output "`n== Prozesse =="
 $left = Get-Process $processName -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $exePath }
 if ($left) { Write-Output "HÄNGEND: $($left.Id)" } else { Write-Output 'kein hängender Prozess' }
