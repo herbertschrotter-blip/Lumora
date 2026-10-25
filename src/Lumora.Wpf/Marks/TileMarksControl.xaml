@@ -1,0 +1,53 @@
+<UserControl x:Class="Lumora.Marks.TileMarksControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             Focusable="False"
+             IsTabStop="False"
+             Visibility="Collapsed">
+    <!--
+        Tag- und Kategorie-Marke oben links auf Kachel und Collage (Mockup 16): Tag-Symbol mit bis zu 3 Farbpunkten und
+        Anzahl ab 2, Kategorie-Symbol (Group24 wie die Kategorien-Auswahl) mit Anzahl ab 2. Halbtransparent dunkel auf dem
+        Bild (feste Farben wie Herz/Sterne — das Bild ist in hell und dunkel gleich). Sichtbarkeit, Punkte und Zahlen setzt
+        der Code-Behind; der Tooltip entsteht erst beim Öffnen. Kein eigener Automation-Inhalt (Kachel bleibt Blatt).
+    -->
+    <UserControl.Resources>
+        <Style x:Key="MarkBorder" TargetType="Border">
+            <Setter Property="Height" Value="20" />
+            <Setter Property="Padding" Value="6,0" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Background" Value="#85000000" />
+        </Style>
+        <Style x:Key="MarkDot" TargetType="Ellipse">
+            <Setter Property="Width" Value="7" />
+            <Setter Property="Height" Value="7" />
+            <Setter Property="Margin" Value="0,0,2,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Visibility" Value="Collapsed" />
+        </Style>
+        <Style x:Key="MarkCount" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="1,0,0,1" />
+        </Style>
+    </UserControl.Resources>
+    <StackPanel Orientation="Horizontal">
+        <Border x:Name="TagMark" Style="{StaticResource MarkBorder}" Visibility="Collapsed">
+            <StackPanel Orientation="Horizontal">
+                <ui:SymbolIcon Symbol="Tag24" FontSize="12" Foreground="White" Margin="0,0,3,0" VerticalAlignment="Center" />
+                <Ellipse x:Name="Dot1" Style="{StaticResource MarkDot}" />
+                <Ellipse x:Name="Dot2" Style="{StaticResource MarkDot}" />
+                <Ellipse x:Name="Dot3" Style="{StaticResource MarkDot}" />
+                <TextBlock x:Name="TagCount" Style="{StaticResource MarkCount}" />
+            </StackPanel>
+        </Border>
+        <Border x:Name="CategoryMark" Style="{StaticResource MarkBorder}" Visibility="Collapsed">
+            <StackPanel Orientation="Horizontal">
+                <ui:SymbolIcon Symbol="Group24" FontSize="12" Foreground="White" VerticalAlignment="Center" />
+                <TextBlock x:Name="CategoryCount" Style="{StaticResource MarkCount}" Margin="3,0,0,1" />
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

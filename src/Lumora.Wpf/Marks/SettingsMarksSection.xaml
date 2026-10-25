@@ -1,0 +1,67 @@
+<UserControl x:Class="Lumora.Marks.SettingsMarksSection"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:local="clr-namespace:Lumora.Marks"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance local:MarkSettingsState}"
+             d:DesignWidth="900">
+    <!-- Einstellungen › Darstellung › „Symbole für Tags und Kategorien“ (Mockup 16); DataContext = MarkSettingsState -->
+    <UserControl.Resources>
+        <ResourceDictionary Source="../Settings/Sections/SettingsStyles.xaml" />
+    </UserControl.Resources>
+    <Border Style="{StaticResource SectionCard}">
+        <StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
+                <ui:SymbolIcon Symbol="Tag24" FontSize="16" Margin="0,0,8,0" VerticalAlignment="Top" />
+                <ui:TextBlock Style="{StaticResource SectionTitle}" Text="Symbole für Tags und Kategorien" />
+            </StackPanel>
+            <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,10"
+                       Text="Zeigt kleine Marken, wo Fotos Tags oder Kategorien haben. Darüberfahren nennt die Namen." />
+
+            <Grid Margin="0,4,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                    <TextBlock Text="Auf Galerie-Kacheln" FontWeight="SemiBold" />
+                    <TextBlock Style="{StaticResource Hint}" Text="oben links; in der Collage nur beim Darüberfahren" />
+                </StackPanel>
+                <ui:ToggleSwitch x:Name="TilesSwitch" Grid.Column="1" VerticalAlignment="Center"
+                                 IsChecked="{Binding ShowOnTiles, Mode=TwoWay}"
+                                 AutomationProperties.Name="Symbole auf Galerie-Kacheln" />
+            </Grid>
+            <Separator Margin="0,10" />
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                    <TextBlock Text="In der Lightbox" FontWeight="SemiBold" />
+                    <TextBlock Style="{StaticResource Hint}" Text="Leiste unten mit Namen und „+ Tag / Kategorie“" />
+                </StackPanel>
+                <ui:ToggleSwitch x:Name="LightboxSwitch" Grid.Column="1" VerticalAlignment="Center"
+                                 IsChecked="{Binding ShowInLightbox, Mode=TwoWay}"
+                                 AutomationProperties.Name="Symbole in der Lightbox" />
+            </Grid>
+            <Separator Margin="0,10" />
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                    <TextBlock Text="Im Ordnerbaum" FontWeight="SemiBold" />
+                    <TextBlock Style="{StaticResource Hint}" Text="Zahl der Fotos mit Tags/Kategorien neben dem Ordnernamen (nur direkt im Ordner)" />
+                </StackPanel>
+                <ui:ToggleSwitch x:Name="FolderTreeSwitch" Grid.Column="1" VerticalAlignment="Center"
+                                 IsChecked="{Binding ShowInFolderTree, Mode=TwoWay}"
+                                 AutomationProperties.Name="Symbole im Ordnerbaum" />
+            </Grid>
+        </StackPanel>
+    </Border>
+</UserControl>

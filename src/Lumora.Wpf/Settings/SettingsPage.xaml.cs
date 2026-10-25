@@ -35,7 +35,8 @@ public partial class SettingsPage : UserControl
         Stories.Assistant.AssistantSettingsViewModel? assistant = null,
         Shell.HiddenLibraries.SecurityCheck.SecurityCheckViewModel? securityCheck = null,
         Removal.MissingFilesSettingsViewModel? missingFiles = null,
-        Exclusions.ScanExclusionsSettingsViewModel? scanExclusions = null)
+        Exclusions.ScanExclusionsSettingsViewModel? scanExclusions = null,
+        Marks.MarkSettingsState? markSettings = null)
     {
         _sections = sections;
         InitializeComponent();
@@ -43,6 +44,9 @@ public partial class SettingsPage : UserControl
         MotifsView.DataContext = motifs; // Reiter „Motive“ (ADR-0052); ohne Dienst leer
         AppearanceView.MapSection.DataContext = mapStyles; // Darstellung › Karte (ADR-0055); ohne Dienst ausgeblendet
         AppearanceView.MapSection.Visibility = mapStyles is null ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible;
+        // Darstellung › Symbole für Tags und Kategorien (Mockup 16); ohne Zustand ausgeblendet
+        AppearanceView.MarksSection.DataContext = markSettings;
+        AppearanceView.MarksSection.Visibility = markSettings is null ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible;
         StoriesView.DataContext = stories; // Reiter „Storys“ samt Diashow (ADR-0060, ADR-0059); ohne Dienst leer
         PlacesView.DataContext = places; // Reiter „Orte“: Garmin-Aktivitäten, Zeitabgleich (ADR-0062); ohne Dienst leer
         AssistantView.DataContext = assistant; // Reiter „Assistent“ (ADR-0063); ohne Dienst leer

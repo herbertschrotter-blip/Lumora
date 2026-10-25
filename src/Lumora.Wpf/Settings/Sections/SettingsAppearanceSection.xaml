@@ -6,6 +6,7 @@
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:settings="clr-namespace:Lumora.Settings"
              xmlns:local="clr-namespace:Lumora.Settings.Sections"
+             xmlns:marks="clr-namespace:Lumora.Marks"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance settings:SettingsViewModel}"
              d:DesignWidth="1000">
@@ -29,6 +30,8 @@
                                Text="„System“ folgt dem Windows-Farbschema auch während Lumora läuft — der Kartenstil „Automatisch“ ebenso. Die Vorschaugröße stellst du in der Galerie ein." />
                 </StackPanel>
             </Border>
+            <!-- Symbole für Tags und Kategorien (Mockup 16); DataContext setzt die SettingsPage -->
+            <marks:SettingsMarksSection x:Name="MarksSection" />
             <!-- Karte (ADR-0055): Kartenstil und API-Schlüssel; DataContext setzt die SettingsPage -->
             <local:SettingsMapSection x:Name="MapSection" />
             <!-- Diashow (ADR-0059): seit 0.4.15 unter Einstellungen › Storys (ADR-0060) -->

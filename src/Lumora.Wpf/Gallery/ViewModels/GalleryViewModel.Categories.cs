@@ -213,7 +213,22 @@ public sealed partial class GalleryViewModel
             }
         }
 
-        return values.Count == 0 ? GalleryItemCategories.Empty : new GalleryItemCategories(values);
+        if (values.Count == 0)
+        {
+            return GalleryItemCategories.Empty;
+        }
+
+        // Beschriftungen „Kategorie: Wert“ in der Reihenfolge der Kategorien (Kategorie-Marke, Mockup 16)
+        var labels = new List<string>(values.Count);
+        foreach (var category in CategoryColumns)
+        {
+            if (values.TryGetValue(category.Id, out var value))
+            {
+                labels.Add($"{category.Name}: {value.Item2}");
+            }
+        }
+
+        return new GalleryItemCategories(values, labels);
     }
 
     /// <summary>Zustand je Menüeintrag bezogen auf die Auswahl (alle / einige / keine haben diesen Wert).</summary>

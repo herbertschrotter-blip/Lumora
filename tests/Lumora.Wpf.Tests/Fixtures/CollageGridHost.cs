@@ -203,6 +203,7 @@ internal sealed class CollageGridHost : IDisposable
         private GalleryViewMode _viewMode;
         private int _tileSize = 180;
         private int _collageLayoutVersion;
+        private bool _showTileMarks = true;
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -231,6 +232,13 @@ internal sealed class CollageGridHost : IDisposable
         {
             get => _collageLayoutVersion;
             set => Set(ref _collageLayoutVersion, value);
+        }
+
+        /// <summary>Wie <c>GalleryViewModel.ShowTileMarks</c> (Schalter „Symbole auf Galerie-Kacheln“, Mockup 16).</summary>
+        public bool ShowTileMarks
+        {
+            get => _showTileMarks;
+            set => Set(ref _showTileMarks, value);
         }
 
         private void Set<T>(ref T field, T value, [CallerMemberName] string? name = null)

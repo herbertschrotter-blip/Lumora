@@ -175,6 +175,7 @@ internal sealed partial class SmokeScenario
         InitStoryPageSmoke(services); // Schritt „Story-Seite“ (ADR-0060, SmokeScenario.StoryPage.cs)
         InitFolderRemovalSmoke(services); // Schritt „Ordner löschen / Fehlende entfernen“ (ADR-0065, SmokeScenario.FolderRemoval.cs)
         InitExclusionsMoveSmoke(services); // Schritt „Ausschlüsse und Ordner verschieben“ (ADR-0066, SmokeScenario.ExclusionsMove.cs)
+        InitMarksSmoke(services); // Schritt „Tag- und Kategorie-Symbole“ (Mockup 16, SmokeScenario.Marks.cs)
         _messenger.Register<SmokeScenario, ScanCompletedMessage>(this, static (r, m) => r._lastScan = m.Result);
     }
 
@@ -258,6 +259,7 @@ internal sealed partial class SmokeScenario
         await StepAsync("Story-Assistent: Satz (Attrappe statt Ollama) → Verständnis-Karte mit Treffern → eigene Story → Collage aus den Originalen in Temp (1920 × 1080) → Verlauf, aufgeräumt (hell/dunkel)", StoryAssistantAsync).ConfigureAwait(true); // ADR-0063
         await StepAsync("Ordner löschen und Fehlende entfernen: Unterordner mit 2 Fotos einlesen, in den (Test-)Papierkorb + Rückgängig (dieselben FileIds), Datei löschen → „fehlt“, Galerie „Nur fehlende“, Einstellungen-Zahl, „Fehlende entfernen (1)“ am Ordner → Katalog sauber, aufgeräumt", FolderRemovalAsync).ConfigureAwait(true); // ADR-0065
         await StepAsync("Ausschlüsse und Ordner verschieben: Bild in „.thumbs“ nicht eingelesen, Ordner ausschließen + aus dem Katalog (Rückfrage mit Zahl), im Baum ausgeblendet, in den Einstellungen aufheben → wieder eingelesen, Ordner verschieben + Rückgängig (dieselbe FileId), aufgeräumt", ExclusionsMoveAsync).ConfigureAwait(true); // ADR-0066
+        await StepAsync("Tag- und Kategorie-Symbole: 2 Fotos mit Tag, 1 mit Kategorie → Marken auf den Kacheln, Zahl im Ordnerbaum (direkt im Ordner), Lightbox-Leiste mit Namen, Schalter aus → weg (Settings-Tabelle), wieder an, aufgeräumt (hell/dunkel)", TagCategoryMarksAsync).ConfigureAwait(true); // Mockup 16
         await StepAsync("Versteckte Bibliothek: anlegen (_hidden simuliert), Fotos im eigenen Katalog im Container, Zusperren nach Untätigkeit + Aushängen (Fake), falsches Kennwort, wieder öffnen, normale Bibliothek unverändert, keine Spuren im AppData, Sicherheits-Check (Fake-Leser, hell/dunkel, im normalen Modus kein Reiter)", HiddenLibraryAsync).ConfigureAwait(true); // ADR-0049
         // Nach dem Katalogwechsel ist die normale Sitzung neu aufgebaut — die restlichen Schritte laufen mit deren Diensten
         await RunAfterHiddenLibraryAsync(async s =>
@@ -1453,7 +1455,7 @@ internal sealed partial class SmokeScenario
         Check(_gallery.TagMenuEntries.First(e => e.Tag.Id == urlaub.Id).State == true, "Menüeintrag „Urlaub“ nach der Zuweisung mit Häkchen");
         var urlaubRows = await DbScalarAsync<int>("SELECT COUNT(*) FROM FileTags WHERE TagId = $t", ("$t", urlaub.Id)).ConfigureAwait(true);
         Check(urlaubRows == 3, $"DB: {urlaubRows} Zuweisungen „Urlaub“ (erwartet 3)");
-        Check(targets.All(t => t.HasTag(urlaub.Id) && t.HasTags), "Kacheln zeigen den Tag-Punkt „Urlaub“");
+        Check(targets.All(t => t.HasTag(urlaub.Id) && t.HasTags), "Kacheln kennen das Tag „Urlaub“ (Tag-Marke oben links, Mockup 16)");
 
         // Strg+T-Dialog (Fake): „Familie“ für die ersten beiden
         if (_tagPicker is not null)

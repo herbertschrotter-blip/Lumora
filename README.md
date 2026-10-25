@@ -27,7 +27,8 @@ Version übernimmt der erste Start automatisch; läuft dabei noch die ältere Ve
   Tags, Verschieben nach…, Papierkorb) und Rückgängig. Umschaltbar auf eine **Collage** (echte Seitenverhältnisse,
   randvolle Reihen) und eine **Listenansicht** mit Spalten.
 - **Tags**: frei definierbare, farbige Schlagworte (Einstellungen › Tags), Zuweisen für die Auswahl (Aktionsleiste,
-  Kontextmenü, Strg+T), Tag-Punkte auf der Kachel, Filter nach Tags (ODER/UND/ohne Tag), Suche findet Tag-Namen.
+  Kontextmenü, Strg+T), Tag- und Kategorie-Marken auf der Kachel, in der Lightbox und im Ordnerbaum (seit 0.4.35),
+  Filter nach Tags (ODER/UND/ohne Tag), Suche findet Tag-Namen.
 - **Kategorien**: eigene Kategorien mit festen Werten (Einstellungen › Kategorien), ein Wert je Datei, Zuweisen per
   Kontextmenü oder Strg+K (auch in der Lightbox), Filter, Suche nach Werten, je Kategorie eine Listenspalte, die die
   ganze Trefferliste sortiert.
@@ -322,7 +323,7 @@ Tags legt man auf der Seite **Tags** an (Name, Farbe aus einer Palette mit zwöl
 Löschen mit Bestätigung und Anzahl der betroffenen Dateien) oder direkt in der Tag-Auswahl („Neues Tag…“). Zuweisen:
 Knopf **Tags** in der Aktionsleiste oder Rechtsklick — Häkchen = alle ausgewählten Dateien haben das Tag, „(teilweise)“
 = nur ein Teil; Klick setzt das Tag bei allen bzw. entfernt es. **Strg+T** öffnet die Tag-Auswahl mit dreistufigen
-Häkchen für eine gemischte Auswahl. Die Kachel zeigt je Tag einen farbigen Punkt (Hover = Namen). Der Filter **Tags**
+Häkchen für eine gemischte Auswahl. Die Kachel zeigt die Tags als Marke oben links (siehe „Tag- und Kategorie-Symbole“). Der Filter **Tags**
 in der Zeile „Inhalt“ filtert nach einem oder mehreren Tags — „Mindestens eines der gewählten“ (ODER), „Alle gewählten
 zusammen“ (UND) oder „Ohne Tag“; das Suchfeld im Flyout grenzt lange Tag-Listen ein. Die Suche findet neben Dateinamen auch Dateien, deren Tag-Name den Suchtext enthält. Tags hängen am
 Katalog-Eintrag: „Aktualisieren“ und „Neu aufbauen“ (über den Pfad) behalten sie, der Papierkorb entfernt die Zuweisungen.
@@ -342,6 +343,22 @@ Kategorie eine Auswahlliste mit den Werten und „Kein Wert“; haben die Dateie
 wechselt die Kategorie, ↑/↓ den Wert, Enter übernimmt, Esc bricht ab. Die **Suche** findet auch Dateien, deren
 Kategorie-Wert den Suchtext enthält (wie bei Tag-Namen, ohne Groß-/Kleinschreibung); trifft der Suchtext den Namen
 einer Kategorie (z. B. „Projekt“), findet sie alle Dateien, die in dieser Kategorie irgendeinen Wert haben.
+
+#### Tag- und Kategorie-Symbole (seit 0.4.35, Mockup 16)
+Kleine Marken zeigen, wo Fotos Tags oder Kategorie-Werte haben — nur wenn welche gesetzt sind:
+- **Kacheln:** oben links eine **Tag-Marke** (Tag-Symbol, bis zu drei Farbpunkte in den Tag-Farben, ab zwei Tags die
+  Anzahl) und eine **Kategorie-Marke** (Symbol wie die Kategorien-Auswahl, ab zwei Kategorien die Anzahl). Darüberfahren
+  nennt die Namen (Tags mit Farbpunkt, Kategorien als „Kategorie: Wert“). Ist die Kachel ausgewählt, rückt die Marke neben
+  das Häkchen; bei „fehlt“/„Eingang“/„verknüpft“ steht sie darunter. Die farbigen Tag-Punkte unter der Kachel (bis 0.4.34)
+  sind durch die Marke ersetzt. In der **Collage** erscheinen die Marken nur beim Darüberfahren (wie Herz und Sterne).
+- **Lightbox:** Leiste unten mit den Tags (Farbpunkt + Name), einem Trenner, den gesetzten Kategorien und **+ Tag /
+  Kategorie** (Menü: Tags bearbeiten… = Strg+T, Kategorien zuweisen… = Strg+K). Im Vollbild ist die Leiste aus.
+- **Ordnerbaum:** rechts neben dem Ordnernamen Tag-/Kategorie-Symbol mit der Zahl der Fotos, die Tags bzw. Kategorie-Werte
+  haben — nur Fotos **direkt im Ordner**, nicht in Unterordnern. Darüberfahren zeigt „n von m Fotos“ und die häufigsten
+  Namen. Die Zahlen aktualisieren sich nach jedem Zuweisen.
+- **Einstellungen › Darstellung › Symbole für Tags und Kategorien:** je ein Schalter für Kacheln, Lightbox und Ordnerbaum
+  (Standard an; gespeichert im Katalog — eine versteckte Bibliothek hat eigene Schalter). Ist die Lightbox-Leiste aus,
+  zeigt die Titelleiste die Tags und Kategorien wie früher.
 
 #### Collage (0.2.46)
 „Ansicht“ → **Collage** zeigt Fotos und Videos im echten Seitenverhältnis (aus den Bildmaßen, sonst aus dem
@@ -369,7 +386,8 @@ Rahmenloses Fenster, Toolbar und Titelleiste blenden sich nach kurzer Zeit aus (
 ein). Bilder: Mausrad = Zoom am Cursor, Ziehen = Verschieben, Doppelklick = Einpassen ↔ 100 %. Videos: Transportleiste
 mit Position, Wiedergabe/Pause, Lautstärke, Stumm. Das Info-Panel zeigt Datei- und Medieninfos (Auflösung, Dauer,
 Codec) und, sobald es Kategorien gibt, je Kategorie den Wert der Datei („—“ ohne Wert) mit dem Knopf **Zuweisen…**.
-Gesetzte Kategorie-Werte stehen außerdem in der Titelleiste (z. B. „Projekt: Nord · XX: N“).
+Tags und gesetzte Kategorie-Werte stehen in der Leiste unten (seit 0.4.35, „+ Tag / Kategorie“ öffnet die Zuordnung);
+ist sie unter Einstellungen › Darstellung abgeschaltet, stehen sie wie früher in der Titelleiste (z. B. „Projekt: Nord · XX: N“).
 
 | Taste | Wirkung |
 |---|---|
@@ -389,7 +407,7 @@ Gesetzte Kategorie-Werte stehen außerdem in der Titelleiste (z. B. „Projekt: 
 | Strg+1 … Strg+5 | Bewertung 1–5 Sterne |
 | Strg+0 | Bewertung löschen |
 | Strg+M | In die Bibliothek… |
-| Strg+T | Tags der Datei bearbeiten (die Titelleiste zeigt die Tags) |
+| Strg+T | Tags der Datei bearbeiten (die Leiste unten zeigt die Tags) |
 | Strg+K | Kategorie-Werte der Datei zuweisen (dieselbe Auswahl wie in der Galerie) |
 | Entf | In den Papierkorb (mit Bestätigung) |
 | S | Diashow ab hier (siehe „Diashow“) |

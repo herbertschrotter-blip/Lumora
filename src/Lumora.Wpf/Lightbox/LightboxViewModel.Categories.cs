@@ -105,6 +105,7 @@ public sealed partial class LightboxViewModel
 
         CategoryRows = rows;
         CurrentCategoriesText = string.Join(" · ", assigned);
+        CurrentCategoryLabels = assigned; // Chips der Leiste unten (Mockup 16, LightboxViewModel.Marks.cs)
     }
 
     /// <summary>Strg+K: Kategorie-Auswahl für die aktuelle Datei; Änderungen über <see cref="ICategoryService"/> (meldet Metadata).</summary>

@@ -113,6 +113,10 @@ public sealed partial class FolderNode : ObservableObject
     [ObservableProperty]
     private bool _isDropTarget;
 
+    /// <summary>Tag-/Kategorie-Zahlen direkt im Ordner (Mockup 16); null = keine oder Schalter „Im Ordnerbaum“ aus.</summary>
+    [ObservableProperty]
+    private Marks.FolderMarkSummary? _marks;
+
     public ObservableCollection<FolderNode> Children { get; } = new();
 
     partial void OnIsExpandedChanged(bool value)

@@ -3,6 +3,61 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.4.35] — 2026-10-25
+
+### Feature (Mockup 16) — Tag- und Kategorie-Symbole auf Kacheln, Lightbox und Ordnerbaum
+- **Galerie-Kacheln:** oben links eine **Tag-Marke** (Symbol `Tag24`, bis zu 3 Farbpunkte in den Tag-Farben, Anzahl ab 2) und
+  eine **Kategorie-Marke** (Symbol `Group24` wie die Kategorien-Auswahl, Anzahl ab 2) — nur wenn gesetzt, halbtransparent
+  dunkel auf dem Bild. Darüberfahren nennt die Namen (Tags mit Farbpunkt, Kategorien als „Kategorie: Wert“); der Tooltip
+  entsteht erst beim Öffnen (kein vorgebauter Baum je Kachel). Kollisionen: bei Auswahl rückt die Marke neben das Häkchen,
+  bei „fehlt“/„Eingang“/„verknüpft“ (oben mittig) steht sie darunter; Herz, Endung und Sterne bleiben, wo sie sind.
+  **Entscheidung:** Die farbigen Tag-Punkte unter der Kachel (`TagChipsControl` im Fuß) entfallen — sie zeigten dasselbe wie
+  die neue Tag-Marke (das Mockup zeigt nur die Marke), der Fuß bleibt für Größe und Personen; wer den Schalter ausschaltet,
+  will keine Marken.
+- **Collage:** dieselben Marken, nur beim Darüberfahren (wie Herz und Sterne).
+- **Lightbox:** Leiste unten mit Tag-Chips (Farbpunkt + Name), Trenner, gesetzten Kategorien und **„+ Tag / Kategorie“**
+  (Menü mit den vorhandenen Dialogen Strg+T bzw. Strg+K). Im Vollbild aus. Ist die Leiste abgeschaltet, zeigt die
+  Titelleiste Tags und Kategorien wie bis 0.4.34.
+- **Ordnerbaum:** rechts neben dem Namen Tag-/Kategorie-Symbol mit der Zahl der Fotos mit Tags bzw. Kategorie-Werten
+  **direkt im Ordner** (nicht rekursiv); Tooltip „n von m Fotos“ mit den 3 häufigsten Namen. Gezählt in vier gruppierten
+  Abfragen für den ganzen Bereich (kein N+1, nur die Bibliotheken von `ILibraryScope`, ADR-0048) im Hintergrund nach dem
+  Aufbau des Baums; neu gezählt (400 ms gebündelt) nach Zuweisungen (`FilesChangedMessage` Metadata) und Stammdaten-Änderungen
+  (`TagsChangedMessage`/`CategoriesChangedMessage`, dann auch die Namen). Auswahl-Optik (0.4.30) und Ausschluss-Logik (0.4.33)
+  unverändert.
+- **Einstellungen › Darstellung › „Symbole für Tags und Kategorien“:** je ein Schalter für Kacheln, Lightbox und Ordnerbaum,
+  Standard an, gespeichert in der Settings-Tabelle des Katalogs (`ui.marks.tiles`, `ui.marks.lightbox`, `ui.marks.folderTree`;
+  versteckte Sitzung = eigener Katalog). Ordnerbaum aus → keine Abfrage.
+- **Leistung:** Tags und Kategorie-Werte kamen schon je Galerie-Seite gebündelt (je eine Abfrage für die 500 Kacheln,
+  `ApplyTagsToItemsAsync`/`ApplyCategoriesToItemsAsync`) — die Marken nutzen genau diese Daten; neu ist nur die Beschriftung
+  „Kategorie: Wert“ in `GalleryItemCategories.Labels`. Kacheln bleiben Automation-Blätter.
+- **Technik:** Services `Marks/` (`MarkSettings` + `IMarkSettingsStore`, `IFolderMarkCounter`/`FolderMarkCounter`,
+  `AddMarks`); Wpf `Marks/` (`MarkSettingsState` je Sitzung, `TileMarksControl`, `FolderMarksControl`, `FolderMarkSummary`,
+  `MarkToolTips`, `SettingsMarksSection`, `AddMarksUi` aus `AddGallery`), `FolderTreeViewModel.Marks.cs`,
+  `GalleryViewModel.Marks.cs`, `LightboxViewModel.Marks.cs`, `LightboxMarksBar`. **Keine ADR** (keine neue
+  Architekturentscheidung: kein Schema, keine neue Schicht oder Abhängigkeit; Settings-Tabelle, Messenger-Records, gruppierte
+  Abfrage und Seiten-Bündel folgen bestehenden Mustern), **keine Migration**.
+- **Tests:** Services 1359 → 1365 (3 übersprungen wie vorher) — Ordner-Zählung nur direkt im Ordner mit den häufigsten
+  zuerst, Begrenzung, Bereichs-Trennung (andere Bibliothek nur im gemeinsamen Bereich), Kategorie-Werte einer Seite in einem
+  Aufruf, Einstellungen (Standard an, speichern ohne Doppelzeilen, unlesbare Werte → an). Wpf 1224 → 1238 (7 übersprungen wie
+  vorher) — Kachel-Marke (nur wenn gesetzt, Anzahl ab 2, höchstens 3 Punkte, Schalter aus → unsichtbar, Tooltip erst bei
+  Bedarf mit Namen), Collage mit der echten Vorlage (nur beim Darüberfahren, Schalter), Galerie-ViewModel folgt dem Schalter,
+  Lightbox-Leiste (Namen, Trenner, Menü mit Strg+T/Strg+K-Befehlen, Schalter, Vollbild, Bindung im Fenster), Ordnerbaum
+  (Zahlen direkt im Ordner, Tooltip, Neuzählung nach Zuweisung ohne Neuaufbau, Schalter aus/an, ohne Dienst wie bisher),
+  Ordner-Marke, Einstellungs-Karte speichert, Laden überschreibt keinen frühen Klick. Wpf-Suite dreimal hintereinander grün.
+- **Rauchtest:** neuer Schritt „Tag- und Kategorie-Symbole“ vor „Versteckte Bibliothek“ (2 Fotos mit Tag, 1 mit Kategorie →
+  Marken auf den Kacheln, Zahl im Ordnerbaum, Lightbox-Leiste mit Namen, Schalter aus → weg und `false` in der
+  Settings-Tabelle, wieder an, aufgeräumt; Screenshots `26-symbole-hell`, `26-symbole-dunkel`, `26-symbole-lightbox`).
+  Erster Lauf 48/49: der neue Schritt wies zu, bevor die Galerie die eben angelegte Kategorie kannte, und hielt veraltete
+  Kachel-Instanzen (Schritt korrigiert: wartet auf die Stammdaten, sucht Kacheln über die Id), dazu 5 Binding-Fehler im
+  bekannten Wackler „Alben“ (intelligentes Album). Zweiter Lauf **49/49 OK, 0 Binding-Fehler**, kein ERR/FTL.
+
+### Offen
+- Die Ordner-Zahlen werden auch nach Favorit/Bewertung neu gezählt (die Metadata-Nachricht unterscheidet nicht nach Art);
+  gebündelt und im Hintergrund, aber bei sehr großen Bibliotheken unnötige Arbeit — ggf. eigene Nachricht für Zuordnungen.
+- „n von m Fotos“ im Ordner-Tooltip zählt wie die Ordnerzahl alle Dateien des Ordners (auch Videos und fehlende).
+- Schon vorher so (Listenspalten): wird ein Kategorie-Wert zugewiesen, bevor die Galerie die eben angelegte Kategorie geladen
+  hat, fehlt er auf der Kachel bis zum nächsten Neuladen der Seite (im Alltag kaum erreichbar, im Rauchtest gesehen).
+
 ## [0.4.34] — 2026-10-25
 
 ### Docs — Offene Aufgaben als GitHub Issues

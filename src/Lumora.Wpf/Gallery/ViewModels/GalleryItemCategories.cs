@@ -14,10 +14,16 @@ public sealed class GalleryItemCategories
 
     private readonly IReadOnlyDictionary<int, (int ValueId, string Name)> _values;
 
-    public GalleryItemCategories(IReadOnlyDictionary<int, (int ValueId, string Name)> values)
+    /// <param name="labels">Gesetzte Werte als „Kategorie: Wert“ in der Reihenfolge der Kategorien (Marke und Tooltip auf der
+    /// Kachel, Mockup 16); null = keine Beschriftungen (dann zählt nur <see cref="Count"/>).</param>
+    public GalleryItemCategories(IReadOnlyDictionary<int, (int ValueId, string Name)> values, IReadOnlyList<string>? labels = null)
     {
         _values = values ?? throw new ArgumentNullException(nameof(values));
+        Labels = labels ?? Array.Empty<string>();
     }
+
+    /// <summary>„Kategorie: Wert“ je gesetzter Kategorie in Anzeigereihenfolge (Tooltip der Kategorie-Marke).</summary>
+    public IReadOnlyList<string> Labels { get; }
 
     /// <summary>Wertname der Kategorie oder leer.</summary>
     public string this[int categoryId] => _values.TryGetValue(categoryId, out var v) ? v.Name : string.Empty;

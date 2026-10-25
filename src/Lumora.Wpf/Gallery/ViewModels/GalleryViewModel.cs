@@ -146,8 +146,10 @@ public sealed partial class GalleryViewModel : ObservableObject
         ISharedGalleryFilter? sharedFilter = null,
         Lumora.Shell.INavigationService? navigation = null,
         Lumora.Slideshow.ISlideshowService? slideshow = null,
-        Lumora.Removal.RemovalActions? removalActions = null)
+        Lumora.Removal.RemovalActions? removalActions = null,
+        Lumora.Marks.MarkSettingsState? markSettings = null)
     {
+        InitMarks(markSettings); // Schalter „Symbole auf Galerie-Kacheln“ (Mockup 16, GalleryViewModel.Marks.cs)
         _removalActions = removalActions; // „Aus der Bibliothek entfernen“ für fehlende (ADR-0065, GalleryViewModel.MissingFiles.cs)
         _slideshow = slideshow; // Diashow (ADR-0059, GalleryViewModel.Slideshow.cs)
         InitAlbums(albumActions); // Alben und Ordner-Verknüpfungen (ADR-0054, GalleryViewModel.Albums.cs)

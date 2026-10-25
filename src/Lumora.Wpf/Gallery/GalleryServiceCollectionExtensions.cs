@@ -37,6 +37,7 @@ public static class GalleryServiceCollectionExtensions
         services.TryAddSingleton<ITagPickerService, TagPickerService>();
         services.TryAddSingleton<ICategoryPickerService, CategoryPickerService>(); // Strg+K (ADR-0027)
         services.TryAddSingleton<IGalleryViewSettingsStore, GalleryViewSettingsStore>();
+        Lumora.Marks.MarksUiServiceCollectionExtensions.AddMarksUi(services); // Tag-/Kategorie-Symbole: Schalter der Sitzung (Mockup 16)
         return services;
     }
 }

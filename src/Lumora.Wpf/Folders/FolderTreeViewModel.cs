@@ -86,7 +86,11 @@ public sealed partial class FolderTreeViewModel : ObservableObject
         ILibraryScope? scope = null,
         Removal.RemovalActions? removalActions = null,
         Exclusions.ScanExclusionActions? exclusionActions = null,
-        FolderMoveActions? moveActions = null)
+        FolderMoveActions? moveActions = null,
+        Lumora.Services.Marks.IFolderMarkCounter? markCounter = null,
+        Marks.MarkSettingsState? markSettings = null,
+        Lumora.Services.Tags.ITagService? markTags = null,
+        Lumora.Services.Categories.ICategoryService? markCategories = null)
     {
         _exclusionActions = exclusionActions; // „Ordner ausschließen…“, ausgeschlossene Ordner ausblenden (ADR-0066, FolderTreeViewModel.Exclusions.cs)
         _moveActions = moveActions; // „Verschieben nach…“ und Ziehen (ADR-0066, FolderTreeViewModel.Move.cs)
@@ -107,6 +111,7 @@ public sealed partial class FolderTreeViewModel : ObservableObject
         _messenger.Register<FolderTreeViewModel, FoldersChangedMessage>(this, static (r, m) => UiThread.Post(() => r.ScheduleReload(m.LibraryId)));
         _messenger.Register<FolderTreeViewModel, FilesChangedMessage>(this, static (r, m) => UiThread.Post(() => r.OnFilesChanged(m)));
         _messenger.Register<FolderTreeViewModel, ScanExclusionsChangedMessage>(this, static (r, m) => UiThread.Post(() => r.ScheduleReload(m.LibraryId ?? r._libraryId))); // ADR-0066
+        InitMarks(markCounter, markSettings, markTags, markCategories); // Tag-/Kategorie-Zahlen je Ordner (Mockup 16, FolderTreeViewModel.Marks.cs)
     }
 
     [ObservableProperty]
@@ -248,15 +253,20 @@ public sealed partial class FolderTreeViewModel : ObservableObject
     {
         if (message.Kind == FilesChangeKind.Metadata)
         {
+            OnMetadataChangedForMarks(message.LibraryId); // Tags/Kategorien zugewiesen → nur die Zahlen neu (Mockup 16)
             return;
         }
 
         ScheduleReload(message.LibraryId);
     }
 
+    /// <summary>Bibliothek gehört zum geladenen Bereich (Baum geladen; aktive Bibliothek oder „Alle verknüpften“).</summary>
+    private bool IsInLoadedScope(int libraryId)
+        => _loadedLibraryId is not null && (libraryId == _loadedLibraryId || _loadedScope.Contains(libraryId));
+
     private void ScheduleReload(int libraryId)
     {
-        if (_loadedLibraryId is null || (libraryId != _loadedLibraryId && !_loadedScope.Contains(libraryId)))
+        if (!IsInLoadedScope(libraryId))
         {
             return;
         }
@@ -399,6 +409,7 @@ public sealed partial class FolderTreeViewModel : ObservableObject
             }
 
             _loadedLibraryId = active.Id;
+            OnTreeLoadedForMarks(libraryIds); // Tag-/Kategorie-Zahlen im Hintergrund (Mockup 16)
             _logger.LogInformation(
                 "Ordnerbaum geladen: Library={LibraryId} Ordner={Folders} Wurzeln={Roots} Dateien={Files}",
                 active.Id, rows.Count, _rootRows.Count, counts.Values.Sum());
@@ -601,7 +612,9 @@ public sealed partial class FolderTreeViewModel : ObservableObject
             ? root.RoleText
             : null;
 
-    private FolderNode CreateNode(FolderRow row) => row.Id < 0 && row.Path.StartsWith('\u0001')
+    private FolderNode CreateNode(FolderRow row) => WithMarks(CreateNodeCore(row)); // Tag-/Kategorie-Zahlen (Mockup 16)
+
+    private FolderNode CreateNodeCore(FolderRow row) => row.Id < 0 && row.Path.StartsWith('\u0001')
         ? new FolderNode(this, row.Id, row.Name, row.Path, 0, _totalCounts.GetValueOrDefault(row.Id),
             _childrenByParent.TryGetValue(row.Id, out var roots) && roots.Count > 0, "Bibliothek", isInInbox: false, isLibraryHeader: true)
         : new FolderNode(

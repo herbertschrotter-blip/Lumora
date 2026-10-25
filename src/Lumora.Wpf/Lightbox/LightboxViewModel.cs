@@ -85,8 +85,10 @@ public sealed partial class LightboxViewModel : ObservableObject, IDisposable
         Lumora.Services.Places.IGeoCatalogReader? geoReader = null,
         Lumora.Services.Motifs.IMotifTermService? motifs = null,
         Lumora.Slideshow.ISlideshowService? slideshow = null,
-        Lumora.Places.Suggestions.PlacesSuggestionContext? geoSuggestions = null)
+        Lumora.Places.Suggestions.PlacesSuggestionContext? geoSuggestions = null,
+        Lumora.Marks.MarkSettingsState? markSettings = null)
     {
+        InitMarks(markSettings); // Leiste unten mit Tags/Kategorien (Mockup 16, LightboxViewModel.Marks.cs)
         _slideshow = slideshow; // „Diashow ab hier“ (ADR-0059, LightboxViewModel.Slideshow.cs)
         _vlc = vlc;
         _contextFactory = contextFactory;

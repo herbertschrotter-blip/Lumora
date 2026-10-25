@@ -110,6 +110,8 @@ public static class ServiceCollectionExtensions
         Assistant.StoryAssistantServiceCollectionExtensions.AddStoryAssistant(services);
         // Ordner in den Papierkorb, Fehlende aus der Bibliothek entfernen (Services/Removal, ADR-0065)
         Removal.RemovalServiceCollectionExtensions.AddRemoval(services);
+        // Tag- und Kategorie-Symbole: Schalter in der Settings-Tabelle, Zahlen je Ordner (Services/Marks, Mockup 16, 0.4.35)
+        Marks.MarksServiceCollectionExtensions.AddMarks(services);
 
         return services;
     }

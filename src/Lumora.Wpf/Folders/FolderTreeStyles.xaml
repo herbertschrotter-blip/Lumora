@@ -2,7 +2,8 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                     xmlns:shell="clr-namespace:Lumora.Shell"
-                    xmlns:local="clr-namespace:Lumora.Folders">
+                    xmlns:local="clr-namespace:Lumora.Folders"
+                    xmlns:marks="clr-namespace:Lumora.Marks">
     <!--
         Knoten des Ordnerbaums (Seite „Ordner“). 0.4.30: der gewählte Ordner ist deutlich erkennbar — Akzent-Balken links
         (3 px), Akzent-Tönung als Hintergrund, Ordnersymbol in Akzentfarbe, Name halbfett. Nur DynamicResource (hell/dunkel).
@@ -49,6 +50,8 @@
                     <TextBlock Text="{Binding RoleLabel}" FontSize="10" FontWeight="SemiBold"
                                Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
                 </Border>
+                <!-- Mockup 16: Fotos mit Tags / Kategorien direkt im Ordner; Tooltip „n von m Fotos“ + häufigste Namen -->
+                <marks:FolderMarksControl Margin="8,0,0,0" VerticalAlignment="Center" Marks="{Binding Marks}" />
                 <TextBlock Margin="8,0,0,0"
                            FontSize="11"
                            VerticalAlignment="Center"

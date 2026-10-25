@@ -3,7 +3,8 @@
                     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                     xmlns:vm="clr-namespace:Lumora.Gallery.ViewModels"
                     xmlns:conv="clr-namespace:Lumora.Gallery.Converters"
-                    xmlns:gc="clr-namespace:Lumora.Gallery.Controls">
+                    xmlns:gc="clr-namespace:Lumora.Gallery.Controls"
+                    xmlns:marks="clr-namespace:Lumora.Marks">
     <!--
         Collage-Kachel (ADR-0044, Mockup 06): das Bild füllt die Zelle des JustifiedTilePanel ohne Beschnitt (die Zelle hat
         sein Seitenverhältnis; nur extrem hohe/breite Bilder werden mittig beschnitten). Kein Namensfeld unter dem Bild:
@@ -106,6 +107,16 @@
                 </Border>
             </StackPanel>
 
+            <!-- Tag- und Kategorie-Marke oben links (Mockup 16): wie Herz/Sterne nur beim Darüberfahren, damit die Bilder ruhig bleiben -->
+            <marks:TileMarksControl x:Name="Marks"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Top"
+                                    Margin="6,6,0,0"
+                                    Opacity="0"
+                                    Tags="{Binding Tags}"
+                                    Categories="{Binding Categories}"
+                                    ShowMarks="{Binding DataContext.ShowTileMarks, RelativeSource={RelativeSource AncestorType=ListBox}}" />
+
             <!-- Herz oben rechts: Favorit (sichtbar wenn gesetzt, sonst beim Darüberfahren) -->
             <Button x:Name="HeartButton"
                     Style="{StaticResource CollageOverlayButton}"
@@ -180,6 +191,7 @@
                 <Setter TargetName="StarsHost" Property="Opacity" Value="1" />
                 <Setter TargetName="NameText" Property="Opacity" Value="1" />
                 <Setter TargetName="FooterShade" Property="Opacity" Value="1" />
+                <Setter TargetName="Marks" Property="Opacity" Value="1" />
             </Trigger>
             <DataTrigger Binding="{Binding IsFavorite}" Value="True">
                 <Setter TargetName="HeartButton" Property="Opacity" Value="1" />
@@ -190,6 +202,17 @@
             </DataTrigger>
             <DataTrigger Binding="{Binding Missing}" Value="True">
                 <Setter TargetName="Thumb" Property="Opacity" Value="0.45" />
+                <Setter TargetName="Marks" Property="Margin" Value="6,28,0,0" />
+            </DataTrigger>
+            <!-- Mockup 16: Marken weichen dem Auswahl-Häkchen und den Badges oben mittig aus -->
+            <DataTrigger Binding="{Binding IsInbox}" Value="True">
+                <Setter TargetName="Marks" Property="Margin" Value="6,28,0,0" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding IsLinked}" Value="True">
+                <Setter TargetName="Marks" Property="Margin" Value="6,28,0,0" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                <Setter TargetName="Marks" Property="Padding" Value="24,0,0,0" />
             </DataTrigger>
         </DataTemplate.Triggers>
     </DataTemplate>

@@ -1,0 +1,28 @@
+<UserControl x:Class="Lumora.Marks.FolderMarksControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             Focusable="False"
+             IsTabStop="False"
+             Background="Transparent"
+             Visibility="Collapsed">
+    <!--
+        Ordnerbaum (Mockup 16): rechts neben dem Namen Tag-Symbol mit der Zahl der Fotos mit Tags und Kategorie-Symbol mit der
+        Zahl der Fotos mit Kategorie-Werten — nur Dateien direkt im Ordner. Dezent (TextFillColorTertiary, hell/dunkel);
+        Tooltip „n von m Fotos“ mit den häufigsten Namen entsteht erst beim Öffnen.
+    -->
+    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+        <StackPanel x:Name="TagPart" Orientation="Horizontal" Visibility="Collapsed">
+            <ui:SymbolIcon Symbol="Tag24" FontSize="11" Margin="0,0,2,0" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+            <TextBlock x:Name="TagCount" FontSize="11" VerticalAlignment="Center"
+                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+        </StackPanel>
+        <StackPanel x:Name="CategoryPart" Orientation="Horizontal" Visibility="Collapsed">
+            <ui:SymbolIcon Symbol="Group24" FontSize="11" Margin="0,0,2,0" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+            <TextBlock x:Name="CategoryCount" FontSize="11" VerticalAlignment="Center"
+                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+        </StackPanel>
+    </StackPanel>
+</UserControl>

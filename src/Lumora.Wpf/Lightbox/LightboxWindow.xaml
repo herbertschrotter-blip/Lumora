@@ -34,6 +34,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <!-- Minimale Titelleiste: Dateiname links, Maße/Größe/Datum + Zähler rechts -->
@@ -45,6 +46,9 @@
                      CanMaximize="True">
             <ui:TitleBar.TrailingContent>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,12,0">
+                    <!-- Tags/Kategorien in der Titelleiste nur, wenn die Leiste unten abgeschaltet ist (Mockup 16) -->
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                                Visibility="{Binding ShowTitleMarks, Converter={StaticResource BoolToVis}}">
                     <!-- Tags der Datei (Strg+T bearbeitet, ADR-0021) -->
                     <tags:TagChipsControl Tags="{Binding CurrentTags}"
                                           Compact="False"
@@ -65,6 +69,7 @@
                                    TextTrimming="CharacterEllipsis"
                                    Foreground="{DynamicResource LightboxTextBrush}" />
                     </Border>
+                    </StackPanel>
                     <TextBlock Text="{Binding Subtitle}"
                                FontSize="12"
                                VerticalAlignment="Center"
@@ -244,5 +249,10 @@
                 </ScrollViewer>
             </Border>
         </Grid>
+
+        <!-- Leiste unten: Tags, Kategorien, „+ Tag / Kategorie“ (Mockup 16); aus im Vollbild und per Schalter -->
+        <local:LightboxMarksBar x:Name="MarksBar"
+                                Grid.Row="2"
+                                Visibility="{Binding ShowMarksBar, Converter={StaticResource BoolToVis}}" />
     </Grid>
 </dialogs:AppFluentWindow>

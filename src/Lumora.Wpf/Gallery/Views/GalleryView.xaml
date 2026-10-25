@@ -9,7 +9,7 @@
              xmlns:vm="clr-namespace:Lumora.Gallery.ViewModels"
              xmlns:conv="clr-namespace:Lumora.Gallery.Converters"
              xmlns:gc="clr-namespace:Lumora.Gallery.Controls"
-             xmlns:tags="clr-namespace:Lumora.Gallery.Tags"
+             xmlns:marks="clr-namespace:Lumora.Marks"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:GalleryViewModel, IsDesignTimeCreatable=False}"
              d:DesignWidth="1000"
@@ -200,6 +200,16 @@
                         </Border>
                     </StackPanel>
 
+                    <!-- Tag- und Kategorie-Marke oben links (Mockup 16): nur wenn gesetzt und Schalter „Auf Galerie-Kacheln“ an.
+                         Bei Auswahl rechts neben dem Häkchen, bei „fehlt“/„Eingang“/„verknüpft“ unter diesen Badges. -->
+                    <marks:TileMarksControl x:Name="Marks"
+                                            HorizontalAlignment="Left"
+                                            VerticalAlignment="Top"
+                                            Margin="6,6,0,0"
+                                            Tags="{Binding Tags}"
+                                            Categories="{Binding Categories}"
+                                            ShowMarks="{Binding DataContext.ShowTileMarks, RelativeSource={RelativeSource AncestorType=ListBox}}" />
+
                     <!-- Herz oben rechts: Toggle Favorit (sichtbar wenn gesetzt, sonst bei Hover) -->
                     <Button x:Name="HeartButton"
                             Style="{StaticResource TileOverlayButton}"
@@ -289,13 +299,7 @@
                                 <TextBlock Text="{Binding Persons.UnnamedCount}" FontSize="10"
                                            Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                             </StackPanel>
-                            <!-- Tag-Punkte (Hover zeigt den Namen) -->
-                            <tags:TagChipsControl DockPanel.Dock="Right"
-                                                  Tags="{Binding Tags}"
-                                                  Compact="True"
-                                                  VerticalAlignment="Center"
-                                                  ToolTip="{Binding TagsText}"
-                                                  Visibility="{Binding HasTags, Converter={StaticResource BoolToVis}}" />
+                            <!-- Tag-Punkte unter der Kachel seit 0.4.35 ersetzt durch die Tag-Marke oben links (Mockup 16) -->
                         </DockPanel>
                     </StackPanel>
                 </Border>
@@ -314,6 +318,17 @@
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Missing}" Value="True">
                     <Setter TargetName="Thumb" Property="Opacity" Value="0.45" />
+                    <Setter TargetName="Marks" Property="Margin" Value="6,28,0,0" />
+                </DataTrigger>
+                <!-- Mockup 16: Marken weichen dem Auswahl-Häkchen (oben links) und den Badges oben mittig aus -->
+                <DataTrigger Binding="{Binding IsInbox}" Value="True">
+                    <Setter TargetName="Marks" Property="Margin" Value="6,28,0,0" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsLinked}" Value="True">
+                    <Setter TargetName="Marks" Property="Margin" Value="6,28,0,0" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                    <Setter TargetName="Marks" Property="Padding" Value="24,0,0,0" />
                 </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
