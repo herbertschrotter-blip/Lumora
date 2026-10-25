@@ -115,7 +115,7 @@
                                     Opacity="0"
                                     Tags="{Binding Tags}"
                                     Categories="{Binding Categories}"
-                                    ShowMarks="{Binding DataContext.ShowTileMarks, RelativeSource={RelativeSource AncestorType=ListBox}}" />
+                                    ShowMarks="{Binding Path=(gc:GalleryListBox.TileHost).ShowTileMarks, RelativeSource={RelativeSource Self}}" />
 
             <!-- Herz oben rechts: Favorit (sichtbar wenn gesetzt, sonst beim Darüberfahren) -->
             <Button x:Name="HeartButton"
@@ -126,7 +126,7 @@
                     Opacity="0"
                     ToolTip="Favorit umschalten"
                     AutomationProperties.Name="Favorit umschalten"
-                    Command="{Binding DataContext.ToggleFavoriteCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                    Command="{Binding Path=(gc:GalleryListBox.TileHost).ToggleFavoriteCommand, RelativeSource={RelativeSource Self}}"
                     CommandParameter="{Binding}">
                 <ui:SymbolIcon x:Name="HeartIcon" Symbol="Heart24" FontSize="16" Foreground="White" Filled="{Binding IsFavorite}" />
             </Button>
@@ -169,7 +169,7 @@
                                         StarSize="11"
                                         FilledBrush="#FFD166"
                                         EmptyBrush="#CCFFFFFF"
-                                        Command="{Binding DataContext.SetItemRatingCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                        Command="{Binding Path=(gc:GalleryListBox.TileHost).SetItemRatingCommand, RelativeSource={RelativeSource Self}}"
                                         CommandParameter="{Binding}" />
                     </Border>
 

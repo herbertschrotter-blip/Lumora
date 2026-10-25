@@ -27,8 +27,29 @@ namespace Lumora.Gallery.Controls;
 /// </summary>
 public sealed class GalleryListBox : ListBox
 {
+    /// <summary>
+    /// Geerbte Eigenschaft mit dem ViewModel der Galerie (= DataContext der ListBox) für Bindungen in Kachel-Vorlagen
+    /// (Herz, Sterne, Marken). Ersetzt <c>RelativeSource FindAncestor ListBox</c> (0.4.41, Issue #20): Wird die Vorlage
+    /// eines Containers ohne ListBox-Vorfahren aufgebaut (z. B. während eines Neuladens kurz außerhalb des Panels),
+    /// meldete WPF „Cannot find source“; über die geerbte Eigenschaft ist der Wert dann einfach <c>null</c>.
+    /// Bindung in der Vorlage: <c>{Binding Path=(gc:GalleryListBox.TileHost).Befehl, RelativeSource={RelativeSource Self}}</c> —
+    /// mit <c>Path=</c>: in der Kurzform ohne <c>Path=</c> löst kompiliertes XAML das Präfix nicht auf (Pfadfehler).
+    /// </summary>
+    public static readonly DependencyProperty TileHostProperty = DependencyProperty.RegisterAttached(
+        "TileHost", typeof(object), typeof(GalleryListBox), new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.Inherits));
+
     private readonly HashSet<GalleryItem> _trackedItems = new();
     private bool _selectionSyncScheduled;
+
+    public GalleryListBox()
+    {
+        // Der DataContext der ListBox (GalleryViewModel) fließt als TileHost an alle Kacheln.
+        SetBinding(TileHostProperty, new System.Windows.Data.Binding());
+    }
+
+    public static object? GetTileHost(DependencyObject element) => element.GetValue(TileHostProperty);
+
+    public static void SetTileHost(DependencyObject element, object? value) => element.SetValue(TileHostProperty, value);
 
     protected override DependencyObject GetContainerForItemOverride() => new GalleryListBoxItem();
 
@@ -180,6 +201,19 @@ public sealed class GalleryListBox : ListBox
 /// <summary>Container einer Kachel; sein Automation-Peer meldet keine Kinder (siehe <see cref="GalleryListBox"/>).</summary>
 public sealed class GalleryListBoxItem : ListBoxItem
 {
+    /// <summary>
+    /// Eigener Stilschlüssel (0.4.41, Issue #20): Der System-Stil für <see cref="ListBoxItem"/> bindet
+    /// HorizontalContentAlignment/VerticalContentAlignment per <c>FindAncestor ItemsControl</c> — auch wenn der
+    /// Container-Stil der Galerie die Werte setzt. Ein Container, der kurz ohne ListBox-Vorfahren aufgebaut wurde, meldete
+    /// dadurch Binding-Fehler. Vorlage, Ränder und Ausrichtung kommen vollständig aus TileContainerStyle bzw.
+    /// CollageContainerStyle (GalleryView.xaml), die alles setzen, was der System-Stil sonst lieferte (übrig blieben nur
+    /// Rahmenfarbe/-breite, die die eigenen Vorlagen nicht nutzen); ohne Container-Stil bleibt der Container leer.
+    /// </summary>
+    static GalleryListBoxItem()
+    {
+        DefaultStyleKeyProperty.OverrideMetadata(typeof(GalleryListBoxItem), new FrameworkPropertyMetadata(typeof(GalleryListBoxItem)));
+    }
+
     protected override AutomationPeer OnCreateAutomationPeer() => new LeafItemPeer(this);
 
     private sealed class LeafItemPeer : ListBoxItemWrapperAutomationPeer

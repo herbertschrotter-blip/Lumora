@@ -10,6 +10,7 @@ using Lumora.Gallery.ListView;
 using Lumora.Gallery.ViewModels;
 using Lumora.Gallery.Views;
 using Lumora.Lightbox;
+using Microsoft.Extensions.Logging;
 
 namespace Lumora.Shell.Smoke;
 
@@ -46,7 +47,7 @@ internal sealed partial class SmokeScenario
             list!.ScrollIntoView(far);
             list.UpdateLayout();
             var farContainer = list.ItemContainerGenerator.ContainerFromItem(far) as ListBoxItem;
-            Check(farContainer is not null && farContainer.Focus(), $"Kachel {_gallery.CurrentPage.Count} realisiert und fokussiert");
+            Check(farContainer is not null && FocusForSmoke(farContainer), $"Kachel {_gallery.CurrentPage.Count} realisiert und fokussiert");
             _gallery.OpenInLightboxCommand.Execute(farContainer!.DataContext);
             await WaitUntilAsync(() => _lightbox.IsOpen, ShortWait, "Lightbox für die letzte Kachel").ConfigureAwait(true);
             var window = Application.Current.Windows.OfType<LightboxWindow>().First();
@@ -97,6 +98,25 @@ internal sealed partial class SmokeScenario
             _gallery.TileSize = tileSizeBefore;
             _gallery.ClearSelectionCommand.Execute(null);
         }
+    }
+
+    /// <summary>
+    /// Fokus auf ein Element des Hauptfensters. <c>Focus()</c> liefert false, wenn Windows das Fenster nicht in den
+    /// Vordergrund lässt (Benutzer arbeitet in einem anderen Programm; Rauchtest-Wackler 0.4.41, Issue #20). Dann bekommt
+    /// das Element ausdrücklich den logischen Fokus seines Fensters — der Schritt prüft weiter die Lightbox und die
+    /// Kachel-Zuordnung; nur „Fokus-Container bleibt beim Aufräumen“ (braucht Tastaturfokus) ist in diesem Lauf nicht abgedeckt.
+    /// </summary>
+    private bool FocusForSmoke(UIElement element)
+    {
+        if (element.Focus())
+        {
+            return true;
+        }
+
+        System.Windows.Input.FocusManager.SetFocusedElement(System.Windows.Input.FocusManager.GetFocusScope(element), element);
+        _logger.LogInformation("Rauchtest   Kein Tastaturfokus (Fenster aktiv={Active}) — logischer Fokus={Logical}, Fokus-Container beim Aufräumen nicht geprüft",
+            Application.Current.MainWindow?.IsActive, element.IsFocused);
+        return element.IsFocused;
     }
 
     /// <summary>Container per Treffertest in der Mitte jedes vollständig sichtbaren Platzes (Item-Index, Container).</summary>

@@ -396,6 +396,20 @@ public sealed partial class GalleryViewModel : ObservableObject
     /// </summary>
     private async Task ReloadLibraryAsync(int? libraryId, bool reloadTerms = false)
     {
+        // Laufende Bibliothekswechsel zählen (0.4.41, Issue #20): HasPendingWork deckt so auch die Zeit vor der ersten Seite ab
+        _libraryReloadsRunning++;
+        try
+        {
+            await ReloadLibraryCoreAsync(libraryId, reloadTerms);
+        }
+        finally
+        {
+            _libraryReloadsRunning--;
+        }
+    }
+
+    private async Task ReloadLibraryCoreAsync(int? libraryId, bool reloadTerms)
+    {
         var generation = ++_libraryLoadGeneration;
         _activeLoadCts?.Cancel();
         _reloadDebounceCts?.Cancel();
@@ -512,8 +526,9 @@ public sealed partial class GalleryViewModel : ObservableObject
 
             _libraryId = lib.Id;
             _libraryRootPath = lib.RootPath;
-            await LoadScopeAsync(lib.Id); // Bereich: Bibliothek bzw. „Alle verknüpften“ (ADR-0048, GalleryViewModel.Scope.cs)
-            if (generation != _libraryLoadGeneration)
+            // Bereich: Bibliothek bzw. „Alle verknüpften“ (ADR-0048, GalleryViewModel.Scope.cs) — nur übernommen, solange
+            // dieser Wechsel der neueste ist (0.4.41: ein überholter Wechsel überschrieb sonst den Bereich des neueren)
+            if (!await LoadScopeAsync(lib.Id, generation))
             {
                 return false;
             }

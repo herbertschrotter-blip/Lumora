@@ -103,10 +103,27 @@ internal sealed partial class SmokeScenario
             // (6) zurück zur Übersicht: angeheftet steht oben
             story.Back();
             Check(!vm.IsStoryOpen, "zurück zur Übersicht");
+            // Auf den echten Zustand warten (0.4.41, Issue #20): Das Anheften meldet StoriesChangedMessage, die Seite lädt
+            // gebündelt neu — überholt das unser LoadAsync, kehrt es ohne Übernahme zurück („ein neuerer Durchgang läuft“).
+            bool PinnedShown()
+            {
+                var rows = vm.Rows.ToList();
+                var section = rows.FindIndex(r => r is OverviewSectionRow { Title: "Angeheftet" });
+                return section >= 0 && rows.Skip(section + 1).OfType<OverviewCardRow>().FirstOrDefault()?.Cards.Any(c => c.Id == first.Id) == true;
+            }
+
             await vm.LoadAsync().ConfigureAwait(true);
-            var pinnedSection = vm.Rows.ToList().FindIndex(r => r is OverviewSectionRow { Title: "Angeheftet" });
-            Check(pinnedSection >= 0 && vm.Rows.Skip(pinnedSection + 1).OfType<OverviewCardRow>().First().Cards.Any(c => c.Id == first.Id),
-                "Übersicht: Story unter „Angeheftet“");
+            try
+            {
+                await WaitUntilAsync(() => !vm.IsLoading && PinnedShown(), ShortWait, "Übersicht mit der angehefteten Story").ConfigureAwait(true);
+            }
+            catch (SmokeCheckException)
+            {
+                // Meldung mit Befund unten
+            }
+
+            var sections = string.Join(", ", vm.Rows.OfType<OverviewSectionRow>().Select(r => r.Title));
+            Check(PinnedShown(), $"Übersicht: Story unter „Angeheftet“ (Abschnitte: {sections}; in der DB angeheftet: {(await _stories.GetAsync(first.Id).ConfigureAwait(true))?.IsPinned})");
         }
         finally
         {

@@ -178,6 +178,9 @@ internal sealed partial class SmokeScenario
         await _libraries.SetActiveAsync(_libraryId).ConfigureAwait(true);
         _navigation.NavigateTo(NavigationTags.Gallery);
         await WaitForGalleryAsync("A nach dem Lösen").ConfigureAwait(true);
+        // Das Lösen meldet B (die aktive Bibliothek der gemeinsamen Ansicht) evtl. erst nach dem Wechsel auf A: auf den Bereich A warten
+        await WaitUntilAsync(() => !_gallery.HasPendingWork && _gallery.ScopeLibraryIdsForSmoke.SequenceEqual([_libraryId]), ShortWait,
+            "Galerie-Bereich wieder A").ConfigureAwait(true);
         Check(!_gallery.IsAllLinkedView && _gallery.TotalCount == countA, $"A wieder allein: {_gallery.TotalCount} Dateien");
         await _switcher.RefreshAsync().ConfigureAwait(true);
         Check(_switcher.LinkedGroups.Count == 0, "Umschalter ohne „Alle verknüpften“");

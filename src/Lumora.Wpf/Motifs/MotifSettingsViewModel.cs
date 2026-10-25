@@ -89,6 +89,8 @@ public sealed partial class MotifSettingsViewModel : ObservableObject, IDisposab
     private CancellationTokenSource? _downloadCts;
     private bool _loading;
     private int _libraryId;
+    private int _termsLoadGeneration;
+    private Task? _latestTermsLoad;
 
     public MotifSettingsViewModel(
         IMotifIndexService index,
@@ -260,11 +262,35 @@ public sealed partial class MotifSettingsViewModel : ObservableObject, IDisposab
 
     // ---- Begriffe -----------------------------------------------------------------------------
 
+    /// <summary>
+    /// Liest die Begriffe des aktiven Bereichs. Mehrere Anstöße (Öffnen des Reiters, Bibliothekswechsel, jede Änderung an
+    /// Begriffen) laufen nebeneinander; nur der zuletzt angestoßene schreibt die Liste (0.4.41, Issue #20: ein älterer,
+    /// langsamerer Lesevorgang brachte einen eben gelöschten Begriff zurück — Rauchtest „eigener Begriff gelöscht“).
+    /// </summary>
     internal async Task LoadTermsAsync()
+    {
+        var own = LoadTermsCoreAsync(++_termsLoadGeneration);
+        _latestTermsLoad = own;
+        await own;
+
+        // Überholt: erst zurückkehren, wenn der neueste Lesevorgang die Liste geschrieben hat (Aufrufer lesen danach Terms)
+        while (_latestTermsLoad is { } latest && !ReferenceEquals(latest, own))
+        {
+            own = latest;
+            await latest;
+        }
+    }
+
+    private async Task LoadTermsCoreAsync(int generation)
     {
         try
         {
             var library = await _libraries.GetActiveAsync().ConfigureAwait(true);
+            if (generation != _termsLoadGeneration)
+            {
+                return;
+            }
+
             if (library is null)
             {
                 _libraryId = 0;
@@ -275,6 +301,11 @@ public sealed partial class MotifSettingsViewModel : ObservableObject, IDisposab
 
             _libraryId = library.Id;
             var terms = await _terms.GetTermsAsync(library.Id).ConfigureAwait(true);
+            if (generation != _termsLoadGeneration)
+            {
+                return; // ein neuerer Anstoß liest schon
+            }
+
             Terms.Clear();
             foreach (var term in terms)
             {

@@ -3,6 +3,80 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.4.41] — 2026-10-25
+
+### Fix — Rauchtest-Wackler: Alben-Bindungen, Bibliothekswechsel, Motive, Lightbox-Fokus, Story-Seite (Issue #20)
+- **„Alben“ (4–12 Binding-Fehler beim Öffnen eines intelligenten Albums):** Ursache war jede Kachel, deren Vorlage ohne
+  ListBox-Vorfahren aufgebaut wurde (beim schnellen doppelten Neuladen der Galerie kurz außerhalb des Panels): der
+  System-Stil für `ListBoxItem` bindet HorizontalContentAlignment/VerticalContentAlignment per `FindAncestor ItemsControl`
+  — nachgewiesen auch dann, wenn der Container-Stil die Werte setzt —, Herz, Sterne und Marken banden per `FindAncestor
+  ListBox` an `DataContext.ToggleFavoriteCommand`/`SetItemRatingCommand`/`ShowTileMarks`. Behoben im Produktivcode:
+  `GalleryListBoxItem` hat einen eigenen Stilschlüssel (Vorlage, Ränder, Ausrichtung kommen vollständig aus
+  TileContainerStyle bzw. CollageContainerStyle), und die Kachel-Vorlagen binden über die geerbte Eigenschaft
+  `GalleryListBox.TileHost` (= DataContext der ListBox) mit `RelativeSource Self` — ohne Vorfahren ist der Wert einfach
+  `null`, kein Fehler. Wichtig: `Path=(gc:GalleryListBox.TileHost)…` mit `Path=` schreiben, die Kurzform löst in
+  kompiliertem XAML das Präfix nicht auf.
+- **„Bibliotheks-Trennung … Ort-Flyout in A wieder ohne den Ort aus B (Bereich der Galerie: 2)“ / „A wieder allein: 0
+  Dateien“:** Zwei Ursachen. (1) Wettlauf im `GalleryViewModel`: Das Lösen meldet die aktive Bibliothek der gemeinsamen
+  Ansicht (B), gleich danach kommt der Wechsel auf A; las B seinen Bereich langsamer, überschrieb `LoadScopeAsync` den
+  Bereich von A trotz `_libraryLoadGeneration` (Zuweisung vor der Generationsprüfung) — Seite aus A, Flyouts (Orte, Motive,
+  Personen) aus B. Jetzt übernimmt nur der neueste Wechsel seinen Bereich. (2) Der Warte-Helfer des Rauchtests sah nur
+  `IsLoading`; ein Bibliothekswechsel liest unter Last aber erst Bereich, Personen, Motive und Begriffe (Sekunden), und der
+  Schritt prüfte die alte, leere Seite. Neu `GalleryViewModel.HasPendingWork` (Seite lädt, Bibliothekswechsel läuft oder
+  gebündeltes Neuladen steht aus); `WaitForGalleryAsync` wartet darauf, der Schritt zusätzlich auf den Bereich A.
+- **„Motive … eigener Begriff gelöscht“ / „Standard-Begriffe angelegt“ (Timeout 15 s):** `MotifSettingsViewModel.LoadTermsAsync`
+  wird mehrfach nebeneinander angestoßen (Reiter öffnen, Bibliothekswechsel, jede Begriffs-Änderung); ein älterer, langsamerer
+  Lesevorgang schrieb danach den Stand von vorher in die Liste (der gelöschte Begriff kam zurück). Jetzt schreibt nur der
+  zuletzt angestoßene. „Standard-Begriffe angelegt“ war in den Läufen ein Folgefehler der Bibliotheks-Trennung.
+- **„Lightbox: Kachel 41 realisiert und fokussiert“:** `Focus()` liefert false, wenn Windows das Fenster nicht in den
+  Vordergrund lässt; der Container hat dann trotzdem den logischen Fokus (den das Panel beim Aufräumen behält). Der Schritt
+  prüft das über `FocusForSmoke` (Tastaturfokus, sonst logischer Fokus, mit Log-Zeile).
+- **„Story-Seite … Übersicht: Story unter „Angeheftet““ (Zusatz):** Das Anheften meldet `StoriesChangedMessage`, die Seite
+  lädt 250 ms gebündelt neu; überholte dieses Neuladen das `LoadAsync` des Schritts, kehrte dieses ohne Übernahme zurück und
+  der Schritt prüfte die alten Zeilen. Der Schritt wartet jetzt auf den echten Zustand (Karte unter „Angeheftet“) und nennt
+  im Fehlerfall Abschnitte und den Zustand in der DB.
+- **Unit-Tests unter Last:** `FaceIndexServiceTests.Abbrechen_beendet_den_Durchgang_…` — Ursache im Produktivcode: War nach
+  dem ersten Foto das Schreib-Intervall (3 s) abgelaufen, wurde es allein geschrieben und das zweite, schon analysierte Foto
+  ging beim Abbruch verloren (der nächste Durchgang analysierte es erneut, 6 statt 5 Aufrufe). `FaceIndexService` schreibt
+  bei Abbruch jetzt alle fertig analysierten Fotos. `TraceScanLockedRangeTests.Kurz_ganz_gesperrte_Datei_…` löst die Sperre
+  nicht mehr nach 250 ms, sondern genau vor der ersten Wiederholung (`FindTraces(beforeRetry:)`).
+- **Technik:** `GalleryListBox.TileHostProperty` (geerbt) + Stilschlüssel `GalleryListBoxItem`; `GalleryViewModel`:
+  `ReloadLibraryAsync` zählt laufende Wechsel, `LoadScopeAsync(libraryId, generation)`, `ScheduleReload` zählt ausstehende,
+  `HasPendingWork`; `MotifSettingsViewModel._termsLoadGeneration`; `FaceIndexService.IndexLibraryAsync` (Abbruch schreibt
+  `pending`). Rauchtest: gemeinsamer Warte-Helfer `WaitForGalleryAsync`, Schritte Bibliotheks-Trennung, Lightbox
+  (Kachel-Zuordnung), Story-Seite. Keine ADR, keine Migration, keine neuen Pakete.
+- **Tests:** Services 1394 → 1395 (3 übersprungen wie vorher) — Abbruch schreibt fertig analysierte Fotos unabhängig vom
+  Schreib-Intervall (scheiterte ohne den Fix). Wpf 1243 → 1251 (7 übersprungen wie vorher) — `TileBindingTests` mit der
+  echten Collage-Vorlage: Container ohne ListBox-Vorfahren ohne Binding-Fehler (mit und ohne Container-Stil; scheiterte
+  vorher mit genau den fünf Fehlern aus dem Rauchtest), Herz/Sterne erreichen die Befehle über `TileHost`, Neuladen mit
+  Einfügen/Entfernen/Umsortieren in Kacheln und Collage, Vorlagen ohne `AncestorType=ListBox`; überholter Bereichswechsel
+  überschreibt den Bereich nicht (verzögerter Bereichsdienst, scheiterte ohne den Fix); überholter Lesevorgang der
+  Motiv-Begriffe; Spurenprüfung löst die Sperre vor der ersten Wiederholung. Wpf-Suite dreimal grün (1251/7 je Lauf),
+  Services zweimal: 1× grün, 1× der bekannte Wackler `FaceCropServiceTests.Fordert_an_rendert_je_Datei_einmal_und_meldet_
+  fertige_Ausschnitte` (siehe Offen).
+- **Rauchtest:** fünf Läufe hintereinander auf jeweils frischer Kopie der Testbibliothek (43 Dateien), Endstand des Codes:
+
+  | Lauf | Ergebnis | Binding-Fehler | ERR/FTL | Dauer |
+  |------|----------|----------------|---------|-------|
+  | 1 | 50/50 OK | 0 | 0 | 250 s |
+  | 2 | 50/50 OK | 0 | 0 | 248 s |
+  | 3 | 50/50 OK | 0 | 0 | 245 s |
+  | 4 | 50/50 OK | 0 | 0 | 237 s |
+  | 5 | 50/50 OK | 0 | 0 | 231 s |
+
+  Dazu ein Vorlauf vor dem Selbst-Review: 50/50, 0 Binding-Fehler. In keinem Lauf fehlte der Tastaturfokus (die Ersatzprüfung
+  über den logischen Fokus wurde nicht gebraucht).
+
+### Offen
+- `FaceCropServiceTests.Fordert_an_rendert_je_Datei_einmal_und_meldet_fertige_Ausschnitte` wackelt weiter unter Last (seit
+  0.4.4 bekannt, hier 1× von 2 Läufen der Services-Suite; einzeln grün) — Ursache nicht gefunden, die Meldung der stillen
+  Testausgabe nennt nur den Test. Nicht Teil von Issue #20.
+- Wird `ActiveLibraryChangedMessage` einer älteren Bibliothek erst NACH der neueren zugestellt (Absender auf einem anderen
+  Thread), lädt die Galerie die ältere — der Wechsel selbst ist dann der neueste. In den Läufen nicht beobachtet; eine
+  Lösung wäre, beim Empfang immer die aktive Bibliothek aus dem Katalog zu laden.
+- Ohne Tastaturfokus (Fenster nicht im Vordergrund) deckt der Schritt „Lightbox Bild + Video / Kachel-Zuordnung“ das
+  Behalten des fokussierten Containers beim Aufräumen nicht ab (Log-Zeile „Kein Tastaturfokus“).
+
 ## [0.4.40] — 2026-10-25
 
 ### Feature (ADR-0069) — Produktivbetrieb vorbereiten: Katalog-Sicherung vor Migrationen und portabler Modus (refs #6)
@@ -101,6 +175,7 @@ Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Form
 - Hinweis unter dem Schalter erklärt die Folge (Container muss vor dem nächsten Öffnen wieder eingehängt werden).
 - Tests: alte Kenndatei → aus, bewusst an/aus; Sitzungs- und Sicherheits-Check-Tests schalten das Aushängen ausdrücklich ein;
   Rauchtest prüft „standardmäßig aus“ und schaltet es für den Fake-Ablauf ein.
+
 
 ## [0.4.37] — 2026-10-25
 

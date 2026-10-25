@@ -39,26 +39,48 @@ public sealed partial class GalleryViewModel
     /// <summary>Gehört die Bibliothek zum angezeigten Bereich (Nachrichten, Thumbnails)?</summary>
     private bool InScope(int libraryId) => libraryId == _libraryId || _scope.Contains(libraryId);
 
-    private async Task LoadScopeAsync(int libraryId)
+    /// <summary>
+    /// Liest den Bereich der Bibliothek und übernimmt ihn nur, wenn <paramref name="generation"/> noch der neueste
+    /// Bibliothekswechsel ist (sonst false). Rauchtest-Wackler 0.4.41 (Issue #20): Beim Lösen einer Verknüpfung kam der
+    /// Wechsel auf B und gleich danach der auf A; las B seinen Bereich langsamer, überschrieb er den von A — Seite aus A,
+    /// Flyouts (Orte, Motive, Personen) aus B.
+    /// </summary>
+    private async Task<bool> LoadScopeAsync(int libraryId, int generation)
     {
+        LibraryScopeInfo scope;
         try
         {
-            var scope = await _libraryScope.GetCurrentAsync();
+            scope = await _libraryScope.GetCurrentAsync();
             if (scope.LibraryId != libraryId)
             {
                 scope = await _libraryScope.GetForLibraryAsync(libraryId);
             }
-
-            _scope = scope;
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Galerie: Bibliotheks-Bereich nicht lesbar — nur die aktive Bibliothek");
-            _scope = LibraryScopeInfo.ForLibrary(libraryId, 0);
+            scope = LibraryScopeInfo.ForLibrary(libraryId, 0);
         }
 
+        if (generation != _libraryLoadGeneration)
+        {
+            return false;
+        }
+
+        _scope = scope;
         NotifyScopeChanged();
+        return true;
     }
+
+    /// <summary>
+    /// true, solange die Galerie noch arbeitet: Seite lädt oder ein Bibliothekswechsel läuft (auch vor der ersten Seite:
+    /// Bereich, Personen, Motive, Begriffe). Für Warte-Helfer (Rauchtest), die sonst nur <see cref="IsLoading"/> sahen und
+    /// während eines langsamen Wechsels zu früh weitermachten. Gebündelte Neuladungen zählen bewusst nicht: Hintergrund-
+    /// Indizes stoßen sie laufend an, ein Warten darauf endete nie.
+    /// </summary>
+    internal bool HasPendingWork => IsLoading || _libraryReloadsRunning > 0;
+
+    private int _libraryReloadsRunning;
 
     private void ClearScope()
     {

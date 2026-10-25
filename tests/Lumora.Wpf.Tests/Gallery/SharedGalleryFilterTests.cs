@@ -213,6 +213,41 @@ public sealed class SharedGalleryFilterTests : IAsyncLifetime
     });
 
     [Fact]
+    public Task Ueberholter_Bereichswechsel_ueberschreibt_den_Bereich_des_neueren_nicht() => OnUiAsync(async () =>
+    {
+        // Rauchtest-Wackler „gelöst: Ort-Flyout in A wieder ohne den Ort aus B (Bereich der Galerie: 2)“ (Issue #20, 0.4.41):
+        // B liest seinen Bereich langsamer als der gleich danach angestoßene Wechsel auf A — Seite aus A, Flyouts aus B.
+        var other = Path.Combine(_db.ArchiveDir, "Zweite");
+        Directory.CreateDirectory(other);
+        int otherId;
+        using (var connection = _db.Factory.OpenSqliteConnection())
+        using (var cmd = connection.CreateCommand())
+        {
+            cmd.CommandText = "INSERT INTO Libraries (Name, RootPath, CreatedAt, LastOpenedAt) VALUES ('Zweite', $root, 0, 0); SELECT last_insert_rowid();";
+            cmd.Parameters.AddWithValue("$root", other);
+            otherId = Convert.ToInt32(cmd.ExecuteScalar());
+        }
+
+        var scope = new GatedScope();
+        var gallery = CreateGallery(new SharedGalleryFilter(), new RecordingNavigation(), scope);
+        await gallery.EnsureInitializedAsync();
+        await WaitAsync(() => !gallery.HasPendingWork && gallery.TotalCount > 0, "erste Seite");
+        var own = gallery.TotalCount;
+
+        var gate = scope.Hold(otherId);
+        WeakReferenceMessenger.Default.Send(new ActiveLibraryChangedMessage(otherId)); // hängt beim Lesen des Bereichs
+        await WaitAsync(() => gallery.HasPendingWork, "Wechsel auf B läuft");
+        WeakReferenceMessenger.Default.Send(new ActiveLibraryChangedMessage(_db.LibraryId));
+        await WaitAsync(() => gallery.TotalCount == own && gallery.ScopeLibraryIdsForSmoke.SequenceEqual([_db.LibraryId]), "A geladen");
+        gallery.HasPendingWork.Should().BeTrue("der überholte Wechsel auf B wartet noch");
+
+        gate.SetResult();
+        await WaitAsync(() => !gallery.HasPendingWork, "überholter Wechsel ausgelaufen");
+        gallery.ScopeLibraryIdsForSmoke.Should().Equal([_db.LibraryId], "der überholte Wechsel darf den Bereich nicht überschreiben");
+        gallery.TotalCount.Should().Be(own);
+    });
+
+    [Fact]
     public Task Karte_zaehlt_genau_die_Galerie_Treffer_mit_Koordinaten() => OnUiAsync(async () =>
     {
         var shared = new SharedGalleryFilter();
@@ -298,7 +333,7 @@ public sealed class SharedGalleryFilterTests : IAsyncLifetime
         return points;
     }
 
-    private GalleryViewModel CreateGallery(ISharedGalleryFilter shared, INavigationService navigation)
+    private GalleryViewModel CreateGallery(ISharedGalleryFilter shared, INavigationService navigation, Lumora.Services.Library.ILibraryScope? libraryScope = null)
     {
         var source = new GalleryPageSource(_db.Factory);
         return new GalleryViewModel(
@@ -318,8 +353,37 @@ public sealed class SharedGalleryFilterTests : IAsyncLifetime
             NullService.Create<ICategoryPickerService>(),
             NullService.Create<IGalleryViewSettingsStore>(),
             NullLogger<GalleryViewModel>.Instance,
+            libraryScope: libraryScope,
             sharedFilter: shared,
             navigation: navigation);
+    }
+
+    /// <summary>Bereichsdienst je Bibliothek; <see cref="Hold"/> lässt das Lesen einer Bibliothek warten.</summary>
+    private sealed class GatedScope : Lumora.Services.Library.ILibraryScope
+    {
+        private readonly Dictionary<int, TaskCompletionSource> _gates = new();
+
+        public TaskCompletionSource Hold(int libraryId) => _gates[libraryId] = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task<Lumora.Services.Library.LibraryScopeInfo> GetCurrentAsync(CancellationToken ct = default)
+            => Task.FromResult(Lumora.Services.Library.LibraryScopeInfo.None);
+
+        public async Task<Lumora.Services.Library.LibraryScopeInfo> GetForLibraryAsync(int libraryId, CancellationToken ct = default)
+        {
+            if (_gates.TryGetValue(libraryId, out var gate))
+            {
+                await gate.Task;
+            }
+
+            return Lumora.Services.Library.LibraryScopeInfo.ForLibrary(libraryId, libraryId);
+        }
+
+        public Task<IReadOnlyList<Lumora.Services.Library.LibraryGroupInfo>> GetGroupsAsync(CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<Lumora.Services.Library.LibraryGroupInfo>>([]);
+
+        public Task ShowAllLinkedAsync(int groupId, CancellationToken ct = default) => Task.CompletedTask;
+
+        public Task RenameGroupAsync(int groupId, string name, CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private Task SelectFolderAsync(GalleryViewModel gallery, int folderId)

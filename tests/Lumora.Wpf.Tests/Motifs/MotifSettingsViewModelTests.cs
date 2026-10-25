@@ -163,6 +163,28 @@ public sealed class MotifSettingsViewModelTests
         MotifThresholdChoice.Format(0.03).Should().Be("3 %");
     }
 
+    [Fact]
+    public async Task Ein_ueberholter_langsamer_Lesevorgang_bringt_keinen_alten_Stand_zurueck()
+    {
+        // Rauchtest-Wackler „Motive … eigener Begriff gelöscht“ (Issue #20, 0.4.41): ein älteres Neuladen kam nach dem
+        // neueren zurück und schrieb den Stand von vorher in die Liste.
+        var (vm, _, terms, _, _) = Create();
+        vm.Load();
+        await WaitAsync(() => vm.Terms.Count == 3);
+
+        var hold = new TaskCompletionSource();
+        terms.HoldNextRead = hold;
+        var slow = vm.LoadTermsAsync(); // liest den Stand mit 3 Begriffen und wartet
+        await terms.AddTermAsync(7, "Neu");
+        await vm.LoadTermsAsync();
+        vm.Terms.Should().HaveCount(4);
+
+        hold.SetResult();
+        await slow;
+        vm.Terms.Select(t => t.Name).Should().Contain("Neu", "der überholte Lesevorgang darf die Liste nicht überschreiben");
+        vm.Terms.Should().HaveCount(4);
+    }
+
     private static (MotifSettingsViewModel Vm, FakeIndex Index, FakeTerms Terms, FakeModels Models, Dialogs Dialogs) Create()
     {
         var libraries = new InMemoryLibraries();
@@ -257,10 +279,20 @@ public sealed class MotifSettingsViewModelTests
 
         public bool IsModelAvailable => ModelAvailable;
 
-        public Task<IReadOnlyList<MotifTermInfo>> GetTermsAsync(int libraryId, CancellationToken ct = default)
+        /// <summary>Hält den nächsten Lesevorgang an (Stand von vorher), bis die Quelle gesetzt wird.</summary>
+        public TaskCompletionSource? HoldNextRead { get; set; }
+
+        public async Task<IReadOnlyList<MotifTermInfo>> GetTermsAsync(int libraryId, CancellationToken ct = default)
         {
             LastLibrary = libraryId;
-            return Task.FromResult<IReadOnlyList<MotifTermInfo>>(_terms.ToList());
+            var snapshot = _terms.ToList();
+            if (HoldNextRead is { } hold)
+            {
+                HoldNextRead = null;
+                await hold.Task;
+            }
+
+            return snapshot;
         }
 
         public Task<int> AddTermAsync(int libraryId, string name, string? prompt = null, CancellationToken ct = default)

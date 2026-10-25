@@ -279,6 +279,40 @@ public sealed class FaceIndexServiceTests
     }
 
     [Fact]
+    public async Task Abbrechen_schreibt_schon_analysierte_Fotos_unabhaengig_vom_Schreib_Intervall()
+    {
+        // Wackel-Test unter Last (Issue #20, 0.4.41): War nach dem ersten Foto das Schreib-Intervall abgelaufen, wurde es
+        // allein geschrieben und das zweite ging beim Abbruch verloren (später doppelt analysiert). Hier ohne Intervall:
+        // nichts wird vor dem Abbruch geschrieben — beide fertigen Fotos müssen trotzdem gespeichert sein.
+        using var fx = await TempLibraryFixture.CreateAsync();
+        var lib = await fx.CreateLibraryAsync();
+        for (var i = 0; i < 5; i++)
+        {
+            fx.WriteLibraryFile($"f{i}.jpg");
+        }
+
+        await fx.ScanAsync(lib.Id);
+        var factory = new FakeFaceAnalyzerFactory { Gate = new SemaphoreSlim(0) };
+        using var service = new FaceIndexService(
+            fx.ContextFactory, fx.CreateLibraryService(), factory, new FakeFaceImageLoader(),
+            new MemoryFaceSettingsStore(new FaceIndexSettings(true, true)), NullLogger<FaceIndexService>.Instance, fx.Messenger,
+            Options with { WriteBatchSize = 100, WriteInterval = TimeSpan.FromHours(1) });
+        await service.StartAsync();
+        factory.Gate.Release(1);
+        await WaitUntilAsync(() => factory.Calls == 1, "ein Foto");
+
+        service.CancelRun(); // das zweite Foto wartet am Tor
+        factory.Gate.Release(100);
+        await WaitUntilAsync(() => service.Status.State == FaceIndexState.Idle && service.Status.Message == "Abgebrochen", "abgebrochen");
+        factory.Calls.Should().Be(2);
+        Scalar(fx, "SELECT COUNT(*) FROM FaceScans").Should().Be(2, "beide fertig analysierten Fotos sind geschrieben");
+
+        service.RequestRun();
+        await WaitForIdleAsync(service, total: 5);
+        factory.Calls.Should().Be(5, "kein Foto wird doppelt analysiert");
+    }
+
+    [Fact]
     public async Task Einzelner_Analysefehler_wird_vermerkt_drei_hintereinander_beenden_den_Durchgang_nach_dem_Schreiben()
     {
         using var fx = await TempLibraryFixture.CreateAsync();

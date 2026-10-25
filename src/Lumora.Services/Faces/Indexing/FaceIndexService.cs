@@ -415,59 +415,25 @@ public sealed class FaceIndexService : IFaceIndexService, IDisposable
         int? before = null;
         var pending = new List<FaceFileResult>();
         var lastWrite = Stopwatch.StartNew();
-        while (true)
+        try
         {
-            var candidates = await _store.ReadPendingAsync(libraryId, version, before, _options.ReadBatchSize, ct).ConfigureAwait(false);
-            if (candidates.Count == 0)
+            await IndexBatchesAsync().ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Abbruch (0.4.41, Issue #20): schon analysierte, noch nicht geschriebene Fotos nicht wegwerfen — sonst
+            // analysierte der nächste Durchgang sie erneut (je nachdem, ob das Schreib-Intervall gerade abgelaufen war).
+            try
             {
-                break;
+                await FlushAsync(state, pending, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // Katalog gerade zu (Beenden, Sitzungswechsel): dann eben im nächsten Durchgang — der Abbruch bleibt ein Abbruch
+                _logger.LogWarning(ex, "Gesichtserkennung: {Count} fertige Ergebnisse beim Abbruch nicht geschrieben", pending.Count);
             }
 
-            before = candidates[^1].FileId;
-            var loads = new Queue<Task<LoadOutcome>>();
-            var next = 0;
-            while (next < candidates.Count && loads.Count < Math.Max(1, _options.Prefetch))
-            {
-                loads.Enqueue(StartLoad(candidates[next++]));
-            }
-
-            while (loads.Count > 0)
-            {
-                await WaitWhilePausedAsync(state, ct).ConfigureAwait(false);
-                var outcome = await loads.Dequeue().ConfigureAwait(false);
-                if (next < candidates.Count)
-                {
-                    loads.Enqueue(StartLoad(candidates[next++]));
-                }
-
-                FaceFileResult? result;
-                // Nie zugleich mit der Motiv-Erkennung auf der Grafikkarte (ADR-0052): Sperre je Foto, nur mit DirectML.
-                using (await AcquireGpuAsync(analyzer, outcome, ct).ConfigureAwait(false))
-                {
-                    result = Analyze(outcome, analyzer, state);
-                }
-
-                if (result is not null)
-                {
-                    pending.Add(result);
-                }
-
-                if (state.ConsecutiveErrors >= _options.MaxConsecutiveAnalyzeErrors)
-                {
-                    await FlushAsync(state, pending, CancellationToken.None).ConfigureAwait(false);
-                    _resetAnalyzer = true;
-                    throw new InvalidOperationException($"Die Analyse scheiterte {state.ConsecutiveErrors}× hintereinander: {state.LastError}");
-                }
-
-                if (pending.Count >= _options.WriteBatchSize || (pending.Count > 0 && lastWrite.Elapsed >= _options.WriteInterval))
-                {
-                    await FlushAsync(state, pending, ct).ConfigureAwait(false);
-                    lastWrite.Restart();
-                }
-
-                PublishRun(state);
-                ct.ThrowIfCancellationRequested();
-            }
+            throw;
         }
 
         await FlushAsync(state, pending, ct).ConfigureAwait(false);
@@ -475,6 +441,64 @@ public sealed class FaceIndexService : IFaceIndexService, IDisposable
             "Gesichtserkennung: Durchgang fertig — {Processed} Fotos, {Faces} Gesichter, {Ms:N0} ms/Foto",
             state.Processed, state.FacesFound, state.MsPerPhoto);
         await PublishCountsAsync(libraryId, analyzer, FaceIndexState.Idle, null, ct, state.FacesFound, state.MsPerPhoto).ConfigureAwait(false);
+
+        async Task IndexBatchesAsync()
+        {
+            while (true)
+            {
+                var candidates = await _store.ReadPendingAsync(libraryId, version, before, _options.ReadBatchSize, ct).ConfigureAwait(false);
+                if (candidates.Count == 0)
+                {
+                    break;
+                }
+
+                before = candidates[^1].FileId;
+                var loads = new Queue<Task<LoadOutcome>>();
+                var next = 0;
+                while (next < candidates.Count && loads.Count < Math.Max(1, _options.Prefetch))
+                {
+                    loads.Enqueue(StartLoad(candidates[next++]));
+                }
+
+                while (loads.Count > 0)
+                {
+                    await WaitWhilePausedAsync(state, ct).ConfigureAwait(false);
+                    var outcome = await loads.Dequeue().ConfigureAwait(false);
+                    if (next < candidates.Count)
+                    {
+                        loads.Enqueue(StartLoad(candidates[next++]));
+                    }
+
+                    FaceFileResult? result;
+                    // Nie zugleich mit der Motiv-Erkennung auf der Grafikkarte (ADR-0052): Sperre je Foto, nur mit DirectML.
+                    using (await AcquireGpuAsync(analyzer, outcome, ct).ConfigureAwait(false))
+                    {
+                        result = Analyze(outcome, analyzer, state);
+                    }
+
+                    if (result is not null)
+                    {
+                        pending.Add(result);
+                    }
+
+                    if (state.ConsecutiveErrors >= _options.MaxConsecutiveAnalyzeErrors)
+                    {
+                        await FlushAsync(state, pending, CancellationToken.None).ConfigureAwait(false);
+                        _resetAnalyzer = true;
+                        throw new InvalidOperationException($"Die Analyse scheiterte {state.ConsecutiveErrors}× hintereinander: {state.LastError}");
+                    }
+
+                    if (pending.Count >= _options.WriteBatchSize || (pending.Count > 0 && lastWrite.Elapsed >= _options.WriteInterval))
+                    {
+                        await FlushAsync(state, pending, ct).ConfigureAwait(false);
+                        lastWrite.Restart();
+                    }
+
+                    PublishRun(state);
+                    ct.ThrowIfCancellationRequested();
+                }
+            }
+        }
     }
 
     /// <summary>Analyse einer geladenen Datei; null = nicht vermerken (Datei fehlt — später erneut versuchen).</summary>

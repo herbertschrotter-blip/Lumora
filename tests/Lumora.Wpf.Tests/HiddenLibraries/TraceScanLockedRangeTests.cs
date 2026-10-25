@@ -71,23 +71,25 @@ public sealed class TraceScanLockedRangeTests : IDisposable
     }
 
     [Fact]
-    public async Task Kurz_ganz_gesperrte_Datei_wird_nach_erneutem_Lesen_durchsucht()
+    public void Kurz_ganz_gesperrte_Datei_wird_nach_erneutem_Lesen_durchsucht()
     {
-        // Wie SQLite direkt nach einem Sitzungswechsel: -wal kurz komplett gesperrt, danach frei (0.4.10)
+        // Wie SQLite direkt nach einem Sitzungswechsel: -wal kurz komplett gesperrt, danach frei (0.4.10). Die Sperre löst
+        // sich vor der ersten Wiederholung — ohne feste Wartezeit (wackelte unter Last, 0.4.41).
         var file = Path.Combine(_root, "library.db-wal");
         File.WriteAllBytes(file, FileWith(null));
-        var holder = new FileStream(file, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete);
+        using var holder = new FileStream(file, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete);
         holder.Lock(0, 3 * 4096);
-        var release = Task.Run(async () =>
+        var retries = 0;
+
+        var hits = SmokeScenario.FindTraces(_root, ["Geheim-Bibliothek"], retries: 3, retryDelay: TimeSpan.FromMilliseconds(10), beforeRetry: () =>
         {
-            await Task.Delay(250);
-            holder.Unlock(0, 3 * 4096);
-            await holder.DisposeAsync();
+            if (retries++ == 0)
+            {
+                holder.Unlock(0, 3 * 4096);
+            }
         });
 
-        var hits = SmokeScenario.FindTraces(_root, ["Geheim-Bibliothek"], retries: 20, retryDelay: TimeSpan.FromMilliseconds(50));
-        await release;
-
+        retries.Should().Be(1, "der erste Leseversuch scheitert an der Sperre, der zweite gelingt");
         hits.Should().BeEmpty("die Sperre löst sich innerhalb der Wiederholungen");
     }
 

@@ -241,6 +241,17 @@ internal sealed class CollageGridHost : IDisposable
             set => Set(ref _showTileMarks, value);
         }
 
+        /// <summary>Wie <c>GalleryViewModel.ToggleFavoriteCommand</c> (Herz auf der Kachel); zählt die Aufrufe.</summary>
+        public CommunityToolkit.Mvvm.Input.RelayCommand<GalleryItem> ToggleFavoriteCommand => _toggleFavorite ??= new(_ => FavoriteToggles++);
+
+        /// <summary>Wie <c>GalleryViewModel.SetItemRatingCommand</c> (Sterne auf der Kachel).</summary>
+        public CommunityToolkit.Mvvm.Input.RelayCommand<object> SetItemRatingCommand => _setRating ??= new(_ => { });
+
+        public int FavoriteToggles { get; private set; }
+
+        private CommunityToolkit.Mvvm.Input.RelayCommand<GalleryItem>? _toggleFavorite;
+        private CommunityToolkit.Mvvm.Input.RelayCommand<object>? _setRating;
+
         private void Set<T>(ref T field, T value, [CallerMemberName] string? name = null)
         {
             if (EqualityComparer<T>.Default.Equals(field, value))

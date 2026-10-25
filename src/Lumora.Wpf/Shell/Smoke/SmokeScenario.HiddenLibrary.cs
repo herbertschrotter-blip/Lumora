@@ -185,7 +185,7 @@ internal sealed partial class SmokeScenario
     /// Treffer. Eine ganz gesperrte Datei wird bis zu <paramref name="retries"/>-mal nach <paramref name="retryDelay"/>
     /// erneut gelesen und zählt erst danach als „nicht lesbar“.
     /// </summary>
-    internal static List<string> FindTraces(string root, IReadOnlyList<string> needles, int retries = 0, TimeSpan? retryDelay = null)
+    internal static List<string> FindTraces(string root, IReadOnlyList<string> needles, int retries = 0, TimeSpan? retryDelay = null, Action? beforeRetry = null)
     {
         var patterns = needles
             .Where(n => !string.IsNullOrEmpty(n))
@@ -203,6 +203,7 @@ internal sealed partial class SmokeScenario
             var content = ReadUnlockedBytes(file);
             for (var attempt = 0; content is null && attempt < retries; attempt++)
             {
+                beforeRetry?.Invoke(); // Tests: Sperre genau hier lösen statt nach einer festen Zeit (0.4.41)
                 Thread.Sleep(retryDelay ?? TimeSpan.FromMilliseconds(100));
                 content = ReadUnlockedBytes(file);
             }

@@ -1924,11 +1924,15 @@ internal sealed partial class SmokeScenario
         }
     }
 
-    /// <summary>Wartet auf einen gerade angestoßenen (ggf. 300 ms gebündelten) Reload der Galerie.</summary>
+    /// <summary>
+    /// Wartet auf einen gerade angestoßenen (ggf. 300 ms gebündelten) Reload der Galerie. Seit 0.4.41 (Issue #20) auf
+    /// <see cref="GalleryViewModel.HasPendingWork"/> statt nur <c>IsLoading</c>: ein Bibliothekswechsel liest unter Last
+    /// erst Bereich, Personen, Motive und Begriffe — vorher ging es mit der alten (leeren) Seite weiter.
+    /// </summary>
     private async Task WaitForGalleryAsync(string what)
     {
         await Task.Delay(450).ConfigureAwait(true);
-        await WaitUntilAsync(() => !_gallery.IsLoading, ShortWait, what).ConfigureAwait(true);
+        await WaitUntilAsync(() => !_gallery.HasPendingWork, ShortWait, what).ConfigureAwait(true);
         await Task.Delay(100).ConfigureAwait(true);
     }
 
