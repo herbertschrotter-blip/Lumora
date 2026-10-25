@@ -3,6 +3,15 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.4.43] — 2026-10-25
+
+### Fix — Zusperren nach Untätigkeit: zwei gleichzeitige Prüfungen
+- Der Zeitgeber (alle 10 s) und ein zweiter Aufrufer konnten gleichzeitig `CheckIdleAsync` ausführen; der zweite brach am
+  Wechsel-Schalter ab und meldete „nicht zugesperrt“, während der erste gerade zusperrte (Rauchtest „Versteckte
+  Bibliothek: nach Untätigkeit zugesperrt“ einmal rot unter Last). Ein zweiter Aufruf bekommt jetzt das Ergebnis der
+  laufenden Prüfung; gewechselt wird nur einmal.
+- Test: zwei Prüfungen gleichzeitig unterwegs → beide „zugesperrt“, ein Wechsel.
+
 ## [0.4.42] — 2026-10-25
 
 ### Feature (ADR-0070) — Update-Manager „Modelle & Daten“ (Mockup 19, Issue #19)

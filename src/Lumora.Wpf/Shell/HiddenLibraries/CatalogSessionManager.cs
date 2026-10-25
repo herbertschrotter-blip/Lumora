@@ -505,7 +505,23 @@ public sealed class CatalogSessionManager : ICatalogSessionManager
         }
     }
 
-    public async Task<bool> CheckIdleAsync()
+    /// <summary>
+    /// Läuft schon eine Prüfung (z. B. vom Zeitgeber), bekommt ein zweiter Aufruf deren Ergebnis — sonst bricht der
+    /// zweite am gesetzten Wechsel-Schalter ab und meldet „nicht zugesperrt“, obwohl gerade zugesperrt wird (0.4.43).
+    /// </summary>
+    public Task<bool> CheckIdleAsync()
+    {
+        if (_idleCheck is { IsCompleted: false } running)
+        {
+            return running;
+        }
+
+        return _idleCheck = CheckIdleCoreAsync();
+    }
+
+    private Task<bool>? _idleCheck;
+
+    private async Task<bool> CheckIdleCoreAsync()
     {
         if (!IsHiddenSessionActive || Volatile.Read(ref _switching) != 0 || !Idle.IsExpired)
         {

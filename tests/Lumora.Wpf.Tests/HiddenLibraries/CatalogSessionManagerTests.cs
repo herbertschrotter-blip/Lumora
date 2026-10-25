@@ -198,6 +198,27 @@ public sealed class CatalogSessionManagerTests : IDisposable
     }
 
     [Fact]
+    public async Task Second_idle_check_while_one_is_running_shares_its_result()
+    {
+        // Zeitgeber und ein zweiter Aufrufer (Rauchtest) prüfen gleichzeitig — beide sehen „zugesperrt“, gewechselt wird einmal
+        var manager = CreateManager();
+        await manager.CreateAsync(NewContainerFolder(), "Tresor", "kennwort-1");
+        _time.Advance(TimeSpan.FromMinutes(11));
+        _switcher.BusyGate = new TaskCompletionSource<bool>();
+
+        var first = manager.CheckIdleAsync();
+        var second = manager.CheckIdleAsync();
+        second.Should().BeSameAs(first, "die laufende Prüfung wird geteilt");
+        _switcher.BusyGate.SetResult(false);
+
+        (await first).Should().BeTrue();
+        (await second).Should().BeTrue();
+        _switcher.Calls.Count(c => c == "normal").Should().Be(1);
+        manager.IsHiddenSessionActive.Should().BeFalse();
+        (await manager.CheckIdleAsync()).Should().BeFalse("danach keine Sitzung mehr");
+    }
+
+    [Fact]
     public async Task Settings_change_timeout_and_disable_dismount()
     {
         var manager = CreateManager();

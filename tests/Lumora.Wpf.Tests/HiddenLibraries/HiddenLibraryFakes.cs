@@ -74,7 +74,10 @@ internal sealed class FakeHostSwitcher : ICatalogHostSwitcher
         return Task.CompletedTask;
     }
 
-    public Task<bool> IsCatalogBusyAsync() => Task.FromResult(Busy);
+    /// <summary>Gesetzt: die Belegt-Abfrage wartet, bis der Test sie freigibt (zwei Prüfungen gleichzeitig unterwegs).</summary>
+    public TaskCompletionSource<bool>? BusyGate { get; set; }
+
+    public Task<bool> IsCatalogBusyAsync() => BusyGate?.Task ?? Task.FromResult(Busy);
 
     /// <summary>false = ein Fenster lehnt das Schließen ab (z. B. laufendes Entpacken).</summary>
     public bool WindowsClose { get; set; } = true;
