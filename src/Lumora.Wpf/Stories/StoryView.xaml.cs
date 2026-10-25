@@ -54,6 +54,23 @@ public partial class StoryView : UserControl
 
     private void OnRowsSizeChanged(object sender, SizeChangedEventArgs e) => UpdateWidth();
 
+    /// <summary>Rechtsklick auf ein Story-Foto › „Als Titelbild für ▸“ (ADR-0068).</summary>
+    private async void OnCoverSubmenuOpened(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { DataContext: StoryTileViewModel tile } menu || !ReferenceEquals(e.OriginalSource, menu)
+            || tile.Owner is not { PhotoActions: { } actions } owner)
+        {
+            return;
+        }
+
+        var host = new Lumora.PhotoMenu.PhotoMenuHost
+        {
+            Owner = () => Window.GetWindow(this),
+            ShowStatus = text => _ = owner.AfterCoverMenuAsync(text),
+        };
+        await Lumora.PhotoMenu.PhotoContextMenuBuilder.FillCoversAsync(menu, tile.FileId, host, actions).ConfigureAwait(true);
+    }
+
     /// <summary>Breite der Zeilen = Liste minus Bildlaufleiste und rechtem Rand.</summary>
     private void UpdateWidth()
     {

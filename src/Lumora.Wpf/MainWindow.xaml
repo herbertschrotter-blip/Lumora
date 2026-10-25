@@ -4,7 +4,6 @@
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  xmlns:shell="clr-namespace:Lumora.Shell"
-                 xmlns:folders="clr-namespace:Lumora.Folders"
                  xmlns:settings="clr-namespace:Lumora.Settings"
                  xmlns:gallery="clr-namespace:Lumora.Gallery.Views"
                  xmlns:sorter="clr-namespace:Lumora.Sorter"
@@ -55,18 +54,12 @@
             </ui:NavigationView.PaneHeader>
 
             <ui:NavigationView.MenuItems>
+                <!-- Galerie mit Ordnerleiste (ADR-0068, Mockup 18) — der Punkt „Ordner“ entfällt -->
                 <ui:NavigationViewItem Content="Galerie"
                                        TargetPageTag="gallery"
-                                       TargetPageType="{x:Type gallery:GalleryView}">
+                                       TargetPageType="{x:Type gallery:GalleryPage}">
                     <ui:NavigationViewItem.Icon>
                         <ui:SymbolIcon Symbol="Image24" />
-                    </ui:NavigationViewItem.Icon>
-                </ui:NavigationViewItem>
-                <ui:NavigationViewItem Content="Ordner"
-                                       TargetPageTag="folders"
-                                       TargetPageType="{x:Type folders:FolderTreePage}">
-                    <ui:NavigationViewItem.Icon>
-                        <ui:SymbolIcon Symbol="Folder24" />
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
                 <!-- Alben: Fotos verknüpfen statt kopieren (ADR-0054) -->

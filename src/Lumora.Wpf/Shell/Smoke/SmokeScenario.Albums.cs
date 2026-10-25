@@ -83,7 +83,7 @@ internal sealed partial class SmokeScenario
             Check(link is { Linked: 1 }, $"Verknüpft: {link?.Linked}");
             await _gallery.ClearAlbumFilterCommand.ExecuteAsync(null).ConfigureAwait(true); // sonst gälte Album UND Ordner
             _navigation.NavigateTo(NavigationTags.Folders);
-            await WaitUntilAsync(() => _navigation.CurrentTag == NavigationTags.Folders && !_folders.IsLoading && _folders.Roots.Count > 0, ShortWait, "Ordnerbaum").ConfigureAwait(true);
+            await WaitUntilAsync(() => _navigation.CurrentTag == NavigationTags.Gallery && !_folders.IsLoading && _folders.Roots.Count > 0, ShortWait, "Ordnerbaum").ConfigureAwait(true);
             var urlaubNode = FindNode(urlaubPath);
             Check(urlaubNode is not null, "Knoten „Urlaub Italien“ im Baum");
             urlaubNode!.IsSelected = true;
@@ -104,7 +104,7 @@ internal sealed partial class SmokeScenario
             _settings.IsThemeSystem = true;
             await WaitUntilAsync(() => _theme.Mode == AppThemeMode.System, ShortWait, "Theme System").ConfigureAwait(true);
             _navigation.NavigateTo(NavigationTags.Folders);
-            await WaitUntilAsync(() => _navigation.CurrentTag == NavigationTags.Folders, ShortWait, "zurück zur Ordner-Seite").ConfigureAwait(true);
+            await WaitUntilAsync(() => _navigation.CurrentTag == NavigationTags.Gallery, ShortWait, "zurück zur Ordner-Seite").ConfigureAwait(true);
 
             _gallery.IncludeFolderLinks = false;
             await WaitUntilAsync(() => !_gallery.IsLoading && _gallery.TotalCount == realInUrlaub && _gallery.CurrentPage.All(i => i.Id != linkedFile), ShortWait, "„nur echte Dateien“").ConfigureAwait(true);

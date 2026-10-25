@@ -115,6 +115,15 @@ internal sealed class FakeRecognitionService : IFaceRecognitionService
 
     public Task SetCoverAsync(int personId, long faceId, CancellationToken ct = default) => Task.CompletedTask;
 
+    /// <summary>Titelbild wieder automatisch (ADR-0068) — merkt sich die Person.</summary>
+    public List<int> ClearedCovers { get; } = [];
+
+    public Task ClearCoverAsync(int personId, CancellationToken ct = default)
+    {
+        ClearedCovers.Add(personId);
+        return Task.CompletedTask;
+    }
+
     public Task<IReadOnlyList<FaceFileInfo>> GetFilesAsync(IReadOnlyList<int> fileIds, CancellationToken ct = default)
         => Task.FromResult<IReadOnlyList<FaceFileInfo>>(fileIds.Select(id => new FaceFileInfo(id, $"C:\\x\\{id}.jpg", $"{id}.jpg", MediaType.Image, false, null, 1, DateTime.UtcNow)).ToList());
 

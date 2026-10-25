@@ -10,7 +10,7 @@ namespace Lumora.Folders;
 
 /// <summary>
 /// „Ordner verschieben“ im Ordnerbaum (ADR-0066): Rechtsklick › „Verschieben nach…“ (Windows-Ordnerdialog, beginnt in der Wurzel)
-/// und Ziehen eines Ordners auf einen anderen (Bestätigung, Drop-Markierung am Ziel, Esc bricht ab — <see cref="FolderTreePage"/>).
+/// und Ziehen eines Ordners auf einen anderen (Bestätigung, Drop-Markierung am Ziel, Esc bricht ab — <see cref="FolderPane"/>).
 /// Nicht an Wurzeln, nicht in „Alle verknüpften“. Die Vorprüfung beim Ziehen ist nur eine schnelle Lage-Prüfung im Speicher; die
 /// verbindlichen Regeln prüft der Dienst und meldet einen Grund. Rückgängig im Ergebnisfeld bzw. über die Galerie-Taste.
 /// </summary>

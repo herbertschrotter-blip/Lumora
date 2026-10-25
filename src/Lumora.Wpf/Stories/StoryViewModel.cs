@@ -786,6 +786,16 @@ public sealed partial class StoryViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>Gemeinsame Menü-Aktionen für „Als Titelbild für ▸“ (ADR-0068).</summary>
+    public Lumora.PhotoMenu.PhotoActions? PhotoActions => _services.PhotoActions;
+
+    /// <summary>Nach „Als Titelbild für ▸“: Meldung zeigen und das Titelbild neu laden.</summary>
+    public async Task AfterCoverMenuAsync(string text)
+    {
+        StatusText = text;
+        await RefreshCardAsync(reloadCover: true);
+    }
+
     [RelayCommand]
     public async Task AutomaticCoverAsync()
     {

@@ -179,6 +179,7 @@ internal sealed partial class SmokeScenario
         InitActivitiesSmoke(services); // Schritt „Aktivitäten“ (ADR-0067, SmokeScenario.Activities.cs)
         InitCatalogBackupSmoke(services); // Schritt „Katalog-Sicherung“ (ADR-0069, SmokeScenario.CatalogBackup.cs)
         InitModelPackagesSmoke(services); // Schritt „Modelle & Daten“ (ADR-0070, SmokeScenario.ModelPackages.cs)
+        InitPhotoMenuSmoke(services); // Titelbild, Rechtsklick-Menü, Ordnerleiste, Fotos nach außen (ADR-0068, SmokeScenario.PhotoMenu.cs)
         _messenger.Register<SmokeScenario, ScanCompletedMessage>(this, static (r, m) => r._lastScan = m.Result);
     }
 
@@ -266,6 +267,9 @@ internal sealed partial class SmokeScenario
         await StepAsync("Aktivitäten: Verschieben wartet auf die Scan-Sperre → Statusleiste und Liste „Wartet“ (hell), fertig → „Zuletzt fertig“ mit Rückgängig + kurze Meldung (dunkel), Rückgängig über die Liste (dieselbe FileId), aufgeräumt", ActivitiesAsync).ConfigureAwait(true); // ADR-0067
         await StepAsync("Katalog-Sicherung: Speicher & Wartung zeigt die Karte, „Katalog jetzt sichern“ → Datei lesbar mit denselben Dateien, in der Liste (hell/dunkel), Test-Hook: Wegwerf-Katalog bis zur ersten Migration → Sicherung vor der Migration mit altem Stand, ohne Migration keine Sicherung", CatalogBackupAsync).ConfigureAwait(true); // ADR-0069
         await StepAsync("Modelle & Daten: Reiter mit allen Einträgen (Gesichter, Motive, Testmodell, Ortsnamen, Kartenkacheln, Ollama nur Status), ohne Bestätigung kein Abruf, Testmodell nach Bestätigung über den Fake geladen + SHA-256 + Aktivität, verfälscht → defekt, Update suchen ohne Quelle, entfernt (hell/dunkel)", ModelPackagesAsync).ConfigureAwait(true); // ADR-0070
+        await StepAsync("Personen-Kacheln und Titelbild: Person mit zwei Gesichtern und Album, „Als Titelbild für ▸“ setzt Person (Gesicht im Foto), Album und Ordner mit Häkchen, wieder automatisch, Personen-Kachel mit Chips (hell/dunkel)", CoversAndPersonTilesAsync).ConfigureAwait(true); // ADR-0068
+        await StepAsync("Rechtsklick-Menü und Ordnerleiste: Kachel-Menü mit der abgenommenen Gliederung, „Als Titelbild für“ offen (hell/dunkel), Leiste per Strg+B zu/auf (gemerkt), Ordner-Chip UND Favoriten, Kreuz hebt den Ordner auf (hell/dunkel)", PhotoMenuAndFolderPaneAsync).ConfigureAwait(true); // ADR-0068
+        await StepAsync("Fotos nach außen: Ziehen liefert Datei-Drop neben dem internen Format und erlaubt nur Kopieren, Strg+C legt die Dateien in die (abgefangene) Zwischenablage", ExternalCopyAsync).ConfigureAwait(true); // ADR-0068
         await StepAsync("Versteckte Bibliothek: anlegen (_hidden simuliert), Fotos im eigenen Katalog im Container, Zusperren nach Untätigkeit + Aushängen (Fake), falsches Kennwort, wieder öffnen, normale Bibliothek unverändert, keine Spuren im AppData, Sicherheits-Check (Fake-Leser, hell/dunkel, im normalen Modus kein Reiter)", HiddenLibraryAsync).ConfigureAwait(true); // ADR-0049
         // Nach dem Katalogwechsel ist die normale Sitzung neu aufgebaut — die restlichen Schritte laufen mit deren Diensten
         await RunAfterHiddenLibraryAsync(async s =>
@@ -1032,7 +1036,7 @@ internal sealed partial class SmokeScenario
     {
         _navigation.NavigateTo(NavigationTags.Folders);
         await WaitUntilAsync(
-            () => _navigation.CurrentTag == NavigationTags.Folders && !_folders.IsLoading && _folders.Roots.Count > 0,
+            () => _navigation.CurrentTag == NavigationTags.Gallery && !_folders.IsLoading && _folders.Roots.Count > 0,
             ShortWait,
             "Ordnerbaum geladen").ConfigureAwait(true);
         Check(_folders.HasLibrary && _folders.HintText is null, $"Ordnerbaum für „{_folders.LibraryName}“ ohne Hinweis");
@@ -1065,8 +1069,8 @@ internal sealed partial class SmokeScenario
         await WaitUntilAsync(
             () => _gallery.FolderId is null && !_gallery.IsLoading && _gallery.TotalCount == _mediaCount,
             ShortWait,
-            "Gesamte Bibliothek").ConfigureAwait(true);
-        Check(_folders.SelectionText == "Gesamte Bibliothek", "Baum: gesamte Bibliothek");
+            "Alle Fotos der Bibliothek").ConfigureAwait(true);
+        Check(_folders.SelectionText == "Alle Fotos der Bibliothek", "Baum: gesamte Bibliothek");
     }
 
     private async Task SettingsAsync()

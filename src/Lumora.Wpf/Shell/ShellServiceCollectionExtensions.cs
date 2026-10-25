@@ -30,7 +30,6 @@ public static class ShellServiceCollectionExtensions
         services.AddSingleton<LibraryViewModel>();
         services.AddSingleton<LibraryPage>();
         services.AddSingleton<FolderTreeViewModel>();
-        services.AddSingleton<FolderTreePage>();
         services.AddSingleton<SettingsViewModel>();
         services.AddSingleton<SettingsPage>();
 

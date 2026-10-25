@@ -442,7 +442,8 @@ public sealed partial class FileOperationService : IFileOperationService, IDispo
                             && (b.OperationType == OperationType.Move || b.OperationType == OperationType.Rename || b.OperationType == OperationType.RenameFolder
                                 || b.OperationType == OperationType.AdoptFolder
                                 || b.OperationType == OperationType.RecycleFolder || b.OperationType == OperationType.RemoveFromCatalog // ADR-0065
-                                || b.OperationType == OperationType.MoveFolder || b.OperationType == OperationType.ExcludeFromCatalog)) // ADR-0066
+                                || b.OperationType == OperationType.MoveFolder || b.OperationType == OperationType.ExcludeFromCatalog // ADR-0066
+                                || b.OperationType == OperationType.Copy)) // ADR-0068: Kopieren nach…
                 .OrderByDescending(b => b.Id)
                 .Select(b => (int?)b.Id)
                 .FirstOrDefaultAsync(ct)
@@ -1088,6 +1089,14 @@ public sealed partial class FileOperationService : IFileOperationService, IDispo
             else if (batch.OperationType == OperationType.MoveFolder)
             {
                 results.AddRange(await UndoMoveFolderAsync(ctx, ops, changes, own, ct).ConfigureAwait(false)); // ADR-0066
+            }
+            else if (batch.OperationType == OperationType.Copy)
+            {
+                foreach (var op in ops.Where(o => o.Status == FileOperationStatus.Applied))
+                {
+                    ct.ThrowIfCancellationRequested();
+                    results.Add(await UndoCopyItemAsync(ctx, op, changes, own, ct).ConfigureAwait(false)); // ADR-0068
+                }
             }
             else
             {
@@ -2028,7 +2037,8 @@ public sealed partial class FileOperationService : IFileOperationService, IDispo
     private static bool IsUndoableType(OperationType type)
         => type is OperationType.Move or OperationType.Rename or OperationType.RenameFolder or OperationType.AdoptFolder
             or OperationType.RecycleFolder or OperationType.RemoveFromCatalog // ADR-0065
-            or OperationType.MoveFolder or OperationType.ExcludeFromCatalog; // ADR-0066
+            or OperationType.MoveFolder or OperationType.ExcludeFromCatalog // ADR-0066
+            or OperationType.Copy; // ADR-0068
 
     /// <summary>Voller Pfad ohne abschließende Trennzeichen; Laufwerks-/UNC-Wurzeln behalten ihres („E:\“).</summary>
     private static string NormalizeDirectoryPath(string path)

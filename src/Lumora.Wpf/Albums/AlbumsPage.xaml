@@ -61,8 +61,8 @@
                         <MenuItem Header="Umbenennen…" Icon="{ui:SymbolIcon Rename24}"
                                   Command="{Binding PlacementTarget.Tag.RenameAlbumCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                   CommandParameter="{Binding}" />
-                        <MenuItem Header="Titelbild zurücksetzen" Icon="{ui:SymbolIcon ImageMultiple24}"
-                                  ToolTip="Wieder das neueste Foto als Titelbild (ein eigenes wählst du in der Galerie: „Als Titelbild des Albums“)"
+                        <MenuItem Header="Titelbild wieder automatisch" Icon="{ui:SymbolIcon ImageMultiple24}"
+                                  ToolTip="Lumora wählt das Titelbild wieder selbst — beste Foto-Güte, bevorzugt mit Personen (ein eigenes: Rechtsklick auf ein Foto › „Als Titelbild für“)"
                                   Command="{Binding PlacementTarget.Tag.ResetCoverCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                   CommandParameter="{Binding}" />
                         <MenuItem Header="Album exportieren…" Icon="{ui:SymbolIcon ArrowExportUp24}"

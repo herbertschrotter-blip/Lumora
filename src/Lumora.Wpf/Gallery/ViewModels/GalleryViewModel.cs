@@ -147,8 +147,10 @@ public sealed partial class GalleryViewModel : ObservableObject
         Lumora.Shell.INavigationService? navigation = null,
         Lumora.Slideshow.ISlideshowService? slideshow = null,
         Lumora.Removal.RemovalActions? removalActions = null,
-        Lumora.Marks.MarkSettingsState? markSettings = null)
+        Lumora.Marks.MarkSettingsState? markSettings = null,
+        Lumora.Services.Rotation.IPhotoRotationService? rotation = null)
     {
+        _rotation = rotation; // Rückgängig für „Drehen“ (ADR-0068, GalleryViewModel.Rotation.cs)
         InitMarks(markSettings); // Schalter „Symbole auf Galerie-Kacheln“ (Mockup 16, GalleryViewModel.Marks.cs)
         _removalActions = removalActions; // „Aus der Bibliothek entfernen“ für fehlende (ADR-0065, GalleryViewModel.MissingFiles.cs)
         _slideshow = slideshow; // Diashow (ADR-0059, GalleryViewModel.Slideshow.cs)
@@ -1335,7 +1337,6 @@ public sealed partial class GalleryViewModel : ObservableObject
     [RelayCommand]
     private Task ClearFolderFilterAsync()
     {
-        // Lokal zurücksetzen — bewusst keine FolderSelectedMessage (der Baum behält seine Auswahl).
         _suppressReload = true;
         try
         {
@@ -1346,6 +1347,12 @@ public sealed partial class GalleryViewModel : ObservableObject
         finally
         {
             _suppressReload = false;
+        }
+
+        // ADR-0068: die Ordnerleiste sitzt jetzt neben der Galerie — sie hebt ihre Auswahl mit auf (Kreuz am Chip)
+        if (HasLibrary)
+        {
+            _messenger.Send(new FolderSelectedMessage(_libraryId, null, true));
         }
 
         return ChangeQueryAsync();
@@ -1623,6 +1630,11 @@ public sealed partial class GalleryViewModel : ObservableObject
     private Task UndoAsync()
         => RunOperationAsync("Rückgängig", async () =>
         {
+            if (await TryUndoRotationAsync())
+            {
+                return; // „Drehen“ war der jüngste Eintrag (ADR-0068, GalleryViewModel.Rotation.cs)
+            }
+
             if (await TryUndoGeoTagAsync())
             {
                 return; // „Ort setzen“ war der jüngste Eintrag (ADR-0050)
@@ -1672,7 +1684,7 @@ public sealed partial class GalleryViewModel : ObservableObject
         try
         {
             var batches = await _fileOps.GetRecentBatchesAsync(UndoBatchWindow); // 50 statt 10: „Datum setzen“-Batches füllen das Fenster (ADR-0046)
-            CanUndo = batches.Any(b => b.CanUndo) || await HasCaptureDateUndoAsync() || await HasGeoTagUndoAsync(); // + „Datum setzen“ (ADR-0046), „Ort setzen“ (ADR-0050)
+            CanUndo = batches.Any(b => b.CanUndo) || await HasCaptureDateUndoAsync() || await HasGeoTagUndoAsync() || await HasRotationUndoAsync(); // + „Datum setzen“ (ADR-0046), „Ort setzen“ (ADR-0050), „Drehen“ (ADR-0068)
         }
         catch (Exception ex)
         {

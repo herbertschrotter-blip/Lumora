@@ -201,6 +201,7 @@ internal static class FaceAssignmentStore
     /// </summary>
     public static List<PersonOverview> ReadPersons(SqliteConnection connection, LibraryScopeInfo scope, int? personId = null)
     {
+        Covers.FaceCoverScoring.Register(connection); // automatisches Titelbild: Gesichts- + Foto-Güte (ADR-0068)
         using var cmd = Command(connection, null, $"""
             SELECT p.Id, p.Name, p.IsHidden,
                 (SELECT COUNT(*) FROM Faces x JOIN Files f ON f.Id = x.FileId
@@ -209,8 +210,9 @@ internal static class FaceAssignmentStore
                     WHERE x.PersonId = p.Id AND x.State = 2 AND f.LibraryId IN ({scope.SqlLibraryIdList})),
                 (SELECT x.Id FROM Faces x JOIN Files f ON f.Id = x.FileId
                     WHERE x.Id = p.CoverFaceId AND x.PersonId = p.Id AND x.State = 2 AND f.LibraryId IN ({scope.SqlLibraryIdList})),
-                (SELECT x.Id FROM Faces x JOIN Files f ON f.Id = x.FileId
-                    WHERE x.PersonId = p.Id AND x.State = 2 AND f.LibraryId IN ({scope.SqlLibraryIdList}) ORDER BY x.Quality DESC, x.Id LIMIT 1),
+                (SELECT x.Id FROM Faces x JOIN Files f ON f.Id = x.FileId LEFT JOIN FileQuality q ON q.FileId = x.FileId
+                    WHERE x.PersonId = p.Id AND x.State = 2 AND f.LibraryId IN ({scope.SqlLibraryIdList})
+                    ORDER BY {Covers.FaceCoverScoring.SqlScore("x", "f", "q")} DESC, x.Id LIMIT 1),
                 (SELECT COUNT(*) FROM Faces x JOIN Files f ON f.Id = x.FileId
                     WHERE x.SuggestedPersonId = p.Id AND x.State = 1 AND f.LibraryId IN ({scope.SqlLibraryIdList})),
                 {PersonDetailsStore.DetailColumns}
@@ -227,6 +229,7 @@ internal static class FaceAssignmentStore
                 reader.GetInt32(0), reader.GetString(1), reader.GetInt32(3), reader.GetInt32(4), cover, reader.GetBoolean(2))
             {
                 Details = PersonDetailsStore.ReadDetails(reader, reader.GetInt32(0), 8), // ADR-0045
+                CoverIsManual = !reader.IsDBNull(5), // ADR-0068: gültiges selbst gewähltes Gesicht
             };
             list.Add(new PersonOverview(summary, reader.GetInt32(7)));
         }

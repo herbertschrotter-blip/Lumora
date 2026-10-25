@@ -736,6 +736,17 @@ public sealed partial class FaceRecognitionService : IFaceRecognitionService, ID
         await NotifyAsync(retrain: false, ct).ConfigureAwait(false);
     }
 
+    /// <summary>ADR-0068: selbst gewähltes Titelbild lösen — die Personen-Seite wählt dann automatisch.</summary>
+    public async Task ClearCoverAsync(int personId, CancellationToken ct = default)
+    {
+        await WriteAsync(silent: false, (connection, tx) =>
+        {
+            RequirePerson(connection, tx, personId);
+            return FaceAssignmentStore.Execute(connection, tx, "UPDATE Persons SET CoverFaceId = NULL WHERE Id = $p;", ("$p", personId));
+        }, ct).ConfigureAwait(false);
+        await NotifyAsync(retrain: false, ct).ConfigureAwait(false);
+    }
+
     // ==== Gesichter zuordnen ==========================================================================================
 
     public Task ConfirmAsync(long faceId, int personId) => ConfirmManyAsync([faceId], personId);

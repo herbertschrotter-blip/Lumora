@@ -15,4 +15,11 @@ public sealed class Folder
     public int? ParentId { get; set; }
     public required string Name { get; set; }
     public DateTime ScannedAt { get; set; }
+
+    /// <summary>
+    /// Selbst gewähltes Titelbild des Ordners (ADR-0068, Migration AddFolderCover); null = Lumora wählt automatisch (beste
+    /// Foto-Güte). Bewusst OHNE Fremdschlüssel (ADD COLUMN ohne Tabellen-Neuaufbau, wie <c>Persons.CoverFaceId</c>): Leser
+    /// zählen den Wert nur, solange die Datei noch in diesem Ordner liegt — sonst gilt wieder „automatisch“.
+    /// </summary>
+    public int? CoverFileId { get; set; }
 }

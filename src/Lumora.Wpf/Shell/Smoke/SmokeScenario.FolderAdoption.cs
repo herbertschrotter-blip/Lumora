@@ -82,7 +82,7 @@ internal sealed partial class SmokeScenario
 
         // (2) Ordnerbaum: „Bewertung für alle Dateien“ (Reise → 5) und „Tags für alle…“ (inhalt)
         _navigation.NavigateTo(NavigationTags.Folders);
-        await WaitUntilAsync(() => _navigation.CurrentTag == NavigationTags.Folders && !_folders.IsLoading, ShortWait, "Ordnerbaum").ConfigureAwait(true);
+        await WaitUntilAsync(() => _navigation.CurrentTag == NavigationTags.Gallery && !_folders.IsLoading, ShortWait, "Ordnerbaum").ConfigureAwait(true);
         await WaitUntilAsync(() => FindFolderNode(inbox) is not null, ShortWait, "Eingang im Ordnerbaum").ConfigureAwait(true);
         var inboxNode = FindFolderNode(inbox)!;
         Check(inboxNode.IsInInbox && inboxNode.RoleLabel == "Eingang", $"Eingangs-Wurzel im Baum: Rolle „{inboxNode.RoleLabel}“, übernehmbar");

@@ -176,6 +176,90 @@ public static class GeoFileWriter
     }
 
     /// <summary>
+    /// ADR-0068: beliebige Änderung des APP1-„Exif“-Segments eines JPEG nach demselben Verfahren wie das GPS (Temp-Datei, Prüfung,
+    /// Ersetzen; Rückgängig über <see cref="Restore"/>) — z. B. die Ausrichtung beim Drehen. <paramref name="build"/> bekommt das
+    /// alte Segment (null = keines) und liefert das neue (null = nichts zu ändern → <see cref="GeoFileWrite.CatalogOnly"/>).
+    /// <paramref name="newModifiedTime"/> bekommt die alte Änderungszeit und liefert die neue (null = Zeitpunkt des Schreibens).
+    /// </summary>
+    public static GeoFileWrite WriteJpegExif(string path, Func<byte[]?, byte[]?> build, Func<DateTime, DateTime?> newModifiedTime, IOwnChangeScope? scope = null)
+    {
+        ArgumentNullException.ThrowIfNull(build);
+        ArgumentNullException.ThrowIfNull(newModifiedTime);
+        EnsureLocal(path);
+        if (!IsJpeg(path))
+        {
+            throw new GeoWriteException("Nur JPEG-Dateien.");
+        }
+
+        DateTime oldModified;
+        long oldSize;
+        byte[]? oldSegment;
+        byte[]? newSegment;
+        JpegExifLocation location;
+        try
+        {
+            var info = new FileInfo(path);
+            if (info.IsReadOnly)
+            {
+                throw new GeoWriteException("Datei ist schreibgeschützt.");
+            }
+
+            oldModified = info.LastWriteTimeUtc;
+            oldSize = info.Length;
+            using var source = OpenRead(path);
+            location = JpegExifGpsWriter.Locate(source) ?? throw new GeoWriteException("Kein lesbares JPEG.");
+            oldSegment = location.Exists ? ReadRange(source, location.Offset, location.Length) : null;
+            newSegment = build(oldSegment);
+        }
+        catch (InvalidDataException ex)
+        {
+            throw new GeoWriteException($"EXIF nicht änderbar: {ex.Message}");
+        }
+        catch (EndOfStreamException)
+        {
+            throw new GeoWriteException("EXIF nicht änderbar: Datei abgeschnitten.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            throw new GeoWriteException(DescribeIo(ex));
+        }
+
+        if (newSegment is null)
+        {
+            return GeoFileWrite.CatalogOnly;
+        }
+
+        ReplaceSegment(path, location.Offset, oldSegment?.Length ?? 0, newSegment, null, scope, verifyGps: false);
+
+        // Ab hier ist die Datei ersetzt: nichts darf mehr werfen.
+        var newModified = DateTime.UtcNow;
+        try
+        {
+            if (newModifiedTime(oldModified) is { } wanted)
+            {
+                File.SetLastWriteTimeUtc(path, wanted);
+            }
+
+            newModified = File.GetLastWriteTimeUtc(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            // Änderungsdatum nicht gesetzt — die Datei ist trotzdem richtig geschrieben.
+        }
+
+        return new GeoFileWrite(
+            GeoTagWriteKind.JpegExif,
+            path,
+            oldSegment ?? [],
+            SHA256.HashData(newSegment),
+            location.Offset,
+            oldModified.Ticks,
+            oldSize,
+            oldSize - (oldSegment?.Length ?? 0) + newSegment.Length,
+            ToUnix(newModified));
+    }
+
+    /// <summary>
     /// Ersetzt <paramref name="oldLength"/> Bytes ab <paramref name="offset"/> durch <paramref name="segment"/> (0 = einfügen,
     /// leeres Segment = entfernen): Temp-Datei neben dem Original, Kopf + Segment + Rest unverändert kopiert, geprüft,
     /// dann eingesetzt. <paramref name="expect"/>: GPS, das die neue Datei haben muss (null = keines).

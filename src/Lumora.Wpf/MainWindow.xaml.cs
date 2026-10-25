@@ -10,7 +10,8 @@ using Wpf.Ui.Controls;
 namespace Lumora;
 
 /// <summary>
-/// Hauptfenster: NavigationView (Bibliotheks-Umschalter, Galerie, Ordner, Personen, Orte, Sortieren, Einstellungen; ADR-0042, ADR-0051)
+/// Hauptfenster: NavigationView (Bibliotheks-Umschalter, Galerie mit Ordnerleiste, Alben, Storys, Personen, Orte, Doppelte,
+/// Sortieren, Einstellungen; ADR-0042, ADR-0051, ADR-0068)
 /// + Statusleiste.
 /// Seiten kommen über den NavigationPageProvider aus DI; Navigation läuft über NavigationView.Navigate(tag),
 /// Klicks werden per SelectionChanged an den NavigationService zurückgemeldet.

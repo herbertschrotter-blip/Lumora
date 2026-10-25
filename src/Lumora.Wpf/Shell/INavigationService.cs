@@ -4,14 +4,18 @@ using System.Collections.Generic;
 namespace Lumora.Shell;
 
 /// <summary>
-/// Tags der Navigationsziele. Seiten der linken Leiste (NavigationViewItem.TargetPageTag in MainWindow.xaml): Galerie,
-/// Ordner, Personen, Orte, Sortieren, Einstellungen. Die übrigen Tags sind Reiter der Einstellungen (ADR-0042) — der
+/// Tags der Navigationsziele. Seiten der linken Leiste (NavigationViewItem.TargetPageTag in MainWindow.xaml): Galerie (mit
+/// Ordnerleiste), Alben, Storys, Personen, Orte, Doppelte, Sortieren, Einstellungen. Die übrigen Tags sind Reiter der Einstellungen (ADR-0042) — der
 /// <see cref="INavigationService"/> öffnet dafür die Einstellungen und wählt den Reiter; <see cref="INavigationService.CurrentTag"/>
 /// ist dann <see cref="Settings"/>, der Reiter steht in <see cref="SettingsSectionState.SelectedSection"/>.
 /// </summary>
 public static class NavigationTags
 {
     public const string Gallery = "gallery";
+    /// <summary>
+    /// Früher Seite „Ordner“; seit 0.4.44 (ADR-0068, Mockup 18) öffnet <see cref="INavigationService.NavigateTo"/> damit die
+    /// Galerie mit offener Ordnerleiste (<see cref="INavigationService.CurrentTag"/> ist dann <see cref="Gallery"/>).
+    /// </summary>
     public const string Folders = "folders";
     public const string Persons = "persons"; // Seite „Personen“ (ADR-0037)
     public const string Places = "places"; // Seite „Orte“ (ADR-0051)

@@ -130,7 +130,7 @@ src/
   Lumora.Wpf/                     # net10.0-windows → alle; App.xaml.cs = Host + DI, MainWindow = NavigationView
     Faces/                            # WicFaceImageLoader (IFaceImageLoader), Einstellungs-Abschnitt Gesichtserkennung
     Duplicates/                       # Seite „Doppelte“ (ADR-0053): DuplicatesViewModel, Gruppen-/Datei-Karten, Vorschaubilder
-    Folders/                          # Ordnerbaum-Seite
+    Folders/                          # Ordnerleiste der Galerie (FolderPane, seit 0.4.44; bis 0.4.37 Ordnerbaum-Seite)
     Gallery/                          # Galerie: Data (GalleryPageSource, .Persons = Personen-Filter/-Suche/-Spalte), ViewModels, Views, Controls, Converters, Services, People (Personen-Filter-Dropdown)
     Library/                          # Bibliotheks-Seite (Namespace Lumora.Libraries)
     Lightbox/                         # LightboxWindow/-ViewModel/-Service, ZoomPanControl (+ Overlay), LibVlcHost, Imaging, Faces (Gesichtsrahmen, Taste F)
@@ -304,6 +304,10 @@ FilesFts           -- FTS5 virtual table (Files.Name, Extension)
   `RecycleFolder` (9), `DeleteFolder` (10), `RemoveFromCatalog` (11) (als int gespeichert).
   Seit 0.4.33 (ADR-0066, keine Migration) auch für „Ausgeschlossene aus der Bibliothek entfernen“ (`ExcludeFromCatalog` (13));
   dazu `MoveFolder` (12) für „Ordner verschieben“ (ohne Abzüge, Pfade/ParentId/RootId der Folders-Zeilen werden nachgezogen).
+- Ordner-Titelbild und Datei-Kopien — seit 0.4.44 (ADR-0068, Migration `AddFolderCover`, nur ADD COLUMN):
+  `Folders.CoverFileId INTEGER NULL` (eigene Wahl, ohne FK; gilt nur, solange die Datei im Ordner liegt und nicht fehlt, sonst
+  automatische Wahl; „Neu aufbauen“ trägt sie über den Ordnerpfad mit). Neue `OperationType`-Werte `Rotate` (14, EXIF-Ausrichtung,
+  alte Bytes in `GeoTagUndo`); `Copy` (Kopieren nach…) wird jetzt protokolliert und ist rückgängig machbar (Kopie in den Papierkorb).
 - Ausschlüsse beim Einlesen — seit 0.4.33 (ADR-0066, keine Migration, nur Settings): `scan.excludedNames` (JSON-Array von
   Ordnernamen für alle Bibliotheken des Katalogs; fehlt der Eintrag, gelten `.thumbs` und `.temp`),
   `scan.excludedFolders.{LibraryId}` (JSON-Array `{"root":LibraryRoots.Id,"path":"relativ zur Wurzel"}`, gehört der Bibliothek,
@@ -482,9 +486,9 @@ Status (Stand 0.2.0): ✅ umgesetzt · 🟡 teilweise · ⬜ offen
 | ✅ | **Ausschlüsse beim Einlesen** | allgemeine Liste (.thumbs, .temp …) + je Bibliothek, Rechtsklick „Ordner ausschließen“, Bestehende nach Rückfrage aus dem Katalog entfernen | Herbert 2026-10-25, ADR-0066, umgesetzt in 0.4.33 |
 | ✅ | **Ordner verschieben** | Reiter Ordner: „Verschieben nach…“ und Ziehen, mit Rückgängig | Herbert 2026-10-25, ADR-0066, umgesetzt in 0.4.33 |
 | ✅ | **Tag- und Kategorie-Symbole** | kleine Marken auf Galerie-Kacheln, in der Lightbox und im Ordnerbaum, Hover mit Namen, Schalter je Ort | Mockup 16 (abgenommen 2026-10-25), umgesetzt 0.4.35 |
-| ⬜ | **Personen-Kacheln, Titelbild, Rechtsklick-Menü** | Chips bestätigt/Vorschläge, „Als Titelbild für“ überall mit automatischer Wahl, Kontextmenü mit Untermenüs | Mockup 17 (abgenommen 2026-10-25), Issue #15 |
-| ⬜ | **Galerie mit Ordnerleiste** | Ordnerbaum als Leiste in der Galerie, Ordner als Filter-Chip, Menüpunkt „Ordner“ entfällt | Mockup 18 (abgenommen 2026-10-25), Issue #24 |
-| ⬜ | **Fotos in andere Programme kopieren** | Ziehen nach außen und Strg+C als Datei-Kopie, nie verschieben, versteckte Bibliothek gesperrt | Herbert 2026-10-25, Issue #25 |
+| ✅ | **Personen-Kacheln, Titelbild, Rechtsklick-Menü** | Chips bestätigt/Vorschläge, „Als Titelbild für“ überall mit automatischer Wahl, Kontextmenü mit Untermenüs | Mockup 17 (abgenommen 2026-10-25), Issue #15, ADR-0068, umgesetzt in 0.4.44 |
+| ✅ | **Galerie mit Ordnerleiste** | Ordnerbaum als Leiste in der Galerie, Ordner als Filter-Chip, Menüpunkt „Ordner“ entfällt | Mockup 18 (abgenommen 2026-10-25), Issue #24, ADR-0068, umgesetzt in 0.4.44 |
+| ✅ | **Fotos in andere Programme kopieren** | Ziehen nach außen und Strg+C als Datei-Kopie, nie verschieben, versteckte Bibliothek gesperrt | Herbert 2026-10-25, Issue #25, ADR-0068, umgesetzt in 0.4.44 |
 | ⬜ | **Welle 7 Android-Begleit-App** | PC stellt Katalog + Vorschaubilder im Heimnetz bereit, Handy zeigt und bewertet | Memory/Plan |
 | ⬜ | **Welle 8 Foto verbessern** | hochskalieren, Gesichter restaurieren, einfärben, entfernen, Zuschneiden/Licht; Ergebnis als neue Datei; Augen-offen/Lächeln als Gütemerkmal | Mockup 13 (abgenommen 2026-10-23) |
 | 🟡 | **Produktivbetrieb** | Katalog-Sicherung vor Migrationen (konsistent, versteckt nur im Container, ohne Sicherung keine Migration), von Hand + Wiederherstellen beim nächsten Start, portabler Modus (`lumora.portable`/`Daten\` neben der EXE, `publish.ps1 -Portable`) für eine getrennte Release-Installation mit frischem Katalog, Datenordner in Info; offen: Sicherung der Fotos (Herberts Entscheidung, README „Produktivbetrieb“) | Issue #6, ADR-0069, umgesetzt in 0.4.40 |

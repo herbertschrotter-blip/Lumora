@@ -38,6 +38,53 @@ public sealed class PersonTileViewModel(PersonOverview overview) : FaceImageTile
 
     public override long? ImageFaceId => Overview.Person.CoverFaceId;
 
+    // ---- Mockup 17 (ADR-0068): Kachel ohne abgeschnittenen Text, Chips, „automatisch gewählt“ ----
+
+    /// <summary>Beziehung als eigene Zeile (leer = keine).</summary>
+    public bool HasRelation => !string.IsNullOrEmpty(RelationName);
+
+    /// <summary>Fotos mit bestätigtem Gesicht.</summary>
+    public int ConfirmedCount => Overview.Person.FileCount;
+
+    /// <summary>Chip „✓ n“ (grün).</summary>
+    public string ConfirmedText => ConfirmedCount == 0 ? "0 Fotos" : ConfirmedCount.ToString("N0", CultureInfo.CurrentCulture);
+
+    public bool HasConfirmed => ConfirmedCount > 0;
+
+    public int SuggestionCount => Overview.SuggestionCount;
+
+    /// <summary>Chip „n“ Vorschläge (gelb, Klick öffnet „Vorschläge“).</summary>
+    public string SuggestionText => SuggestionCount.ToString("N0", CultureInfo.CurrentCulture);
+
+    public bool HasSuggestions => SuggestionCount > 0;
+
+    /// <summary>Titelbild automatisch gewählt (kleines Symbol am Bild).</summary>
+    public bool IsCoverAutomatic => !Overview.Person.CoverIsManual && Overview.Person.CoverFaceId is not null;
+
+    /// <summary>Tooltip der Kachel wie im Mockup.</summary>
+    public string TileToolTip
+    {
+        get
+        {
+            var lines = new List<string> { RelationName is { } relation ? $"{Name} · {relation}" : Name };
+            lines.Add($"✓ {ConfirmedCount.ToString("N0", CultureInfo.CurrentCulture)} bestätigt zugeordnet");
+            if (HasSuggestions)
+            {
+                lines.Add($"{SuggestionText} Vorschläge – Klick auf den Chip öffnet „Vorschläge“");
+            }
+
+            lines.Add(Overview.Person.CoverFaceId is null
+                ? "Titelbild: noch keins"
+                : Overview.Person.CoverIsManual ? "Titelbild: von dir gewählt" : "Titelbild: automatisch (beste Aufnahme)");
+            if (IsHidden)
+            {
+                lines.Add("ausgeblendet");
+            }
+
+            return string.Join(Environment.NewLine, lines);
+        }
+    }
+
     /// <summary>„Schwester · 12 Fotos · 3 Vorschläge“.</summary>
     public string Details
     {

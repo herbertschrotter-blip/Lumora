@@ -29,9 +29,10 @@
         <conv:NullToVisibilityConverter x:Key="NullToVis" />
         <conv:EnumEqualsConverter x:Key="EnumEquals" />
 
-        <!-- Tag-Menü (Kachel-Kontextmenü, Zeilen der Liste, Knopf „Tags“ der Aktionsleiste): Einträge werden beim Öffnen
-             im Code-Behind aus TagMenuEntries gebaut (Häkchen = alle ausgewählten Dateien haben das Tag). -->
-        <ContextMenu x:Key="TagContextMenu" Opened="OnTagMenuOpened" />
+        <!-- Rechtsklick-Menü der Kachel und der Listenzeile (ADR-0068, Mockup 17): beim Öffnen im Code-Behind über
+             PhotoContextMenuBuilder gebaut (gleiche Struktur wie in der Lightbox). Der Knopf „Tags“ der Aktionsleiste hat ein
+             eigenes, schlankes Tag-Menü (OnTagMenuOpened). -->
+        <ContextMenu x:Key="TagContextMenu" Opened="OnPhotoMenuOpened" />
 
         <!-- Rahmenloser Overlay-Button auf der Kachel (Herz) — kein Hover-Chrome über dem Bild -->
         <Style x:Key="TileOverlayButton" TargetType="Button">

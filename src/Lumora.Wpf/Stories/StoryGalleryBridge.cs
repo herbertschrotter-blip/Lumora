@@ -144,6 +144,14 @@ public sealed class StoryGalleryBridge
     /// <summary>Einträge im Kontextmenü der Galerie-Kachel (eine Zeile in <c>GalleryView</c>).</summary>
     public void AddMenuItems(ContextMenu menu, IReadOnlyList<int> selectedIds, int targetFileId)
     {
+        AddMenuItems(menu.Items, selectedIds, targetFileId);
+        menu.Items.Add(new Separator());
+    }
+
+    /// <summary>Wie oben, in ein beliebiges Menü (ADR-0068: Untermenü „Story ▸“ des Rechtsklick-Menüs), ohne Trenner am Ende.</summary>
+    public void AddMenuItems(ItemCollection items, IReadOnlyList<int> selectedIds, int targetFileId)
+    {
+        var menu = new { Items = items };
         var ids = selectedIds.Count > 0 ? selectedIds : [targetFileId];
         if (AddTarget is { } target)
         {
@@ -182,7 +190,6 @@ public sealed class StoryGalleryBridge
             await FillStoriesForFileAsync(show, targetFileId);
         };
         menu.Items.Add(show);
-        menu.Items.Add(new Separator());
     }
 
     /// <summary>Untermenü „In Storys zeigen“: Storys mit dieser Datei (öffnen per Klick).</summary>

@@ -56,6 +56,18 @@ public sealed class ActivityTrackingFileOperationService : IFileOperationService
             r => Batch(r, $"{Files(r.Succeeded)} verschoben", undoable: true));
     }
 
+    /// <summary>ADR-0068: „Kopieren nach…“ — ein Vorgang mit Fortschritt je Datei und Rückgängig.</summary>
+    public Task<FileOperationBatchResult> CopyAsync(IReadOnlyList<int> fileIds, string targetFolderPath, CancellationToken ct = default)
+    {
+        var target = FolderLabel(targetFolderPath);
+        return TrackAsync(
+            new ActivityStartInfo(ActivityKind.FileOperation, "Kopieren", $"nach {target}", UserInitiated: true),
+            fileIds.Count,
+            ct,
+            token => _inner.CopyAsync(fileIds, targetFolderPath, token),
+            r => Batch(r, $"{Files(r.Succeeded)} kopiert", undoable: true));
+    }
+
     public Task<FileOperationBatchResult> RenameAsync(int fileId, string newName, CancellationToken ct = default)
         => TrackAsync(
             new ActivityStartInfo(ActivityKind.FileOperation, "Umbenennen", $"in „{newName}“", UserInitiated: true),

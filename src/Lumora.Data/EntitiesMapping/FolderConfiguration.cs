@@ -16,6 +16,9 @@ internal sealed class FolderConfiguration : IEntityTypeConfiguration<Folder>
         b.Property(x => x.Name).IsRequired();
         b.Property(x => x.ScannedAt).HasConversion(ValueConverters.DateTimeToUnixSeconds);
 
+        // ADR-0068: Titelbild des Ordners ohne Fremdschlüssel (ADD COLUMN, kein Neuaufbau); Leser prüfen „liegt noch im Ordner“
+        b.Property(x => x.CoverFileId);
+
         // Pflicht-Indizes laut PLAN Kap. 4
         b.HasIndex(x => new { x.LibraryId, x.Path })
             .IsUnique()

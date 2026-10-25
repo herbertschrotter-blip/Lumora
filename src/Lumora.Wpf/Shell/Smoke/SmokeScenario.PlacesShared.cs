@@ -53,7 +53,7 @@ internal sealed partial class SmokeScenario
 
         // (7) Ordner-Seite: Filter bleibt, Ordnerauswahl ist seitengebunden
         _navigation.NavigateTo(NavigationTags.Folders);
-        await WaitUntilAsync(() => _navigation.CurrentTag == NavigationTags.Folders && _gallery.ActivePage == GalleryPageKind.Folders && !_gallery.IsLoading,
+        await WaitUntilAsync(() => _navigation.CurrentTag == NavigationTags.Gallery && !_gallery.IsLoading,
             ShortWait, "Ordner-Seite").ConfigureAwait(true);
         Check(_gallery.HasPlaceFilter && _gallery.TotalCount <= groupCount, $"Ordner-Seite behält den Filter ({_gallery.TotalCount} Treffer)");
         _navigation.NavigateTo(NavigationTags.Places);

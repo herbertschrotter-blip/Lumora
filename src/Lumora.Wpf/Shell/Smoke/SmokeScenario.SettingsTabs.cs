@@ -56,7 +56,7 @@ internal sealed partial class SmokeScenario
         {
             var items = main.MainNav.MenuItems.OfType<NavigationViewItem>().Select(i => i.TargetPageTag).ToList();
             var footer = main.MainNav.FooterMenuItems.OfType<NavigationViewItem>().Select(i => i.TargetPageTag).ToList();
-            Check(items.SequenceEqual([NavigationTags.Gallery, NavigationTags.Folders, NavigationTags.Albums /* ADR-0054 */, NavigationTags.Stories /* ADR-0060 */, NavigationTags.Persons, NavigationTags.Places, NavigationTags.Duplicates /* ADR-0053 */, NavigationTags.Sorter]),
+            Check(items.SequenceEqual([NavigationTags.Gallery /* Ordner seit 0.4.44 als Leiste in der Galerie (ADR-0068) */, NavigationTags.Albums /* ADR-0054 */, NavigationTags.Stories /* ADR-0060 */, NavigationTags.Persons, NavigationTags.Places, NavigationTags.Duplicates /* ADR-0053 */, NavigationTags.Sorter]),
                 $"Navigation: {string.Join(", ", items)}");
             Check(footer.SequenceEqual([NavigationTags.Settings]), $"Fußleiste: {string.Join(", ", footer)}");
             Check(main.MainNav.PaneHeader is LibrarySwitcher, "Bibliotheks-Umschalter oben in der Leiste");
@@ -151,7 +151,7 @@ internal sealed partial class SmokeScenario
         // (6) Seite „Ordner“: „Eingang hinzufügen…“ im Kopf. Nur verfügbar prüfen — der Ablauf öffnet die echte
         // Ordnerauswahl der Bibliotheksverwaltung (IDialogService); er ist in NavigationAndSettingsTabsTests mit Fakes abgedeckt.
         _navigation.NavigateTo(NavigationTags.Folders);
-        await WaitUntilAsync(() => _navigation.CurrentTag == NavigationTags.Folders && !_folders.IsLoading, ShortWait, "Ordner-Seite").ConfigureAwait(true);
+        await WaitUntilAsync(() => _navigation.CurrentTag == NavigationTags.Gallery && !_folders.IsLoading, ShortWait, "Ordner-Seite").ConfigureAwait(true);
         Check(_folders.CanShowAddInbox && _folders.AddInboxCommand.CanExecute(null), "„Eingang hinzufügen…“ auf der Ordner-Seite verfügbar");
         await SnapshotAsync("34-ordner-eingang-hinzufuegen").ConfigureAwait(true);
 

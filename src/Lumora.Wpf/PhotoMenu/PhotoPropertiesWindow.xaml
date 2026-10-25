@@ -1,0 +1,78 @@
+<dialogs:AppFluentWindow xmlns:dialogs="clr-namespace:Lumora.Shell.Dialogs"
+        x:Class="Lumora.PhotoMenu.PhotoPropertiesWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:local="clr-namespace:Lumora.PhotoMenu"
+                 Title="Eigenschaften"
+                 Width="520"
+                 Height="640"
+                 MinWidth="420"
+                 MinHeight="360"
+                 ShowInTaskbar="False"
+                 WindowStartupLocation="CenterOwner"
+                 WindowBackdropType="Mica"
+                 ExtendsContentIntoTitleBar="True"
+                 KeyDown="OnKeyDown">
+
+    <!-- „Eigenschaften“ (ADR-0068, Alt+Enter): Datei, Aufnahme, Bibliothek und EXIF einer Datei — nur lesend.
+         Eigenes Fenster (AppFluentWindow), keine Wpf.Ui MessageBox. -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar Grid.Row="0" Title="Eigenschaften" ShowMaximize="False" ShowMinimize="False" />
+
+        <StackPanel Grid.Row="1" Margin="24,4,24,8">
+            <ui:TextBlock FontTypography="Subtitle" Text="{Binding Name}" TextWrapping="Wrap"
+                          AutomationProperties.AutomationId="PropertiesTitle" />
+            <TextBlock Text="{Binding FullPath}" FontSize="12" TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="2" Margin="16,0,8,0" VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding Sections}" Margin="8,0,16,8" AutomationProperties.AutomationId="PropertiesSections">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type local:PropertySection}">
+                        <Border Margin="0,6" Padding="14,10" CornerRadius="8" BorderThickness="1"
+                                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" Margin="0,0,0,6" />
+                                <ItemsControl ItemsSource="{Binding Rows}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type local:PropertyRow}">
+                                            <Grid Margin="0,2">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="150" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding Label}" FontSize="12"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                <TextBox Grid.Column="1" Text="{Binding Value, Mode=OneWay}" IsReadOnly="True"
+                                                         BorderThickness="0" Background="Transparent" Padding="0" FontSize="12"
+                                                         TextWrapping="Wrap"
+                                                         Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <Border Grid.Row="3" Padding="24,12" BorderThickness="0,1,0,0"
+                BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                Background="{DynamicResource SolidBackgroundFillColorBaseBrush}">
+            <ui:Button Content="Schließen" HorizontalAlignment="Right" MinWidth="110" IsCancel="True" IsDefault="True"
+                       Click="OnCloseClick" AutomationProperties.Name="Schließen" />
+        </Border>
+    </Grid>
+</dialogs:AppFluentWindow>

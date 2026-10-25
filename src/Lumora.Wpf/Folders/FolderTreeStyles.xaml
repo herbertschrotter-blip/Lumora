@@ -5,10 +5,10 @@
                     xmlns:local="clr-namespace:Lumora.Folders"
                     xmlns:marks="clr-namespace:Lumora.Marks">
     <!--
-        Knoten des Ordnerbaums (Seite „Ordner“). 0.4.30: der gewählte Ordner ist deutlich erkennbar — Akzent-Balken links
+        Knoten des Ordnerbaums (Ordnerleiste der Galerie, ADR-0068; bis 0.4.37 Seite „Ordner“). 0.4.30: der gewählte Ordner ist deutlich erkennbar — Akzent-Balken links
         (3 px), Akzent-Tönung als Hintergrund, Ordnersymbol in Akzentfarbe, Name halbfett. Nur DynamicResource (hell/dunkel).
         Balken und Tönung sind „Hidden“ statt „Collapsed“, damit die Zeile beim Wählen nicht springt; Tastatur-Fokus und
-        Aufklappen bleiben beim TreeViewItem-Stil (FolderTreePage.xaml).
+        Aufklappen bleiben beim TreeViewItem-Stil (FolderPane.xaml).
     -->
     <shell:NullToVisibilityConverter x:Key="FolderNullToVis" />
 
@@ -60,7 +60,7 @@
                         <Style TargetType="TextBlock">
                             <Setter Property="Text" Value="{Binding FileCount, StringFormat=N0}" />
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding DataContext.IncludeSubfolders, RelativeSource={RelativeSource AncestorType={x:Type local:FolderTreePage}}}" Value="True">
+                                <DataTrigger Binding="{Binding DataContext.IncludeSubfolders, RelativeSource={RelativeSource AncestorType={x:Type local:FolderPane}}}" Value="True">
                                     <Setter Property="Text" Value="{Binding TotalFileCount, StringFormat=N0}" />
                                 </DataTrigger>
                                 <DataTrigger Binding="{Binding IsPlaceholder}" Value="True">

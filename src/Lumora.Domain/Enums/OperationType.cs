@@ -66,4 +66,13 @@ public enum OperationType
     /// (KeptFileId 0); „Rückgängig“ schreibt die Zeilen mit denselben FileIds zurück.
     /// </summary>
     ExcludeFromCatalog = 13,
+
+    // ---- ADR-0068: Drehen ----
+
+    /// <summary>
+    /// Foto um 90° gedreht (ADR-0068): EXIF-Ausrichtung im JPEG neu gesetzt (nur das APP1-Segment, wie beim GPS-Schreiben),
+    /// Maße und Gesichtsrahmen im Katalog mitgedreht. Je Datei eine Operation; alte Bytes stehen in <c>GeoTagUndo</c> (gleicher
+    /// Rückgängig-Speicher wie „Ort setzen“), „Rückgängig“ stellt Datei, Maße und Gesichtsrahmen wieder her.
+    /// </summary>
+    Rotate = 14,
 }

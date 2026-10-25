@@ -1391,6 +1391,9 @@ public sealed partial class LightboxViewModel : ObservableObject, IDisposable
 
     // ----- Hilfen -----
 
+    /// <summary>Statuszeile setzen (Rechtsklick-Menü, Strg+C; ADR-0068).</summary>
+    public void ShowStatusText(string text) => ShowStatus(text);
+
     private void ShowStatus(string text)
     {
         StatusText = text;

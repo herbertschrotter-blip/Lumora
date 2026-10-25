@@ -1,0 +1,62 @@
+<UserControl x:Class="Lumora.Gallery.Views.GalleryPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:shell="clr-namespace:Lumora.Shell"
+             xmlns:local="clr-namespace:Lumora.Gallery.Views"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance local:GalleryFolderPaneState}"
+             d:DesignWidth="1100"
+             d:DesignHeight="700">
+    <!-- Seite „Galerie“ (ADR-0068, Mockup 18): links die ein-/ausklappbare Ordnerleiste (Strg+B, Zustand gemerkt), rechts die
+         Galerie. Ein Ordner wirkt als Filter-Chip „Ordner: …“ und lässt sich mit allen übrigen Filtern kombinieren. -->
+    <UserControl.Resources>
+        <shell:BoolToVisibilityConverter x:Key="BoolToVis" />
+        <shell:BoolToVisibilityConverter x:Key="InvBoolToVis" Invert="True" />
+    </UserControl.Resources>
+
+    <UserControl.InputBindings>
+        <KeyBinding Modifiers="Ctrl" Key="B" Command="{Binding ToggleCommand}" />
+    </UserControl.InputBindings>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- offen: die Leiste -->
+        <ContentControl x:Name="PaneHost"
+                        Grid.Column="0"
+                        Width="{x:Static local:GalleryFolderPaneState.OpenWidth}"
+                        Focusable="False"
+                        Visibility="{Binding IsOpen, Converter={StaticResource BoolToVis}}" />
+
+        <!-- zu: schmale Kante mit Ordner-Symbol -->
+        <Border Grid.Column="0"
+                Width="40"
+                BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                BorderThickness="0,0,1,0"
+                Visibility="{Binding IsOpen, Converter={StaticResource InvBoolToVis}}">
+            <ui:Button Appearance="Transparent"
+                       VerticalAlignment="Top"
+                       HorizontalAlignment="Center"
+                       Margin="0,12,0,0"
+                       Padding="6"
+                       ToolTip="{Binding ToggleToolTip}"
+                       Command="{Binding ToggleCommand}"
+                       AutomationProperties.AutomationId="FolderPaneExpand"
+                       AutomationProperties.Name="Ordnerleiste öffnen">
+                <StackPanel>
+                    <ui:SymbolIcon Symbol="Folder24" FontSize="18" />
+                    <ui:SymbolIcon Symbol="ChevronDoubleRight20" FontSize="12" Margin="0,4,0,0" />
+                </StackPanel>
+            </ui:Button>
+        </Border>
+
+        <!-- Galerie (GalleryView, ViewModel ist Singleton) -->
+        <ContentControl Grid.Column="1" x:Name="GalleryHost" Focusable="False" />
+    </Grid>
+</UserControl>

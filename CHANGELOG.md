@@ -3,6 +3,57 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.4.44] — 2026-10-25
+
+### Feature (ADR-0068) — Galerie mit Ordnerleiste, Titelbild überall, neues Rechtsklick-Menü, Kopieren nach außen (Mockups 17/18)
+- **Galerie mit Ordnerleiste** (#24): Der Ordnerbaum ist eine ein-/ausklappbare Leiste links in der Galerie (**Strg+B**, Zustand
+  gemerkt); der Menüpunkt „Ordner“ entfällt, Sprünge dorthin öffnen die Galerie mit offener Leiste. Alles aus der alten Seite zieht
+  mit um (Baum mit allen Aktionen, Suche, „mit Unterordnern“, Eingang hinzufügen, Ausschlüsse-Hinweis, Ergebnisfeld mit Rückgängig,
+  Alben); „Gesamte Bibliothek“ heißt „Alle Fotos der Bibliothek“. Der Ordner wirkt als Filter-Chip „Ordner: …“ mit Pfad
+  (Breadcrumb, Klick wählt den Elternordner, ✕ hebt ihn auf), kombinierbar mit allen Filtern. Ordner-Menü neu: „Nur diesen Ordner
+  zeigen“, „Diashow“, „Neuer Unterordner…“, „Titelbild des Ordners ▸“, „Alle Fotos taggen / kategorisieren ▸“ (Tags, Kategorie,
+  Bewertung, Favorit, Datum), „Neu einlesen“ nur dieser Ordner samt Unterordnern (`ScanOptions.SubtreePath`). Ziehen unverändert
+  (ohne Taste verknüpfen, Umschalt verschieben).
+- **Nur eine Auswahl-Markierung im Ordnerbaum** (#23): der eigene Akzent-Balken bleibt, die schmale WPF-UI-Marke ist ausgeblendet.
+- **Titelbild überall** (#15): „Als Titelbild für ▸“ in Kachel-, Listen-, Lightbox- und Story-Menü für die Personen im Foto (ihr
+  Gesicht in diesem Foto), Alben und Storys mit dem Foto und seinen Ordner, mit Häkchen und „wieder automatisch“. Automatisch:
+  Personen nach Gesichtsgüte × Frontalität + Foto-Güte, Alben/Storys/Ordner über die Highlight-Auswahl (Fotos mit Personen
+  bevorzugt); eigene Wahl gewinnt immer. Neues Ordner-Titelbild (`Folders.CoverFileId`, Migration `AddFolderCover`).
+- **Personen-Kacheln** (Mockup 17): Name zweizeilig ohne Abschneiden, Beziehung, Chips „✓ n“ (grün) und „n Vorschläge“ (gelb, öffnet
+  den Reiter Vorschläge), Symbol für automatisches Titelbild, Tooltip; in den Details Umschalter „Automatisch / Selbst gewählt“.
+- **Neues Rechtsklick-Menü** für Kachel, Liste, Lightbox und Story mit Untermenüs (Archiv-Einträge oben, Tastenkürzel, Regeln für
+  Mehrfachauswahl; Rechtsklick außerhalb der Auswahl wählt nur dieses Foto). Neu: **Drehen** (nur JPEG, EXIF-Ausrichtung, Rückgängig
+  bytegenau), **Suchen ▸** (gleicher Tag, gleicher Ort, Doppelte, gleiche Personen, ähnliche Motive — als Filter),
+  **Kopieren nach…** (protokolliert, ohne Bewertung/Tags/Personen, Rückgängig), **Exportieren (verkleinert)…** (JPEG außerhalb
+  der Bibliothek, in der Aktivitäts-Anzeige), **Eigenschaften** (Alt+Enter).
+- **Fotos in andere Programme** (#25): Ziehen aus Galerie/Lightbox liefert einen echten Datei-Drop und erlaubt nach außen nur
+  Kopieren; **Strg+C** bzw. Datei ▸ Kopieren legt die Dateien in die Zwischenablage. Fehlende Dateien und Archiv-Einträge werden mit
+  Zahl übersprungen; in der versteckten Bibliothek gesperrt mit Hinweis.
+- **Technik:** Services `Covers/` (`ICoverService`, `FaceCoverScoring` als SQLite-Funktion `lumora_face_cover_score`), `Rotation/`
+  (`PhotoRotationService`, `JpegExifOrientationWriter` über `GeoFileWriter`, `OperationType.Rotate` = 14, alte Bytes in
+  `GeoTagUndo`, Gesichtsrahmen/Landmarken mitgedreht, Vorschaubilder/Ausschnitte verworfen), `Export/` (`PhotoExportService`,
+  WIC-Kodierer im Wpf-Projekt), `Related/` (`RelatedPhotoSearch`), `FileOperationService.Copy` (`CopyAsync` mit Aktivität),
+  `AlbumService` (automatisches Titelbild über die Highlight-Auswahl), `FaceAssignmentStore` (bestes Gesicht), Scan im Teilbaum,
+  `UserDataCarryOver` trägt Ordner-Titelbilder mit. Wpf `PhotoMenu/` (`PhotoContextMenuBuilder`, `PhotoActions`,
+  `ExternalFileTransfer`, `PhotoPropertiesWindow`), `Folders/FolderPane` (ersetzt `FolderTreePage`), `Gallery/Views/GalleryPage`,
+  `GalleryFolderPaneState`, Breadcrumb im `GalleryViewModel`. Migration `AddFolderCover` (nur ADD COLUMN, ohne FK). Logs nur mit Ids.
+- **Tests:** Services 1394 → 1423 (3 übersprungen wie vorher) — Titelbild-Ziele/Setzen/Automatisch/Ordner-Gültigkeit,
+  Gesichts-Wertung, Kopieren mit Rückgängig, Export (Sperre, Übersprungene, Fehler), Drehen (Ausrichtungs-Ring, Segment, LONG in
+  Big Endian, Katalog, Gesichter, Rückgängig, Prüfsumme), „Suchen ▸“, Einlesen im Teilbaum. Wpf 1243 → 1264 (7 übersprungen wie
+  vorher) — Menü-Gliederung, Mehrfachauswahl, Sperre in der versteckten Sitzung, Datei-Drop/Zwischenablage, Personen-Kacheln und Chips,
+  Ordnerleiste (Strg+B, gemerkt), Ordner-Chip/Breadcrumb/Kreuz.
+- **Rauchtest:** 52 von 53 Schritten grün, 0 Binding-Fehler (rot nur „Story-Seite … unter Angeheftet“, ebenso schon im
+  Basis-Lauf eines anderen Worktrees auf 0.4.37); neue Schritte „Personen-Kacheln und Titelbild“, „Rechtsklick-Menü und
+  Ordnerleiste“, „Fotos nach außen“ (Screenshots `27-personen-kacheln`, `28-kontextmenue`, `29-ordnerleiste` hell/dunkel) und
+  Sperre in der versteckten Bibliothek; bestehende Schritte auf die Ordnerleiste umgestellt.
+
+### Offen
+- Automatisches Album-Titelbild läuft je Album über die Highlight-Auswahl (bis 400 Kandidaten) — bei sehr vielen Alben ggf.
+  zwischenspeichern.
+- Hover-Vorschau des Ordner-Titelbilds im Baum, Tastenkürzel fürs Drehen und Drehen anderer Formate als JPEG sind nicht umgesetzt.
+- Scheitert beim Rückgängig des Drehens das Katalog-Schreiben, sind die Dateien schon zurück (Fehlermeldung, „Neu einlesen“ holt die
+  Maße, Gesichtsrahmen bleiben bis zur nächsten Analyse gedreht).
+
 ## [0.4.43] — 2026-10-25
 
 ### Fix — Zusperren nach Untätigkeit: zwei gleichzeitige Prüfungen

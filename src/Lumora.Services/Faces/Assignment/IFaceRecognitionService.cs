@@ -81,6 +81,10 @@ public interface IFaceRecognitionService
     /// <summary>Titelbild der Person (muss ein bestätigtes Gesicht der Person sein).</summary>
     Task SetCoverAsync(int personId, long faceId, CancellationToken ct = default);
 
+    /// <summary>Titelbild wieder automatisch wählen lassen (ADR-0068: bestes Gesicht nach Gesichts- und Foto-Güte).</summary>
+    Task ClearCoverAsync(int personId, CancellationToken ct = default)
+        => throw new NotSupportedException("Titelbild zurücksetzen wird nicht unterstützt.");
+
     /// <summary>Dateien der Gesichter für die Lightbox (in Eingabe-Reihenfolge, je Datei einmal, fehlende weggelassen).</summary>
     Task<IReadOnlyList<FaceFileInfo>> GetFilesAsync(IReadOnlyList<int> fileIds, CancellationToken ct = default);
 

@@ -6,7 +6,7 @@ namespace Lumora.Services.Scanning;
 /// <c>PRAGMA defer_foreign_keys</c>) und über die Zuordnung alt → neu umgesetzt. <c>FolderLinks</c> hängen zusätzlich an
 /// den Ordnern, die der Neuscan ebenfalls neu anlegt: sie werden mit dem Ordnerpfad gesichert (die Kaskade löscht sie mit
 /// den alten Zeilen) und über Pfad (Ordner) + Zuordnung (Datei) neu geschrieben. Titelbilder (<c>Albums.CoverFileId</c>,
-/// ON DELETE SET NULL) werden ebenso gesichert. Was keine neue Datei bzw. keinen Ordner mehr hat, fällt weg.
+/// ON DELETE SET NULL) und Ordner-Titelbilder (<c>Folders.CoverFileId</c>, ADR-0068, über den Ordnerpfad) werden ebenso gesichert. Was keine neue Datei bzw. keinen Ordner mehr hat, fällt weg.
 /// </summary>
 public sealed partial class UserDataCarryOver
 {
@@ -26,6 +26,13 @@ public sealed partial class UserDataCarryOver
             WHERE l.FileId IN (SELECT OldFileId FROM temp.pv_carry_files);
         INSERT INTO temp.pv_carry_covers(AlbumId, OldFileId)
             SELECT Id, CoverFileId FROM Albums WHERE CoverFileId IN (SELECT OldFileId FROM temp.pv_carry_files);
+        DROP TABLE IF EXISTS temp.pv_carry_foldercovers;
+        CREATE TEMP TABLE pv_carry_foldercovers(
+            FolderKey TEXT NOT NULL PRIMARY KEY,
+            OldFileId INTEGER NOT NULL);
+        INSERT OR IGNORE INTO temp.pv_carry_foldercovers(FolderKey, OldFileId)
+            SELECT pv_casefold(d.Path), d.CoverFileId FROM Folders d
+            WHERE d.LibraryId = $lib AND d.CoverFileId IN (SELECT OldFileId FROM temp.pv_carry_files);
         UPDATE AlbumItems SET FileId = -FileId WHERE FileId IN (SELECT OldFileId FROM temp.pv_carry_files);
         DROP TABLE IF EXISTS temp.pv_carry_undo;
         CREATE TEMP TABLE pv_carry_undo(
@@ -57,6 +64,11 @@ public sealed partial class UserDataCarryOver
         UPDATE Albums SET CoverFileId = m.NewFileId
             FROM temp.pv_carry_covers c CROSS JOIN temp.pv_carry_map m ON m.OldFileId = c.OldFileId
             WHERE Albums.Id = c.AlbumId;
+        UPDATE Folders SET CoverFileId = m.NewFileId
+            FROM temp.pv_carry_foldercovers c
+            CROSS JOIN temp.pv_carry_map m ON m.OldFileId = c.OldFileId
+            CROSS JOIN temp.pv_carry_folders nf ON nf.FolderKey = c.FolderKey
+            WHERE Folders.Id = nf.FolderId;
         """;
 
     private void ParkAlbums() => Execute(_connection, _transaction, ParkAlbumsSql, _libraryId);

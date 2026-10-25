@@ -28,6 +28,10 @@ public static class GalleryServiceCollectionExtensions
         services.TryAddSingleton<ISharedGalleryFilter, SharedGalleryFilter>(); // EIN Filter für Galerie, Ordner, Orte (ADR-0055)
         services.AddSingleton<GalleryViewModel>();
         services.AddTransient<GalleryView>();
+        // ---- ADR-0068 (Mockup 18): Galerie-Seite mit Ordnerleiste statt eigener Seite „Ordner“ ----
+        services.AddSingleton<GalleryFolderPaneState>();
+        services.AddSingleton<Lumora.Folders.FolderPane>();
+        services.AddSingleton<GalleryPage>();
         services.TryAddSingleton<IGalleryDialogService, GalleryDialogService>();
         services.TryAddSingleton<IFolderPickerService, FolderPickerService>();
         services.AddGalleryArchives();

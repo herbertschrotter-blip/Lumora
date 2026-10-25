@@ -107,6 +107,12 @@ public sealed record ScanOptions
     /// nicht, neue Dateien dort bleiben draußen. Ihre Benutzerdaten trägt <see cref="UserDataCarryOver"/> wie bei allen anderen mit.
     /// </summary>
     public bool KeepCatalogedInExcludedFolders { get; init; }
+
+    /// <summary>
+    /// Incremental: nur dieser Ordner samt Unterordnern (ADR-0068, Ordnerleiste › „Neu einlesen“). Dateien außerhalb bleiben
+    /// unberührt (weder neu noch „fehlt“); null = ganze Bibliothek.
+    /// </summary>
+    public string? SubtreePath { get; init; }
 }
 
 /// <summary>

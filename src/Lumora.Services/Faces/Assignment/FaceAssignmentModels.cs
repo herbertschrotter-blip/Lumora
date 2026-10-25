@@ -33,7 +33,7 @@ public sealed record FacePersonInfo(
 /// </summary>
 /// <param name="FaceCount">Bestätigte Gesichter der Person in der aktiven Bibliothek.</param>
 /// <param name="FileCount">Fotos mit mindestens einem bestätigten Gesicht der Person.</param>
-/// <param name="CoverFaceId">Titelbild: gesetztes Gesicht, sonst das bestätigte Gesicht mit der besten Qualität; null ohne Gesichter.</param>
+/// <param name="CoverFaceId">Titelbild: gesetztes Gesicht, sonst das beste bestätigte Gesicht (Gesichts- und Foto-Güte, ADR-0068); null ohne Gesichter.</param>
 /// <param name="IsHidden">In Listen ausgeblendet.</param>
 public sealed record PersonSummary(int Id, string Name, int FaceCount, int FileCount, long? CoverFaceId, bool IsHidden)
 {
@@ -42,6 +42,9 @@ public sealed record PersonSummary(int Id, string Name, int FaceCount, int FileC
     /// Anzeigename daraus. Null nur bei Testdaten ohne Details.
     /// </summary>
     public PersonDetails? Details { get; init; }
+
+    /// <summary>Titelbild selbst gewählt (<c>Persons.CoverFaceId</c> gültig); false = automatisch gewählt (ADR-0068).</summary>
+    public bool CoverIsManual { get; init; }
 
     /// <summary>Suchbegriffe (Anzeigename, Vor-/Nachname, Rufname, Beziehung).</summary>
     public string SearchText => Details?.SearchText ?? Name;

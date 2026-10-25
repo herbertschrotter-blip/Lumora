@@ -171,6 +171,12 @@ public sealed class ScanService : IScanService
         {
             ct.ThrowIfCancellationRequested();
 
+            // ADR-0068: „Neu einlesen“ eines Ordners — nur die Wurzel, unter der er liegt
+            if (options.SubtreePath is { } subtree && !IncrementalScanRunner.IsUnder(subtree, root.Path))
+            {
+                continue;
+            }
+
             // Vorbedingung je Wurzel: erreichbar (Timeout lokal 1 s, UNC 3 s) — sonst keine Katalogänderung für sie
             if (!await RootAvailabilityProbe.IsAvailableAsync(root.Path, ct).ConfigureAwait(false))
             {

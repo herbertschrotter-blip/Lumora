@@ -15,13 +15,16 @@ public sealed class NavigationService : INavigationService
 {
     private readonly ILogger<NavigationService> _logger;
     private readonly SettingsSectionState _sections;
+    private readonly Gallery.Views.GalleryFolderPaneState? _folderPane;
     private Func<string, bool>? _navigate;
     private string? _pendingTag;
 
-    public NavigationService(ILogger<NavigationService> logger, SettingsSectionState sections)
+    /// <param name="folderPane">Ordnerleiste der Galerie (ADR-0068): <see cref="NavigationTags.Folders"/> öffnet sie in der Galerie.</param>
+    public NavigationService(ILogger<NavigationService> logger, SettingsSectionState sections, Gallery.Views.GalleryFolderPaneState? folderPane = null)
     {
         _logger = logger;
         _sections = sections;
+        _folderPane = folderPane;
     }
 
     public string? CurrentTag { get; private set; }
@@ -46,6 +49,13 @@ public sealed class NavigationService : INavigationService
         {
             _ = dispatcher.InvokeAsync(() => NavigateTo(tag));
             return;
+        }
+
+        // ADR-0068: die Seite „Ordner“ gibt es nicht mehr — Galerie mit offener Ordnerleiste
+        if (string.Equals(tag, NavigationTags.Folders, StringComparison.Ordinal))
+        {
+            _folderPane?.Open();
+            tag = NavigationTags.Gallery;
         }
 
         // Reiter der Einstellungen: Reiter wählen, dann die Einstellungen öffnen (ADR-0042)

@@ -18,8 +18,11 @@ public partial class PersonsPage : UserControl
 {
     private readonly PersonsViewModel _viewModel;
 
-    public PersonsPage(PersonsViewModel viewModel)
+    private readonly Lumora.PhotoMenu.PhotoActions? _photoActions;
+
+    public PersonsPage(PersonsViewModel viewModel, Lumora.PhotoMenu.PhotoActions? photoActions = null)
     {
+        _photoActions = photoActions; // „Als Titelbild für ▸“ auf Gesichtern (ADR-0068)
         _viewModel = viewModel;
         InitializeComponent();
         DataContext = viewModel;
@@ -51,7 +54,8 @@ public partial class PersonsPage : UserControl
 
     private void OnOpenTileClick(object sender, MouseButtonEventArgs e)
     {
-        if (sender is ListBoxItem { DataContext: var data })
+        // Chips der Kachel (Mockup 17: Vorschläge-Chip) behalten ihren eigenen Klick
+        if (sender is ListBoxItem { DataContext: var data } item && !IsInsideButton(e.OriginalSource as DependencyObject, item))
         {
             Open(data);
         }
@@ -99,6 +103,22 @@ public partial class PersonsPage : UserControl
 
         item.Focus();
         e.Handled = true;
+    }
+
+    /// <summary>Rechtsklick auf ein Gesicht › „Als Titelbild für ▸“ (ADR-0068): Ziele des Fotos, zu dem das Gesicht gehört.</summary>
+    private async void OnFaceCoverSubmenuOpened(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { DataContext: FaceTileViewModel tile } menu || !ReferenceEquals(e.OriginalSource, menu) || _photoActions is null)
+        {
+            return;
+        }
+
+        var host = new Lumora.PhotoMenu.PhotoMenuHost
+        {
+            Owner = () => Window.GetWindow(this),
+            ShowStatus = text => _viewModel.ShowStatusMessage(text),
+        };
+        await Lumora.PhotoMenu.PhotoContextMenuBuilder.FillCoversAsync(menu, tile.FileId, host, _photoActions).ConfigureAwait(true);
     }
 
     /// <summary>Kontextmenü einer Gruppenkachel: „Ganze Gruppe ignorieren…“ (ADR-0040).</summary>

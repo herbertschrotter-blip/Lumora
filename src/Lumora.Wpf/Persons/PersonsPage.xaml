@@ -57,16 +57,44 @@
             <EventSetter Event="KeyDown" Handler="OnFaceTileKeyDown" />
         </Style>
 
+        <!-- Mockup 17: Personen-Kacheln 248 hoch (Name bis zwei Zeilen, Beziehung, Chips), Gruppen bleiben 196 -->
         <ItemsPanelTemplate x:Key="PersonPanel">
+            <gallery:VirtualizingTilePanel ItemWidth="160" ItemHeight="248" />
+        </ItemsPanelTemplate>
+        <ItemsPanelTemplate x:Key="GroupPanel">
             <gallery:VirtualizingTilePanel ItemWidth="160" ItemHeight="196" />
         </ItemsPanelTemplate>
         <ItemsPanelTemplate x:Key="FacePanel">
             <gallery:VirtualizingTilePanel ItemWidth="138" ItemHeight="176" />
         </ItemsPanelTemplate>
 
-        <!-- Personen-Kachel: Titelbild, Name, „12 Fotos · 3 Vorschläge“ -->
+        <!-- Chip auf der Personen-Kachel (Mockup 17): eigener, flacher Knopf ohne Hover-Rahmen -->
+        <Style x:Key="PersonChipButton" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Chip" CornerRadius="9" Padding="7,1" Margin="2,0"
+                                Background="{DynamicResource SystemFillColorCautionBackgroundBrush}"
+                                BorderThickness="1" BorderBrush="{DynamicResource SystemFillColorCautionBrush}">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chip" Property="BorderThickness" Value="1.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Personen-Kachel (ADR-0068, Mockup 17): Titelbild (kleines Symbol = automatisch gewählt), Name bis zwei Zeilen,
+             Beziehung, Chips „✓ n“ (bestätigt, grün) und „n“ Vorschläge (gelb, Klick öffnet „Vorschläge“). Die Kachel ist so hoch,
+             dass nichts abgeschnitten wird (bis 0.4.37: 196 px Zeile bei ~203 px Inhalt → Text unten abgeschnitten). -->
         <DataTemplate x:Key="PersonTile" DataType="{x:Type vm:PersonTileViewModel}">
-            <StackPanel Margin="8" Cursor="Hand">
+            <StackPanel Margin="8,8,8,4" Cursor="Hand" Background="Transparent" ToolTip="{Binding TileToolTip}">
                 <Grid Width="130" Height="130">
                     <Border CornerRadius="65" Background="{DynamicResource SubtleFillColorSecondaryBrush}">
                         <ui:SymbolIcon Symbol="Person24" FontSize="48" HorizontalAlignment="Center" VerticalAlignment="Center"
@@ -80,10 +108,49 @@
                             <EllipseGeometry Center="65,65" RadiusX="65" RadiusY="65" />
                         </Image.Clip>
                     </Image>
+                    <!-- Titelbild automatisch gewählt -->
+                    <Border Width="26" Height="26" CornerRadius="13" Margin="0,0,6,6"
+                            HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                            Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                            ToolTip="Titelbild automatisch gewählt"
+                            AutomationProperties.Name="Titelbild automatisch gewählt"
+                            Visibility="{Binding IsCoverAutomatic, Converter={StaticResource BoolToVis}}">
+                        <ui:SymbolIcon Symbol="Sparkle16" FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                    </Border>
                 </Grid>
-                <TextBlock Margin="0,8,0,0" Text="{Binding Name}" FontWeight="SemiBold" TextAlignment="Center" TextTrimming="CharacterEllipsis" />
-                <TextBlock Text="{Binding Details}" FontSize="11" TextAlignment="Center" TextTrimming="CharacterEllipsis"
-                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                <TextBlock Margin="0,8,0,0" Text="{Binding Name}" FontWeight="SemiBold" TextAlignment="Center"
+                           TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="38"
+                           LineHeight="19" LineStackingStrategy="BlockLineHeight" />
+                <TextBlock Text="{Binding RelationName}" FontSize="11" TextAlignment="Center" TextTrimming="CharacterEllipsis"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                           Visibility="{Binding HasRelation, Converter={StaticResource BoolToVis}}" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,4,0,0">
+                    <Border CornerRadius="9" Padding="7,1" Margin="2,0"
+                            Background="{DynamicResource SystemFillColorSuccessBackgroundBrush}"
+                            BorderThickness="1" BorderBrush="{DynamicResource SystemFillColorSuccessBrush}"
+                            AutomationProperties.Name="Bestätigt">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="Checkmark16" FontSize="10" VerticalAlignment="Center" Margin="0,0,3,0"
+                                           Foreground="{DynamicResource SystemFillColorSuccessBrush}"
+                                           Visibility="{Binding HasConfirmed, Converter={StaticResource BoolToVis}}" />
+                            <TextBlock Text="{Binding ConfirmedText}" FontSize="11" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+                    <Button Style="{StaticResource PersonChipButton}"
+                            Command="{Binding DataContext.OpenPersonSuggestionsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                            CommandParameter="{Binding}"
+                            ToolTip="Vorschläge prüfen"
+                            AutomationProperties.Name="Vorschläge"
+                            Visibility="{Binding HasSuggestions, Converter={StaticResource BoolToVis}}">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="PersonQuestionMark16" FontSize="10" VerticalAlignment="Center" Margin="0,0,3,0"
+                                           Foreground="{DynamicResource SystemFillColorCautionBrush}" />
+                            <TextBlock Text="{Binding SuggestionText}" FontSize="11" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
             </StackPanel>
         </DataTemplate>
 
@@ -117,7 +184,16 @@
 
         <!-- Gesichts-Kachel: Ausschnitt, Score, Auswahl-Häkchen, Ausreißer-Markierung, bei Vorschlägen ✓/✗ -->
         <DataTemplate x:Key="FaceTile" DataType="{x:Type vm:FaceTileViewModel}">
-            <Border x:Name="Outer" CornerRadius="5" BorderThickness="3" BorderBrush="Transparent" Padding="4">
+            <Border x:Name="Outer" CornerRadius="5" BorderThickness="3" BorderBrush="Transparent" Padding="4" Background="Transparent">
+                <!-- ADR-0068: Rechtsklick auf ein Gesicht › „Als Titelbild für ▸“ (Personen im Foto, Alben, Storys, Ordner) -->
+                <Border.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="Als Titelbild für" Icon="{ui:SymbolIcon ImageMultiple24}" SubmenuOpened="OnFaceCoverSubmenuOpened"
+                                  AutomationProperties.Name="Als Titelbild für">
+                            <MenuItem Header="Wird geladen…" IsEnabled="False" />
+                        </MenuItem>
+                    </ContextMenu>
+                </Border.ContextMenu>
                 <StackPanel>
                     <Grid Width="118" Height="118">
                         <Border CornerRadius="4" Background="{DynamicResource SubtleFillColorSecondaryBrush}">
@@ -184,7 +260,7 @@
             <Setter Property="ItemsPanel">
                 <Setter.Value>
                     <ItemsPanelTemplate>
-                        <WrapPanel ItemWidth="160" ItemHeight="196" />
+                        <WrapPanel ItemWidth="160" ItemHeight="248" />
                     </ItemsPanelTemplate>
                 </Setter.Value>
             </Setter>
@@ -336,7 +412,7 @@
             <controls:TileListBox Grid.Row="3" x:Name="GroupsList" Style="{StaticResource ListStyle}"
                                   AutomationProperties.AutomationId="GroupsList" AutomationProperties.Name="Unbenannte Gruppen"
                                   ItemsSource="{Binding Groups}" ItemTemplate="{StaticResource GroupTile}"
-                                  ItemContainerStyle="{StaticResource OpenTileContainer}" ItemsPanel="{StaticResource PersonPanel}"
+                                  ItemContainerStyle="{StaticResource OpenTileContainer}" ItemsPanel="{StaticResource GroupPanel}"
                                   gallery:VirtualizingTilePanel.VisibleRangeChanged="OnVisibleRangeChanged" />
         </Grid>
 
@@ -361,6 +437,22 @@
                                AutomationProperties.AutomationId="PersonInfo"
                                Visibility="{Binding PersonInfoText, Converter={StaticResource NullToVis}}" />
                     <TextBlock Text="{Binding PersonDetails}" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    <!-- Mockup 17: Titelbild „Automatisch / Selbst gewählt“ (ADR-0068) -->
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                        <TextBlock Text="Titelbild:" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <RadioButton GroupName="PersonCover" Content="Automatisch" Margin="0,0,4,0" MinWidth="0"
+                                     IsChecked="{Binding IsCoverAutomatic, Mode=OneWay}"
+                                     Command="{Binding SetCoverAutomaticCommand}"
+                                     AutomationProperties.AutomationId="PersonCoverAutomatic" />
+                        <RadioButton GroupName="PersonCover" Content="Selbst gewählt" Margin="0,0,12,0" MinWidth="0"
+                                     IsChecked="{Binding IsCoverManual, Mode=OneWay}"
+                                     Command="{Binding SetCoverManualCommand}"
+                                     AutomationProperties.AutomationId="PersonCoverManual" />
+                        <TextBlock Text="{Binding CoverModeText}" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap"
+                                   AutomationProperties.AutomationId="PersonCoverMode"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
                 </StackPanel>
             </DockPanel>
             <TabControl Grid.Row="1" SelectedIndex="{Binding DetailTab}" Background="Transparent">

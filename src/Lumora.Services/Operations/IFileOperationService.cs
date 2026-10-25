@@ -144,6 +144,16 @@ public interface IFileOperationService
     /// </summary>
     Task<FolderOperationResult> MoveFolderAsync(int folderId, string targetFolderPath, CancellationToken ct = default)
         => throw new NotSupportedException("Ordner verschieben wird nicht unterstützt.");
+
+    // ---- ADR-0068: Kopieren nach… (FileOperationService.Copy.cs) ----
+
+    /// <summary>
+    /// Echte Kopien in einen Zielordner (Copy-Batch). Ziel unter einer Wurzel der Bibliothek der Datei → neue Katalogzeile
+    /// (neue FileId) ohne Sterne, Favorit, Tags, Kategorien, Personen, Alben der Vorlage; außerhalb kein Katalog. Gleichnamige
+    /// Datei im Ziel → „Name (2).ext“. Rückgängig machbar (Kopie in den Papierkorb, Katalogzeile weg). Standard: nicht unterstützt.
+    /// </summary>
+    Task<FileOperationBatchResult> CopyAsync(IReadOnlyList<int> fileIds, string targetFolderPath, CancellationToken ct = default)
+        => throw new NotSupportedException("Kopieren wird nicht unterstützt.");
 }
 
 /// <summary>Ergebnis von <see cref="IFileOperationService.RemoveExcludedAsync"/> (ADR-0066).</summary>

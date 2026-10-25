@@ -33,7 +33,11 @@ public sealed class AlbumService : IAlbumService, IDisposable
     private readonly IMessenger _messenger;
     private readonly ISmartAlbumEvaluator? _evaluator;
     private readonly ICatalogStoragePaths? _catalog;
+    private readonly Quality.IHighlightSelector? _highlights; // ADR-0068: automatisches Titelbild = höchste Foto-Güte
     private readonly SemaphoreSlim _writeLock = new(1, 1);
+
+    /// <summary>Höchstens so viele Fotos eines Albums gehen in die automatische Titelbild-Wahl (neueste zuerst, ADR-0068).</summary>
+    public const int MaxCoverCandidates = 400;
 
     /// <param name="evaluator">Auswerter der intelligenten Alben (Wpf); ohne kennen sie keine Dateien.</param>
     /// <param name="catalog">Katalog-Sitzung: in einer versteckten Bibliothek ist Exportieren gesperrt (ADR-0049).</param>
@@ -43,8 +47,10 @@ public sealed class AlbumService : IAlbumService, IDisposable
         IMessenger? messenger = null,
         ILibraryScope? scope = null,
         ISmartAlbumEvaluator? evaluator = null,
-        ICatalogStoragePaths? catalog = null)
+        ICatalogStoragePaths? catalog = null,
+        Quality.IHighlightSelector? highlights = null)
     {
+        _highlights = highlights;
         _factory = factory;
         _logger = logger;
         _messenger = messenger ?? WeakReferenceMessenger.Default;
@@ -586,6 +592,7 @@ public sealed class AlbumService : IAlbumService, IDisposable
         var filter = row.Kind == AlbumKind.Smart ? SmartAlbumFilter.FromJson(row.FilterJson) : null;
         int? count = null;
         int? firstFileId = null;
+        IReadOnlyList<int> candidates = [];
         if (!scope.HasLibrary)
         {
             count = 0;
@@ -600,14 +607,36 @@ public sealed class AlbumService : IAlbumService, IDisposable
                     WHERE ai.AlbumId = $a AND f.LibraryId IN ({scope.SqlLibraryIdList});
                     SELECT f.Id FROM AlbumItems ai CROSS JOIN Files f ON f.Id = ai.FileId
                     WHERE ai.AlbumId = $a AND f.LibraryId IN ({scope.SqlLibraryIdList}) AND f.MediaType <> 2
-                    ORDER BY {CaptureDateSortSql.SortKey} DESC, f.Id DESC LIMIT 1;
+                    ORDER BY {CaptureDateSortSql.SortKey} DESC, f.Id DESC LIMIT {MaxCoverCandidates};
                     """;
                 cmd.Parameters.AddWithValue("$a", row.Id);
                 using var reader = cmd.ExecuteReader();
                 var n = reader.Read() ? reader.GetInt32(0) : 0;
-                int? first = reader.NextResult() && reader.Read() ? reader.GetInt32(0) : null;
-                return ((int?)n, first);
+                var ids = new List<int>();
+                if (reader.NextResult())
+                {
+                    while (reader.Read())
+                    {
+                        ids.Add(reader.GetInt32(0));
+                    }
+                }
+
+                candidates = ids;
+                return ((int?)n, ids.Count > 0 ? ids[0] : (int?)null);
             }, ct).ConfigureAwait(false);
+
+            // ADR-0068: ohne eigenes Titelbild die höchste Foto-Güte (bevorzugt mit Personen), sonst das neueste Foto
+            if (row.CoverFileId is null && _highlights is not null && candidates.Count > 1)
+            {
+                try
+                {
+                    firstFileId = await _highlights.PickCoverAsync(candidates, ct).ConfigureAwait(false) ?? firstFileId;
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogDebug(ex, "Album {Id}: automatisches Titelbild nicht wählbar — neuestes Foto", row.Id);
+                }
+            }
         }
         else if (filter is not null && _evaluator is not null && evaluateSmart)
         {

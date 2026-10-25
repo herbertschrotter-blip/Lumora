@@ -96,6 +96,47 @@
                         </StackPanel>
                     </Border>
                 </StackPanel>
+                <!-- Pfad des Ordner-Filters (ADR-0068, Mockup 18): anklickbar, zieht die Ordnerleiste nach -->
+                <ItemsControl Margin="0,4,0,0"
+                              ItemsSource="{Binding FolderBreadcrumb}"
+                              Focusable="False"
+                              AutomationProperties.AutomationId="GalleryFolderBreadcrumb"
+                              Visibility="{Binding HasFolderFilter, Converter={StaticResource BoolToVis}}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:FolderCrumb}">
+                            <StackPanel Orientation="Horizontal">
+                                <Button Style="{StaticResource ChipButton}"
+                                        Padding="2,0"
+                                        Command="{Binding DataContext.OpenBreadcrumbCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                        CommandParameter="{Binding}"
+                                        ToolTip="Diesen Ordner zeigen"
+                                        AutomationProperties.Name="{Binding Name}">
+                                    <TextBlock Text="{Binding Name}" FontSize="12">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsLast}" Value="True">
+                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Button>
+                                <ui:SymbolIcon Symbol="ChevronRight16" FontSize="10" Margin="2,0" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                               Visibility="{Binding IsLast, Converter={StaticResource InverseBoolToVis}}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
                 <!-- Ordner-Verknüpfungen (ADR-0054): „mit Verknüpfungen“ / „nur echte Dateien“, Zähler — nur in Ordnern mit Verknüpfungen -->
                 <albums:FolderLinksHeader Margin="0,6,0,0" HorizontalAlignment="Left"
                                           Visibility="{Binding ShowFolderLinksHeader, Converter={StaticResource BoolToVis}}" />

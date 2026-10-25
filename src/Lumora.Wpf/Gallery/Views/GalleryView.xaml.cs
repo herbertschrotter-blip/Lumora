@@ -19,8 +19,8 @@ namespace Lumora.Gallery.Views;
 /// <summary>
 /// Galerie-View. Code-Behind enthält nur UI-Glue (Owner-Window, Enter/Doppelklick auf den
 /// fokussierten Container); alle Fachlogik liegt im <see cref="GalleryViewModel"/>.
-/// Die View existiert zweimal (Galerie-Seite und rechte Hälfte der Ordner-Seite) auf demselben
-/// Singleton-ViewModel; den Lightbox-Owner liefert deshalb immer die zuletzt geladene Instanz.
+/// Seit 0.4.44 steckt sie rechts in der Galerie-Seite neben der Ordnerleiste (ADR-0068); den Lightbox-Owner liefert die
+/// zuletzt geladene Instanz.
 /// </summary>
 public partial class GalleryView : UserControl
 {
@@ -33,8 +33,14 @@ public partial class GalleryView : UserControl
     /// <summary>Kachel bzw. Listenzeile, auf der das Kontextmenü geöffnet wurde (null beim Knopf „Tags“ der Aktionsleiste).</summary>
     private GalleryItem? _menuTarget;
 
-    public GalleryView(GalleryViewModel viewModel, INavigationService navigation, ILogger<GalleryView> logger, Lumora.Stories.StoryGalleryBridge? stories = null)
+    public GalleryView(
+        GalleryViewModel viewModel,
+        INavigationService navigation,
+        ILogger<GalleryView> logger,
+        Lumora.Stories.StoryGalleryBridge? stories = null,
+        Lumora.PhotoMenu.PhotoActions? photoActions = null)
     {
+        _photoActions = photoActions; // Rechtsklick-Menü, Strg+C, Alt+Enter (ADR-0068, GalleryView.PhotoMenu.cs)
         _viewModel = viewModel;
         _navigation = navigation;
         _logger = logger;
@@ -68,6 +74,7 @@ public partial class GalleryView : UserControl
         flyout.Opened += OnTagMenuOpened;
         TagsDropDown.Flyout = flyout;
         InitAlbumUi(); // Album-Menü, Ziehen aus der Galerie (ADR-0054, GalleryView.Albums.cs)
+        InitPhotoMenu(); // Strg+C, Alt+Enter (ADR-0068, GalleryView.PhotoMenu.cs)
     }
 
     /// <summary>Strg+F: Suchfeld der Kopfzeile fokussieren (0.2.43).</summary>
@@ -79,8 +86,8 @@ public partial class GalleryView : UserControl
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        // Seitentitel: dieselbe View steckt rechts in der Ordner-Seite (0.2.43, Mockup 06).
-        Toolbar.PageTitle = FindAncestor<Lumora.Folders.FolderTreePage>(this) is null ? "Galerie" : "Ordner";
+        // Seitentitel: seit 0.4.44 gibt es nur noch die Galerie (mit Ordnerleiste, ADR-0068).
+        Toolbar.PageTitle = "Galerie";
         _viewModel.OwnerWindowResolver = ResolveOwnerWindow;
         _viewModel.CurrentPage.CollectionChanged += OnPageChanged;
         try
@@ -327,9 +334,8 @@ public partial class GalleryView : UserControl
     }
 
     /// <summary>
-    /// Baut das Menü beim Öffnen. Auf Kachel/Listenzeile zuerst die Datei-Aktionen (Archiv: Inhalt anzeigen, Entpacken;
-    /// Ins Archiv…; Im Explorer anzeigen), danach das Tag-Menü: je Tag ein Häkchen-Eintrag (Zustand der Auswahl), dazu
-    /// Dialog und Verwaltung. Der Knopf „Tags“ der Aktionsleiste hat eine eigene Instanz und zeigt nur das Tag-Menü.
+    /// Menü des Knopfs „Tags“ der Aktionsleiste (ADR-0021): je Tag ein Häkchen-Eintrag (Zustand der Auswahl), dazu Dialog und
+    /// Verwaltung. Das Rechtsklick-Menü der Kachel/Listenzeile baut seit 0.4.44 <see cref="OnPhotoMenuOpened"/>.
     /// </summary>
     private void OnTagMenuOpened(object sender, RoutedEventArgs e)
     {
@@ -339,16 +345,6 @@ public partial class GalleryView : UserControl
         }
 
         menu.Items.Clear();
-        var target = ReferenceEquals(menu, Resources["TagContextMenu"]) ? _menuTarget : null;
-        if (target is not null)
-        {
-            AddSlideshowAction(menu, target); // Diashow (ADR-0059, GalleryView.Slideshow.cs)
-            _stories?.AddMenuItems(menu, _viewModel.SelectedIdsInPageOrder(), target.Id); // Storys (ADR-0060)
-            AddFileActions(menu, target);
-            AddAlbumActions(menu, target); // Alben und Verknüpfungen (ADR-0054)
-            menu.Items.Add(new Separator());
-        }
-
         if (!_viewModel.HasSelection)
         {
             menu.Items.Add(new MenuItem { Header = "Keine Datei ausgewählt", IsEnabled = false });
@@ -384,111 +380,6 @@ public partial class GalleryView : UserControl
         var manage = new MenuItem { Header = "Tags verwalten…" };
         manage.Click += (_, _) => _navigation.NavigateTo(NavigationTags.Tags);
         menu.Items.Add(manage);
-
-        // Kategorien (ADR-0027) nur im Rechtsklick-Menü, nicht im Tag-Dropdown der Aktionsleiste
-        if (ReferenceEquals(menu, Resources["TagContextMenu"]))
-        {
-            AddCategoryItems(menu);
-        }
-    }
-
-    /// <summary>Je Kategorie ein Untermenü mit ihren Werten (Häkchen = alle ausgewählten haben ihn) und „Kein Wert“.</summary>
-    private void AddCategoryItems(ContextMenu menu)
-    {
-        if (_viewModel.CategoryMenuGroups.Count == 0 || !_viewModel.HasSelection)
-        {
-            return;
-        }
-
-        menu.Items.Add(new Separator());
-        foreach (var group in _viewModel.CategoryMenuGroups)
-        {
-            var current = group.Entries.FirstOrDefault(e => e.State == true && !e.IsNone);
-            var mixed = group.Entries.Count(e => e.State != false) > 1;
-            var parent = new MenuItem
-            {
-                Header = current is not null ? $"{group.Name}: {current.Name}" : mixed ? $"{group.Name}: (gemischt)" : group.Name,
-                Icon = new Wpf.Ui.Controls.SymbolIcon { Symbol = Wpf.Ui.Controls.SymbolRegular.Group24 },
-            };
-            foreach (var entry in group.Entries)
-            {
-                if (entry.IsNone)
-                {
-                    parent.Items.Add(new Separator());
-                }
-
-                parent.Items.Add(new MenuItem
-                {
-                    Header = entry.State is null ? $"{entry.Name}  (teilweise)" : entry.Name,
-                    IsCheckable = !entry.IsNone,
-                    IsChecked = !entry.IsNone && entry.State == true,
-                    FontStyle = entry.IsNone ? FontStyles.Italic : FontStyles.Normal,
-                    Command = _viewModel.SetSelectionCategoryValueCommand,
-                    CommandParameter = entry,
-                });
-            }
-
-            menu.Items.Add(parent);
-        }
-
-        menu.Items.Add(new MenuItem
-        {
-            Header = "Kategorien zuweisen…",
-            InputGestureText = "Strg+K",
-            Command = _viewModel.EditSelectionCategoriesCommand,
-        });
-        var manage = new MenuItem { Header = "Kategorien verwalten…" };
-        manage.Click += (_, _) => _navigation.NavigateTo(NavigationTags.Categories);
-        menu.Items.Add(manage);
-    }
-
-    private void AddFileActions(ContextMenu menu, GalleryItem target)
-    {
-        if (target.IsArchive)
-        {
-            menu.Items.Add(new MenuItem
-            {
-                Header = "Inhalt anzeigen",
-                Icon = new Wpf.Ui.Controls.SymbolIcon { Symbol = Wpf.Ui.Controls.SymbolRegular.DocumentBulletList24 },
-                Command = _viewModel.OpenInLightboxCommand,
-                CommandParameter = target,
-            });
-            menu.Items.Add(new MenuItem
-            {
-                Header = "Entpacken…",
-                Icon = new Wpf.Ui.Controls.SymbolIcon { Symbol = Wpf.Ui.Controls.SymbolRegular.FolderZip24 },
-                Command = _viewModel.ExtractItemCommand,
-                CommandParameter = target,
-            });
-        }
-
-        menu.Items.Add(new MenuItem
-        {
-            Header = "In die Bibliothek…",
-            InputGestureText = "Strg+M",
-            Icon = new Wpf.Ui.Controls.SymbolIcon { Symbol = Wpf.Ui.Controls.SymbolRegular.Archive24 },
-            Command = _viewModel.ArchiveItemCommand,
-            CommandParameter = target,
-        });
-        menu.Items.Add(new MenuItem
-        {
-            Header = "Im Explorer anzeigen",
-            Icon = new Wpf.Ui.Controls.SymbolIcon { Symbol = Wpf.Ui.Controls.SymbolRegular.FolderOpen24 },
-            Command = _viewModel.ShowInExplorerCommand,
-            CommandParameter = target,
-        });
-        menu.Items.Add(new MenuItem
-        {
-            Header = "Datum setzen…", // Aufnahmedatum der Auswahl (ADR-0046)
-            Icon = new Wpf.Ui.Controls.SymbolIcon { Symbol = Wpf.Ui.Controls.SymbolRegular.CalendarEdit24 },
-            Command = _viewModel.SetSelectionCaptureDateCommand,
-        });
-        menu.Items.Add(new MenuItem
-        {
-            Header = "Ort setzen…", // Ort der Auswahl (ADR-0050)
-            Icon = new Wpf.Ui.Controls.SymbolIcon { Symbol = Wpf.Ui.Controls.SymbolRegular.Location24 },
-            Command = _viewModel.SetSelectionPlaceCommand,
-        });
     }
 
     private static T? FindAncestor<T>(DependencyObject? start)

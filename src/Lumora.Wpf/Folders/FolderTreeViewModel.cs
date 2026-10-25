@@ -29,7 +29,7 @@ namespace Lumora.Folders;
 /// </summary>
 public sealed partial class FolderTreeViewModel : ObservableObject
 {
-    private const string WholeLibraryText = "Gesamte Bibliothek";
+    private const string WholeLibraryText = "Alle Fotos der Bibliothek";
     private const int ReloadDebounceMs = 300;
 
     private sealed record FolderRow(int Id, int? ParentId, int? RootId, string Name, string Path, int LibraryId = 0);
@@ -90,8 +90,11 @@ public sealed partial class FolderTreeViewModel : ObservableObject
         Lumora.Services.Marks.IFolderMarkCounter? markCounter = null,
         Marks.MarkSettingsState? markSettings = null,
         Lumora.Services.Tags.ITagService? markTags = null,
-        Lumora.Services.Categories.ICategoryService? markCategories = null)
+        Lumora.Services.Categories.ICategoryService? markCategories = null,
+        Lumora.Services.Scanning.IScanService? scanService = null,
+        Lumora.Services.Covers.ICoverService? covers = null)
     {
+        InitPane(scanService, covers); // Ordnerleiste der Galerie: Suche, Neu einlesen, Titelbild (ADR-0068, FolderTreeViewModel.Pane.cs)
         _exclusionActions = exclusionActions; // „Ordner ausschließen…“, ausgeschlossene Ordner ausblenden (ADR-0066, FolderTreeViewModel.Exclusions.cs)
         _moveActions = moveActions; // „Verschieben nach…“ und Ziehen (ADR-0066, FolderTreeViewModel.Move.cs)
         _removalActions = removalActions; // Ordner in den Papierkorb, Fehlende entfernen (ADR-0065, FolderTreeViewModel.Removal.cs)
@@ -223,6 +226,11 @@ public sealed partial class FolderTreeViewModel : ObservableObject
 
     internal void OnNodeSelected(FolderNode node)
     {
+        if (_revealing)
+        {
+            return; // ADR-0068: Galerie hat den Ordner schon (Breadcrumb, Unterordner-Kachel) — nicht erneut senden
+        }
+
         if (node.IsPlaceholder || !HasLibrary)
         {
             return;

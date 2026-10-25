@@ -38,8 +38,9 @@ Version übernimmt der erste Start automatisch; läuft dabei noch die ältere Ve
 - **Archive** (0.2.8): ZIP, RAR, 7z, TAR, GZ/TGZ, BZ2 und XZ erscheinen als Kacheln im Katalog (Icon, Endung, Größe;
   Filter „Archive“); die Lightbox zeigt ihren Inhalt, „Entpacken…“ legt die Dateien neben das Archiv und nimmt sie
   sofort in den Katalog auf (siehe [Archive](#archive)).
-- **Ordner**: Ordnerbaum der Bibliothek mit Dateizählern, rechts die Galerie des gewählten Ordners (mit oder ohne
-  Unterordner); ganze Ordner bewerten, als Favorit markieren, kategorisieren oder taggen.
+- **Ordner**: Ordnerbaum der Bibliothek mit Dateizählern als ein-/ausklappbare Leiste in der Galerie (seit 0.4.44, Strg+B),
+  der gewählte Ordner wirkt als Filter-Chip (mit oder ohne Unterordner); ganze Ordner bewerten, als Favorit markieren,
+  kategorisieren oder taggen.
 - **Eingang und Bibliotheksordner** (0.2.32): unsortierte Quellordner als Eingang aufnehmen, ansehen und bewerten, dann
   per **In die Bibliothek übernehmen…** samt Unterordner-Struktur in den Bibliotheksordner verschieben — leere
   Zwischenordner werden zusammengezogen, Bewertungen wandern mit, alles mit einem Rückgängig umkehrbar.
@@ -165,7 +166,7 @@ Standard; der einmalige Umzug aus `PhotoViewerV3` (ADR-0056) läuft nur dort.
 
 ### Navigation (seit 0.2.44, ADR-0042)
 Die linke Leiste zeigt ganz oben das App-Symbol mit dem Schriftzug „lumora“, darunter den **Bibliotheks-Umschalter** (Name der aktiven Bibliothek; Klick → andere Bibliothek
-wählen, verknüpfte Bibliotheken als **Alle verknüpften (Name)** gemeinsam ansehen oder **Bibliotheken verwalten…**), darunter **Galerie, Ordner, Alben, Storys, Personen, Orte, Doppelte, Sortieren** und unten
+wählen, verknüpfte Bibliotheken als **Alle verknüpften (Name)** gemeinsam ansehen oder **Bibliotheken verwalten…**), darunter **Galerie, Alben, Storys, Personen, Orte, Doppelte, Sortieren** (den Punkt „Ordner“ gibt es seit 0.4.44 nicht mehr — der Ordnerbaum ist die Leiste links in der Galerie) und unten
 **Einstellungen**. Bibliothek, Tags und Kategorien richtet man selten ein — sie sind Reiter der Einstellungen:
 **Bibliotheken & Eingänge · Tags · Kategorien · Gesichter · Motive · Archive · Darstellung · Storys · Speicher & Wartung · Info**.
 Tags und Kategorien **vergeben** geht wie bisher in der Galerie (Rechtsklick, Strg+T, Strg+K, Lightbox); „Tags
@@ -273,8 +274,9 @@ Bibliothek übernehmen.
 
 ### Galerie
 Kopfzeile (0.2.43, ADR-0041):
-- **Titel und Suche**: links „Galerie“ (auf der Ordner-Seite „Ordner“) mit der Trefferzeile darunter („342 von
-  1.248 Dateien · Ordner: alle“; ein Ordnerfilter erscheint dort als Chip, ✕ hebt ihn auf). Rechts das Suchfeld
+- **Titel und Suche**: links „Galerie“ mit der Trefferzeile darunter („342 von
+  1.248 Dateien · Ordner: alle“; ein Ordnerfilter erscheint dort als Chip „Ordner: …“ mit dem Pfad daneben — Klick auf ein
+  Glied wählt diesen Elternordner, ✕ hebt den Ordner auf und kombiniert sich mit allen übrigen Filtern). Rechts das Suchfeld
   (Dateiname, Endung, Tag, Person, Kategorie-Wert oder Kategorie-Name; Wörter werden als Präfix gesucht, Sonderzeichen
   sind erlaubt): **Strg+F** springt hinein, **Enter** sucht sofort, sonst sucht es nach einer kurzen Tipp-Pause; **Esc**
   oder ✕ leert die Suche.
@@ -590,9 +592,16 @@ Vorschaubild, die Kachel zeigt ein Archiv-Symbol mit Endung und Größe. Die Dat
   und entpackt wie die Automatik (Zielordner neben dem Archiv, Papierkorb nach Einstellung, danach ein Aktualisieren).
   Archive, deren Zielordner schon existiert (z. B. früher manuell entpackt), zählen nicht.
 
-### Ordner
-Links der Ordnerbaum der aktiven Bibliothek (Dateizähler direkt / gesamt), rechts die Galerie. Umschalter „mit
-Unterordnern“; „Gesamte Bibliothek“ hebt den Ordnerfilter auf. Nach Scans und Datei-Operationen lädt der Baum neu und
+### Ordner (Ordnerleiste der Galerie)
+Seit 0.4.44 (ADR-0068, Mockup 18) gibt es keine eigene Seite „Ordner“ mehr: Der Ordnerbaum der aktiven Bibliothek
+(Dateizähler direkt / gesamt) ist die **Leiste links in der Galerie**; **Strg+B** oder die Taste im Kopf der Leiste klappt sie
+zu und wieder auf (Lumora merkt sich das). Darin stehen Suche, Umschalter „mit Unterordnern“, „Eingang hinzufügen…“, der
+Ausschlüsse-Hinweis mit „verwalten“, das Ergebnisfeld und darunter die Alben. Klick auf einen Ordner setzt den Chip
+„Ordner: …“ der Galerie; „Alle Fotos der Bibliothek“ (bis 0.4.37 „Gesamte Bibliothek“) hebt den Ordnerfilter auf. Fotos auf
+einen Ordner ziehen: ohne Taste verknüpfen, mit Umschalt verschieben (ADR-0054). Im Kontextmenü neu: **Nur diesen Ordner
+zeigen** (ohne Unterordner), **Diashow**, **Neuer Unterordner…**, **Titelbild des Ordners ▸** (eigene Wahl oder wieder
+automatisch), **Alle Fotos taggen / kategorisieren ▸** (Tags, Kategorie, Bewertung, Favorit, Datum für alle) und **Neu
+einlesen** (nur dieser Ordner samt Unterordnern). Nach Scans und Datei-Operationen lädt der Baum neu und
 behält Aufklapp-Zustand und Auswahl. Oberste Knoten sind die Wurzeln mit Rolle (Bibliotheksordner, Eingang). Kontextmenü:
 **Neuer Ordner…** (Ordner auf der Platte + Katalogzeile), **Umbenennen…** (nicht für Wurzeln; Ordner mit Dateien
 werden protokolliert umbenannt und lassen sich mit Rückgängig zurücknehmen), **In die Bibliothek übernehmen…** (nur
@@ -620,6 +629,28 @@ Datei wird gelöscht; Rückgängig bringt die Einträge zurück und hebt den Aus
 Aufheben unter Einstellungen › Bibliotheken & Eingänge › Ausschlüsse beim Einlesen.
 **Eingang hinzufügen…** oben neben „Ordner“ nimmt einen unsortierten Quellordner als Eingang der aktiven Bibliothek auf
 (gleicher Ablauf wie in den Einstellungen, danach Angebot „Jetzt aktualisieren“; die Seite bleibt offen).
+
+### Rechtsklick-Menü, Titelbild und Fotos nach außen (seit 0.4.44, ADR-0068)
+Kachel, Listenzeile, Lightbox und Story-Fotos haben **dasselbe Menü**, gegliedert wie in Mockup 17: Öffnen und Diashow (bei
+Archiven oben „Inhalt zeigen“, „Entpacken…“, „In die Bibliothek…“) · Favorit, Bewertung, Tags, Kategorie · **Zu Album ▸**,
+Als Story · **Als Titelbild für ▸** · Datum setzen, Ort setzen · **Drehen** · **Suchen ▸** (gleicher Tag, gleicher Ort,
+Doppelte, gleiche Personen, ähnliche Motive — wirkt als Filter zusammen mit den übrigen) · **Datei ▸** (Kopieren Strg+C,
+Kopieren nach…, Exportieren (verkleinert)…, Im Explorer anzeigen, Verschieben…, Umbenennen…) · In den Papierkorb ·
+**Eigenschaften** (Alt+Enter). Bei mehreren ausgewählten Fotos wirken die Aktionen auf alle; Titelbild, Eigenschaften und
+Gesichter zeigen gibt es nur für ein Foto.
+- **Als Titelbild für ▸** zeigt die Personen im Foto, die Alben und Storys mit dem Foto und seinen Ordner; ein Häkchen
+  markiert das aktuelle Titelbild, „wieder automatisch“ nimmt die eigene Wahl zurück. Bei einer Person wird **ihr Gesicht in
+  diesem Foto** das Titelbild. Ohne eigene Wahl wählt Lumora selbst: bei Personen das beste Gesicht (Gesichtsgüte, frontal,
+  Foto-Güte), bei Alben, Storys und Ordnern ein gutes Foto mit Personen. Die eigene Wahl gewinnt immer.
+- **Drehen** (nur JPEG) schreibt die Ausrichtung verlustfrei in die Datei; Rückgängig in der Aktivitäts-Anzeige oder in der
+  Galerie stellt die Datei Byte für Byte wieder her.
+- **Kopieren nach…** legt Kopien in einem gewählten Ordner an (bei gleichem Namen „Name (2).jpg“); Bewertung, Tags und
+  Personen werden **nicht** mitkopiert. Rückgängig legt die Kopien in den Papierkorb.
+- **Exportieren (verkleinert)…** speichert JPEGs mit wählbarer langer Kante (1024–3840 px) in einen Ordner außerhalb der
+  Bibliothek, z. B. zum Verschicken; Videos werden übersprungen.
+- **In andere Programme:** Fotos aus Galerie oder Lightbox in den Explorer, eine Mail oder ein Office-Dokument ziehen oder
+  mit **Strg+C** kopieren und dort einfügen — es wird immer **kopiert**, nie verschoben. Fehlende Dateien und Archiv-Einträge
+  werden übersprungen (mit Zahl). In der **versteckten Bibliothek** ist das gesperrt: Fotos verlassen den Container nicht.
 
 ### Alben und verknüpfte Fotos (seit 0.3.2, ADR-0054)
 Ein Foto liegt immer nur **einmal** auf der Platte. Alben und Ordner-Verknüpfungen zeigen es zusätzlich an anderer Stelle —
@@ -820,6 +851,11 @@ Gelernt wird **nur aus dem, was du bestätigst** — eigene Vorschläge lernen n
    neu gelernt), **Als Titelbild**. Oben: **Bearbeiten…** (alle Details), **Zusammenführen mit…** (z. B. zwei Einträge derselben
    Person), **Ausblenden** (aus der Übersicht; „Ausgeblendete zeigen“ holt sie zurück), **Löschen…** (die Gesichter
    bleiben und sind wieder unbenannt).
+   **Titelbild** (seit 0.4.44, ADR-0068): oben in den Details **Automatisch / Selbst gewählt** — automatisch nimmt Lumora das
+   beste Gesicht (Gesichtsgüte, frontal, Foto-Güte); auch aus Galerie und Lightbox über „Als Titelbild für ▸“ setzbar.
+   **Personen-Kacheln** zeigen den Namen ohne Abschneiden (zwei Zeilen), die Beziehung und zwei Chips: **✓ n** (grün,
+   bestätigt) und **n Vorschläge** (gelb, öffnet direkt den Reiter Vorschläge); ein kleines Symbol zeigt ein automatisch
+   gewähltes Titelbild.
 5. **Ignorierte Gesichter:** Übersicht → **Ignorierte Gesichter (N)** zeigt alle ignorierten Gesichter der aktiven
    Bibliothek (neueste Fotos zuerst, wird beim Scrollen nachgeladen); automatisch wegen der Mindestgröße ignorierte sind
    mit **„zu klein“** und ihrer Größe in Pixeln markiert. Auswählen → **Zurückholen** (wieder unbenannt; Vorschläge und

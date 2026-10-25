@@ -38,19 +38,8 @@ public partial class GalleryView
         GalleryList.PreviewMouseLeftButtonUp += OnGalleryPreviewMouseUp;
     }
 
-    /// <summary>Kontextmenü der Kachel: Alben-Einträge nach den Datei-Aktionen.</summary>
-    private void AddAlbumActions(ContextMenu menu, GalleryItem target)
-    {
-        if (!_viewModel.HasAlbumSupport)
-        {
-            return;
-        }
-
-        menu.Items.Add(new Separator());
-        AddAlbumItems(menu.Items, target);
-    }
-
-    private void AddAlbumItems(ItemCollection items, GalleryItem? target)
+    /// <summary>Alben-Einträge (Aktionsleiste „Album“ und Rechtsklick › „Alben ▸“, ADR-0068).</summary>
+    internal void AddAlbumItems(ItemCollection items, GalleryItem? target)
     {
         var add = new MenuItem { Header = "Zu Album hinzufügen", Icon = new SymbolIcon { Symbol = SymbolRegular.Album24 } };
         foreach (var entry in _viewModel.ManualAlbumEntries)
@@ -187,6 +176,9 @@ public partial class GalleryView
             return;
         }
 
-        DragDrop.DoDragDrop(GalleryList, GalleryDragData.Create(ids), DragDropEffects.Link | DragDropEffects.Move);
+        // ADR-0068: zusätzlich echter Datei-Drop für andere Programme — dann nur „Kopieren“ erlaubt (ExternalFileTransfer)
+        var external = ExternalDragFiles(item);
+        var (data, allowed) = Lumora.PhotoMenu.ExternalFileTransfer.CreateDragData(ids, external);
+        DragDrop.DoDragDrop(GalleryList, data, allowed);
     }
 }

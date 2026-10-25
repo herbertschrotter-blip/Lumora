@@ -72,7 +72,7 @@ public sealed partial class GalleryViewModel
                 1 => names[0],
                 _ => string.Join(", ", names) + (MotifFilterMode == GalleryMotifMode.All ? " (alle)" : " (eines)"),
             };
-            var content = _appliedContentSearch is { } text ? $"„{text}“" : null;
+            var content = _appliedContentSearch is { } text ? (_appliedSearchIsRelated ? text : $"„{text}“") : null; // ADR-0068: „Suchen ▸“
             return (terms, content) switch
             {
                 (null, null) => "alle",
@@ -93,7 +93,7 @@ public sealed partial class GalleryViewModel
             1 => $"Motiv {names[0]}",
             _ => MotifFilterMode == GalleryMotifMode.All ? $"Motive {string.Join(" und ", names)}" : $"Motiv {string.Join(" oder ", names)}",
         };
-        var content = _appliedContentSearch is { } text ? $"Bildinhalt „{text}“" : null;
+        var content = _appliedContentSearch is { } text ? (_appliedSearchIsRelated ? $"Fotos {text}" : $"Bildinhalt „{text}“") : null; // ADR-0068
         return terms is null ? content : content is null ? terms : $"{terms} · {content}";
     }
 
@@ -117,6 +117,7 @@ public sealed partial class GalleryViewModel
             var hits = await _motifTerms.SearchAsync(_libraryId, text, ContentSearchLimit);
             _contentSearchIds = hits.Where(h => h.Score >= ContentSearchMinCosine).Select(h => h.FileId).ToList();
             _appliedContentSearch = text;
+            _appliedSearchIsRelated = false;
             _logger.LogInformation("Galerie: Bildinhalt-Suche mit {Count} Treffern", _contentSearchIds.Count);
         }
         catch (Exception ex)
@@ -179,6 +180,7 @@ public sealed partial class GalleryViewModel
 
             MotifFilterMode = GalleryMotifMode.Any;
             _appliedContentSearch = null;
+            _appliedSearchIsRelated = false;
             _contentSearchIds = null;
             ContentSearchText = null;
         }

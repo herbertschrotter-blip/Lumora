@@ -42,6 +42,17 @@ public interface IMotifTermService
 
     /// <summary>true, wenn das Modell vorhanden ist (sonst bleiben neue Begriffe ohne Vektor und ohne Treffer).</summary>
     bool IsModelAvailable { get; }
+
+    /// <summary>
+    /// ADR-0068 „Suchen ▸ Ähnliche Fotos“: Bild-Vektor der Datei gegen alle Bild-Vektoren des Bereichs (gleiche Modell-Version),
+    /// ähnlichste zuerst (die Datei selbst eingeschlossen); null, wenn die Datei noch keinen Bild-Vektor hat. Braucht das Modell
+    /// nicht. Standard: null.
+    /// </summary>
+    Task<IReadOnlyList<MotifSearchHit>?> SearchSimilarAsync(int libraryId, int fileId, int limit, CancellationToken ct = default)
+        => Task.FromResult<IReadOnlyList<MotifSearchHit>?>(null);
+
+    /// <summary>ADR-0068: hat die Datei einen Bild-Vektor (sonst wird „Ähnliche Fotos“ ausgeblendet)? Standard: false.</summary>
+    Task<bool> HasImageVectorAsync(int fileId, CancellationToken ct = default) => Task.FromResult(false);
 }
 
 /// <inheritdoc cref="IMotifTermService" />
@@ -179,6 +190,20 @@ public sealed class MotifTermService : IMotifTermService, IDisposable
         var scope = await ScopeLibrariesAsync(libraryId, ct).ConfigureAwait(false);
         return await _store.SearchAsync(scope, vector, _encoders.ModelVersion, limit, ct).ConfigureAwait(false);
     }
+
+    public async Task<IReadOnlyList<MotifSearchHit>?> SearchSimilarAsync(int libraryId, int fileId, int limit, CancellationToken ct = default)
+    {
+        if (await _store.GetImageVectorAsync(fileId, ct).ConfigureAwait(false) is not { } vector)
+        {
+            return null;
+        }
+
+        var scope = await ScopeLibrariesAsync(libraryId, ct).ConfigureAwait(false);
+        return await _store.SearchAsync(scope, vector.Vector, vector.ModelVersion, limit, ct).ConfigureAwait(false);
+    }
+
+    public async Task<bool> HasImageVectorAsync(int fileId, CancellationToken ct = default)
+        => await _store.GetImageVectorAsync(fileId, ct).ConfigureAwait(false) is not null;
 
     /// <summary>
     /// Bibliotheken für Zähler und Suche: der aktuelle Bereich, wenn <paramref name="libraryId"/> dessen aktive Bibliothek

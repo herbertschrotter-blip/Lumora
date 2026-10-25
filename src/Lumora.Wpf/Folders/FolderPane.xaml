@@ -1,0 +1,373 @@
+<UserControl x:Class="Lumora.Folders.FolderPane"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:shell="clr-namespace:Lumora.Shell"
+             xmlns:local="clr-namespace:Lumora.Folders"
+             xmlns:albums="clr-namespace:Lumora.Albums"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance local:FolderTreeViewModel}"
+             d:DesignWidth="290"
+             d:DesignHeight="700"
+             AutomationProperties.AutomationId="GalleryFolderPane">
+    <!-- Ordnerleiste der Galerie (ADR-0068, Mockup 18; bis 0.4.37 linke Hälfte der Seite „Ordner“): Ordnerbaum mit allen Aktionen
+         aus 0.4.30/0.4.33, Suche, Unterordner einschließen, Ausschlüsse-Hinweis, Tag-/Kategorie-Zahlen (0.4.35), darunter die Alben.
+         Klick auf einen Ordner setzt den Chip „Ordner: …“ der Galerie; Fotos auf einen Ordner ziehen: ohne Taste verknüpfen,
+         Umschalt verschieben (ADR-0054); Ordner auf Ordner verschiebt den Ordner (ADR-0066). -->
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="FolderTreeStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <shell:BoolToVisibilityConverter x:Key="BoolToVis" />
+            <shell:BoolToVisibilityConverter x:Key="InvBoolToVis" Invert="True" />
+            <shell:NullToVisibilityConverter x:Key="NullToVis" />
+            <shell:NullToBoolConverter x:Key="NullToBool" />
+            <!-- Kontextmenü der Ordner-Knoten als Ressource: Click-/SubmenuOpened-Handler in einem Style-Setter verwechselt der
+                 XAML-Compiler (connectionId), als Ressource werden sie richtig verbunden -->
+            <ContextMenu x:Key="FolderNodeMenu" x:Shared="False">
+                <MenuItem Header="Nur diesen Ordner zeigen"
+                          Icon="{ui:SymbolIcon Open24}"
+                          ToolTip="Ordner ohne Unterordner in der Galerie zeigen"
+                          Command="{Binding PlacementTarget.Tag.ShowOnlyThisFolderCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                          CommandParameter="{Binding}" />
+                <MenuItem Header="Diashow"
+                          Icon="{ui:SymbolIcon Play24}"
+                          Click="OnFolderSlideshowClick" />
+                <Separator />
+                <MenuItem Header="Umbenennen…"
+                          Icon="{ui:SymbolIcon Rename24}"
+                          InputGestureText="F2"
+                          IsEnabled="{Binding CanRename}"
+                          Command="{Binding PlacementTarget.Tag.RenameFolderCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                          CommandParameter="{Binding}" />
+                <!-- ADR-0066: Ordner in einen anderen Ordner derselben Bibliothek verschieben (auch per Ziehen) -->
+                <MenuItem Header="Verschieben nach…"
+                          Icon="{ui:SymbolIcon FolderArrowUp24}"
+                          ToolTip="Ordner samt Inhalt in einen anderen Ordner dieser Bibliothek verschieben (rückgängig machbar) — oder im Baum auf einen Ordner ziehen"
+                          IsEnabled="{Binding CanMove}"
+                          Visibility="{Binding PlacementTarget.Tag.HasMoveActions, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BoolToVis}}"
+                          Command="{Binding PlacementTarget.Tag.MoveFolderCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                          CommandParameter="{Binding}" />
+                <MenuItem Header="Neuer Unterordner…"
+                          Icon="{ui:SymbolIcon FolderAdd24}"
+                          Command="{Binding PlacementTarget.Tag.CreateSubfolderCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                          CommandParameter="{Binding}" />
+                <!-- ADR-0034: Ordner aus dem Eingang in die Bibliothek übernehmen -->
+                <MenuItem Header="In die Bibliothek übernehmen…"
+                          Icon="{ui:SymbolIcon FolderArrowRight24}"
+                          ToolTip="Ordner samt Unterordner-Struktur in den Bibliotheksordner verschieben (leere Zwischenordner werden zusammengezogen)"
+                          Visibility="{Binding IsInInbox, Converter={StaticResource BoolToVis}}"
+                          Command="{Binding PlacementTarget.Tag.AdoptFolderCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                          CommandParameter="{Binding}" />
+                <Separator />
+                <!-- ADR-0068: Titelbild des Ordners (Untermenü wird beim Öffnen gefüllt) -->
+                <MenuItem
+                          Header="Titelbild des Ordners"
+                          Icon="{ui:SymbolIcon ImageMultiple24}"
+                          Visibility="{Binding PlacementTarget.Tag.HasCoverActions, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BoolToVis}}"
+                          SubmenuOpened="OnCoverSubmenuOpened">
+                    <MenuItem Header="…" IsEnabled="False" />
+                </MenuItem>
+                <!-- ADR-0034/0046 + Mockup 18: alles „für alle Fotos“ in einem Untermenü -->
+                <MenuItem Header="Alle Fotos taggen / kategorisieren" Icon="{ui:SymbolIcon Tag24}">
+                    <MenuItem Header="Tags für alle…"
+                              Icon="{ui:SymbolIcon Tag24}"
+                              Command="{Binding PlacementTarget.Tag.EditFolderTagsCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                              CommandParameter="{Binding}" />
+                    <MenuItem Header="Kategorie für alle…"
+                              Icon="{ui:SymbolIcon Grid24}"
+                              Command="{Binding PlacementTarget.Tag.EditFolderCategoriesCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                              CommandParameter="{Binding}" />
+                    <MenuItem Header="Bewertung für alle Dateien" Icon="{ui:SymbolIcon Star24}">
+                        <MenuItem Header="★ 1 Stern" Command="{Binding RateAllCommand}" CommandParameter="1" />
+                        <MenuItem Header="★★ 2 Sterne" Command="{Binding RateAllCommand}" CommandParameter="2" />
+                        <MenuItem Header="★★★ 3 Sterne" Command="{Binding RateAllCommand}" CommandParameter="3" />
+                        <MenuItem Header="★★★★ 4 Sterne" Command="{Binding RateAllCommand}" CommandParameter="4" />
+                        <MenuItem Header="★★★★★ 5 Sterne" Command="{Binding RateAllCommand}" CommandParameter="5" />
+                        <Separator />
+                        <MenuItem Header="Bewertung entfernen" Command="{Binding RateAllCommand}" CommandParameter="0" />
+                    </MenuItem>
+                    <MenuItem Header="Favorit für alle" Icon="{ui:SymbolIcon Heart24}">
+                        <MenuItem Header="Als Favorit markieren" Command="{Binding FavoriteAllCommand}" CommandParameter="true" />
+                        <MenuItem Header="Favorit entfernen" Command="{Binding FavoriteAllCommand}" CommandParameter="false" />
+                    </MenuItem>
+                    <!-- ADR-0046: Aufnahmedatum für alle Dateien (im Dialog wahlweise mit Unterordnern) -->
+                    <MenuItem Header="Datum setzen…"
+                              Icon="{ui:SymbolIcon CalendarEdit24}"
+                              Command="{Binding PlacementTarget.Tag.SetFolderCaptureDateCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                              CommandParameter="{Binding}" />
+                </MenuItem>
+                <Separator />
+                <MenuItem Header="Neu einlesen"
+                          Icon="{ui:SymbolIcon ArrowSync24}"
+                          ToolTip="Nur diesen Ordner samt Unterordnern mit der Platte abgleichen"
+                          Visibility="{Binding PlacementTarget.Tag.HasRescan, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BoolToVis}}"
+                          Command="{Binding PlacementTarget.Tag.RescanFolderCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                          CommandParameter="{Binding}" />
+                <MenuItem Header="{Binding RemoveMissingHeader}"
+                          Icon="{ui:SymbolIcon DismissCircle24}"
+                          ToolTip="Dateien, die es auf der Platte nicht mehr gibt, aus der Bibliothek entfernen (mit Unterordnern) — es wird keine Datei gelöscht"
+                          Visibility="{Binding HasMissing, Converter={StaticResource BoolToVis}}"
+                          Command="{Binding PlacementTarget.Tag.RemoveMissingInFolderCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                          CommandParameter="{Binding}" />
+                <!-- ADR-0066: Ordner künftig nicht mehr einlesen (Rückfrage: aus der Bibliothek entfernen oder nur künftig) -->
+                <MenuItem Header="Ordner ausschließen…"
+                          Icon="{ui:SymbolIcon EyeOff24}"
+                          ToolTip="Ordner samt Unterordnern künftig nicht mehr einlesen — aufheben unter Einstellungen › Bibliotheken &amp; Eingänge"
+                          IsEnabled="{Binding CanExclude}"
+                          Visibility="{Binding PlacementTarget.Tag.HasExclusionActions, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BoolToVis}}"
+                          Command="{Binding PlacementTarget.Tag.ExcludeFolderCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                          CommandParameter="{Binding}" />
+                <MenuItem Header="Im Explorer anzeigen"
+                          Icon="{ui:SymbolIcon FolderOpen24}"
+                          Command="{Binding PlacementTarget.Tag.ShowFolderInExplorerCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                          CommandParameter="{Binding}" />
+                <!-- ADR-0065: Ordner in den Papierkorb (Bestätigung mit Zahlen) -->
+                <Separator Visibility="{Binding PlacementTarget.Tag.HasRemovalActions, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BoolToVis}}" />
+                <MenuItem Header="In den Papierkorb…"
+                          Icon="{ui:SymbolIcon Delete24}"
+                          InputGestureText="Entf"
+                          ToolTip="Ordner samt Inhalt in den Windows-Papierkorb verschieben (rückgängig machbar)"
+                          Visibility="{Binding PlacementTarget.Tag.HasRemovalActions, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BoolToVis}}"
+                          Command="{Binding PlacementTarget.Tag.RecycleFolderCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                          CommandParameter="{Binding}" />
+            </ContextMenu>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Border BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+            BorderThickness="0,0,1,0"
+            Padding="10,12,8,8">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- Kopf: Ordner · Bibliothek · Eingang hinzufügen · Einklappen -->
+            <Grid Grid.Row="0" Margin="4,0,0,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <ui:SymbolIcon Grid.Column="0" Symbol="Folder24" FontSize="16" Margin="0,0,8,0" VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <ui:TextBlock FontTypography="BodyStrong" Text="Ordner" />
+                    <TextBlock Text="{Binding LibraryName}"
+                               FontSize="12"
+                               TextTrimming="CharacterEllipsis"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+                <!-- „Eingang hinzufügen…“ (ADR-0042), gleicher Ablauf wie in Einstellungen › Bibliotheken & Eingänge -->
+                <ui:Button Grid.Column="2"
+                           Appearance="Transparent"
+                           Padding="6"
+                           Margin="4,0,0,0"
+                           Icon="{ui:SymbolIcon MailInbox24}"
+                           VerticalAlignment="Center"
+                           ToolTip="Eingang hinzufügen… — unsortierten Quellordner als Eingang der aktiven Bibliothek aufnehmen (Filter „Noch im Eingang“)"
+                           Command="{Binding AddInboxCommand}"
+                           Visibility="{Binding CanShowAddInbox, Converter={StaticResource BoolToVis}}"
+                           AutomationProperties.Name="Eingang hinzufügen" />
+                <ui:Button x:Name="CollapseButton"
+                           Grid.Column="3"
+                           Appearance="Transparent"
+                           Padding="6"
+                           Margin="2,0,0,0"
+                           Icon="{ui:SymbolIcon ChevronDoubleLeft20}"
+                           VerticalAlignment="Center"
+                           ToolTip="Leiste einklappen (Strg+B)"
+                           Click="OnCollapseClick"
+                           AutomationProperties.AutomationId="FolderPaneCollapse"
+                           AutomationProperties.Name="Ordnerleiste einklappen" />
+            </Grid>
+
+            <!-- Ordnersuche -->
+            <ui:TextBox Grid.Row="1"
+                        Margin="0,0,0,8"
+                        PlaceholderText="Ordner suchen…"
+                        Icon="{ui:SymbolIcon Search24}"
+                        ClearButtonEnabled="True"
+                        Text="{Binding FolderSearchText, UpdateSourceTrigger=PropertyChanged}"
+                        AutomationProperties.AutomationId="FolderSearch"
+                        AutomationProperties.Name="Ordner suchen" />
+
+            <Grid Grid.Row="2" Margin="0,0,0,6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <ui:Button Grid.Column="0"
+                           Content="Alle Fotos der Bibliothek"
+                           Icon="{ui:SymbolIcon Library16}"
+                           HorizontalAlignment="Stretch"
+                           AutomationProperties.Name="Alle Fotos der Bibliothek"
+                           Command="{Binding SelectWholeLibraryCommand}" />
+                <ui:Button Grid.Column="1"
+                           Icon="{ui:SymbolIcon ArrowSync16}"
+                           ToolTip="Ordnerbaum neu laden"
+                           Margin="6,0,0,0"
+                           Command="{Binding RefreshCommand}" />
+            </Grid>
+
+            <StackPanel Grid.Row="3">
+                <ui:InfoBar Message="{Binding HintText}"
+                            Severity="Warning"
+                            IsClosable="False"
+                            IsOpen="{Binding HintText, Converter={StaticResource NullToBool}, Mode=OneWay}"
+                            Visibility="{Binding HintText, Converter={StaticResource NullToVis}}"
+                            Margin="0,0,0,6" />
+                <!-- Ergebnis der letzten Ordner-Aktion (ADR-0034), mit ✕ ausblendbar -->
+                <Border Margin="0,0,0,6"
+                        Padding="10,8,4,8"
+                        CornerRadius="6"
+                        BorderThickness="1"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                        Visibility="{Binding ResultText, Converter={StaticResource NullToVis}}">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorSecondaryBrush}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ResultIsWarning}" Value="True">
+                                    <Setter Property="Background" Value="{DynamicResource SystemFillColorCautionBackgroundBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="{Binding ResultText}" TextWrapping="Wrap" FontSize="12" />
+                            <!-- ADR-0065: Rückgängig für „In den Papierkorb“ / „Fehlende entfernen“ -->
+                            <ui:Button Content="Rückgängig"
+                                       Icon="{ui:SymbolIcon ArrowUndo16}"
+                                       Padding="8,3"
+                                       Margin="0,6,0,0"
+                                       HorizontalAlignment="Left"
+                                       AutomationProperties.Name="Ordner-Aktion rückgängig"
+                                       Command="{Binding UndoRemovalCommand}"
+                                       Visibility="{Binding CanUndoRemoval, Converter={StaticResource BoolToVis}}" />
+                        </StackPanel>
+                        <ui:Button Grid.Column="1"
+                                   Appearance="Transparent"
+                                   Padding="4"
+                                   VerticalAlignment="Top"
+                                   Icon="{ui:SymbolIcon Dismiss16}"
+                                   ToolTip="Ausblenden"
+                                   Command="{Binding DismissResultCommand}" />
+                    </Grid>
+                </Border>
+                <ui:InfoBar Message="{Binding ErrorMessage}"
+                            Severity="Error"
+                            IsClosable="False"
+                            IsOpen="{Binding ErrorMessage, Converter={StaticResource NullToBool}, Mode=OneWay}"
+                            Visibility="{Binding ErrorMessage, Converter={StaticResource NullToVis}}"
+                            Margin="0,0,0,6" />
+            </StackPanel>
+
+            <Grid Grid.Row="4">
+                <!-- Ablegen von Galerie-Dateien (ADR-0054): verknüpfen, mit Umschalt verschieben (GalleryDragData) -->
+                <TreeView x:Name="FolderTree"
+                          ItemsSource="{Binding Roots}"
+                          ItemTemplate="{StaticResource FolderNodeTemplate}"
+                          AllowDrop="True"
+                          DragOver="OnTreeDragOver"
+                          DragLeave="OnTreeDragLeave"
+                          Drop="OnTreeDrop"
+                          PreviewMouseLeftButtonDown="OnTreePreviewMouseLeftButtonDown"
+                          PreviewMouseMove="OnTreePreviewMouseMove"
+                          PreviewKeyDown="OnTreePreviewKeyDown"
+                          BorderThickness="0"
+                          Background="Transparent"
+                          AutomationProperties.AutomationId="FolderTree"
+                          Visibility="{Binding IsSearching, Converter={StaticResource InvBoolToVis}}"
+                          VirtualizingStackPanel.IsVirtualizing="True"
+                          VirtualizingStackPanel.VirtualizationMode="Recycling"
+                          ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                    <TreeView.ItemContainerStyle>
+                        <Style TargetType="TreeViewItem" BasedOn="{StaticResource DefaultTreeViewItemStyle}">
+                            <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+                            <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
+                            <!-- Issue #23: nur EINE Auswahl-Markierung (eigener Akzent-Balken), die schmale WPF-UI-Marke wird ausgeblendet -->
+                            <Setter Property="local:FolderTreeItemChrome.HideSelectionIndicator" Value="True" />
+                            <!-- ViewModel für das Kontextmenü (liegt außerhalb des visuellen Baums) -->
+                            <Setter Property="Tag" Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=TreeView}}" />
+                            <EventSetter Event="ContextMenuOpening" Handler="OnNodeContextMenuOpening" />
+                            <Setter Property="ContextMenu" Value="{StaticResource FolderNodeMenu}" />
+                        </Style>
+                    </TreeView.ItemContainerStyle>
+                </TreeView>
+
+                <!-- Treffer der Ordnersuche (statt des Baums, solange gesucht wird) -->
+                <ListBox x:Name="SearchResults"
+                         ItemsSource="{Binding FolderSearchResults}"
+                         BorderThickness="0"
+                         Background="Transparent"
+                         AutomationProperties.AutomationId="FolderSearchResults"
+                         Visibility="{Binding IsSearching, Converter={StaticResource BoolToVis}}"
+                         MouseUp="OnSearchResultClick"
+                         KeyDown="OnSearchResultKeyDown">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="{x:Type local:FolderSearchHit}">
+                            <StackPanel Margin="2" ToolTip="{Binding Path}">
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:SymbolIcon Symbol="Folder16" FontSize="13" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <TextBlock Text="{Binding Path}" FontSize="11" TextTrimming="CharacterEllipsis" MaxWidth="240"
+                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <ui:ProgressRing IsIndeterminate="True"
+                                 Width="28" Height="28"
+                                 HorizontalAlignment="Center"
+                                 VerticalAlignment="Top"
+                                 Margin="0,24,0,0"
+                                 Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}" />
+            </Grid>
+
+            <!-- Fuß: Unterordner einschließen · ausgeschlossene Ordner (ADR-0066) · Auswahl -->
+            <StackPanel Grid.Row="5" Margin="0,8,0,0">
+                <CheckBox Content="Unterordner einschließen"
+                          IsChecked="{Binding IncludeSubfolders}"
+                          Margin="4,0,0,4" />
+                <TextBlock FontSize="11"
+                           Margin="4,0,0,2"
+                           TextTrimming="CharacterEllipsis"
+                           ToolTip="Diese Ordner liest Lumora nicht ein — verwalten unter Einstellungen › Bibliotheken &amp; Eingänge › Ausschlüsse beim Einlesen"
+                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                           Visibility="{Binding ExcludedFoldersText, Converter={StaticResource NullToVis}}"
+                           AutomationProperties.Name="Ausgeschlossene Ordner">
+                    <Run Text="{Binding ExcludedFoldersText, Mode=OneWay}" /><Run Text=" · " /><Hyperlink Click="OnManageExclusionsClick">verwalten</Hyperlink>
+                </TextBlock>
+                <TextBlock Text="{Binding SelectionText}"
+                           FontSize="11"
+                           Margin="4,2,0,0"
+                           TextTrimming="CharacterEllipsis"
+                           ToolTip="{Binding SelectionText}"
+                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+            </StackPanel>
+
+            <!-- Alben (ADR-0054): Klick öffnet das Album in der Galerie, Fotos hierher ziehen = hinzufügen -->
+            <albums:FolderPageAlbumsPanel x:Name="AlbumsPanel" Grid.Row="6" Margin="0,10,0,0" />
+        </Grid>
+    </Border>
+</UserControl>

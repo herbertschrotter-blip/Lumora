@@ -585,6 +585,20 @@ public sealed class MotifStore
             },
             ct);
 
+    /// <summary>ADR-0068: Bild-Vektor einer Datei (für „Ähnliche Fotos“) mit seiner Modell-Version; null ohne Vektor.</summary>
+    public Task<(string ModelVersion, float[] Vector)?> GetImageVectorAsync(int fileId, CancellationToken ct)
+        => Task.Run<(string, float[])?>(
+            () =>
+            {
+                using var connection = _factory.OpenSqliteConnection();
+                using var cmd = connection.CreateCommand();
+                cmd.CommandText = "SELECT ModelVersion, Embedding FROM FileEmbeddings WHERE FileId = $f AND Embedding IS NOT NULL;";
+                cmd.Parameters.AddWithValue("$f", fileId);
+                using var reader = cmd.ExecuteReader();
+                return reader.Read() ? (reader.GetString(0), MotifVectors.DecodeHalf((byte[])reader[1])) : null;
+            },
+            ct);
+
     // ---- Hilfen ----------------------------------------------------------------------------------
 
     private async Task<int> WriteTermAsync(CancellationToken ct, Func<SqliteConnection, SqliteTransaction, int> work)

@@ -61,6 +61,7 @@ public partial class LightboxWindow : AppFluentWindow
         VideoOverlay.Loaded += OnVideoOverlayLoaded;
         VideoOverlay.PreviewMouseMove += OnAnyMouseMove;
         VideoOverlay.SurfaceElement.MouseLeftButtonDown += OnVideoSurfaceMouseLeftButtonDown;
+        InitPhotoMenu(); // Rechtsklick-Menü, Strg+C, Alt+Enter (ADR-0068, LightboxWindow.PhotoMenu.cs)
     }
 
     public LightboxViewModel ViewModel => _viewModel;
@@ -136,6 +137,12 @@ public partial class LightboxWindow : AppFluentWindow
     {
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
         var ctrl = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
+        if (HandlePhotoKeys(key))
+        {
+            e.Handled = true; // Strg+C, Alt+Enter (ADR-0068)
+            return;
+        }
+
         var handled = true;
 
         switch (key)

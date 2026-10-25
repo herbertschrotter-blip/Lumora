@@ -31,9 +31,12 @@
                             <MenuItem Header="Öffnen" Icon="{ui:SymbolIcon Open24}" InputGestureText="Doppelklick"
                                       Command="{Binding Owner.OpenTileCommand}"
                                       CommandParameter="{Binding}" />
-                            <MenuItem Header="Als Titelbild" Icon="{ui:SymbolIcon ImageMultiple24}"
-                                      Command="{Binding Owner.SetCoverCommand}"
-                                      CommandParameter="{Binding}" />
+                            <!-- ADR-0068: „Als Titelbild für ▸“ — diese Story, Personen im Foto, Alben, Ordner -->
+                            <MenuItem Header="Als Titelbild für" Icon="{ui:SymbolIcon ImageMultiple24}"
+                                      SubmenuOpened="OnCoverSubmenuOpened"
+                                      AutomationProperties.Name="Als Titelbild für">
+                                <MenuItem Header="Wird geladen…" IsEnabled="False" />
+                            </MenuItem>
                             <MenuItem Header="Aus Story entfernen" Icon="{ui:SymbolIcon Subtract24}"
                                       ToolTip="Nur aus dieser Story — das Foto bleibt in der Galerie"
                                       Command="{Binding Owner.RemoveTileCommand}"

@@ -73,7 +73,7 @@ internal sealed class IncrementalScanRunner
         CatalogSnapshot catalog;
         using (var connection = _contextFactory.OpenSqliteConnection())
         {
-            catalog = CatalogSnapshot.Load(connection, libraryId, rootId, _logger, exclusions);
+            catalog = CatalogSnapshot.Load(connection, libraryId, rootId, _logger, exclusions, options.SubtreePath); // ADR-0068: nur ein Ordner
         }
 
         _logger.LogInformation(
@@ -155,7 +155,7 @@ internal sealed class IncrementalScanRunner
             }
 
             var filesSinceRecheck = 0;
-            foreach (var df in _enumerator.Enumerate(rootPath, ct, OnIoError, exclusions))
+            foreach (var df in _enumerator.Enumerate(options.SubtreePath ?? rootPath, ct, OnIoError, exclusions))
             {
                 var folderId = GetOrCreateFolderId(df.FolderPath);
                 filesSeen++;
@@ -369,6 +369,15 @@ internal sealed class IncrementalScanRunner
         return name;
     }
 
+    /// <summary>true, wenn <paramref name="path"/> gleich <paramref name="folder"/> ist oder darunter liegt (ohne Groß-/Kleinschreibung).</summary>
+    internal static bool IsUnder(string path, string folder)
+    {
+        var p = TrimSeparators(path);
+        var f = TrimSeparators(folder);
+        return p.Equals(f, StringComparison.OrdinalIgnoreCase)
+               || p.StartsWith(f + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string TrimSeparators(string path) =>
         path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
@@ -413,7 +422,8 @@ internal sealed class IncrementalScanRunner
         }
 
         /// <summary>Nur Ordner (und ihre Dateien) der angegebenen Wurzel — andere Wurzeln bleiben unberührt (ADR-0020).</summary>
-        public static CatalogSnapshot Load(SqliteConnection connection, int libraryId, int rootId, ILogger logger, Exclusions.ScanExclusionSet? exclusions = null)
+        /// <param name="subtree">ADR-0068: nur Ordner unter diesem Pfad (samt ihm selbst) zählen; Dateien anderer Ordner bleiben unberührt.</param>
+        public static CatalogSnapshot Load(SqliteConnection connection, int libraryId, int rootId, ILogger logger, Exclusions.ScanExclusionSet? exclusions = null, string? subtree = null)
         {
             var snapshot = new CatalogSnapshot();
             var excludedFolderIds = new HashSet<int>();
@@ -428,7 +438,7 @@ internal sealed class IncrementalScanRunner
                 {
                     var id = reader.GetInt32(0);
                     var path = reader.GetString(1);
-                    if (exclusions?.IsExcludedPath(path) == true)
+                    if (exclusions?.IsExcludedPath(path) == true || (subtree is not null && !IsUnder(path, subtree)))
                     {
                         excludedFolderIds.Add(id); // Ordnerzeile bleibt im Pfad-Index (keine Doppelanlage), Dateien zählen nicht
                     }

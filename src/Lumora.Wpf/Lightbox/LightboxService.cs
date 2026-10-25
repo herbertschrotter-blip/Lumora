@@ -85,7 +85,11 @@ public sealed class LightboxService : ILightboxService, IDisposable
         // Das Fenster besitzt das ViewModel und disposed es beim Schließen selbst.
         var viewModel = ActivatorUtilities.CreateInstance<LightboxViewModel>(_services);
         var logger = _services.GetRequiredService<ILogger<LightboxWindow>>();
-        var window = new LightboxWindow(viewModel, logger);
+        var window = new LightboxWindow(viewModel, logger)
+        {
+            PhotoActions = _services.GetService<Lumora.PhotoMenu.PhotoActions>(), // Rechtsklick-Menü (ADR-0068)
+            Stories = _services.GetService<Lumora.Stories.StoryGalleryBridge>(),
+        };
 
         // Owner nur, wenn er bereits ein Fenster-Handle hat (sonst wirft WPF).
         if (owner is not null && !ReferenceEquals(owner, window) && new WindowInteropHelper(owner).Handle != IntPtr.Zero)

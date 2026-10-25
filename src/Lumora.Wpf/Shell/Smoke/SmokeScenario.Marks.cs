@@ -131,7 +131,7 @@ internal sealed partial class SmokeScenario
         // (4) Ordnerbaum: Zahl der Fotos mit Tags/Kategorien direkt im Ordner, Ordner gewählt → Galerie rechts mit Marken
         _navigation.NavigateTo(NavigationTags.Folders);
         await WaitUntilAsync(
-            () => _navigation.CurrentTag == NavigationTags.Folders && !_folders.IsLoading && FindFolderNode(folderPath)?.Marks is { TaggedFiles: >= 2, CategorizedFiles: >= 1 },
+            () => _navigation.CurrentTag == NavigationTags.Gallery && !_folders.IsLoading && FindFolderNode(folderPath)?.Marks is { TaggedFiles: >= 2, CategorizedFiles: >= 1 },
             ShortWait,
             "Ordnerbaum zeigt die Zahlen").ConfigureAwait(true);
         var node = FindFolderNode(folderPath)!;

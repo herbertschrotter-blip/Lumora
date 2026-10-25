@@ -75,7 +75,7 @@ internal sealed partial class SmokeScenario
         var idB = await DbScalarAsync<int>("SELECT Id FROM Files WHERE LibraryId = $lib AND Name = 'loe-b.jpg'", ("$lib", _libraryId)).ConfigureAwait(true);
 
         _navigation.NavigateTo(NavigationTags.Folders);
-        await WaitUntilAsync(() => _navigation.CurrentTag == NavigationTags.Folders && !_folders.IsLoading, ShortWait, "Ordnerbaum").ConfigureAwait(true);
+        await WaitUntilAsync(() => _navigation.CurrentTag == NavigationTags.Gallery && !_folders.IsLoading, ShortWait, "Ordnerbaum").ConfigureAwait(true);
         await WaitUntilAsync(() => FindFolderNode(RemovalDir) is not null, ShortWait, "Smoke-Loeschen im Ordnerbaum").ConfigureAwait(true);
         var node = FindFolderNode(RemovalDir)!;
         Check(node.TotalFileCount == 2 && !node.HasMissing && _folders.HasRemovalActions, $"Ordner mit {node.TotalFileCount} Dateien, keine fehlenden, Menü „In den Papierkorb…“ vorhanden");

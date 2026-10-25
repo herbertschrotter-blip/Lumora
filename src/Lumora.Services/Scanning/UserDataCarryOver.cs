@@ -100,7 +100,8 @@ public sealed partial class UserDataCarryOver
                OR EXISTS (SELECT 1 FROM FolderLinks fl WHERE fl.FileId = f.Id)
                OR EXISTS (SELECT 1 FROM Albums a WHERE a.CoverFileId = f.Id)
                OR EXISTS (SELECT 1 FROM StoryItems si WHERE si.FileId = f.Id) -- Storys (ADR-0058)
-               OR EXISTS (SELECT 1 FROM Stories st WHERE st.CoverFileId = f.Id))
+               OR EXISTS (SELECT 1 FROM Stories st WHERE st.CoverFileId = f.Id)
+               OR EXISTS (SELECT 1 FROM Folders fo WHERE fo.CoverFileId = f.Id)) -- Ordner-Titelbild (ADR-0068)
         ORDER BY f.Missing, f.Id;
         """;
 

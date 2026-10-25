@@ -100,7 +100,7 @@ internal sealed partial class SmokeScenario
 
         // (2) „Ordner ausschließen…“ an „Weg“ → Rückfrage mit Zahl → aus dem Katalog, im Baum ausgeblendet
         _navigation.NavigateTo(NavigationTags.Folders);
-        await WaitUntilAsync(() => _navigation.CurrentTag == NavigationTags.Folders && !_folders.IsLoading, ShortWait, "Ordnerbaum").ConfigureAwait(true);
+        await WaitUntilAsync(() => _navigation.CurrentTag == NavigationTags.Gallery && !_folders.IsLoading, ShortWait, "Ordnerbaum").ConfigureAwait(true);
         var weg = Path.Combine(ExclusionDir, "Weg");
         await WaitUntilAsync(() => FindFolderNode(weg) is not null, ShortWait, "„Weg“ im Ordnerbaum").ConfigureAwait(true);
         Check(_folders.HasExclusionActions && _folders.HasMoveActions && FindFolderNode(weg)!.CanExclude, "Menü „Ordner ausschließen…“ und „Verschieben nach…“ vorhanden");

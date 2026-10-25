@@ -85,8 +85,10 @@ public sealed class StoryPageServices
         IPlaceLookup? places = null,
         StoryGalleryBridge? gallery = null,
         ISlideshowImageDecoder? decoder = null,
-        Assistant.ICollageDialogService? collage = null)
+        Assistant.ICollageDialogService? collage = null,
+        Lumora.PhotoMenu.PhotoActions? photoActions = null)
     {
+        PhotoActions = photoActions; // „Als Titelbild für ▸“ auf Story-Fotos (ADR-0068)
         Stories = stories;
         Media = media;
         Images = images;
@@ -102,6 +104,9 @@ public sealed class StoryPageServices
     }
 
     public IStoryService Stories { get; }
+
+    /// <summary>Gemeinsame Menü-Aktionen (ADR-0068); null in Tests ohne DI.</summary>
+    public Lumora.PhotoMenu.PhotoActions? PhotoActions { get; }
 
     public IStoryMediaLoader Media { get; }
 

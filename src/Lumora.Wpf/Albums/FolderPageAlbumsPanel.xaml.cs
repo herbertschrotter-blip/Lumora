@@ -14,7 +14,7 @@ public partial class FolderPageAlbumsPanel : UserControl
     private void OnAlbumDragOver(object sender, DragEventArgs e)
     {
         var ok = GalleryDragData.Read(e.Data) is { Length: > 0 } && (sender as FrameworkElement)?.DataContext is AlbumFilterEntry { IsSmart: false };
-        e.Effects = ok ? DragDropEffects.Link : DragDropEffects.None;
+        e.Effects = ok ? GalleryDragData.LinkEffect(e.AllowedEffects) : DragDropEffects.None; // ADR-0068: mit Datei-Drop nur „Kopieren“ erlaubt
         e.Handled = true;
     }
 

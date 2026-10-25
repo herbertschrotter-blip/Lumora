@@ -99,6 +99,7 @@ internal sealed partial class SmokeScenario
             Check(Directory.EnumerateFiles(Path.Combine(catalog, "logs"), CatalogLoggers.HiddenFilePattern.Replace("-.log", "-*.log")).Any(), "Protokoll im Container");
             Check((new DirectoryInfo(catalog).Attributes & FileAttributes.Hidden) != 0, ".lumora ist versteckt");
             await SecurityCheckInHiddenSessionAsync(hidden).ConfigureAwait(true); // Sicherheits-Check mit Fake-Lesern (ADR-0064)
+            await ExternalCopyInHiddenSessionAsync(hidden, gallery).ConfigureAwait(true); // kein Weg nach außen (ADR-0068)
 
             // (2) Untätigkeit → automatisch zugesperrt, Aushängen angestoßen (Standard seit 0.4.38 aus → hier bewusst an)
             Check(sessions.ActiveManifest is { DismountOnLock: false }, "Aushängen standardmäßig aus");

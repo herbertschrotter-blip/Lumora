@@ -158,7 +158,7 @@ internal sealed partial class SmokeScenario
             "Alle verknüpften: Ort-Flyout mit dem Ort aus B, Motiv-Flyout mit dem Begriff");
         await SnapshotAsync("39-alle-verknuepften-galerie").ConfigureAwait(true);
         _navigation.NavigateTo(NavigationTags.Folders);
-        await WaitUntilAsync(() => _navigation.CurrentTag == NavigationTags.Folders && !_folders.IsLoading && _folders.Roots.Count == 2,
+        await WaitUntilAsync(() => _navigation.CurrentTag == NavigationTags.Gallery && !_folders.IsLoading && _folders.Roots.Count == 2,
             ShortWait, "Ordnerbaum mit zwei Bibliotheken").ConfigureAwait(true);
         Check(_folders.Roots.All(r => r.IsLibraryHeader) && !_folders.AddInboxCommand.CanExecute(null),
             $"Ordnerbaum: {string.Join(", ", _folders.Roots.Select(r => r.Name))} (Eingang hinzufügen gesperrt)");
