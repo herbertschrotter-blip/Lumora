@@ -3,6 +3,16 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.4.34] — 2026-10-25
+
+### Docs — Offene Aufgaben als GitHub Issues
+- 23 offene Aufgaben als Issues #1–#23 im Repo angelegt (Labels „in Arbeit“, „Entscheidung“, „Test bei Herbert“,
+  „geplant“, `bug`, `enhancement`); Texte neutral, weil das Repo öffentlich ist.
+- CLAUDE.md Code-Profil: Aufgabenquelle = GitHub Issues (plus Auftrag im Chat), Commits schließen Issues mit „(closes #n)“.
+
+### Offen
+- Projekt-Board: braucht die GitHub-Berechtigung `project` (`gh auth refresh -s project`, nur Herbert).
+
 ## [0.4.33] — 2026-10-25
 
 ### Feature (ADR-0066) — Ausschlüsse beim Einlesen und Ordner verschieben
