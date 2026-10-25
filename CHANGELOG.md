@@ -3,6 +3,14 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.3] — 2026-10-25
+
+### Fixed — „Verbessern“: Werkzeuge ließen sich nicht anklicken
+- In der Lightbox-Leiste „Verbessern“ reagierten die Werkzeugkarten (Automatisch, Hochskalieren, Gesichter, Einfärben, Entfernen,
+  Zuschneiden) nicht auf Klicks auf Titel oder Unterzeile. Der unsichtbare Knopf über der Karte bekam vom WPF-UI-Stil
+  `HorizontalAlignment=Left` und war leer — er saß winzig beim Symbol. Jetzt eigene leere Vorlage, über die ganze Karte gestreckt.
+  Neuer Test mit echtem Treffertest (Titel und untere Kartenhälfte jeder Karte); der Rauchtest rief bisher nur den Befehl auf.
+
 ## [0.5.2] — 2026-10-25
 
 ### Changed — Personen-Kacheln ruhiger, Kartenknöpfe in einer Leiste, Ordnerleiste verstellbar, Fehlende per Rechtsklick

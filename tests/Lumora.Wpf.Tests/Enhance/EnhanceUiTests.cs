@@ -245,6 +245,65 @@ public sealed class EnhanceUiTests : IDisposable
     });
 
     [Fact]
+    public Task Klick_auf_die_ganze_Werkzeugkarte_trifft_den_Umschalter() => OnUiAsync(async () =>
+    {
+        // 0.5.2: Der unsichtbare Knopf über der Karte bekam vom WPF-UI-Stil HorizontalAlignment=Left und war leer — er saß winzig
+        // beim Symbol, ein Klick auf Titel oder Unterzeile tat nichts. Echter Treffertest statt Command.Execute.
+        using var vm = new EnhancePanelViewModel(new FakeEnhanceService(_root));
+        await vm.SetOpenAsync(true);
+        await vm.SetFileAsync(42, isImage: true);
+        var panel = new EnhancePanel { DataContext = vm };
+        var window = new Window { Content = panel, Width = 360, Height = 900, ShowActivated = false, Left = -10000 };
+        window.Show();
+        try
+        {
+            window.UpdateLayout();
+            foreach (var tool in vm.Tools)
+            {
+                var title = Descendants(panel).OfType<System.Windows.Controls.TextBlock>().First(t => t.Text == tool.Title);
+                var card = Descendants(panel).OfType<System.Windows.Controls.Border>().First(b => b.Name == "Card" && b.DataContext == tool);
+                foreach (var point in new[]
+                         {
+                             title.TranslatePoint(new Point(title.ActualWidth / 2, title.ActualHeight / 2), panel),
+                             card.TranslatePoint(new Point(card.ActualWidth * 0.6, card.ActualHeight - 4), panel),
+                         })
+                {
+                    var hit = panel.InputHitTest(point) as DependencyObject;
+                    var button = Ancestors(hit).OfType<System.Windows.Controls.Button>().FirstOrDefault();
+                    button.Should().NotBeNull($"Klick auf „{tool.Title}“ bei {point} muss den Umschalter treffen");
+                    button!.Command.Should().BeSameAs(vm.ToggleToolCommand);
+                    button.CommandParameter.Should().BeSameAs(tool);
+                }
+            }
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            yield return child;
+            foreach (var nested in Descendants(child))
+            {
+                yield return nested;
+            }
+        }
+    }
+
+    private static IEnumerable<DependencyObject> Ancestors(DependencyObject? node)
+    {
+        for (; node is not null; node = VisualTreeHelper.GetParent(node))
+        {
+            yield return node;
+        }
+    }
+
+    [Fact]
     public Task Leiste_hell_und_dunkel_ohne_Binding_Fehler() => OnUiAsync(async () =>
     {
         using var vm = new EnhancePanelViewModel(new FakeEnhanceService(_root));

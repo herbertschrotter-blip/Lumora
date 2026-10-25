@@ -89,10 +89,18 @@
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <!-- Ganze Karte schaltet das Werkzeug um -->
-                                        <Button Grid.ColumnSpan="3" Margin="-10,-8" Opacity="0" Focusable="False" Cursor="Hand"
+                                        <!-- Ganze Karte schaltet das Werkzeug um. Eigene, leere Vorlage und Stretch: der WPF-UI-Stil
+                                             richtet Knöpfe links aus, der leere Knopf saß sonst winzig beim Symbol (bis 0.5.2). -->
+                                        <Button Grid.ColumnSpan="3" Margin="-10,-8" Focusable="False" Cursor="Hand"
+                                                HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                                                 Command="{Binding Owner.ToggleToolCommand}" CommandParameter="{Binding}"
-                                                AutomationProperties.Name="{Binding AutomationName}" />
+                                                AutomationProperties.Name="{Binding AutomationName}">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border Background="Transparent" />
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                        </Button>
                                         <ui:SymbolIcon Grid.Column="0" Symbol="{Binding Symbol}" FontSize="18" IsHitTestVisible="False"
                                                        Foreground="{DynamicResource EnhanceAccentTextBrush}" VerticalAlignment="Top" Margin="0,2,0,0" />
                                         <StackPanel Grid.Column="1" IsHitTestVisible="False" Margin="0,0,8,0">
