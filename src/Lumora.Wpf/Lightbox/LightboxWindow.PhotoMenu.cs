@@ -85,6 +85,7 @@ public partial class LightboxWindow
             SetDate = actions.HasCaptureDate ? () => PhotoContextMenuBuilder.Run(HostFor(actions), () => actions.SetDateAsync(ids, this)) : null,
             SetPlace = actions.HasPlaces ? () => PhotoContextMenuBuilder.Run(HostFor(actions), () => actions.SetPlaceAsync(ids, item.IsVideo, this)) : null,
             ShowFaces = item.IsImage && _viewModel.Faces.IsAvailable ? ShowFaces : null,
+            Enhance = item.IsImage && _viewModel.HasEnhance ? () => _ = _viewModel.ShowEnhanceAsync() : null, // ADR-0071
             Recycle = () => _ = _viewModel.DeleteCurrentCommand.ExecuteAsync(null),
             ExternalCandidates = () => [Candidate(item)],
             CopyInitialDirectory = System.IO.Path.GetDirectoryName(item.Path),

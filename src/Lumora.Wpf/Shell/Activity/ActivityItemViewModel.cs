@@ -184,6 +184,7 @@ public sealed partial class ActivityItemViewModel : ObservableObject
         ActivityKind.Stories => SymbolRegular.BookOpen24,
         ActivityKind.CatalogWrite => SymbolRegular.Clock16,
         ActivityKind.ModelDownload => SymbolRegular.ArrowDownload24, // ADR-0070
+        ActivityKind.Enhance => SymbolRegular.Wand24, // ADR-0071
         _ => SymbolRegular.ArrowSync16, // Einlesen, Ordnerüberwachung
     };
 

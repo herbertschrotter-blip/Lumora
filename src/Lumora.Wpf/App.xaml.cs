@@ -198,6 +198,7 @@ public partial class App : Application, ICatalogHostSwitcher
         Lumora.Stories.StoriesUiServiceCollectionExtensions.AddStoriesUi(services); // Seite „Storys“, Reiter „Storys“, Galerie-Menü „Als Story…“ (Wpf/Stories, ADR-0060)
         Lumora.Settings.ModelPackages.ModelPackagesUi.AddModelPackagesUi(services); // Einstellungen › Modelle & Daten (Wpf/Settings/ModelPackages, ADR-0070)
         Lumora.Usage.UsageUiServiceCollectionExtensions.AddUsageUi(services); // Einstellungen › Storys › „Nutzung lernen“ (Wpf/Usage, ADR-0072)
+        Lumora.Enhance.EnhanceUiServiceCollectionExtensions.AddEnhanceUi(services); // Foto verbessern: Lightbox-Leiste, Stapel, Fassungen, Einstellungen › Verbessern (Wpf/Enhance, ADR-0071)
         Lumora.PhotoMenu.PhotoMenuServiceCollectionExtensions.AddPhotoMenu(services); // Rechtsklick-Menü, Titelbild, Eigenschaften, Export (Wpf/PhotoMenu, ADR-0068)
 
         services.AddSingleton<MainWindow>();

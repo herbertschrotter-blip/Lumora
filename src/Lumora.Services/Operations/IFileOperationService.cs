@@ -154,6 +154,17 @@ public interface IFileOperationService
     /// </summary>
     Task<FileOperationBatchResult> CopyAsync(IReadOnlyList<int> fileIds, string targetFolderPath, CancellationToken ct = default)
         => throw new NotSupportedException("Kopieren wird nicht unterstützt.");
+
+    // ---- ADR-0071: Foto verbessern (FileOperationService.Variants.cs) ----
+
+    /// <summary>
+    /// Verbesserte Fassungen als neue Dateien anlegen (CreateVariant-Batch): Ergebnis-Datei ans Ziel verschieben (nie
+    /// überschreiben, belegte Namen werden nummeriert), Files-Zeile mit Metadaten des Originals und Verknüpfung
+    /// <c>PhotoVariants</c> buchen. Das Original bleibt unverändert. Ergebnis je Fassung: FileId = neue Zeile, DestPath = Datei.
+    /// Rückgängig machbar (neue Dateien in den Papierkorb). Standard: nicht unterstützt.
+    /// </summary>
+    Task<FileOperationBatchResult> CreateVariantsAsync(IReadOnlyList<VariantCreateRequest> requests, CancellationToken ct = default)
+        => throw new NotSupportedException("Fassungen anlegen wird nicht unterstützt.");
 }
 
 /// <summary>Ergebnis von <see cref="IFileOperationService.RemoveExcludedAsync"/> (ADR-0066).</summary>

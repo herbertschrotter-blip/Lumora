@@ -40,6 +40,9 @@ public static class NavigationTags
 
     /// <summary>Einstellungen › Motive (ADR-0052).</summary>
     public const string SettingsMotifs = "settings-motifs";
+
+    /// <summary>Einstellungen › Verbessern (ADR-0071): Modelle, Speicherort, Dateiname, Metadaten, beste Fassung, Grafikkarte.</summary>
+    public const string SettingsEnhance = "settings-enhance";
     public const string SettingsArchives = "settings-archives";
     public const string SettingsAppearance = "settings-appearance";
 
@@ -58,7 +61,7 @@ public static class NavigationTags
     /// <summary>Alle Reiter der Einstellungen in Anzeigereihenfolge.</summary>
     public static IReadOnlyList<string> SettingsSections { get; } =
     [
-        Library, Tags, Categories, SettingsFaces, SettingsMotifs, SettingsArchives, SettingsAppearance, SettingsStories, SettingsAssistant /* ADR-0063 */, SettingsPlaces, SettingsModels /* ADR-0070 */, SettingsStorage, SettingsInfo,
+        Library, Tags, Categories, SettingsFaces, SettingsMotifs, SettingsEnhance /* ADR-0071 */, SettingsArchives, SettingsAppearance, SettingsStories, SettingsAssistant /* ADR-0063 */, SettingsPlaces, SettingsModels /* ADR-0070 */, SettingsStorage, SettingsInfo,
     ];
 
     /// <summary>

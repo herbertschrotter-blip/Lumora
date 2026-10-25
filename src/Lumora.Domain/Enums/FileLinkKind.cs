@@ -11,4 +11,10 @@ public enum FileLinkKind
 
     /// <summary>Manuell aus einer Story entfernt (Ausschluss, <c>StoryItems.Origin</c> = −1).</summary>
     StoryExcluded = 3,
+
+    /// <summary>Die Datei war eine verbesserte Fassung (ADR-0071); TargetId = FileId des Originals.</summary>
+    VariantOf = 4,
+
+    /// <summary>Die Datei war das Original einer Fassung (ADR-0071); TargetId = FileId der Fassung.</summary>
+    HasVariant = 5,
 }

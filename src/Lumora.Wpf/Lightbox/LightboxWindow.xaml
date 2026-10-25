@@ -10,6 +10,7 @@
                  xmlns:controls="clr-namespace:Lumora.Lightbox.Controls"
                  xmlns:tags="clr-namespace:Lumora.Gallery.Tags"
                  xmlns:branding="clr-namespace:Lumora.Shell.Branding"
+                 xmlns:enhance="clr-namespace:Lumora.Enhance"
                  mc:Ignorable="d"
                  d:DataContext="{d:DesignInstance Type=local:LightboxViewModel}"
                  Title="{Binding Title, Converter={x:Static branding:LumoraWindowTitleConverter.Instance}}"
@@ -91,6 +92,7 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
             <!-- Bühne: Bild (ZoomPan) oder Video (LibVLC) + Overlays -->
@@ -119,6 +121,18 @@
 
                 <!-- Archiv-Inhaltsansicht (ADR-0022) statt Bild/Video -->
                 <local:ArchiveContentView Visibility="{Binding IsArchive, Converter={StaticResource BoolToVis}}" />
+
+                <!-- Foto verbessern (ADR-0071): Vorher/Nachher bzw. Pinsel über dem Bild, nur bei offener Leiste -->
+                <enhance:EnhanceStageOverlay x:Name="EnhanceStage"
+                                             AutomationProperties.AutomationId="EnhanceStage"
+                                             BeforeSource="{Binding ImageSource}"
+                                             AfterSource="{Binding Enhance.AfterImage, FallbackValue={x:Null}}"
+                                             Position="{Binding Enhance.ComparePosition, FallbackValue=0.5}"
+                                             IsBrushMode="{Binding Enhance.IsBrushMode, FallbackValue=False}"
+                                             Dots="{Binding Enhance.BrushDots, FallbackValue={x:Null}}"
+                                             BrushSize="{Binding Enhance.BrushSize, FallbackValue=0.03}"
+                                             BrushTarget="{Binding Enhance, FallbackValue={x:Null}}"
+                                             Visibility="{Binding Enhance.ShowsOverlay, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}" />
 
                 <!-- Overlay für den Bild-Modus (direkt im Fenster, durchlässig für Rad/Drag) -->
                 <local:LightboxOverlay x:Name="ImageOverlay"
@@ -248,6 +262,12 @@
                     </StackPanel>
                 </ScrollViewer>
             </Border>
+
+            <!-- Leiste „Verbessern“ rechts (E, ADR-0071, Mockup 13) -->
+            <enhance:EnhancePanel x:Name="EnhancePanelView"
+                                  Grid.Column="2"
+                                  DataContext="{Binding Enhance}"
+                                  Visibility="{Binding IsOpen, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}" />
         </Grid>
 
         <!-- Leiste unten: Tags, Kategorien, „+ Tag / Kategorie“ (Mockup 16); aus im Vollbild und per Schalter -->

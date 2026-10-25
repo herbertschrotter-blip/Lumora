@@ -53,6 +53,7 @@ public sealed partial class GalleryPageSource
             clause += "\n  " + AlbumClause;
         }
 
+        clause += VariantClause(query); // „beste Fassung zeigen“ (ADR-0071, GalleryPageSource.Variants.cs)
         return folder with { Clause = clause };
     }
 

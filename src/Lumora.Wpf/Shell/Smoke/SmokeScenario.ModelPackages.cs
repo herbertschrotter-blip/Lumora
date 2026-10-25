@@ -70,7 +70,12 @@ internal sealed partial class SmokeScenario
         await OpenSettingsSectionAsync(NavigationTags.SettingsModels, "Reiter „Modelle & Daten“").ConfigureAwait(true);
         await WaitUntilAsync(() => vm.IsLoaded, LongWait, "Zustände gelesen").ConfigureAwait(true);
         var models = vm.ModelItems.Select(i => i.Id).ToList();
-        Check(models.SequenceEqual([ModelPackageCatalog.FacesId, ModelPackageCatalog.MotifsId, SmokeModelPackages.Id]), $"Modelle: {string.Join(", ", models)}");
+        Check(models.SequenceEqual([
+                ModelPackageCatalog.FacesId, ModelPackageCatalog.MotifsId,
+                Services.Enhance.EnhanceModelCatalog.UpscaleId, Services.Enhance.EnhanceModelCatalog.FacesId, // „Foto verbessern“ (ADR-0071)
+                Services.Enhance.EnhanceModelCatalog.ColorizeId, Services.Enhance.EnhanceModelCatalog.InpaintId,
+                SmokeModelPackages.Id]),
+            $"Modelle: {string.Join(", ", models)}");
         Check(vm.DataItems.Select(i => i.Id).SequenceEqual([ModelPackageCatalog.GeoNamesId, ModelPackageCatalog.MapTilesId])
               && vm.ExternalItems.Single().Id == ModelPackageCatalog.AssistantId, "Daten: Ortsnamen, Kartenkacheln; Extern: Ollama");
         var faces = vm.Find(ModelPackageCatalog.FacesId)!;

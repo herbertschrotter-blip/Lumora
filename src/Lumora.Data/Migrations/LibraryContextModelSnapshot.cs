@@ -1242,6 +1242,32 @@ namespace Lumora.Data.Migrations
                     b.ToTable("PersonRelations", (string)null);
                 });
 
+            modelBuilder.Entity("Lumora.Domain.Entities.PhotoVariant", b =>
+                {
+                    b.Property<int>("FileId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("BatchId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("CreatedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("OriginalFileId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Tools")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("FileId");
+
+                    b.HasIndex("OriginalFileId")
+                        .HasDatabaseName("IX_PhotoVariants_Original");
+
+                    b.ToTable("PhotoVariants", (string)null);
+                });
+
             modelBuilder.Entity("Lumora.Domain.Entities.Setting", b =>
                 {
                     b.Property<string>("Key")
@@ -1701,6 +1727,21 @@ namespace Lumora.Data.Migrations
                         .WithMany()
                         .HasForeignKey("RelationId")
                         .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("Lumora.Domain.Entities.PhotoVariant", b =>
+                {
+                    b.HasOne("Lumora.Domain.Entities.MediaFile", null)
+                        .WithOne()
+                        .HasForeignKey("Lumora.Domain.Entities.PhotoVariant", "FileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Lumora.Domain.Entities.MediaFile", null)
+                        .WithMany()
+                        .HasForeignKey("OriginalFileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Lumora.Domain.Entities.Story", b =>

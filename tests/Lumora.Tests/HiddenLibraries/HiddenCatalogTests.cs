@@ -73,6 +73,7 @@ public sealed class HiddenCatalogTests : IDisposable
         services.AddSingleton<IAppDataPaths>(hiddenPaths);
         services.AddHiddenCatalog(hiddenPaths, normalRoot);
         services.AddLumoraServices();
+        services.AddSingleton<Lumora.Services.Enhance.IEnhanceImageCodec>(new Lumora.Tests.Enhance.FakeEnhanceCodec()); // WIC lebt im Wpf-Projekt (ADR-0071)
 
         await using (var provider = services.BuildServiceProvider())
         {
@@ -97,10 +98,17 @@ public sealed class HiddenCatalogTests : IDisposable
             var packages = provider.GetRequiredService<Lumora.Services.ModelPackages.IModelPackageManager>().Packages;
             packages.Select(p => p.Definition.Id).Should().Equal(
                 Lumora.Services.ModelPackages.ModelPackageCatalog.FacesId, Lumora.Services.ModelPackages.ModelPackageCatalog.MotifsId,
+                Lumora.Services.Enhance.EnhanceModelCatalog.UpscaleId, Lumora.Services.Enhance.EnhanceModelCatalog.FacesId, // ADR-0071
+                Lumora.Services.Enhance.EnhanceModelCatalog.ColorizeId, Lumora.Services.Enhance.EnhanceModelCatalog.InpaintId,
                 Lumora.Services.ModelPackages.ModelPackageCatalog.GeoNamesId, Lumora.Services.ModelPackages.ModelPackageCatalog.MapTilesId,
                 Lumora.Services.ModelPackages.ModelPackageCatalog.AssistantId);
             packages.Single(p => p.Definition.Id == Lumora.Services.ModelPackages.ModelPackageCatalog.MapTilesId).Folder
                 .Should().StartWith(HiddenLibraryStore.GetCatalogFolder(library), "Kartenkacheln bleiben im Container");
+            // ADR-0071: Modelle von „Foto verbessern“ aus dem normalen Modellordner, Zwischenstände im Container
+            packages.Where(p => p.Definition.Id.StartsWith("enhance.", StringComparison.Ordinal)).Should()
+                .OnlyContain(p => p.Folder!.StartsWith(Path.Combine(normalRoot, "models"), StringComparison.OrdinalIgnoreCase));
+            ((Lumora.Services.Enhance.PhotoEnhanceService)provider.GetRequiredService<Lumora.Services.Enhance.IPhotoEnhanceService>()).TempFolder
+                .Should().StartWith(HiddenLibraryStore.GetCatalogFolder(library), "Zwischenstände von „Foto verbessern“ bleiben im Container");
 
             await provider.GetRequiredService<DatabaseInitializer>().InitializeAsync();
             var libraries = provider.GetRequiredService<ILibraryService>();

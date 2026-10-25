@@ -54,9 +54,9 @@ public sealed class PhotoContextMenuBuilderTests
             Item(file.Items, "Exportieren (verkleinert)").Items.Count.Should().Be(PhotoExportOptions.Sizes.Count);
 
             var edit = Item(menu.Items, "Bearbeiten");
-            Headers(edit.Items).Should().Equal("Datum setzen…", "Ort setzen…", "—", "Nach links drehen", "Nach rechts drehen", "—", "Foto verbessern… (später)");
+            Headers(edit.Items).Should().Equal("Datum setzen…", "Ort setzen…", "—", "Nach links drehen", "Nach rechts drehen", "—", "Foto verbessern…");
             Item(edit.Items, "Nach rechts drehen").IsEnabled.Should().BeTrue();
-            Item(edit.Items, "Foto verbessern… (später)").IsEnabled.Should().BeFalse("kommt später (Welle 8)");
+            Item(edit.Items, "Foto verbessern…").IsEnabled.Should().BeFalse("ohne Anbindung (Host.Enhance) ausgegraut — ADR-0071");
             return true;
         }, Timeout);
     }
@@ -189,5 +189,28 @@ public sealed class PhotoContextMenuBuilderTests
             Item(tagMenu.Items, "Leer").IsChecked.Should().BeFalse();
             Item(tagMenu.Items, "Neuer Tag…").InputGestureText.Should().Be("Strg+T");
         });
+    }
+
+    [Fact]
+    public void Foto_verbessern_ist_mit_Anbindung_frei_und_nennt_bei_Mehrfachauswahl_die_Zahl()
+    {
+        // ADR-0071: „Bearbeiten ▸ Foto verbessern…“ — eines → Leiste in der Lightbox, mehrere → Dialog; Videos ausgegraut
+        TestUiThread.Run(() =>
+        {
+            var calls = 0;
+            var host = GalleryHost() with { Enhance = () => calls++ };
+            var single = Item(Build(new PhotoMenuContext(PhotoMenuSource.Gallery, Jpeg(), [7]), host, Actions()).Items, "Bearbeiten");
+            Item(single.Items, "Foto verbessern…").IsEnabled.Should().BeTrue();
+            Item(single.Items, "Foto verbessern…").Command.Execute(null);
+            calls.Should().Be(1);
+
+            var multi = Item(Build(new PhotoMenuContext(PhotoMenuSource.Gallery, Jpeg(), [7, 8, 9]), host, Actions()).Items, "Bearbeiten");
+            Item(multi.Items, "3 Fotos verbessern…").IsEnabled.Should().BeTrue();
+
+            var video = new PhotoMenuTarget(7, "film.mp4", @"C:\Bibliothek\film.mp4", ".mp4", Lumora.Domain.Enums.MediaType.Video, false);
+            var videoEdit = Item(Build(new PhotoMenuContext(PhotoMenuSource.Gallery, video, [7]), host, Actions()).Items, "Bearbeiten");
+            Item(videoEdit.Items, "Foto verbessern…").IsEnabled.Should().BeFalse("nur Fotos");
+            return true;
+        }, Timeout);
     }
 }

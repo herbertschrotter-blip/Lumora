@@ -53,6 +53,9 @@ public enum ActivityKind
 
     /// <summary>Modell laden (Einstellungen › Modelle &amp; Daten, ADR-0070).</summary>
     ModelDownload = 16,
+
+    /// <summary>Foto verbessern über mehrere Fotos (ADR-0071).</summary>
+    Enhance = 17,
 }
 
 /// <summary>Zustand eines Vorgangs.</summary>

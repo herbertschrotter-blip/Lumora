@@ -12,6 +12,7 @@
              xmlns:tracks="clr-namespace:Lumora.Places.TrackSettings"
              xmlns:assistant="clr-namespace:Lumora.Stories.Assistant"
              xmlns:models="clr-namespace:Lumora.Settings.ModelPackages"
+             xmlns:enhance="clr-namespace:Lumora.Enhance"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance local:SettingsViewModel}"
              d:DesignWidth="1000"
@@ -96,6 +97,10 @@
             <!-- Motive (ADR-0052): DataContext = MotifSettingsViewModel (Code-Behind) -->
             <TabItem Header="Motive" Tag="{x:Static shell:NavigationTags.SettingsMotifs}">
                 <sections:SettingsMotifsSection x:Name="MotifsView" />
+            </TabItem>
+            <!-- Verbessern (ADR-0071, Mockup 13): DataContext = EnhanceSettingsViewModel (Code-Behind) -->
+            <TabItem Header="Verbessern" Tag="{x:Static shell:NavigationTags.SettingsEnhance}">
+                <enhance:SettingsEnhanceSection x:Name="EnhanceView" />
             </TabItem>
             <TabItem Header="Archive" Tag="{x:Static shell:NavigationTags.SettingsArchives}">
                 <sections:SettingsArchivesSection />

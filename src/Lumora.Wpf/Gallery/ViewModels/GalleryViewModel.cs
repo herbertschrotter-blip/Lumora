@@ -148,7 +148,8 @@ public sealed partial class GalleryViewModel : ObservableObject
         Lumora.Slideshow.ISlideshowService? slideshow = null,
         Lumora.Removal.RemovalActions? removalActions = null,
         Lumora.Marks.MarkSettingsState? markSettings = null,
-        Lumora.Services.Rotation.IPhotoRotationService? rotation = null)
+        Lumora.Services.Rotation.IPhotoRotationService? rotation = null,
+        Lumora.Enhance.EnhanceGalleryActions? enhance = null)
     {
         _rotation = rotation; // Rückgängig für „Drehen“ (ADR-0068, GalleryViewModel.Rotation.cs)
         InitMarks(markSettings); // Schalter „Symbole auf Galerie-Kacheln“ (Mockup 16, GalleryViewModel.Marks.cs)
@@ -183,6 +184,7 @@ public sealed partial class GalleryViewModel : ObservableObject
         InitCaptureDate(captureDateActions); // „Datum setzen…“, Rückgängig, Neuladen (GalleryViewModel.CaptureDate.cs, ADR-0046)
         InitPlaces(placeActions); // Filter „Ort“, Kartenausschnitt, „Ort setzen…“ (GalleryViewModel.Places.cs, ADR-0050)
         InitPages(sharedFilter, navigation); // gemeinsamer Filter, seitengebundene Teile (GalleryViewModel.Pages.cs, ADR-0055)
+        InitEnhance(enhance); // Foto verbessern: Marke „2 Fassungen“, beste Fassung, Stapel (GalleryViewModel.Enhance.cs, ADR-0071)
     }
 
     // ---- Gebundene Daten ---------------------------------------------------------------------
@@ -896,6 +898,7 @@ public sealed partial class GalleryViewModel : ObservableObject
         FireAndForget(() => ApplyPlacesToItemsAsync(rows.Select(r => r.Id).ToList(), ct)); // Orte (ADR-0050,
         FireAndForget(() => ApplyMotifsToItemsAsync(rows.Select(r => r.Id).ToList(), ct)); // Motive (ADR-0052)
         FireAndForget(() => ApplyFolderLinkMarksAsync(query, rows.Select(r => r.Id).ToList(), ct)); // Verknüpft (ADR-0054)
+        FireAndForget(() => ApplyVariantMarksAsync(rows.Select(r => r.Id).ToList(), ct)); // Fassungen (ADR-0071)
 
         SetLoadStatus($"{TotalCount:N0} Treffer · Seite {DisplayPageIndex} von {PageCount:N0} · {LastPageLoadMs:N1} ms");
         _logger.LogInformation(
@@ -966,10 +969,10 @@ public sealed partial class GalleryViewModel : ObservableObject
     private GalleryQuery BuildQuery()
     {
         var term = string.IsNullOrWhiteSpace(SearchTerm) ? null : SearchTerm.Trim();
-        return WithAlbums(WithMotifs(new GalleryQuery(_libraryId, FilterState, term, FolderId, IncludeSubfolders, SelectedSort.Sort, SelectedTagIds(), TagFilterMode, SelectedCategoryFilters(), SelectedSort.Category, SelectedPersonFilter())
+        return WithVariants(WithAlbums(WithMotifs(new GalleryQuery(_libraryId, FilterState, term, FolderId, IncludeSubfolders, SelectedSort.Sort, SelectedTagIds(), TagFilterMode, SelectedCategoryFilters(), SelectedSort.Category, SelectedPersonFilter())
         {
             LibraryIds = ScopeLibraryIdsForQuery, // ADR-0048: null = nur die aktive Bibliothek
-        })); // Motive (ADR-0052), Album/Verknüpfungen (ADR-0054)
+        }))); // Motive (ADR-0052), Album/Verknüpfungen (ADR-0054), beste Fassung (ADR-0071)
     }
 
     /// <summary>

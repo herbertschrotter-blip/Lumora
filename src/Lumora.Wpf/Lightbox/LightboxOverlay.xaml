@@ -202,6 +202,14 @@
                             Visibility="{Binding IsImage, Converter={StaticResource BoolToVis}}">
                         <ui:SymbolIcon Symbol="PersonSquare24" FontSize="18" Filled="{Binding Faces.IsVisible}" />
                     </Button>
+                    <!-- Foto verbessern (E, ADR-0071) -->
+                    <Button Style="{StaticResource LightboxOverlayButton}"
+                            Command="{Binding ToggleEnhanceCommand}"
+                            ToolTip="Verbessern (E) — Original bleibt unverändert"
+                            AutomationProperties.Name="Verbessern"
+                            Visibility="{Binding HasEnhance, Converter={StaticResource BoolToVis}}">
+                        <ui:SymbolIcon Symbol="Sparkle24" FontSize="18" Filled="{Binding Enhance.IsOpen, FallbackValue=False}" />
+                    </Button>
                     <Button Style="{StaticResource LightboxOverlayButton}"
                             Command="{Binding ToggleInfoCommand}"
                             ToolTip="Info-Panel (I)">

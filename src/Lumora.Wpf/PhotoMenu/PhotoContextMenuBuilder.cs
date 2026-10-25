@@ -50,6 +50,9 @@ public sealed record PhotoMenuHost
 
     public Action? ShowFaces { get; init; }
 
+    /// <summary>„Bearbeiten ▸ Foto verbessern…“ (ADR-0071): Leiste „Verbessern“ bzw. bei Mehrfachauswahl der Stapel-Dialog; null = ausgegraut.</summary>
+    public Action? Enhance { get; init; }
+
     /// <summary>„Suchen ▸“: Ergebnis als Bedingung in der Galerie zeigen; null = kein „Suchen“.</summary>
     public Func<RelatedPhotos, Task>? ApplySearch { get; init; }
 
@@ -158,13 +161,12 @@ public static class PhotoContextMenuBuilder
         }
 
         Separator(edit.Items);
-        edit.Items.Add(new MenuItem
-        {
-            Header = "Foto verbessern… (später)",
-            Icon = Icon(SymbolRegular.Sparkle24),
-            IsEnabled = false,
-            ToolTip = "Kommt mit Welle 8 (Mockup 13)",
-        });
+        // Foto verbessern (ADR-0071): eines → Lightbox-Leiste „Verbessern“, mehrere → Stapel-Dialog; Videos/Archive/fehlende nicht
+        var enhanceable = single ? primary.IsImage && !primary.IsMissing : true;
+        Add(edit.Items, single ? "Foto verbessern…" : $"{ids.Count:N0} Fotos verbessern…", SymbolRegular.Sparkle24,
+            enhanceable ? host.Enhance : null,
+            toolTip: enhanceable ? "Hochskalieren, Gesichter, Einfärben, Entfernen, Licht — als neue Datei, das Original bleibt" : "Nur Fotos lassen sich verbessern.",
+            keepDisabled: true);
         RemoveTrailingSeparators(edit.Items);
         if (edit.Items.Count == 0)
         {

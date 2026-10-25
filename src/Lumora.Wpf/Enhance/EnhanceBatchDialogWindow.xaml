@@ -1,0 +1,89 @@
+<dialogs:AppFluentWindow x:Class="Lumora.Enhance.EnhanceBatchDialogWindow"
+                 xmlns:dialogs="clr-namespace:Lumora.Shell.Dialogs"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:local="clr-namespace:Lumora.Enhance"
+                 mc:Ignorable="d"
+                 d:DataContext="{d:DesignInstance local:EnhanceBatchDialogViewModel, IsDesignTimeCreatable=False}"
+                 Title="{Binding Title}"
+                 Width="640"
+                 SizeToContent="Height"
+                 ResizeMode="NoResize"
+                 ShowInTaskbar="False"
+                 WindowStartupLocation="CenterOwner"
+                 WindowBackdropType="Mica"
+                 ExtendsContentIntoTitleBar="True"
+                 KeyDown="OnKeyDown">
+    <!-- „n Fotos verbessern“ (Mockup 13, ADR-0071): Werkzeuge mit Zustand, Zeitschätzung, Abbrechen / Verbessern. -->
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+    </Window.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <ui:TitleBar Grid.Row="0" Title="{Binding Title}" ShowMaximize="False" ShowMinimize="False" />
+
+        <StackPanel Grid.Row="1" Margin="24,0,24,14">
+            <TextBlock Text="{Binding Title}" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+            <TextBlock Margin="0,8,0,12" TextWrapping="Wrap" FontSize="13" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                       Text="Die Originale bleiben unverändert. Jedes Ergebnis wird eine neue Datei daneben und in der Galerie mit dem Original verknüpft." />
+            <ItemsControl ItemsSource="{Binding Choices}" Focusable="False" AutomationProperties.AutomationId="EnhanceBatchChoices">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type local:EnhanceBatchChoice}">
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <CheckBox Grid.Column="0" IsChecked="{Binding IsChecked}" IsEnabled="{Binding IsAvailable}" VerticalAlignment="Top"
+                                      AutomationProperties.Name="{Binding Title}" MinWidth="0" Margin="0,0,8,0" />
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="{Binding Title}" FontSize="13" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                <TextBlock Text="{Binding Hint}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                            <TextBlock Grid.Column="2" Text="{Binding StateText}" FontSize="11" VerticalAlignment="Top" Margin="8,2,0,0"
+                                       Foreground="{DynamicResource SystemFillColorCautionBrush}" />
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <StackPanel Orientation="Horizontal" Margin="28,0,0,10" Visibility="{Binding Choices[1].IsChecked, Converter={StaticResource BoolToVis}}">
+                <TextBlock Text="Faktor" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                <ToggleButton Content="2×" MinWidth="48" Margin="0,0,6,0" IsChecked="{Binding IsUpscale4, Mode=OneWay, Converter={x:Static local:InverseBoolConverter.Instance}}"
+                              Command="{Binding SetUpscaleFactorCommand}" CommandParameter="2" AutomationProperties.Name="2-fach" />
+                <ToggleButton Content="4×" MinWidth="48" IsChecked="{Binding IsUpscale4, Mode=OneWay}"
+                              Command="{Binding SetUpscaleFactorCommand}" CommandParameter="4" AutomationProperties.Name="4-fach" />
+            </StackPanel>
+            <Border CornerRadius="6" Padding="12,8" Background="{DynamicResource SubtleFillColorSecondaryBrush}">
+                <StackPanel Orientation="Horizontal">
+                    <ui:SymbolIcon Symbol="Clock24" FontSize="14" Margin="0,0,8,0" VerticalAlignment="Top" />
+                    <TextBlock Text="{Binding EstimateText}" TextWrapping="Wrap" FontSize="12" MaxWidth="540"
+                               AutomationProperties.AutomationId="EnhanceEstimate"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+            </Border>
+            <TextBlock Margin="0,8,0,0" Text="{Binding Problem}" TextWrapping="Wrap" FontSize="12"
+                       Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
+        </StackPanel>
+
+        <Border Grid.Row="2" Padding="24,12" Background="{DynamicResource SubtleFillColorTertiaryBrush}"
+                BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <ui:Button Content="Abbrechen" Margin="0,0,8,0" Command="{Binding CancelCommand}" />
+                <ui:Button Appearance="Primary" Command="{Binding ConfirmCommand}" AutomationProperties.Name="Verbessern">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Sparkle24" FontSize="14" Margin="0,0,6,0" />
+                        <TextBlock Text="Verbessern" />
+                    </StackPanel>
+                </ui:Button>
+            </StackPanel>
+        </Border>
+    </Grid>
+</dialogs:AppFluentWindow>

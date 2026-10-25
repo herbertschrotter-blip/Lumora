@@ -214,7 +214,7 @@
                 <StackPanel Orientation="Horizontal">
                     <ui:SymbolIcon Symbol="Add24" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     <TextBlock Style="{StaticResource MetaText}" Margin="10,0,0,0" VerticalAlignment="Center"
-                               Text="Weitere Modelle kommen mit „Foto verbessern“ (Hochskalieren, Gesichter restaurieren, Einfärben, Entfernen) und erscheinen dann hier." />
+                               Text="Die Modelle von „Foto verbessern“ (Hochskalieren, Gesichter restaurieren, Einfärben, Entfernen) stehen oben; Einstellungen › Verbessern zeigt sie je Werkzeug." />
                 </StackPanel>
             </Border>
 

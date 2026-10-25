@@ -1,0 +1,137 @@
+<UserControl x:Class="Lumora.Enhance.SettingsEnhanceSection"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:local="clr-namespace:Lumora.Enhance"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance local:EnhanceSettingsViewModel, IsDesignTimeCreatable=False}"
+             d:DesignWidth="1000">
+    <!-- Einstellungen › Verbessern (Mockup 13, ADR-0071); DataContext = EnhanceSettingsViewModel (Code der SettingsPage) -->
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="../Settings/Sections/SettingsStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <Style x:Key="Cell" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+                <Setter Property="Margin" Value="0,6,10,6" />
+            </Style>
+            <Style x:Key="HeadCell" TargetType="TextBlock" BasedOn="{StaticResource Cell}">
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Style="{StaticResource SectionPanel}">
+            <TextBlock Style="{StaticResource Lead}"
+                       Text="Foto verbessern: hochskalieren, Gesichter restaurieren, einfärben, Störendes entfernen, zuschneiden und Licht. Das Original bleibt immer unverändert — jedes Ergebnis wird eine neue Datei daneben." />
+
+            <!-- Modelle -->
+            <Border Style="{StaticResource SectionCard}" AutomationProperties.Name="Modelle für Foto verbessern">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                        <ui:SymbolIcon Symbol="Sparkle24" FontSize="16" Margin="0,0,8,0" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                        <ui:TextBlock Style="{StaticResource SectionTitle}" Margin="0" Text="Modelle für „Foto verbessern“" />
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,8"
+                               Text="Alle laufen nur auf diesem PC (Grafikkarte, sonst Prozessor). Jedes Modell wird erst nach Ihrer Bestätigung heruntergeladen; Name, Quelle, Größe und Lizenz sehen Sie vorher, jede Datei wird per SHA-256 geprüft." />
+                    <Grid Margin="0,0,0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="150" />
+                            <ColumnDefinition Width="140" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="70" />
+                            <ColumnDefinition Width="120" />
+                            <ColumnDefinition Width="190" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Style="{StaticResource HeadCell}" Text="Werkzeug" />
+                        <TextBlock Grid.Column="1" Style="{StaticResource HeadCell}" Text="Modell" />
+                        <TextBlock Grid.Column="2" Style="{StaticResource HeadCell}" Text="Quelle" />
+                        <TextBlock Grid.Column="3" Style="{StaticResource HeadCell}" Text="Größe" />
+                        <TextBlock Grid.Column="4" Style="{StaticResource HeadCell}" Text="Lizenz" />
+                        <TextBlock Grid.Column="5" Style="{StaticResource HeadCell}" Text="Zustand" />
+                    </Grid>
+                    <ItemsControl ItemsSource="{Binding Models}" Focusable="False" AutomationProperties.AutomationId="EnhanceModels">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type local:EnhanceModelRow}">
+                                <Border BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
+                                    <Grid AutomationProperties.Name="{Binding ToolName}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="150" />
+                                            <ColumnDefinition Width="140" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="70" />
+                                            <ColumnDefinition Width="120" />
+                                            <ColumnDefinition Width="190" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Style="{StaticResource Cell}" Text="{Binding ToolName}" />
+                                        <TextBlock Grid.Column="1" Style="{StaticResource Cell}" FontWeight="SemiBold" Text="{Binding ModelName}" />
+                                        <TextBlock Grid.Column="2" Style="{StaticResource Cell}" Text="{Binding Origin}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        <TextBlock Grid.Column="3" Style="{StaticResource Cell}" Text="{Binding SizeText}" />
+                                        <TextBlock Grid.Column="4" Style="{StaticResource Cell}" Text="{Binding License}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Style="{StaticResource Cell}" Text="{Binding StateText}" AutomationProperties.AutomationId="State" />
+                                            <ui:Button Content="Laden…" Padding="8,3" FontSize="12"
+                                                       Visibility="{Binding CanLoad, Converter={StaticResource BoolToVis}}"
+                                                       Command="{Binding Owner.LoadModelCommand}" CommandParameter="{Binding}"
+                                                       AutomationProperties.Name="Modell laden" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <WrapPanel Margin="0,8,0,0">
+                        <TextBlock Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="0,0,12,0"
+                                   Text="Größen ungefähr — die genaue Zahl und die Prüfsumme zeigt der Bestätigungsdialog." />
+                        <ui:Button Content="Alle Modelle in „Modelle &amp; Daten“" Command="{Binding OpenModelPackagesCommand}" />
+                    </WrapPanel>
+                    <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0" Text="{Binding Message}"
+                               Visibility="{Binding Message, Converter={StaticResource NullToVis}}" />
+                </StackPanel>
+            </Border>
+
+            <!-- Ergebnis speichern -->
+            <Border Style="{StaticResource SectionCard}" AutomationProperties.Name="Ergebnis speichern">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                        <ui:SymbolIcon Symbol="Save24" FontSize="16" Margin="0,0,8,0" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                        <ui:TextBlock Style="{StaticResource SectionTitle}" Margin="0" Text="Ergebnis speichern" />
+                    </StackPanel>
+
+                    <TextBlock Style="{StaticResource Label}" Margin="0,4,0,4" Text="Ort" />
+                    <RadioButton GroupName="EnhanceLocation" Content="Neben dem Original (Standard)"
+                                 IsChecked="{Binding UseSubfolder, Converter={x:Static local:InverseBoolConverter.Instance}}" />
+                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                        <RadioButton GroupName="EnhanceLocation" Content="In einem Unterordner neben dem Original:" IsChecked="{Binding UseSubfolder}" />
+                        <ui:TextBox Width="200" Margin="8,0,0,0" Text="{Binding SubfolderName, UpdateSourceTrigger=PropertyChanged}"
+                                    IsEnabled="{Binding UseSubfolder}" AutomationProperties.Name="Name des Unterordners" />
+                    </StackPanel>
+
+                    <TextBlock Style="{StaticResource Label}" Margin="0,14,0,4" Text="Dateiname" />
+                    <StackPanel Orientation="Horizontal">
+                        <ui:TextBox Width="240" Text="{Binding FileNamePattern, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Dateiname-Muster" />
+                        <TextBlock Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="12,0,0,0">
+                            <Run Text="{}{name} = Name des Originals · Beispiel: " /><Run Text="{Binding FileNameExample, Mode=OneWay}" FontFamily="Cascadia Mono, Consolas" />
+                        </TextBlock>
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,0" Text="Das Original wird nie überschrieben; ist der Name belegt, kommt „ (2)“ dazu." />
+
+                    <ui:ToggleSwitch Margin="0,14,0,0" Content="Aufnahmedatum und Ort übernehmen" IsChecked="{Binding CopyMetadata}" />
+                    <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0" Text="EXIF in der neuen Datei (bei JPEG-Originalen) und die Angaben im Katalog." />
+                    <ui:ToggleSwitch Margin="0,10,0,0" Content="Sterne, Favorit und Tags übernehmen" IsChecked="{Binding CopyRatingAndTags}" />
+                    <ui:ToggleSwitch Margin="0,10,0,0" Content="In der Galerie nur die beste Fassung zeigen" IsChecked="{Binding ShowBestVariant}" />
+                    <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0" Text="Das Original verschwindet aus der Galerie und bleibt über die Marke „2 Fassungen“ erreichbar." />
+                    <ui:ToggleSwitch Margin="0,10,0,0" Content="Grafikkarte nutzen (DirectML)" IsChecked="{Binding UseGpu}" />
+                    <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0" Text="Teilt sich die Grafikkarte mit Gesichtern, Motiven und Assistent — nacheinander. Ohne Grafikkarte rechnet der Prozessor (deutlich langsamer)." />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

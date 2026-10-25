@@ -34,4 +34,9 @@ public interface ILightboxService
         => Open(entries, startIndex, owner);
 
     bool IsOpen { get; }
+
+    /// <summary>Leiste „Verbessern“ im offenen Fenster zeigen (ADR-0071); ohne Fenster wirkungslos.</summary>
+    void ShowEnhancePanel()
+    {
+    }
 }

@@ -88,7 +88,8 @@ public sealed partial class LightboxViewModel : ObservableObject, IDisposable
         Lumora.Places.Suggestions.PlacesSuggestionContext? geoSuggestions = null,
         Lumora.Marks.MarkSettingsState? markSettings = null,
         Lumora.Services.Usage.IUsageSignals? usageSignals = null,
-        Lumora.Services.Usage.IUsageService? usageService = null)
+        Lumora.Services.Usage.IUsageService? usageService = null,
+        Lumora.Enhance.EnhancePanelFactory? enhance = null)
     {
         InitMarks(markSettings); // Leiste unten mit Tags/Kategorien (Mockup 16, LightboxViewModel.Marks.cs)
         _slideshow = slideshow; // „Diashow ab hier“ (ADR-0059, LightboxViewModel.Slideshow.cs)
@@ -114,6 +115,7 @@ public sealed partial class LightboxViewModel : ObservableObject, IDisposable
         InitMotifs(motifs); // Info-Panel „Motive“ (LightboxViewModel.Motifs.cs, ADR-0052)
         InitGeoHint(geoSuggestions); // Hinweis „Position geschätzt“ mit Vorschlag (LightboxViewModel.GeoAccuracy.cs, ADR-0062)
         InitUsage(usageSignals, usageService); // Nutzungs-Signale: aktive Ansehdauer, Zeile „Nutzung“ (LightboxViewModel.Usage.cs, ADR-0072)
+        InitEnhance(enhance); // Leiste „Verbessern“ (LightboxViewModel.Enhance.cs, ADR-0071)
     }
 
     // ----- Anbindung an das Fenster (View-Mechanik) -----
@@ -299,6 +301,7 @@ public sealed partial class LightboxViewModel : ObservableObject, IDisposable
         _ = LoadCurrentMotifsAsync(); // ADR-0052
         UpdateFacesForCurrent(); // 0.2.38
         NoteUsageShow(CurrentItem); // Ansehdauer (ADR-0072)
+        UpdateEnhanceForCurrent(); // ADR-0071
         _ = ShowCurrentAsync();
     }
 
@@ -1499,6 +1502,7 @@ public sealed partial class LightboxViewModel : ObservableObject, IDisposable
         _showVersion++;
         WeakReferenceMessenger.Default.UnregisterAll(this);
         Faces.Dispose(); // 0.2.38
+        Enhance?.Dispose(); // ADR-0071
         _statusCts?.Cancel();
 
         var media = _media;

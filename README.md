@@ -450,6 +450,7 @@ ist sie unter Einstellungen › Darstellung abgeschaltet, stehen sie wie früher
 | F11 | Vollbild ein/aus |
 | Esc | Vollbild verlassen, sonst Lightbox schließen |
 | I | Info-Panel ein/aus |
+| E | Leiste „Verbessern“ ein/aus (Foto; Esc schließt sie zuerst) |
 | + / − | Vergrößern / verkleinern (Bild) |
 | 1 | 100 % (Bild) |
 | 0 | Einpassen (Bild) |
@@ -463,6 +464,35 @@ ist sie unter Einstellungen › Darstellung abgeschaltet, stehen sie wie früher
 | Strg+K | Kategorie-Werte der Datei zuweisen (dieselbe Auswahl wie in der Galerie) |
 | Entf | In den Papierkorb (mit Bestätigung) |
 | S | Diashow ab hier (siehe „Diashow“) |
+
+### Foto verbessern (seit 0.4.46, ADR-0071)
+Hochskalieren, Gesichter restaurieren, einfärben, Störendes entfernen, zuschneiden, drehen und Licht — lokal auf diesem PC
+(Grafikkarte, sonst Prozessor). **Das Original bleibt immer unverändert**: jedes Ergebnis wird eine neue Datei daneben
+(`<Name>_verbessert.jpg`), im Katalog mit dem Original verknüpft und über die Aktivitäten rückgängig machbar (die neue Datei
+kommt in den Papierkorb).
+
+- **Ein Foto:** in der Lightbox **Verbessern** (Taste **E**, Knopf „Verbessern“ in der Werkzeugleiste oder Rechtsklick „Bearbeiten ▸ Foto
+  verbessern…“). Die Leiste rechts zeigt je Werkzeug, ob sein Modell bereit ist; fehlt es, lädt **Laden…** es nach
+  Bestätigung (Name, Quelle, Größe, Lizenz; siehe Einstellungen › Modelle & Daten). Werkzeuge wählen — **Automatisch**
+  (Lumora entscheidet je Foto: Einfärben + Kratzer bei Fotos ohne Farbe, Gesichter bei kleinen Gesichtern, Hochskalieren
+  bei kleinen Bildern) oder einzeln **Hochskalieren** 2×/4×, **Gesichter** mit Stärke, **Einfärben**, **Entfernen** (mit
+  dem Pinsel über das Bild malen, „Strich zurück“, „Kratzer automatisch“) und **Zuschneiden, drehen, Licht** —, dann
+  **Vorschau berechnen**. Auf dem Bild zeigt ein Regler Vorher (links) und Nachher (rechts); ziehen oder klicken verschiebt
+  ihn. **Als neue Datei speichern** legt die Fassung an, **Verwerfen** löscht die Vorschau. Andere Optionen oder Blättern
+  verwerfen eine Vorschau ebenfalls.
+- **Mehrere Fotos:** in der Galerie auswählen, Rechtsklick „Bearbeiten ▸ n Fotos verbessern…“: Werkzeuge wählen, die
+  Zeitschätzung lesen, **Verbessern**. Der Lauf erscheint unter den Aktivitäten (Fortschritt, Abbrechen); bereits fertige
+  werden gespeichert, „Rückgängig“ am Vorgang nimmt alle Fassungen zurück. Die Grafikkarte wechselt sich mit Gesichts- und
+  Motiv-Erkennung ab.
+- **Galerie:** Original und Fassung tragen die Marke **„2 Fassungen“**; ein Klick darauf öffnet beide in der Lightbox.
+  Mit „In der Galerie nur die beste Fassung zeigen“ verschwindet das Original (im Ordner nur, wenn die Fassung im selben
+  Ordner liegt) und bleibt über die Marke erreichbar.
+- **Einstellungen › Verbessern:** Modelle mit Quelle, Größe, Lizenz und Zustand; Speicherort (neben dem Original oder in
+  einem Unterordner), Dateiname-Muster (`{name}` = Name des Originals), Aufnahmedatum/Ort übernehmen (EXIF bei JPEG und
+  Katalog), Sterne/Favorit/Tags übernehmen, beste Fassung zeigen, Grafikkarte.
+- **Modelle** (je Download nach Bestätigung, SHA-256 geprüft): Real-ESRGAN x4plus (BSD-3, ≈ 70 MB), GFPGAN v1.4
+  (Apache-2.0, ≈ 340 MB; braucht zum Finden der Gesichter die Gesichtserkennung), DeOldify artistic (MIT, ≈ 255 MB),
+  LaMa (Apache-2.0, ≈ 210 MB). In einer versteckten Bibliothek bleiben Zwischenstände und Ergebnisse im Container.
 
 ### Diashow (seit 0.4.9, ADR-0059)
 Vollbild-Diashow ohne Musik auf dem Bildschirm des Hauptfensters, schwarz: Fotos blenden ineinander über und zoomen

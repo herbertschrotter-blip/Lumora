@@ -75,4 +75,13 @@ public enum OperationType
     /// Rückgängig-Speicher wie „Ort setzen“), „Rückgängig“ stellt Datei, Maße und Gesichtsrahmen wieder her.
     /// </summary>
     Rotate = 14,
+
+    // ---- ADR-0071: Foto verbessern ----
+
+    /// <summary>
+    /// Verbesserte Fassung als neue Datei angelegt (ADR-0071): je Fassung eine Operation (SourcePath = Original, DestPath = neue
+    /// Datei, FileId = neue Files-Zeile). Das Original wird nie angefasst. „Rückgängig“ legt die neue Datei in den Papierkorb und
+    /// entfernt ihre Katalogzeile samt Verknüpfung.
+    /// </summary>
+    CreateVariant = 15,
 }

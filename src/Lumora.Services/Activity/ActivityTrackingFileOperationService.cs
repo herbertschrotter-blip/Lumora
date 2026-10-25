@@ -234,6 +234,15 @@ public sealed class ActivityTrackingFileOperationService : IFileOperationService
             r => FolderOp(r, "Ordner verschoben")).ConfigureAwait(false);
     }
 
+    /// <summary>„Als neue Datei speichern“ (ADR-0071) mit „Rückgängig“; im Stapel-Lauf von „Foto verbessern“ ohne eigenen Eintrag.</summary>
+    public Task<FileOperationBatchResult> CreateVariantsAsync(IReadOnlyList<VariantCreateRequest> requests, CancellationToken ct = default)
+        => TrackAsync(
+            new ActivityStartInfo(ActivityKind.FileOperation, requests.Count == 1 ? "Verbesserte Fassung speichern" : $"{Files(requests.Count)} verbessert speichern", UserInitiated: true),
+            0,
+            ct,
+            token => _inner.CreateVariantsAsync(requests, token),
+            r => Batch(r, r.Succeeded == 1 ? "Verbesserte Fassung gespeichert" : $"{Files(r.Succeeded)} verbessert gespeichert", undoable: true));
+
 
     // ------------------------------------------------------------------ Rahmen
 

@@ -152,7 +152,11 @@ public partial class LightboxWindow : AppFluentWindow
         switch (key)
         {
             case Key.Escape:
-                if (_isFullscreen)
+                if (_viewModel.Enhance is { IsOpen: true } enhance)
+                {
+                    _ = enhance.SetOpenAsync(false); // Leiste „Verbessern“ zuerst schließen (ADR-0071)
+                }
+                else if (_isFullscreen)
                 {
                     ExitFullscreen();
                 }
@@ -189,6 +193,9 @@ public partial class LightboxWindow : AppFluentWindow
                 break;
             case Key.I:
                 _viewModel.ToggleInfoCommand.Execute(null);
+                break;
+            case Key.E when !ctrl:
+                _ = _viewModel.ToggleEnhanceCommand.ExecuteAsync(null); // Leiste „Verbessern“ (ADR-0071)
                 break;
             case Key.S when !ctrl:
                 _viewModel.StartSlideshowCommand.Execute(null); // „Diashow ab hier“ (ADR-0059)

@@ -6,7 +6,7 @@ namespace Lumora.Services.Albums;
 
 /// <summary>
 /// Verknüpfungen über das Entfernen einer Files-Zeile hinweg (ADR-0054, ADR-0012). Wer eine Files-Zeile löscht, nimmt
-/// per Fremdschlüssel-Kaskade auch ihre Album- und Ordner-Verknüpfungen (seit ADR-0058 auch manuelle Story-Einträge) mit. Datei-Operationen (Papierkorb, aus der
+/// per Fremdschlüssel-Kaskade auch ihre Album- und Ordner-Verknüpfungen (seit ADR-0058 auch manuelle Story-Einträge, seit ADR-0071 Fassungen) mit. Datei-Operationen (Papierkorb, aus der
 /// Bibliothek heraus verschieben, Reste einer Ordner-Übernahme) sichern sie VORHER mit <see cref="CaptureAsync"/> in
 /// <c>FileLinkUndo</c> zur protokollierten <c>FileOperation</c> — mit Pfad, Größe und Änderungszeit der Datei.
 /// „Rückgängig“ (neue Files-Zeile) stellt sie über die Operation wieder her; kehrt die Datei sonst zurück (Windows
@@ -24,7 +24,26 @@ internal static class FileLinkUndoStore
         FROM FolderLinks l JOIN Files f ON f.Id = l.FileId JOIN Folders d ON d.Id = f.FolderId WHERE l.FileId = $file
         UNION ALL -- Storys (ADR-0058): nur manuelle Einträge (hinzugefügt = 2, Ausschluss = 3); automatische berechnet die Erkennung neu
         SELECT $op, CASE WHEN s.Origin = 1 THEN 2 ELSE 3 END, s.StoryId, s.AddedAtUtc, d.Path || '\' || f.Name, f.Size, f.ModifiedAtUtc
-        FROM StoryItems s JOIN Files f ON f.Id = s.FileId JOIN Folders d ON d.Id = f.FolderId WHERE s.FileId = $file AND s.Origin <> 0;
+        FROM StoryItems s JOIN Files f ON f.Id = s.FileId JOIN Folders d ON d.Id = f.FolderId WHERE s.FileId = $file AND s.Origin <> 0
+        UNION ALL -- Fassungen (ADR-0071): diese Datei als Fassung (4, Ziel = Original) bzw. als Original (5, Ziel = Fassung)
+        SELECT $op, 4, v.OriginalFileId, v.CreatedAtUtc, d.Path || '\' || f.Name, f.Size, f.ModifiedAtUtc
+        FROM PhotoVariants v JOIN Files f ON f.Id = v.FileId JOIN Folders d ON d.Id = f.FolderId WHERE v.FileId = $file
+        UNION ALL
+        SELECT $op, 5, v.FileId, v.CreatedAtUtc, d.Path || '\' || f.Name, f.Size, f.ModifiedAtUtc
+        FROM PhotoVariants v JOIN Files f ON f.Id = v.OriginalFileId JOIN Folders d ON d.Id = f.FolderId WHERE v.OriginalFileId = $file;
+        """;
+
+    // Fassungen (ADR-0071): nur, wenn die andere Datei noch existiert und in derselben Bibliothek liegt; die Werkzeuge sind
+    // nicht gesichert („restored“), der Zeitpunkt schon.
+    private const string RestoreVariantsSql = """
+        INSERT OR IGNORE INTO PhotoVariants (FileId, OriginalFileId, Tools, CreatedAtUtc, BatchId)
+        SELECT $file, u.TargetId, 'restored', u.AddedAtUtc, 0 FROM FileLinkUndo u
+        WHERE u.FileOperationId = $op AND u.Kind = 4 AND u.TargetId <> $file
+          AND EXISTS (SELECT 1 FROM Files o JOIN Files n ON n.LibraryId = o.LibraryId WHERE o.Id = u.TargetId AND n.Id = $file);
+        INSERT OR IGNORE INTO PhotoVariants (FileId, OriginalFileId, Tools, CreatedAtUtc, BatchId)
+        SELECT u.TargetId, $file, 'restored', u.AddedAtUtc, 0 FROM FileLinkUndo u
+        WHERE u.FileOperationId = $op AND u.Kind = 5 AND u.TargetId <> $file
+          AND EXISTS (SELECT 1 FROM Files v JOIN Files n ON n.LibraryId = v.LibraryId WHERE v.Id = u.TargetId AND n.Id = $file);
         """;
 
     // Album nur, wenn es noch existiert und zur Gruppe der Bibliothek der (neuen) Datei gehört (ADR-0048).
@@ -81,6 +100,7 @@ internal static class FileLinkUndoStore
         var restored = await ctx.Database.ExecuteSqlRawAsync(RestoreAlbumsSql, [Param("$op", operationId), Param("$file", newFileId)], ct).ConfigureAwait(false);
         restored += await ctx.Database.ExecuteSqlRawAsync(RestoreFoldersSql, [Param("$op", operationId), Param("$file", newFileId)], ct).ConfigureAwait(false);
         restored += await ctx.Database.ExecuteSqlRawAsync(RestoreStoriesSql, [Param("$op", operationId), Param("$file", newFileId)], ct).ConfigureAwait(false); // ADR-0058
+        restored += await ctx.Database.ExecuteSqlRawAsync(RestoreVariantsSql, [Param("$op", operationId), Param("$file", newFileId)], ct).ConfigureAwait(false); // ADR-0071
         await ctx.Database.ExecuteSqlRawAsync(DeleteSql, [Param("$op", operationId)], ct).ConfigureAwait(false);
         return restored;
     }
@@ -95,6 +115,7 @@ internal static class FileLinkUndoStore
         var restored = Execute(connection, tx, RestoreAlbumsSql, operationId, newFileId);
         restored += Execute(connection, tx, RestoreFoldersSql, operationId, newFileId);
         restored += Execute(connection, tx, RestoreStoriesSql, operationId, newFileId); // ADR-0058
+        restored += Execute(connection, tx, RestoreVariantsSql, operationId, newFileId); // ADR-0071
         Execute(connection, tx, DeleteSql, operationId, null);
         return restored;
     }

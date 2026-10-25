@@ -242,6 +242,28 @@
                                    Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
                     </Border>
 
+                    <!-- Fassungs-Marke „2 Fassungen“ (ADR-0071, Mockup 13) über der Endung: Klick öffnet Original + Fassungen -->
+                    <Button Style="{StaticResource TileOverlayButton}"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Bottom"
+                            Margin="4,0,0,24"
+                            Padding="0"
+                            Background="Transparent"
+                            MinWidth="0"
+                            MinHeight="0"
+                            ToolTip="Original und verbesserte Fassung öffnen"
+                            AutomationProperties.Name="{Binding VariantText}"
+                            Visibility="{Binding HasVariants, Converter={StaticResource BoolToVis}}"
+                            Command="{Binding Path=(gc:GalleryListBox.TileHost).OpenVariantsCommand, RelativeSource={RelativeSource Self}}"
+                            CommandParameter="{Binding}">
+                        <Border Padding="7,1" CornerRadius="8" Background="#99000000">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:SymbolIcon Symbol="ImageMultiple16" FontSize="11" Foreground="White" Margin="0,0,4,0" />
+                                <TextBlock Text="{Binding VariantText}" FontSize="10" FontWeight="Bold" Foreground="White" />
+                            </StackPanel>
+                        </Border>
+                    </Button>
+
                     <!-- Sterne unten rechts: Bewertung (sichtbar wenn gesetzt, sonst bei Hover) -->
                     <Border x:Name="StarsHost"
                             HorizontalAlignment="Right"

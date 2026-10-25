@@ -110,6 +110,7 @@ src/
     Catalog/                          # CatalogUpdateService (Favorit/Bewertung)
     Database/                         # LibraryContextFactory (+ IDatabaseAccessGate), DatabaseInitializer, SqlitePragmaInterceptor
     Duplicates/                       # Doppelte (ADR-0053): ContentHasher (SHA-256), PerceptualHash (pHash), SimilarGrouping (Bucket-Index + Stern-Gruppen), KeeperRule, DuplicateIndexService (Hintergrund), DuplicateService (Abfragen), DuplicateCleanupService (Papierkorb + Rückgängig, CatalogRowSnapshot, MetadataTransfer)
+    Enhance/                          # Foto verbessern (ADR-0071): EnhanceModelCatalog (4 Modelle für „Modelle & Daten“), PhotoEnhanceService (Vorschau, Speichern, Stapel), EnhanceImageOps (rein), EnhanceAutoPlanner, JpegExifCopier, PhotoVariantStore, EnhanceSettingsStore, Onnx/ (Real-ESRGAN, GFPGAN, DeOldify, LaMa); Datei-Operation in Operations/FileOperationService.Variants.cs
     Faces/                            # Gesichtserkennung (ADR-0035): FaceEmbeddingCodec, Detection (SCRFD), Alignment, Onnx (DirectML/CPU), Models (Download), Indexing (Hintergrund-Index); Recognition/ = Lern-/Gruppierlogik (ADR-0036); Assignment/ = Zuordnungsdienst, Crops/ = Gesichts-Ausschnitte (ADR-0037); Erase/ = „Gesichtsdaten löschen“ je Bibliothek (ADR-0038)
       Relocation/                     # DatabaseRelocationService, StorageProbe, ThumbnailInventory — Katalog + Thumbnails umziehen (ADR-0026)
     Infrastructure/                   # AppDataPaths, DatabaseLocationStore (database-location.json, ADR-0026)
@@ -129,6 +130,7 @@ src/
     Usage/                            # Nutzungs-Signale (ADR-0072): UsageViewTracker (aktive Ansehdauer), UsageSignalService (Tagessummen, IUsageSignals + IUsageService), UsageScoring (Rohwert, Zuschlag, Grund), UsageReport (Melde-Weg per Messenger)
     Thumbnails/                       # ThumbnailService, FfmpegVideoThumbnailer, Renderer-Interfaces
   Lumora.Wpf/                     # net10.0-windows → alle; App.xaml.cs = Host + DI, MainWindow = NavigationView
+    Enhance/                          # Foto verbessern (ADR-0071): WicEnhanceImageCodec, EnhancePanel (Lightbox-Leiste) + EnhanceStageOverlay (Vorher/Nachher, Pinsel), Stapel-Dialog, EnhanceGalleryActions, Einstellungen › Verbessern
     Faces/                            # WicFaceImageLoader (IFaceImageLoader), Einstellungs-Abschnitt Gesichtserkennung
     Duplicates/                       # Seite „Doppelte“ (ADR-0053): DuplicatesViewModel, Gruppen-/Datei-Karten, Vorschaubilder
     Folders/                          # Ordnerleiste der Galerie (FolderPane, seit 0.4.44; bis 0.4.37 Ordnerbaum-Seite)
@@ -366,6 +368,13 @@ FilesFts           -- FTS5 virtual table (Files.Name, Extension)
   nach außen, Kopieren nach außerhalb, Exportieren) — alle NOT NULL DEFAULT 0; PK (FileId, Day), IX_FileUsageDays_Day (Day,
   FileId))` — nur Tagessummen, keine Zeitpunkte. Settings: `usage.enabled` (an), `usage.forgotten` (an), `usage.since` — je
   Katalog. „Neu aufbauen“ parkt die Zeilen wie die Motive (`UserDataCarryOver.Usage.cs`).
+- Foto verbessern — umgesetzt in 0.4.46 (Migration `AddPhotoVariants`, ADR-0071, nur CREATE TABLE):
+  `PhotoVariants (FileId PK → Files ON DELETE CASCADE (die Fassung), OriginalFileId → Files ON DELETE CASCADE, Tools (z. B.
+  „adjust+upscale“), CreatedAtUtc, BatchId (ohne FK); IX_PhotoVariants_Original)`. Neue Werte: `OperationType.CreateVariant = 15`
+  (Rückgängig = neue Datei in den Papierkorb), `FileLinkKind` 4 (war Fassung von) / 5 (hatte Fassung), `ActivityKind.Enhance = 17`.
+  Settings: `enhance.location` (NextToOriginal | Subfolder), `enhance.subfolder` (`verbessert`), `enhance.pattern`
+  (`{name}_verbessert`), `enhance.copyMetadata` (an), `enhance.copyRatingTags` (an), `enhance.showBest` (aus),
+  `enhance.useGpu` (an) — je Katalog. „Neu aufbauen“ trägt die Verknüpfung (`UserDataCarryOver.Variants.cs`).
 
 ### Pflicht-Indizes V0.1
 ```sql
@@ -497,7 +506,7 @@ Status (Stand 0.2.0): ✅ umgesetzt · 🟡 teilweise · ⬜ offen
 | ✅ | **Galerie mit Ordnerleiste** | Ordnerbaum als Leiste in der Galerie, Ordner als Filter-Chip, Menüpunkt „Ordner“ entfällt | Mockup 18 (abgenommen 2026-10-25), Issue #24, ADR-0068, umgesetzt in 0.4.44 |
 | ✅ | **Fotos in andere Programme kopieren** | Ziehen nach außen und Strg+C als Datei-Kopie, nie verschieben, versteckte Bibliothek gesperrt | Herbert 2026-10-25, Issue #25, ADR-0068, umgesetzt in 0.4.44 |
 | ⬜ | **Welle 7 Android-Begleit-App** | PC stellt Katalog + Vorschaubilder im Heimnetz bereit, Handy zeigt und bewertet | Memory/Plan |
-| ⬜ | **Welle 8 Foto verbessern** | hochskalieren, Gesichter restaurieren, einfärben, entfernen, Zuschneiden/Licht; Ergebnis als neue Datei; Augen-offen/Lächeln als Gütemerkmal | Mockup 13 (abgenommen 2026-10-23) |
+| ✅ | **Welle 8 Foto verbessern** | hochskalieren 2×/4× (Real-ESRGAN), Gesichter restaurieren mit Stärke (GFPGAN), einfärben (DeOldify), entfernen mit Pinsel/Kratzer (LaMa), Zuschneiden/Drehen/Licht; Lightbox-Leiste mit Vorher/Nachher, Ergebnis immer als neue, verknüpfte Datei mit Rückgängig, mehrere Fotos als Vorgang, Marke „2 Fassungen“, „beste Fassung zeigen“, Einstellungen › Verbessern; Modelle über „Modelle & Daten“ (CodeFormer weggelassen). Offen: Augen-offen/Lächeln als Gütemerkmal, Messung mit echten Modellen | Mockup 13 (abgenommen 2026-10-23), ADR-0071, Issue #17, umgesetzt in 0.4.46 |
 | 🟡 | **Produktivbetrieb** | Katalog-Sicherung vor Migrationen (konsistent, versteckt nur im Container, ohne Sicherung keine Migration), von Hand + Wiederherstellen beim nächsten Start, portabler Modus (`lumora.portable`/`Daten\` neben der EXE, `publish.ps1 -Portable`) für eine getrennte Release-Installation mit frischem Katalog, Datenordner in Info; offen: Sicherung der Fotos (Herberts Entscheidung, README „Produktivbetrieb“) | Issue #6, ADR-0069, umgesetzt in 0.4.40 |
 | ✅ | **Update-Manager „Modelle & Daten“** | alle Modelle und Datenpakete mit Zweck, Größe, Version, Quelle, Lizenz und Zustand; Laden nur nach Bestätigung mit SHA-256 und Fortschritt in der Aktivitäts-Anzeige, Prüfen, Entfernen, „Update suchen“ nur auf Klick; Register für die Modelle von „Foto verbessern“ | Mockup 19 (Entwurf, Abnahme offen), ADR-0070, Issue #19, umgesetzt in 0.4.42 |
 

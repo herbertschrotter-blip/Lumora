@@ -127,6 +127,7 @@ public partial class GalleryView
             SetDate = () => _viewModel.SetSelectionCaptureDateCommand.Execute(null),
             SetPlace = () => _viewModel.SetSelectionPlaceCommand.Execute(null),
             ShowFaces = () => _ = _viewModel.OpenWithFacesAsync(target),
+            Enhance = _viewModel.HasEnhance ? () => _ = _viewModel.EnhanceFromMenuAsync(target, ids) : null, // ADR-0071
             ApplySearch = result => _viewModel.ApplyRelatedSearchAsync(result.Label, result.FileIds),
             MoveTo = () => _viewModel.MoveSelectionCommand.Execute(null),
             Recycle = () => _viewModel.RecycleSelectionCommand.Execute(null),

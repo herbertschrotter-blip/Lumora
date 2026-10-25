@@ -198,6 +198,10 @@ public sealed partial class ModelPackageItemViewModel : ObservableObject
         ModelPackageCatalog.GeoNamesId => SymbolRegular.Location24,
         ModelPackageCatalog.MapTilesId => SymbolRegular.Map24,
         ModelPackageCatalog.AssistantId => SymbolRegular.Chat24,
+        Lumora.Services.Enhance.EnhanceModelCatalog.UpscaleId => SymbolRegular.ArrowExpand24, // Foto verbessern (ADR-0071)
+        Lumora.Services.Enhance.EnhanceModelCatalog.FacesId => SymbolRegular.PersonSquare24,
+        Lumora.Services.Enhance.EnhanceModelCatalog.ColorizeId => SymbolRegular.Color24,
+        Lumora.Services.Enhance.EnhanceModelCatalog.InpaintId => SymbolRegular.Eraser24,
         _ => group == ModelPackageGroup.Model ? SymbolRegular.BrainCircuit24 : SymbolRegular.Database24,
     };
 }

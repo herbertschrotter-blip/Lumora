@@ -119,6 +119,8 @@ public static class ServiceCollectionExtensions
         Marks.MarksServiceCollectionExtensions.AddMarks(services);
         // Update-Manager „Modelle & Daten“: Liste, Laden nach Bestätigung, Prüfen, Entfernen, Update suchen (Services/ModelPackages, ADR-0070)
         ModelPackages.ModelPackagesServiceCollectionExtensions.AddModelPackages(services);
+        // Foto verbessern: Hochskalieren, Gesichter, Einfärben, Entfernen, Zuschneiden/Licht als neue Datei mit Rückgängig (Services/Enhance, ADR-0071)
+        Enhance.PhotoEnhanceServiceCollectionExtensions.AddPhotoEnhance(services);
         // ---- ADR-0068: Titelbild überall, Kopieren/Exportieren, Drehen, Fotos nach außen kopieren (0.4.44) ----
         Covers.CoversServiceCollectionExtensions.AddCovers(services);
         Export.PhotoExportServiceCollectionExtensions.AddPhotoExport(services);

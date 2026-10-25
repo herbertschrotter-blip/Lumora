@@ -33,6 +33,9 @@ public sealed class LightboxService : ILightboxService, IDisposable
 
     public bool IsOpen => _window is not null;
 
+    /// <summary>Leiste „Verbessern“ öffnen (Rechtsklick „Bearbeiten ▸ Foto verbessern…“, ADR-0071).</summary>
+    public void ShowEnhancePanel() => _ = _window?.ViewModel.ShowEnhanceAsync();
+
     public void Open(IReadOnlyList<LightboxEntry> entries, int startIndex, Window? owner = null)
         => Open(entries, startIndex, owner, Lumora.Services.Usage.UsageViewContext.Normal);
 

@@ -3,6 +3,79 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.4.46] — 2026-10-25
+
+### Feature (ADR-0071) — Foto verbessern, Welle 8 (Mockup 13, Issue #17)
+- **Lightbox-Leiste „Verbessern“** (Taste **E**, Knopf in der Werkzeugleiste, Rechtsklick „Bearbeiten ▸ Foto verbessern…“ —
+  der bisher ausgegraute Eintrag aus 0.4.44 ist frei): Werkzeuge **Automatisch**, **Hochskalieren und schärfen** 2×/4×,
+  **Gesichter restaurieren** mit Stärke, **Einfärben**, **Entfernen** (Pinsel auf dem Bild, Strich zurück, Auswahl leeren,
+  „Kratzer und Flecken automatisch“) und **Zuschneiden, drehen, Licht** (Drehen in 90°-Schritten, mittiger Zuschnitt
+  Quadrat/4:3/3:2/16:9, Helligkeit, Kontrast). Je Werkzeug der Zustand des Modells („bereit“, „Modell fehlt“ mit
+  **Laden…** über den Bestätigungsdialog von „Modelle & Daten“, „braucht Gesichtserkennung“, „Quelle folgt“). **Vorschau
+  berechnen** → auf dem Bild Vorher (links) und Nachher (rechts) mit verschiebbarem Regler → **Als neue Datei speichern**
+  oder **Verwerfen**; andere Optionen oder Blättern verwerfen die Vorschau (auch, wenn sie während der Berechnung geändert
+  wurden). Esc schließt zuerst die Leiste.
+- **Original bleibt immer unverändert:** das Ergebnis wird eine neue Datei daneben (`<Name>_verbessert.jpg`, belegte Namen
+  „ (2)“, nie überschrieben), im Katalog mit dem Original verknüpft (neue Tabelle `PhotoVariants`, Migration
+  `AddPhotoVariants`, nur CREATE TABLE) und als `CreateVariant`-Batch protokolliert — **Rückgängig** legt die neue Datei in
+  den Papierkorb und räumt Katalog, FTS, Vorschaubilder und Verknüpfung auf (Aktivitäten bzw. „Rückgängig“ der Galerie).
+  Aufnahmedatum, Ort und Kamera kommen aus der Katalogzeile des Originals, bei JPEG-Originalen auch der EXIF-Block (Ausrichtung
+  auf 1); Favorit, Sterne und Tags nach Einstellung. Eine veraltete Katalogzeile am Ziel („fehlt“) wird ersetzt; eine
+  Fassung einer Fassung hängt am ursprünglichen Original. Gespeicherte Fassungen melden die Verwendung des Originals an die
+  Nutzungs-Signale (`UsageReport.Used`).
+- **Mehrere Fotos:** Rechtsklick auf eine Auswahl „Bearbeiten ▸ n Fotos verbessern…“ → Dialog mit Werkzeugen (fehlende
+  Modelle gesperrt), Zeitschätzung („etwa 2 Minuten auf der Grafikkarte“) → Lauf im Hintergrund als Vorgang „Foto
+  verbessern“ in der Aktivitäts-Anzeige (Fortschritt, Abbrechen; Videos, fehlende Dateien und „nichts zu tun“ werden
+  übersprungen). Gespeichert wird in EINEM Batch — nach einem Abbruch die bis dahin fertigen; „Rückgängig“ am Vorgang.
+- **Galerie:** Marke **„2 Fassungen“** an Original und Fassung (Klick öffnet beide in der Lightbox); Einstellung „In der
+  Galerie nur die beste Fassung zeigen“ blendet Originale mit vorhandener Fassung aus (im Ordnerfilter nur bei Fassung im
+  selben Ordner).
+- **Einstellungen › Verbessern** (neuer Reiter nach „Motive“): Modelle mit Quelle, Größe, Lizenz und Zustand („Laden…“,
+  Verweis auf „Modelle & Daten“), Speicherort (neben dem Original oder Unterordner), Dateiname-Muster mit `{name}`,
+  Aufnahmedatum/Ort übernehmen, Sterne/Favorit/Tags übernehmen, beste Fassung zeigen, Grafikkarte.
+- **Modelle** als vier Einträge in „Modelle & Daten“ (`EnhanceModelCatalog`, `AddFileSetModelPackage`), Adressen auf festen
+  Commits, Größe und SHA-256 aus den Hugging-Face-LFS-Metadaten (nur Metadaten abgefragt, nichts geladen): Real-ESRGAN
+  x4plus (BSD-3, 69,5 MB; 2× rechnet je Kachel 4× und verkleinert), GFPGAN v1.4 (Apache-2.0, 340 MB; Gesichter über
+  buffalo_l), DeOldify artistic (MIT, 255 MB; nur die Farbe, Helligkeit aus dem Original), LaMa big-lama fp32 (Apache-2.0,
+  208 MB) — ONNX-Fassungen von facefusion bzw. Carve. CodeFormer weggelassen (nur nicht-kommerziell), DDColor wegen
+  980 MB nicht gewählt. Fehlt ein Modell eines gewählten Werkzeugs, wird nichts berechnet und nichts geschrieben.
+- **Rechnen:** ONNX Runtime DirectML mit Rückfall CPU wie Gesichter/Motive, Grafikkarte je Schritt über `IGpuGate`;
+  Modelle werden nach dem Lauf bzw. beim Schließen der Leiste freigegeben (erst, wenn keine Berechnung mehr läuft); Ergebnis
+  höchstens 64 MP, sehr große Originale mit Hinweis verkleinert; zu wenig Arbeitsspeicher bricht nur das eine Foto ab.
+- **Versteckte Sitzung:** Zwischenstände nur im Temp-Ordner des Katalogs (Container), Ergebnisse neben dem Original
+  (Container), Ziele außerhalb der Bibliothek abgelehnt; Modelle aus dem normalen Modellordner.
+- **Technik:** Services `Enhance/` (`IPhotoEnhanceService`/`PhotoEnhanceService`, `EnhanceImageOps`, `EnhanceAutoPlanner`,
+  `JpegExifCopier`, `EnhanceSettingsStore`, `PhotoVariantStore`, `EnhanceModelAccess`, `Onnx/OnnxEnhanceEngines`),
+  `FileOperationService.Variants.cs` (`CreateVariantsAsync`), `OperationType.CreateVariant = 15`, `ActivityKind.Enhance = 17`,
+  `FileLinkKind` 4/5 (Mitnahme über Papierkorb/Verschieben nach außen), `UserDataCarryOver.Variants.cs`; Wpf `Enhance/`
+  (`WicEnhanceImageCodec`, `EnhancePanel`, `EnhanceStageOverlay`, Stapel-Dialog, `EnhanceGalleryActions`,
+  `SettingsEnhanceSection`), `LightboxViewModel.Enhance.cs`, `GalleryViewModel.Enhance.cs`, `GalleryPageSource.Variants.cs`,
+  `NavigationTags.SettingsEnhance`. Keine neuen Pakete.
+- **Tests:** Services 1493 → 1529 (3 übersprungen wie vorher) — Speichern daneben + verknüpft + Original Byte für Byte
+  gleich, Rückgängig in den Papierkorb, Nummerierung, Metadaten/Sterne/Tags nach Einstellung, EXIF mit Ausrichtung 1,
+  Modell fehlt = kein Lauf, „braucht Gesichtserkennung“, mehrere Fotos mit Abbruch (ein Batch, Aktivität, Rückgängig) und
+  ohne (Video übersprungen), versteckte Sitzung schreibt nichts nach außen, Ziel außerhalb abgelehnt, Unterordner,
+  Automatisch, Mitnahme über „Fehlende entfernen“/Rückgängig und „Neu aufbauen“, FileLinkUndo mit vollem Pfad, veraltete
+  Zeile ersetzt, Fassung einer Fassung, Freigabe erst nach laufender Berechnung, Zeitschätzung, Nutzungs-Meldung; Bausteine
+  (Drehen, Zuschnitt, Licht, Skalieren, Graustufen, Lab, Pinsel, Kratzer, Gesicht einblenden, Regeln, Dateinamen,
+  EXIF-Kopierer, Einstellungen, Modell-Register mit festen Commits). Wpf 1308 → 1326 (7 übersprungen wie vorher) — Leiste mit
+  Modell-Zustand und Laden nur nach Bestätigung, Werkzeug-Ausschluss, Vorschau → Speichern, Verwerfen/Optionen/Blättern,
+  Optionen während der Berechnung, fehlendes Modell, Pinsel, Bühne (Regler, Zeichnen), Leiste und Einstellungen hell/dunkel
+  ohne Binding-Fehler, Stapel-Dialog, Einstellungen speichern, Fassungs-Marke, „beste Fassung“-SQL und Gruppen, Menüeintrag.
+  Wpf-Suite dreimal hintereinander grün.
+- **Rauchtest:** neuer Schritt „Foto verbessern“ vor „Versteckte Bibliothek“ (Fake-Prozessor statt Modell: Hochskalieren
+  gilt als bereit, die übrigen folgen dem echten Manager): Foto einlesen → Lightbox → Leiste mit Modell-Zustand →
+  Hochskalieren + Licht → Vorschau Vorher/Nachher → neue Datei daneben (Original unverändert, verknüpft, Aktivität mit
+  Rückgängig) → Marke „2 Fassungen“, beste Fassung blendet das Original aus → Rückgängig → mehrere Fotos über den Dienst mit
+  Aktivität + Rückgängig → Einstellungen › Verbessern; Screenshots `31-verbessern-dunkel` (Lightbox) und `31-verbessern-hell`
+  (Einstellungen). Drei Läufe auf main-Basis (mit 0.4.45): je 57/57 OK, 0 Binding-Fehler, kein ERR/FTL. Ein Lauf vor dem Rebase: 54/56 — rot nur „Versteckte Bibliothek: nach Untätigkeit zugesperrt“ samt Folgefehler „Ordnerüberwachung“ (Wackler unter Last, ohne Bezug zum neuen Schritt; danach nicht wieder aufgetreten).
+
+### Offen
+- Die ONNX-Pfade sind ohne die echten Modelle nicht ausprobiert (Vor-/Nachverarbeitung nach den Vorlagen von Real-ESRGAN,
+  GFPGAN, DeOldify, LaMa) — beim ersten echten Lauf prüfen; die Zeitschätzung ist nicht gemessen.
+- „Beste Fassung zeigen“ prüft nicht, ob die Fassung die übrigen Filter erfüllt (ADR-0071, Konsequenzen).
+- Augen-offen/Lächeln als Gütemerkmal (aus PLAN Welle 8) ist nicht Teil dieses Schritts.
+
 ## [0.4.45] — 2026-10-25
 
 ### Feature (ADR-0072) — Nutzungs-Signale: Lumora lernt, was gefällt (Mockup 20, Issue #16)
