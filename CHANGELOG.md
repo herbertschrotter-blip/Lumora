@@ -3,6 +3,29 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.0] — 2026-10-25
+
+### Release — Lumora 0.5.0 (erste Ausgabe für den Produktivbetrieb)
+- **Portables Paket** `artifacts/Lumora-0.5.0-win-x64-portable` (+ ZIP), gebaut mit `pwsh -File build/publish.ps1 -Portable`:
+  `lumora.portable` neben `Lumora.exe` → eigener Datenordner `Daten\` mit **frischem Katalog**, getrennt von der
+  Test-Installation unter `%LocalAppData%\Lumora` (ADR-0069). Modelle (Gesichter, Motive, Foto verbessern) werden dort über
+  Einstellungen › Modelle & Daten nach Bestätigung neu geladen oder nach `Daten\models` kopiert.
+- **Inhalt seit 0.4.28** (Einzelheiten in den Einträgen darunter): Ordner in den Papierkorb und Fehlende entfernen
+  (0.4.30), BitLocker-Container auswerfen bzw. seit 0.4.38 standardmäßig nicht mehr aushängen, Ausschlüsse beim
+  Einlesen und Ordner verschieben (0.4.33), Tag-/Kategorie-Symbole (0.4.35), Aktivitäts-Anzeige (0.4.36), Thumbnail-Ablage
+  für Rückgängig und Rückfrage bei „Neu aufbauen“ (0.4.39), Katalog-Sicherung vor Migrationen + portabler Modus (0.4.40),
+  stabiler Rauchtest (0.4.41), Update-Manager „Modelle & Daten“ (0.4.42), Galerie mit Ordnerleiste, Titelbild überall,
+  neues Rechtsklick-Menü, Kopieren nach außen (0.4.44), Nutzungs-Signale (0.4.45), Foto verbessern (0.4.46).
+- **Prüfung:** Gesamtstand Build 0 Fehler/0 Warnungen, alle Tests grün, Rauchtest Debug und Rauchtest gegen das portable
+  Paket grün (Zahlen im Abschlussbericht der Sitzung).
+- Aufgabenquelle: GitHub Issues; geschlossen werden #1–#3, #15–#17, #19–#25 beim nächsten Push. Offen bleiben die Tests
+  bei Herbert (#7–#14), #4 Push, #5 App-Verbindung, #6 (Foto-Sicherung), #18 Welle 7.
+
+### Offen (Abnahme durch Herbert)
+- Mockup 19 „Modelle & Daten“ und Mockup 20 „Nutzungs-Signale“ wurden autonom entworfen und gebaut — Abnahme steht aus.
+- Die vier Modelle von „Foto verbessern“ sind registriert (Größe/SHA-256 aus den Hersteller-Metadaten), aber noch nie mit
+  echten Gewichten gelaufen — erster echter Lauf bei Herbert.
+
 ## [0.4.46] — 2026-10-25
 
 ### Feature (ADR-0071) — Foto verbessern, Welle 8 (Mockup 13, Issue #17)
