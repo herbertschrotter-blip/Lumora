@@ -100,6 +100,13 @@ public sealed record ScanOptions
     /// auf die Bibliothek warten muss. Die Bibliotheksseite vergibt je Scan-Lauf eine eigene und zeigt nur dieses Warten.
     /// </summary>
     public Guid? GateCallerId { get; init; }
+
+    /// <summary>
+    /// Nur <see cref="ScanMode.ClearAndRescan"/> (#22, Nachtrag ADR-0066): Dateien, die schon in ausgeschlossenen Ordnern
+    /// katalogisiert sind („Nur künftig ausschließen“), bleiben im neuen Katalog — der Ausschluss gilt für genau diese Einträge
+    /// nicht, neue Dateien dort bleiben draußen. Ihre Benutzerdaten trägt <see cref="UserDataCarryOver"/> wie bei allen anderen mit.
+    /// </summary>
+    public bool KeepCatalogedInExcludedFolders { get; init; }
 }
 
 /// <summary>
@@ -152,6 +159,9 @@ public sealed record ScanResult(
 
     /// <summary>Zahl der tatsächlich durchlaufenen Wurzeln (ADR-0020); bei LibraryOffline vor dem Start 0.</summary>
     public int RootsScanned { get; init; }
+
+    /// <summary>ClearAndRescan mit <see cref="ScanOptions.KeepCatalogedInExcludedFolders"/>: behaltene Einträge in ausgeschlossenen Ordnern (#22).</summary>
+    public int KeptExcluded { get; init; }
 
     /// <summary>true, wenn der Scan irgendetwas am Katalog verändert hat.</summary>
     public bool HasChanges => Added > 0 || Modified > 0 || MarkedMissing > 0 || Reappeared > 0 || FoldersAdded > 0;

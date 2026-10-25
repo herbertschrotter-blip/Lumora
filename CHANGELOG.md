@@ -3,6 +3,40 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.4.39] — 2026-10-25
+
+### Fix — Vorschaubild nach Rückgängig und Rückfrage bei „Neu aufbauen“ (Nachträge ADR-0065/ADR-0066)
+- **Vorschaubild nach „Fehlende entfernen“ + Rückgängig (#21):** Die Cache-Datei wird beim Entfernen nicht mehr gelöscht,
+  sondern in die Ablage des Batches verschoben (`thumbs\{Bibliothek}\_undo\{Batch}\`, dazu die Thumbnails-Zeilen als JSON);
+  **Rückgängig** bringt Datei und Zeile zurück — auch wenn die Datei weiter fehlt (dann ist das Vorschaubild das einzige Bild,
+  das Lumora noch hat). Gilt genauso für „Ausgeschlossene entfernen“ und „Ordner in den Papierkorb“. Am üblichen Platz ist nach
+  dem Entfernen weiterhin nichts (Repo-Regel). Ablagen bleiben **30 Tage** und werden beim nächsten Entfernen weggeräumt;
+  „Endgültig gelöscht“ bewahrt nichts auf, „Cache leeren“ leert die Ablage mit, „Neu aufbauen“ lässt sie stehen (sie gehört zum
+  Entfernen-Batch, nicht zu den aktuellen FileIds); kommt beim Rückgängig ein inzwischen neu erzeugtes Vorschaubild in den Weg,
+  bleibt das neuere. Ohne Ablage: vorhandene Dateien bekommen ihr
+  Vorschaubild beim nächsten Anzeigen neu (wie bisher, die Galerie fragt nach „Added“ neu an), fehlende zeigen den Platzhalter
+  mit „fehlt“ (geprüft: die Kachel zeigt dann Bild-Symbol + Marke „fehlt“).
+- **„Neu aufbauen“ fragt nach Einträgen in ausgeschlossenen Ordnern (#22):** Liegen nach „Nur künftig ausschließen“ noch
+  Einträge in ausgeschlossenen Ordnern in der Bibliothek, nennt die Rückfrage ihre Zahl samt Sternen/Favorit, benannten
+  Personen, Alben und Tags/Kategorien und bietet **„Neu aufbauen, Einträge behalten“** (genau diese Einträge kommen wieder in
+  den neuen Katalog, Angaben über `UserDataCarryOver`; neue Dateien dort bleiben ausgeschlossen, verschwundene fallen weg) oder
+  **„Neu aufbauen, Einträge herausnehmen“** (bisheriges Verhalten); ohne solche Einträge die bekannte Bestätigung. Die
+  Zusammenfassung nennt behaltene Einträge. Scheitert das Zählen, sagt die Bestätigung, dass behalten wird. Zuordnung zur Wurzel
+  über die alte RootId, bei einer nicht mehr vorhandenen Wurzel über den Pfad.
+- **Technik:** `FileOperationService.ThumbnailHold.cs` (Ablage, Zurückholen, Aufräumen), Aufrufe in
+  `RemoveCatalogRowsWithUndoAsync`, `RecycleFolderAsync` und `RestoreRemovalCatalogAsync`; `ScanOptions.KeepCatalogedInExcludedFolders`,
+  `ScanResult.KeptExcluded`, `ExcludedEntriesKeeper` (volle Scan-Schleife in `ScanService`), `LibraryService.DeleteThumbnailCacheAsync`
+  lässt `_undo` stehen, CLAUDE.md-Regel zur Cache-Datei ergänzt, `LibraryViewModel.Rebuild.cs`
+  (Rückfrage; `IScanExclusionService` optional im Konstruktor, `StartScanAsync` mit Start-Optionen). Keine Migration, keine
+  neuen Pakete, keine neue ADR (Nachträge in ADR-0065 und ADR-0066). (closes #21, closes #22)
+- **Tests:** Services 1394 → 1404 (3 übersprungen wie vorher) — Rückgängig bringt das Vorschaubild bei Fehlenden (und der
+  Vorschaubild-Dienst meldet es), Ausgeschlossenen und Ordner-Papierkorb, abgelaufene Ablage wird weggeräumt (Zeile kommt ohne
+  Bild), ohne Vorschaubild keine Ablage, „Neu aufbauen“ lässt die Ablage stehen; „Neu aufbauen“ behalten (Angaben, Ordnerkette, neue Datei bleibt draußen,
+  verschwundene fällt weg, späteres Aktualisieren lässt sie stehen) / herausnehmen / Option nur beim Neuaufbau / veraltete
+  RootId. Wpf 1243 → 1249
+  (7 übersprungen wie vorher) — Rückfrage mit Zahl und Benutzerdaten, behalten/herausnehmen/abbrechen, ohne Einträge die
+  bekannte Bestätigung, Zählen gescheitert → Hinweis und behalten, Einzahl-Text.
+
 ## [0.4.38] — 2026-10-25
 
 ### Fix (ADR-0049, Nachtrag 0.4.38) — Container standardmäßig nicht mehr aushängen

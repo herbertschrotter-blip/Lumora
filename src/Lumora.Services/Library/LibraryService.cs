@@ -658,12 +658,36 @@ public sealed class LibraryService : ILibraryService
 
         try
         {
-            await Task.Run(() => Directory.Delete(path, recursive: true)).ConfigureAwait(false);
+            await Task.Run(() => DeleteCacheKeepingUndoHolds(path)).ConfigureAwait(false);
             _logger.LogInformation("Thumbnail-Cache gelöscht: {Path}", path);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             _logger.LogWarning(ex, "Thumbnail-Cache konnte nicht (vollständig) gelöscht werden: {Path}", path);
+        }
+    }
+
+    /// <summary>
+    /// Ganzen Cache-Ordner löschen — bis auf die Vorschaubild-Ablagen für „Rückgängig“ (<c>_undo</c>, #21): sie gehören zu
+    /// Entfernen-Batches, nicht zu den aktuellen FileIds, und laufen nach 30 Tagen von selbst ab.
+    /// </summary>
+    private static void DeleteCacheKeepingUndoHolds(string path)
+    {
+        var holds = Path.Combine(path, Operations.FileOperationService.ThumbnailHoldFolderName);
+        if (!Directory.Exists(holds))
+        {
+            Directory.Delete(path, recursive: true);
+            return;
+        }
+
+        foreach (var dir in Directory.EnumerateDirectories(path).Where(d => !string.Equals(Path.GetFileName(d), Operations.FileOperationService.ThumbnailHoldFolderName, StringComparison.OrdinalIgnoreCase)).ToList())
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+
+        foreach (var file in Directory.EnumerateFiles(path).ToList())
+        {
+            File.Delete(file);
         }
     }
 

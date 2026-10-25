@@ -183,3 +183,20 @@ Katalog und damit ihre eigene Liste, nichts liegt außerhalb des Containers:
   [FolderTreePage.xaml.cs](../../src/Lumora.Wpf/Folders/FolderTreePage.xaml.cs)
 - Tests: `tests/Lumora.Tests/Scanning/ScanExclusionTests.cs`, `Operations/ExcludedRemovalTests.cs`, `Operations/FolderMoveTests.cs`,
   `Watch/LibraryWatchServiceTests.Exclusions.cs`; `tests/Lumora.Wpf.Tests/Exclusions/*`; Rauchtest `SmokeScenario.ExclusionsMove.cs`
+
+## Nachtrag 2026-10-25 (0.4.39, Issue #22): „Neu aufbauen“ fragt nach Einträgen in ausgeschlossenen Ordnern
+
+Bisher nahm „Neu aufbauen“ nach „Nur künftig ausschließen“ die Einträge in ausgeschlossenen Ordnern still heraus (der volle Scan
+betritt sie nicht). Jetzt:
+
+- Liegen solche Einträge in der Bibliothek, nennt die Rückfrage von „Neu aufbauen“ ihre Zahl samt Benutzerdaten (Sterne/Favorit,
+  benannte Personen, Alben, Tags/Kategorien — `IScanExclusionService.SummarizeAsync(ExclusionScope.Current)`, derselbe Zähler wie
+  ADR-0065) und bietet **„Neu aufbauen, Einträge behalten“** oder **„Neu aufbauen, Einträge herausnehmen“** (bisheriges Verhalten)
+  sowie Abbrechen. Ohne solche Einträge bleibt die bekannte Bestätigung. Scheitert das Zählen, wird behalten (nichts verschwindet,
+  was der Benutzer nicht gesehen hat).
+- **Behalten** = `ScanOptions.KeepCatalogedInExcludedFolders` (nur ClearAndRescan): der volle Scan nimmt **genau die katalogisierten
+  Einträge** wieder auf (`ExcludedEntriesKeeper`: nach den gespeicherten Ausschlüssen, je Wurzel über die alte RootId und nur
+  unterhalb der Wurzel, Werte frisch von der Platte); neue Dateien dort bleiben ausgeschlossen, verschwundene fallen wie sonst weg.
+  Gleicher Ordnerpfad + Name → `UserDataCarryOver` trägt Favorit, Bewertung, Tags, Kategorien, Personen, Alben usw. mit; der
+  Ausschluss selbst bleibt gespeichert. `ScanResult.KeptExcluded` zählt sie, die Zusammenfassung nennt sie.
+- Keine Migration, keine neue Regel für Incremental-Scan oder Ordnerbaum.

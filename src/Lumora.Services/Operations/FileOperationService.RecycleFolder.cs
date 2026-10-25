@@ -112,6 +112,12 @@ public sealed partial class FileOperationService
         })).ToList();
 
         // ADR-0012: Operationsliste (und hier die Abzüge für „Rückgängig“) vor dem Dateisystem-Schritt persistieren
+        var thumbRows = new Dictionary<int, List<Dictionary<string, object?>>>(); // #21: Vorschaubilder für „Rückgängig“ aufbewahren
+        if (!permanent)
+        {
+            PruneExpiredThumbnailHolds();
+        }
+
         await using (var tx = await ctx.Database.BeginTransactionAsync(ct).ConfigureAwait(false))
         {
             ctx.OperationBatches.Add(batch);
@@ -131,6 +137,7 @@ public sealed partial class FileOperationService
                 foreach (var (file, _) in fileOps)
                 {
                     RemovalUndoStore.CaptureFile(connection, transaction, batch.Id, file.Id);
+                    thumbRows[file.Id] = ReadThumbnailRows(connection, transaction, file.Id);
                 }
 
                 RemovalUndoStore.CaptureFolders(connection, transaction, batch.Id, pathById.Keys);
@@ -253,7 +260,8 @@ public sealed partial class FileOperationService
         var changes = new ChangeSet();
         foreach (var id in removedFromCatalog)
         {
-            DeleteThumbnailFiles(libraryId, id);
+            // #21: endgültig gelöscht → Cache-Datei weg; sonst in die Ablage des Batches (Rückgängig bringt sie zurück)
+            HoldThumbnailFiles(libraryId, id, batch.Id, deletedPermanently ? null : thumbRows.GetValueOrDefault(id));
             changes.Add(libraryId, FilesChangeKind.Removed, id);
         }
 
@@ -388,6 +396,7 @@ public sealed partial class FileOperationService
             var (restoredId, error) = await RestoreSnapshotItemAsync(ctx, snapshot, op).ConfigureAwait(false);
             if (restoredId is int id)
             {
+                await RestoreHeldThumbnailsAsync(ctx, snapshot.LibraryId, batch.Id, id).ConfigureAwait(false); // #21
                 restoredFiles++;
                 done.Add(entry.RowId);
                 libraries.Add(snapshot.LibraryId);

@@ -151,3 +151,21 @@ Vorschau/Zahlen `IRemovalService`):
   [GalleryViewModel.MissingFiles.cs](../../src/Lumora.Wpf/Gallery/ViewModels/GalleryViewModel.MissingFiles.cs)
 - Tests: `tests/Lumora.Tests/Operations/FolderRecycleTests.cs`, `MissingRemovalTests.cs`, `WindowsRecycleBinFolderTests.cs`;
   `tests/Lumora.Wpf.Tests/Removal/*`; Rauchtest `SmokeScenario.FolderRemoval.cs`
+
+## Nachtrag 2026-10-25 (0.4.39, Issue #21): Vorschaubilder kommen mit „Rückgängig“ zurück
+
+Bisher (siehe „Negativ“) wurde die Cache-Datei beim Entfernen gelöscht; nach „Fehlende entfernen“ + Rückgängig blieb die Zeile
+ohne Vorschaubild — und bei einer fehlenden Datei lässt es sich nicht neu erzeugen. Jetzt:
+
+- „Fehlende entfernen“, „Ausgeschlossene entfernen“ (ADR-0066) und „Ordner in den Papierkorb“ **verschieben** die Cache-Dateien
+  einer entfernten Datei in den Ablageordner ihres Batches `thumbs\{libraryId}\_undo\{batchId}\` (gleiches Laufwerk, nur ein
+  Umbenennen) und legen die Thumbnails-Zeilen als JSON daneben (`{fileId}.rows.json`, gelesen in der Transaktion der Abzüge).
+  Am üblichen Platz gibt es danach weder Zeile noch Datei — die Repo-Regel gilt im Kern weiter.
+- **Rückgängig** schreibt nach der Files-Zeile die Datei an ihren Platz zurück und die Zeilen mit dem aktuellen Pfad (eigene
+  kurze Transaktion; scheitert das, bleibt es beim Rückgängig ohne Vorschaubild — kein Fehler).
+- **Aufbewahrung 30 Tage**: ältere Ablagen räumt das nächste Entfernen weg (Rückgängig ist zeitlich nicht begrenzt, der Platz
+  schon). „Endgültig gelöscht“ (DeleteFolder) bewahrt nichts auf. „Cache leeren“ leert die Ablage mit.
+- **Ohne Ablage** (abgelaufen, Cache geleert): vorhandene Dateien bekommen ihr Vorschaubild wie bisher beim nächsten Anzeigen
+  (die Galerie verwirft bei `FilesChangedMessage` Added den Zustand des Dienstes und fragt neu an); fehlende zeigen den
+  Platzhalter mit „fehlt“.
+- Keine Migration (Dateien im Cache-Ordner), keine neue Tabelle. Code: `FileOperationService.ThumbnailHold.cs`.

@@ -129,7 +129,7 @@ public sealed class ScanService : IScanService
             using var lease = await _scanGate.AcquireAsync(libraryId, options.GateCallerId, ct).ConfigureAwait(false);
             var result = mode == ScanMode.Incremental
                 ? await RunIncrementalScanAsync(libraryId, options, reporter, ct).ConfigureAwait(false)
-                : await RunFullScanAsync(libraryId, mode, reporter, ct).ConfigureAwait(false);
+                : await RunFullScanAsync(libraryId, mode, options, reporter, ct).ConfigureAwait(false);
 
             if (result.Outcome == ScanOutcome.LibraryOffline)
             {
@@ -257,7 +257,7 @@ public sealed class ScanService : IScanService
 
     // ---- Fresh / ClearAndRescan ------------------------------------------------------------------
 
-    private async Task<ScanResult> RunFullScanAsync(int libraryId, ScanMode mode, ScanProgressReporter reporter, CancellationToken ct)
+    private async Task<ScanResult> RunFullScanAsync(int libraryId, ScanMode mode, ScanOptions options, ScanProgressReporter reporter, CancellationToken ct)
     {
         var totalSw = Stopwatch.StartNew();
 
@@ -291,6 +291,14 @@ public sealed class ScanService : IScanService
 
         // 6) Enumeration + In-Memory-Aggregation je Wurzel; ausgeschlossene Ordner werden nicht betreten (ADR-0066)
         var exclusions = await LoadExclusionsAsync(libraryId, ct).ConfigureAwait(false);
+
+        // #22 (Nachtrag ADR-0066): „Einträge behalten“ — schon katalogisierte Dateien in ausgeschlossenen Ordnern bleiben
+        var keep = mode == ScanMode.ClearAndRescan && options.KeepCatalogedInExcludedFolders
+            ? await ExcludedEntriesKeeper.LoadAsync(_contextFactory, libraryId, exclusions, ct).ConfigureAwait(false)
+            : [];
+        var rootPaths = roots.Select(r => r.Path).ToList();
+        var rootIds = roots.Select(r => r.Id).ToHashSet();
+        var keptCount = 0;
         var enumSw = Stopwatch.StartNew();
         var folderMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         var folderRows = new List<BulkScanWriter.FolderRow>();
@@ -359,6 +367,65 @@ public sealed class ScanService : IScanService
                 totalBytes += df.Size;
                 reporter.Report(new ScanProgress(folderRows.Count, fileRows.Count, totalBytes, df.FolderPath));
             }
+
+            // #22: behaltene Einträge dieser Wurzel mit aktuellen Werten von der Platte; nicht mehr vorhandene fallen weg
+            HashSet<(int FolderId, string Name)>? enumerated = null; // nur falls ein behaltener Ordner doch durchlaufen wurde
+            foreach (var kept in ExcludedEntriesKeeper.ForRoot(keep, root.Id, rootPath, rootPaths, rootIds))
+            {
+                ct.ThrowIfCancellationRequested();
+                long size;
+                DateTime created, modified;
+                try
+                {
+                    var info = new FileInfo(Path.Combine(kept.FolderPath, kept.Name));
+                    if (!info.Exists)
+                    {
+                        continue;
+                    }
+
+                    (size, created, modified) = (info.Length, info.CreationTimeUtc, info.LastWriteTimeUtc);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+                {
+                    continue;
+                }
+
+                var seenFolder = folderMap.ContainsKey(kept.FolderPath);
+                var keptFolderId = GetOrCreateFolderId(kept.FolderPath);
+                if (seenFolder)
+                {
+                    enumerated ??= fileRows.Select(r => (r.FolderId, r.Name.ToUpperInvariant())).ToHashSet();
+                    if (!enumerated.Add((keptFolderId, kept.Name.ToUpperInvariant())))
+                    {
+                        continue; // schon vom Durchlauf erfasst
+                    }
+                }
+
+                fileRows.Add(new BulkScanWriter.FileRow(
+                    Id: nextFileId++,
+                    LibraryId: libraryId,
+                    FolderId: keptFolderId,
+                    Name: kept.Name,
+                    Extension: kept.Extension,
+                    Size: size,
+                    CreatedAtUnix: ToUnix(created),
+                    ModifiedAtUnix: ToUnix(modified),
+                    MediaType: (int)kept.MediaType,
+                    Width: null,
+                    Height: null,
+                    DurationMs: null,
+                    Codec: null,
+                    IsFavorite: false,
+                    Rating: null,
+                    Missing: false));
+                totalBytes += size;
+                keptCount++;
+            }
+        }
+
+        if (keep.Count > 0)
+        {
+            _logger.LogInformation("Neu aufbauen: {Kept} von {Total} Einträgen in ausgeschlossenen Ordnern behalten", keptCount, keep.Count);
         }
 
         enumSw.Stop();
@@ -410,6 +477,7 @@ public sealed class ScanService : IScanService
         {
             Mode = mode,
             RootsScanned = roots.Count,
+            KeptExcluded = keptCount,
         };
     }
 

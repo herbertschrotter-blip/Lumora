@@ -156,8 +156,8 @@ public sealed partial class FileOperationService
     /// <summary>
     /// Batch + eine Operation je Datei + je Datei ein Abzug in EINER Transaktion (ADR-0012: alles steht, bevor der Katalog sich
     /// ändert), danach je Datei eine Item-Transaktion: Verknüpfungen sichern (ADR-0054), FTS mit alten Werten, Thumbnails-Zeilen,
-    /// Files-Zeile (Kaskaden), danach die Cache-Datei. Scheitert die Buchung einer Datei, ist ihre Operation Failed und ihr Abzug
-    /// verworfen. Gemeinsam für „Fehlende entfernen“ (ADR-0065) und „Ausgeschlossene entfernen“ (ADR-0066).
+    /// Files-Zeile (Kaskaden), danach die Cache-Datei (in die Ablage des Batches, #21). Scheitert die Buchung einer Datei, ist ihre
+    /// Operation Failed und ihr Abzug verworfen. Gemeinsam für „Fehlende entfernen“ (ADR-0065) und „Ausgeschlossene entfernen“ (ADR-0066).
     /// </summary>
     private async Task<(OperationBatch Batch, int Removed, List<int> FailedIds, HashSet<int> RemovedFolderIds)> RemoveCatalogRowsWithUndoAsync(
         LibraryContext ctx, OperationType type, string description, IReadOnlyList<CatalogFile> toRemove, ChangeSet changes, CancellationToken ct)
@@ -177,6 +177,8 @@ public sealed partial class FileOperationService
             DestPath = null,
             Status = FileOperationStatus.Pending,
         })).ToList();
+        PruneExpiredThumbnailHolds(); // #21: alte Vorschaubild-Ablagen wegräumen
+        var thumbRows = new Dictionary<int, List<Dictionary<string, object?>>>();
         await using (var tx = await ctx.Database.BeginTransactionAsync(ct).ConfigureAwait(false))
         {
             ctx.OperationBatches.Add(batch);
@@ -192,6 +194,7 @@ public sealed partial class FileOperationService
             foreach (var (cf, _) in items)
             {
                 RemovalUndoStore.CaptureFile(connection, transaction, batch.Id, cf.File.Id);
+                thumbRows[cf.File.Id] = ReadThumbnailRows(connection, transaction, cf.File.Id); // #21: für „Rückgängig“ aufbewahren
             }
 
             await tx.CommitAsync(ct).ConfigureAwait(false);
@@ -212,7 +215,7 @@ public sealed partial class FileOperationService
             if (error is null)
             {
                 removed++;
-                DeleteThumbnailFiles(cf.Library.Id, cf.File.Id);
+                HoldThumbnailFiles(cf.Library.Id, cf.File.Id, batch.Id, thumbRows.GetValueOrDefault(cf.File.Id)); // #21: statt löschen aufbewahren
                 changes.Add(cf.Library.Id, FilesChangeKind.Removed, cf.File.Id);
                 removedFolderIds.Add(cf.Folder.Id);
             }

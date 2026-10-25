@@ -66,8 +66,10 @@ public sealed partial class LibraryViewModel : ObservableObject
         Folders.FolderActions? folderActions = null,
         ILibraryLinkService? linking = null,
         ILibraryScope? libraryScope = null,
-        Linking.ILibraryLinkDialogService? linkDialogs = null)
+        Linking.ILibraryLinkDialogService? linkDialogs = null,
+        Services.Scanning.Exclusions.IScanExclusionService? exclusions = null)
     {
+        _exclusions = exclusions; // Rückfrage „Neu aufbauen“ mit Einträgen in ausgeschlossenen Ordnern (#22, LibraryViewModel.Rebuild.cs)
         _linking = linking; // „Verknüpfen mit…“ / „Verknüpfung lösen“ (ADR-0048, LibraryViewModel.Linking.cs)
         _libraryScope = libraryScope;
         _linkDialogs = linkDialogs;
@@ -276,20 +278,13 @@ public sealed partial class LibraryViewModel : ObservableObject
             return;
         }
 
-        var ok = await _dialogs.ConfirmAsync(
-            "Bibliothek neu aufbauen?",
-            "Der Katalog dieser Bibliothek wird neu aufgebaut; Vorschaubilder werden neu erzeugt. " +
-            "Favoriten, Bewertungen, Tags und Kategorien bleiben für Dateien erhalten, die noch am selben Ort liegen. " +
-            "Bis der neue Katalog fertig ist, bleibt der bisherige bestehen — ein Abbruch ändert nichts.\n\n" +
-            "Tipp: „Aktualisieren“ übernimmt nur Änderungen und ist deutlich schneller.",
-            "Neu aufbauen",
-            isDestructive: true).ConfigureAwait(true);
-        if (!ok)
+        var options = await ConfirmRebuildAsync(item).ConfigureAwait(true); // #22: mit Einträgen in ausgeschlossenen Ordnern
+        if (options is null)
         {
             return;
         }
 
-        await StartScanAsync(item, ScanMode.ClearAndRescan).ConfigureAwait(true);
+        await StartScanAsync(item, ScanMode.ClearAndRescan, options).ConfigureAwait(true);
     }
 
     [RelayCommand(CanExecute = nameof(IsScanning))]
@@ -522,7 +517,7 @@ public sealed partial class LibraryViewModel : ObservableObject
     /// Scan ohne weitere Rückfragen starten (Aufrufer hat bestätigt). Aktiviert die Bibliothek vorher, falls nötig.
     /// Führt die Dialoge des Offline-vs-Missing-Guards (PLAN Kap. 12) und wiederholt den Scan je nach Antwort.
     /// </summary>
-    internal async Task StartScanAsync(LibraryListItem item, ScanMode mode)
+    internal async Task StartScanAsync(LibraryListItem item, ScanMode mode, ScanOptions? initialOptions = null)
     {
         if (IsScanning)
         {
@@ -535,7 +530,7 @@ public sealed partial class LibraryViewModel : ObservableObject
             await _libraries.SetActiveAsync(item.Id).ConfigureAwait(true);
         }
 
-        var options = ScanOptions.Default;
+        var options = initialOptions ?? ScanOptions.Default;
         while (true)
         {
             var result = await RunScanOnceAsync(item, mode, options).ConfigureAwait(true);
@@ -817,7 +812,8 @@ public sealed partial class LibraryViewModel : ObservableObject
         if (result.Mode != ScanMode.Incremental)
         {
             return $"„{item.Name}“: {result.FilesInserted:N0} Dateien in {result.FoldersInserted:N0} Ordnern " +
-                   $"({Formatting.Bytes(result.TotalBytes)}) in {Formatting.Duration(result.TotalDuration)} katalogisiert.";
+                   $"({Formatting.Bytes(result.TotalBytes)}) in {Formatting.Duration(result.TotalDuration)} katalogisiert." +
+                   KeptExcludedText(result); // #22
         }
 
         if (!result.HasChanges)

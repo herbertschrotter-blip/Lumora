@@ -129,7 +129,9 @@ in Einstellungen › Bibliotheken & Eingänge.
 - Je Bibliothek: **Scannen** (leerer Katalog) bzw. **Aktualisieren** (Incremental: neue, geänderte, fehlende und wieder
   vorhandene Dateien; Ids, Favoriten, Bewertungen, Vorschaubilder bleiben), **Neu aufbauen** (Katalog komplett neu mit
   neuen Ids und Vorschaubildern; Favoriten, Bewertungen und Tags werden für Dateien übernommen, die noch am selben Ort
-  liegen — gelöschte, verschobene oder umbenannte Dateien verlieren sie), **Aktiv setzen**, Umbenennen, Entfernen (löscht keine Dateien auf der
+  liegen — gelöschte, verschobene oder umbenannte Dateien verlieren sie; liegen noch Einträge in ausgeschlossenen Ordnern
+  in der Bibliothek, nennt die Rückfrage ihre Zahl samt Sternen/Personen/Alben/Tags und bietet **Einträge behalten** oder
+  **Einträge herausnehmen**, seit 0.4.39), **Aktiv setzen**, Umbenennen, Entfernen (löscht keine Dateien auf der
   Platte).
 - Während eines Scans: Fortschrittspanel (Ordner, Dateien, Größe, Pfad, Dauer) mit **Abbrechen**; danach eine
   Zusammenfassung. Läuft gerade ein anderer Scan derselben Bibliothek (z. B. die automatische Aktualisierung) oder eine
@@ -654,7 +656,8 @@ sie könnte ja zurückkommen (Laufwerk wieder da, Datei zurückverschoben). Wer 
 wenn alle gewählten fehlen; bei gemischter Auswahl kommt ein Hinweis) und **Einstellungen › Speicher & Wartung** › **Alle
 fehlenden entfernen (n)**. Die Bestätigung nennt die Zahl der Dateien und davon die mit Sternen/Favorit, benannten Personen,
 in Alben und mit Tags/Kategorien — diese Angaben gehen verloren; **Rückgängig** bringt sie zurück (Galerie bzw. das
-Ergebnisfeld). Sicherheit: Ist das Laufwerk einer Wurzel **nicht erreichbar**, entfernt Lumora dort nichts („Laufwerk
+Ergebnisfeld), seit 0.4.39 auch mit dem bisherigen Vorschaubild (30 Tage aufbewahrt; danach zeigt die Kachel den Platzhalter
+mit „fehlt“). Dasselbe gilt für „Ausgeschlossene entfernen“ und „Ordner in den Papierkorb“. Sicherheit: Ist das Laufwerk einer Wurzel **nicht erreichbar**, entfernt Lumora dort nichts („Laufwerk
 nicht erreichbar — Dateien gelten als offline, nicht als fehlend“); vor dem Entfernen prüft es jede Datei noch einmal —
 ist sie wieder da, bleibt sie und „fehlt“ verschwindet. Gilt nur im aktuellen Bereich; in „Alle verknüpften“ gesperrt;
 in einer versteckten Bibliothek nur in ihrem eigenen Katalog.
