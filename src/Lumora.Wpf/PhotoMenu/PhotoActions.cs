@@ -451,6 +451,10 @@ public sealed class PhotoActions
         }
 
         var added = await _albums.Albums.AddFilesAsync(album.Id, fileIds).ConfigureAwait(true);
+        if (added > 0)
+        {
+            Lumora.Services.Usage.UsageReport.Used(fileIds); // Nutzungs-Signale (ADR-0072)
+        }
         return added.ToString("N0", CultureInfo.CurrentCulture) + " Datei(en) zu „" + album.Name + "“ hinzugefügt (verknüpft).";
     }
 
@@ -477,7 +481,13 @@ public sealed class PhotoActions
     {
         try
         {
-            return ExternalFileTransfer.CopyToClipboard(files, ClipboardSetter);
+            var text = ExternalFileTransfer.CopyToClipboard(files, ClipboardSetter);
+            if (!files.Blocked)
+            {
+                Lumora.Services.Usage.UsageReport.Shared(files.FileIds); // Kopieren nach außen (Nutzungs-Signale, ADR-0072)
+            }
+
+            return text;
         }
         catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or InvalidOperationException)
         {
@@ -501,12 +511,18 @@ public sealed class PhotoActions
         }
 
         // Versteckte Bibliothek: Kopien nur innerhalb des Containers (ADR-0049)
-        if (IsExternalBlocked && !await IsInsideLibraryAsync(target).ConfigureAwait(true))
+        var inside = await IsInsideLibraryAsync(target).ConfigureAwait(true);
+        if (IsExternalBlocked && !inside)
         {
             return "In der versteckten Bibliothek nur in einen Ordner der Bibliothek — Fotos verlassen den Container nicht.";
         }
 
         var result = await _fileOps.CopyAsync(fileIds, target).ConfigureAwait(true);
+        if (!inside && result.Succeeded > 0)
+        {
+            // Nutzungs-Signale (ADR-0072): Kopie nach außen = Weitergabe; innerhalb der Bibliothek ist es Ordnen und zählt nicht
+            Lumora.Services.Usage.UsageReport.Shared(result.Items.Where(i => i.Success).Select(i => i.FileId).Distinct().ToList());
+        }
         if (result.Failed > 0)
         {
             await _dialogs.ShowErrorAsync(
@@ -542,6 +558,11 @@ public sealed class PhotoActions
         }
 
         var result = await _export.ExportAsync(fileIds, target, new PhotoExportOptions(maxLongEdge)).ConfigureAwait(true);
+        if (result.Exported > 0)
+        {
+            Lumora.Services.Usage.UsageReport.Shared(fileIds); // Exportieren = Weitergabe (Nutzungs-Signale, ADR-0072)
+        }
+
         return result.Summary;
     }
 

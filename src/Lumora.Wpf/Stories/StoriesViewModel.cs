@@ -380,9 +380,15 @@ public sealed partial class StoriesViewModel : ObservableObject, IDisposable
 
         // Rückblicke
         var memories = Overview.Memories.Where(m => MatchesMemory(m, search)).Select(m => _memories[m.Key]).ToList();
-        if (filter == StoryKindFilter.All && MemoryBanner is { } banner && memories.Contains(banner))
+        if (filter == StoryKindFilter.All)
         {
-            rows.Add(new OverviewMemoryRow(banner));
+            if (MemoryBanner is { } banner && memories.Contains(banner))
+            {
+                rows.Add(new OverviewMemoryRow(banner));
+            }
+
+            // „Vergessene Schätze“ (ADR-0072) unter „Alle“ zusätzlich zum Banner „Heute vor … Jahren“
+            rows.AddRange(memories.Where(m => m.Memory.Kind == StoryMemoryKind.ForgottenTreasures).Select(m => new OverviewMemoryRow(m)));
         }
         else if (filter == StoryKindFilter.Memories)
         {

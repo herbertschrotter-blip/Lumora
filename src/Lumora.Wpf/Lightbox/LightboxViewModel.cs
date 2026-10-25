@@ -86,7 +86,9 @@ public sealed partial class LightboxViewModel : ObservableObject, IDisposable
         Lumora.Services.Motifs.IMotifTermService? motifs = null,
         Lumora.Slideshow.ISlideshowService? slideshow = null,
         Lumora.Places.Suggestions.PlacesSuggestionContext? geoSuggestions = null,
-        Lumora.Marks.MarkSettingsState? markSettings = null)
+        Lumora.Marks.MarkSettingsState? markSettings = null,
+        Lumora.Services.Usage.IUsageSignals? usageSignals = null,
+        Lumora.Services.Usage.IUsageService? usageService = null)
     {
         InitMarks(markSettings); // Leiste unten mit Tags/Kategorien (Mockup 16, LightboxViewModel.Marks.cs)
         _slideshow = slideshow; // „Diashow ab hier“ (ADR-0059, LightboxViewModel.Slideshow.cs)
@@ -111,6 +113,7 @@ public sealed partial class LightboxViewModel : ObservableObject, IDisposable
         InitPlaces(geoReader); // Zeile „Ort“ (LightboxViewModel.Places.cs, ADR-0050,
         InitMotifs(motifs); // Info-Panel „Motive“ (LightboxViewModel.Motifs.cs, ADR-0052)
         InitGeoHint(geoSuggestions); // Hinweis „Position geschätzt“ mit Vorschlag (LightboxViewModel.GeoAccuracy.cs, ADR-0062)
+        InitUsage(usageSignals, usageService); // Nutzungs-Signale: aktive Ansehdauer, Zeile „Nutzung“ (LightboxViewModel.Usage.cs, ADR-0072)
     }
 
     // ----- Anbindung an das Fenster (View-Mechanik) -----
@@ -185,7 +188,14 @@ public sealed partial class LightboxViewModel : ObservableObject, IDisposable
 
     partial void OnZoomPercentChanged(double value) => OnPropertyChanged(nameof(ZoomText));
 
-    partial void OnIsZoomFitChanged(bool value) => OnPropertyChanged(nameof(ZoomText));
+    partial void OnIsZoomFitChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ZoomText));
+        if (!value)
+        {
+            NoteUsageZoom(); // hineingezoomt (ADR-0072)
+        }
+    }
 
     partial void OnVolumeChanged(int value)
     {
@@ -288,6 +298,7 @@ public sealed partial class LightboxViewModel : ObservableObject, IDisposable
         _ = LoadCurrentCategoriesAsync();
         _ = LoadCurrentMotifsAsync(); // ADR-0052
         UpdateFacesForCurrent(); // 0.2.38
+        NoteUsageShow(CurrentItem); // Ansehdauer (ADR-0072)
         _ = ShowCurrentAsync();
     }
 
@@ -1232,6 +1243,7 @@ public sealed partial class LightboxViewModel : ObservableObject, IDisposable
         FileInfoRows.Add(new LightboxInfoRow("Geändert", item.ModifiedAtUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm", CultureInfo.CurrentCulture)));
         QueueCaptureDateRow(item); // „Aufgenommen“ (ADR-0046, LightboxViewModel.CaptureDate.cs)
         QueuePlaceRow(item); // „Ort“ (ADR-0050, LightboxViewModel.Places.cs)
+        QueueUsageRow(item); // „Nutzung“ (ADR-0072, LightboxViewModel.Usage.cs)
     }
 
     private void BuildImageInfo(LightboxItem item, DecodedImage decoded)
@@ -1482,6 +1494,7 @@ public sealed partial class LightboxViewModel : ObservableObject, IDisposable
             return;
         }
 
+        StopUsage(); // letzte Ansicht zählen (ADR-0072)
         _disposed = true;
         _showVersion++;
         WeakReferenceMessenger.Default.UnregisterAll(this);

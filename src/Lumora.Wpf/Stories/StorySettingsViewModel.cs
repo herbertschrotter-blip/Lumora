@@ -44,11 +44,13 @@ public sealed partial class StorySettingsViewModel : ObservableObject
         IPlaceLookup? places = null,
         IReverseGeocoder? geocoder = null,
         StoryHomeCache? homes = null,
-        ILibraryScope? scope = null)
+        ILibraryScope? scope = null,
+        Lumora.Usage.UsageSettingsViewModel? usage = null)
     {
         _store = store;
         _logger = logger;
         Slideshow = slideshow;
+        Usage = usage; // Karte „Nutzung lernen“ (ADR-0072)
         _places = places;
         _geocoder = geocoder;
         _homes = homes;
@@ -62,6 +64,11 @@ public sealed partial class StorySettingsViewModel : ObservableObject
     public SlideshowSettingsViewModel? Slideshow { get; }
 
     public bool HasSlideshow => Slideshow is not null;
+
+    /// <summary>Karte „Nutzung lernen“ (ADR-0072, Mockup 20); null ohne Nutzungs-Signale.</summary>
+    public Lumora.Usage.UsageSettingsViewModel? Usage { get; }
+
+    public bool HasUsage => Usage is not null;
 
     public ObservableCollection<SlideshowOption<int>> PauseOptions { get; } =
     [
@@ -115,6 +122,11 @@ public sealed partial class StorySettingsViewModel : ObservableObject
 
     public async Task LoadAsync()
     {
+        if (Usage is not null)
+        {
+            _ = Usage.LoadAsync(); // ADR-0072
+        }
+
         StorySettings settings;
         try
         {

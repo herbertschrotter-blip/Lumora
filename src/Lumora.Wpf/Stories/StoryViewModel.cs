@@ -744,7 +744,7 @@ public sealed partial class StoryViewModel : ObservableObject, IDisposable
         var position = entries.FindIndex(e => e.FileId == tile.FileId);
         if (entries.Count > 0)
         {
-            _services.Lightbox.Open(entries, Math.Max(0, position), System.Windows.Application.Current?.MainWindow);
+            _services.Lightbox.Open(entries, Math.Max(0, position), System.Windows.Application.Current?.MainWindow, Lumora.Services.Usage.UsageViewContext.Story); // gedämpft (ADR-0072)
         }
     }
 
@@ -781,6 +781,7 @@ public sealed partial class StoryViewModel : ObservableObject, IDisposable
         PickMode = StoryPickMode.None;
         if (await RunAsync(() => _services.Stories.SetCoverAsync(StoryId, tile.FileId)))
         {
+            Lumora.Services.Usage.UsageReport.Used([tile.FileId]); // Nutzungs-Signale (ADR-0072)
             StatusText = "Titelbild geändert.";
             await RefreshCardAsync(reloadCover: true);
         }

@@ -68,6 +68,11 @@ public sealed partial class GalleryPageSource
 
         parts.AddRange(BuildPlaceClauses(filter)); // Ort und Kartenausschnitt (ADR-0050, GalleryPageSource.Places.cs)
         parts.AddRange(BuildDuplicateClauses(filter)); // nur Doppelte (ADR-0053, GalleryPageSource.Duplicates.cs)
+        if (filter.LovedOnly)
+        {
+            // „Lieblinge“ (ADR-0072): kleine Menge aus FileUsageDays, leer bei „Nutzung lernen“ aus
+            parts.Add("AND f.Id IN (" + Lumora.Services.Usage.UsageScoring.LovedFileIdsSql(respectSetting: true) + ")");
+        }
         return string.Join("\n  ", parts);
     }
 

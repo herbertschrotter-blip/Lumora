@@ -49,6 +49,7 @@ public sealed class LibraryContext : DbContext
     public DbSet<GpsTrack> GpsTracks => Set<GpsTrack>(); // GPS-Spuren (ADR-0062)
     public DbSet<AssistantHistoryEntry> AssistantHistory => Set<AssistantHistoryEntry>(); // Story-Assistent (ADR-0063)
     public DbSet<AssistantAlias> AssistantAliases => Set<AssistantAlias>();
+    public DbSet<FileUsageDay> FileUsageDays => Set<FileUsageDay>(); // Nutzungs-Signale (ADR-0072)
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

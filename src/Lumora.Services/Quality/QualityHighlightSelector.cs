@@ -12,7 +12,8 @@ namespace Lumora.Services.Quality;
 /// Fingerabdrücke (<c>FileFingerprints</c>: pHash und Prüfsumme, nur gültige), bestätigte Gesichter, Favorit, Bewertung
 /// und Aufnahmezeit in Stücken zu <see cref="ChunkSize"/> Ids und überlässt die Auswahl <see cref="HighlightPlanner"/>.
 /// Fehlende (<c>Files.Missing</c>) und unbekannte Ids fallen heraus. Die Serien-Schwelle ist die „ähnlich“-Schwelle der
-/// Doppelten (Einstellung, Standard 10). Dateien ohne Güte-Wert (noch nicht bewertet) zählen neutral.
+/// Doppelten (Einstellung, Standard 10). Dateien ohne Güte-Wert (noch nicht bewertet) zählen neutral. Die gelernte Nutzung
+/// (ADR-0072, <see cref="Usage.IUsageService"/>) kommt als kleiner Zuschlag dazu — nur wenn „Nutzung lernen“ an ist.
 /// </summary>
 public sealed class QualityHighlightSelector : IHighlightSelector
 {
@@ -21,12 +22,18 @@ public sealed class QualityHighlightSelector : IHighlightSelector
 
     private readonly ILibraryContextFactory _factory;
     private readonly IDuplicateSettingsStore? _duplicateSettings;
+    private readonly Usage.IUsageService? _usage;
     private readonly ILogger _logger;
 
-    public QualityHighlightSelector(ILibraryContextFactory factory, IDuplicateSettingsStore? duplicateSettings = null, ILogger<QualityHighlightSelector>? logger = null)
+    public QualityHighlightSelector(
+        ILibraryContextFactory factory,
+        IDuplicateSettingsStore? duplicateSettings = null,
+        ILogger<QualityHighlightSelector>? logger = null,
+        Usage.IUsageService? usage = null)
     {
         _factory = factory;
         _duplicateSettings = duplicateSettings;
+        _usage = usage;
         _logger = logger ?? (ILogger)NullLogger.Instance;
     }
 
@@ -41,6 +48,7 @@ public sealed class QualityHighlightSelector : IHighlightSelector
 
         var threshold = await SimilarThresholdAsync(ct).ConfigureAwait(false);
         var candidates = await Task.Run(() => Load(fileIds, ct), ct).ConfigureAwait(false);
+        candidates = await WithUsageAsync(candidates, ct).ConfigureAwait(false);
         return HighlightPlanner.Select(candidates, options, threshold);
     }
 
@@ -53,7 +61,30 @@ public sealed class QualityHighlightSelector : IHighlightSelector
         }
 
         var candidates = await Task.Run(() => Load(fileIds, ct), ct).ConfigureAwait(false);
+        candidates = await WithUsageAsync(candidates, ct).ConfigureAwait(false);
         return HighlightPlanner.PickCover(candidates);
+    }
+
+    /// <summary>Gelernte Nutzung je Kandidat (ADR-0072); ohne Dienst, ohne Nutzung oder bei Lesefehlern unverändert.</summary>
+    private async Task<List<HighlightCandidate>> WithUsageAsync(List<HighlightCandidate> candidates, CancellationToken ct)
+    {
+        if (_usage is null || candidates.Count == 0)
+        {
+            return candidates;
+        }
+
+        try
+        {
+            var totals = await _usage.GetTotalsAsync(candidates.Select(c => c.FileId).ToList(), ct).ConfigureAwait(false);
+            return totals.Count == 0
+                ? candidates
+                : candidates.Select(c => totals.TryGetValue(c.FileId, out var t) ? c with { Usage = t } : c).ToList();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogDebug(ex, "Highlights: Nutzung nicht lesbar — ohne Zuschlag");
+            return candidates;
+        }
     }
 
     private async Task<int> SimilarThresholdAsync(CancellationToken ct)

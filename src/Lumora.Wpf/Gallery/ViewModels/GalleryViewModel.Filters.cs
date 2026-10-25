@@ -80,7 +80,7 @@ public sealed partial class GalleryViewModel
     /// </summary>
     public GalleryFilterState FilterState
     {
-        get => new(MediaFilter, FavoritesOnly, LocationFilter, MinRating) { Place = _placeFilter, Geo = _geoFilter, Duplicates = DuplicateFilter }; // Ort/Karte: ADR-0050, Doppelte: ADR-0053
+        get => new(MediaFilter, FavoritesOnly, LocationFilter, MinRating) { Place = _placeFilter, Geo = _geoFilter, Duplicates = DuplicateFilter, LovedOnly = LovedOnly }; // Ort/Karte: ADR-0050, Doppelte: ADR-0053, Lieblinge: ADR-0072
         set
         {
             var suppress = _suppressReload;
@@ -92,6 +92,7 @@ public sealed partial class GalleryViewModel
                 LocationFilter = value.Location;
                 MinRating = value.EffectiveMinRating;
                 DuplicatesOnly = value.Duplicates is not null; // ADR-0053
+                LovedOnly = value.LovedOnly; // ADR-0072
                 SetPlaceFiltersFromState(value); // GalleryViewModel.Places.cs
             }
             finally
@@ -191,6 +192,7 @@ public sealed partial class GalleryViewModel
             LocationFilter = GalleryLocation.Anywhere;
             MinRating = 0;
             DuplicatesOnly = false; // ADR-0053
+            LovedOnly = false; // ADR-0072
             ResetPlaceFilterCore(); // Ort und Kartenausschnitt (ADR-0050)
         }
         finally
@@ -247,6 +249,11 @@ public sealed partial class GalleryViewModel
         if (filter.Duplicates is not null)
         {
             return DuplicatesEmptyMessage; // ADR-0053
+        }
+
+        if (filter.LovedOnly)
+        {
+            return LovedEmptyMessage; // ADR-0072
         }
 
         if (filter.FavoritesOnly)
@@ -356,6 +363,11 @@ public sealed partial class GalleryViewModel
         if (DuplicatesOnly)
         {
             list.Add((GalleryFilterConditionKind.Duplicates, DuplicatesConditionLabel, null)); // ADR-0053
+        }
+
+        if (LovedOnly)
+        {
+            list.Add((GalleryFilterConditionKind.Loved, LovedConditionLabel, null)); // ADR-0072
         }
 
         if (MinRating > 0)
@@ -497,6 +509,9 @@ public sealed partial class GalleryViewModel
                 break;
             case GalleryFilterConditionKind.Duplicates:
                 DuplicatesOnly = false; // ADR-0053
+                break;
+            case GalleryFilterConditionKind.Loved:
+                LovedOnly = false; // ADR-0072
                 break;
             case GalleryFilterConditionKind.Location:
                 LocationFilter = GalleryLocation.Anywhere;

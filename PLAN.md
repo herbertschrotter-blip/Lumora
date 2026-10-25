@@ -126,6 +126,7 @@ src/
     Sorter/                           # FileSorterService, FlattenService, SorterPatternEngine, SorterProfileStore
     Stories/                          # Storys (ADR-0058): StoryDetector (rein), StoryReconciler (Signatur + gemeinsame Dateien), StoryTitleBuilder (sachliche Überschriften), StoryIndexService (Hintergrund, voll/inkrementell), StoryService (IStoryService für die Story-Seite), StorySettingsStore (stories.*), BasicHighlightSelector (Ersatz bis ADR-0057)
     Quality/                          # IHighlightSelector — Vertrag zwischen Foto-Güte (ADR-0057) und Storys
+    Usage/                            # Nutzungs-Signale (ADR-0072): UsageViewTracker (aktive Ansehdauer), UsageSignalService (Tagessummen, IUsageSignals + IUsageService), UsageScoring (Rohwert, Zuschlag, Grund), UsageReport (Melde-Weg per Messenger)
     Thumbnails/                       # ThumbnailService, FfmpegVideoThumbnailer, Renderer-Interfaces
   Lumora.Wpf/                     # net10.0-windows → alle; App.xaml.cs = Host + DI, MainWindow = NavigationView
     Faces/                            # WicFaceImageLoader (IFaceImageLoader), Einstellungs-Abschnitt Gesichtserkennung
@@ -359,6 +360,12 @@ FilesFts           -- FTS5 virtual table (Files.Name, Extension)
   ON DELETE CASCADE, CreatedAtUtc; UX_AssistantAliases_Group_Term_Person eindeutig, IX_AssistantAliases_Person)` — gemerkte
   Antworten auf Rückfragen („oma“ → Person(en)). Verknüpfen/Lösen/leere Gruppe über `AssistantGroupStore`. Settings:
   `assistant.enabled` (an), `assistant.model` (`qwen2.5:3b`), `assistant.useGpu` (an), `assistant.history` (an) — je Katalog.
+- Nutzungs-Signale — umgesetzt in 0.4.45 (Migration `AddUsageSignals`, ADR-0072, nur CREATE TABLE):
+  `FileUsageDays (FileId → Files ON DELETE CASCADE, Day (Kalendertag Ortszeit, Tage seit 1970-01-01), Opens, Seconds, Zooms,
+  SoftOpens, SoftSeconds (gedämpft: Lightbox aus einer Story, Diashow), Uses (Album/Story/Titelbild), Shares (Strg+C, Ziehen
+  nach außen, Kopieren nach außerhalb, Exportieren) — alle NOT NULL DEFAULT 0; PK (FileId, Day), IX_FileUsageDays_Day (Day,
+  FileId))` — nur Tagessummen, keine Zeitpunkte. Settings: `usage.enabled` (an), `usage.forgotten` (an), `usage.since` — je
+  Katalog. „Neu aufbauen“ parkt die Zeilen wie die Motive (`UserDataCarryOver.Usage.cs`).
 
 ### Pflicht-Indizes V0.1
 ```sql
@@ -480,7 +487,7 @@ Status (Stand 0.2.0): ✅ umgesetzt · 🟡 teilweise · ⬜ offen
 | ✅ | **Ungenaue Orte + GPS-Spuren** | geschätzte Handy-Positionen erkennen, Vorschläge aus Garmin-Spuren (Export-ZIP/FIT/GPX/USB) und Nachbarfotos, Einstellungen › Orte | Mockup 10, ADR-0062, umgesetzt in 0.4.23 |
 | ✅ | **Welle 6b Story-Assistent** | Sätze → lokale Sprach-KI (Ollama) → Filter + Aktion, Verständnis zur Bestätigung, Tags/Kategorien/Orte/Motive/Personen, Collage-Bild | Mockup 12, ADR-0063, umgesetzt in 0.4.24 |
 | ⬜ | **App-Verbindung (Gipfelbuch)** | lokale Schnittstelle 127.0.0.1, Kopplung, Rechte, Hintergrundstart, Reiter „Verbundene Apps“ | Mockup 11, Vertrag `herbertschrotter-blip/app-verbindung` v0.1 (Entwurf) |
-| ⬜ | **Nutzungs-Signale** | lokal messen, was Herbert mag: Öffnen, Ansehdauer (aktiv, 1 s–2 min, kein Durchblättern), Zoom, Wiederkehr an anderen Tagen, Verwendung in Album/Story/Collage/Titelbild, Drucken/Teilen/Exportieren über Lumora, später Handy (Welle 7). Nicht zählen: Sortieren, Doppelte, Suche nach einem Foto. Nur Tagessummen je Foto (kein Ereignisprotokoll), je Katalog, versteckt nur im Container, abschaltbar + „Nutzungsdaten löschen“, nichts im Protokoll. Nutzung: kleiner Zuschlag in der Highlight-Auswahl (ADR-0057) mit Grund („oft angesehen“, „3× geteilt“), gedämpft gegen Selbstverstärkung (Ansehen in Storys zählt weniger), fehlende Nutzung ist kein Abzug; neue Story-Art „Vergessene Schätze“ | Herbert 2026-10-22; Mockup folgt |
+| ✅ | **Nutzungs-Signale** | lokal messen, was Herbert mag: Öffnen, Ansehdauer (aktiv, 1 s–2 min, kein Durchblättern), Zoom, Wiederkehr an anderen Tagen, Verwendung in Album/Story/Titelbild, Kopieren nach außen/Exportieren über Lumora (Drucken/Teilen/Handy melden später über `UsageReport`). Nicht zählen: Sortieren, Doppelte, Durchblättern unter 1 s; Story-Lightbox und Diashow gedämpft. Nur Tagessummen je Foto (`FileUsageDays`), je Katalog, versteckt nur im Container, „Nutzung lernen“ abschaltbar + „Gelernte Nutzung löschen“, nichts im Protokoll. Kleiner Zuschlag (≤ 0,12, unter Favorit) in der Highlight-Auswahl mit Grund („oft angesehen“, „2× geteilt“), fehlende Nutzung kein Abzug; Rückblick „Vergessene Schätze“; Galerie-Filter „Lieblinge“; Lightbox-Zeile „Nutzung“ | Mockup 20 (Entwurf, Abnahme offen), ADR-0072, Issue #16, umgesetzt in 0.4.45 |
 | ✅ | **Sicherheits-Check (versteckte Bibliothek)** | prüft Windows-Spuren (BitLocker C:, Ruhezustand, Schnellstart, Auslagerungsdatei, Verlauf, Miniaturbilder, Indizierung, VeraCrypt-Verlauf), öffnet die Windows-Einstellung, ändert selbst nichts; Option „nach dem Zusperren beenden“ | Mockup 14, ADR-0064, umgesetzt in 0.4.28 |
 | ✅ | **Aktivitäts-Anzeige** | alle Hintergrund-Vorgänge unten rechts mit Fortschritt, Liste, Pause/Abbrechen, Rückgängig | Mockup 15 (abgenommen 2026-10-25), ADR-0067, umgesetzt in 0.4.36 |
 | ✅ | **Ausschlüsse beim Einlesen** | allgemeine Liste (.thumbs, .temp …) + je Bibliothek, Rechtsklick „Ordner ausschließen“, Bestehende nach Rückfrage aus dem Katalog entfernen | Herbert 2026-10-25, ADR-0066, umgesetzt in 0.4.33 |

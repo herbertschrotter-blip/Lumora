@@ -124,6 +124,8 @@ public static class ServiceCollectionExtensions
         Export.PhotoExportServiceCollectionExtensions.AddPhotoExport(services);
         Rotation.RotationServiceCollectionExtensions.AddPhotoRotation(services);
         Related.RelatedServiceCollectionExtensions.AddRelatedPhotoSearch(services);
+        // Nutzungs-Signale: Ansehen/Verwenden/Weitergeben als Tagessummen, Zuschlag in Highlights, „Vergessene Schätze“ (Services/Usage, ADR-0072)
+        Usage.UsageServiceCollectionExtensions.AddUsageSignals(services);
 
         return services;
     }

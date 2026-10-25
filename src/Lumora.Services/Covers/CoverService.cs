@@ -131,6 +131,7 @@ public sealed class CoverService : ICoverService, IDisposable
 
         _logger.LogInformation("Titelbild gesetzt: {Kind} {Id}", target.Kind, target.Id);
         _messenger.Send(new CoverChangedMessage(target.Kind, target.Id));
+        Usage.UsageReport.Used([fileId], _messenger); // selbst gewähltes Titelbild = Verwendung (Nutzungs-Signale, ADR-0072)
     }
 
     public async Task ResetAsync(CoverTargetKind kind, int id, CancellationToken ct = default)

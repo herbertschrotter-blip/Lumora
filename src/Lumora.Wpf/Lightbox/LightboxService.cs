@@ -34,6 +34,9 @@ public sealed class LightboxService : ILightboxService, IDisposable
     public bool IsOpen => _window is not null;
 
     public void Open(IReadOnlyList<LightboxEntry> entries, int startIndex, Window? owner = null)
+        => Open(entries, startIndex, owner, Lumora.Services.Usage.UsageViewContext.Normal);
+
+    public void Open(IReadOnlyList<LightboxEntry> entries, int startIndex, Window? owner, Lumora.Services.Usage.UsageViewContext usage)
     {
         ArgumentNullException.ThrowIfNull(entries);
         if (entries.Count == 0)
@@ -45,7 +48,7 @@ public sealed class LightboxService : ILightboxService, IDisposable
         var dispatcher = Application.Current?.Dispatcher;
         if (dispatcher is not null && !dispatcher.CheckAccess())
         {
-            dispatcher.Invoke(() => Open(entries, startIndex, owner));
+            dispatcher.Invoke(() => Open(entries, startIndex, owner, usage));
             return;
         }
 
@@ -55,6 +58,7 @@ public sealed class LightboxService : ILightboxService, IDisposable
         {
             var window = CreateWindow(owner);
             _window = window;
+            window.ViewModel.UsageContext = usage; // Nutzungs-Signale: voll, gedämpft (Story) oder gar nicht (Doppelte), ADR-0072
             window.ViewModel.Load(entries, startIndex);
             window.Show();
             if (_lastMaximized)
@@ -66,6 +70,7 @@ public sealed class LightboxService : ILightboxService, IDisposable
         }
         else
         {
+            _window.ViewModel.UsageContext = usage; // ADR-0072
             _window.ViewModel.Load(entries, startIndex);
             if (_window.WindowState == WindowState.Minimized)
             {

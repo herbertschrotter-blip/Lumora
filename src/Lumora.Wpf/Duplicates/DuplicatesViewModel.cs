@@ -452,7 +452,7 @@ public sealed partial class DuplicatesViewModel : ObservableObject
         var entries = group.Members
             .Select(m => new LightboxEntry(m.FileId, m.FullPath, m.Name, m.Member.MediaType, m.Member.IsFavorite, m.Member.Rating, m.Member.Size, m.Member.ModifiedAtUtc))
             .ToList();
-        _lightbox.Open(entries, group.Members.ToList().IndexOf(member), System.Windows.Application.Current?.MainWindow);
+        _lightbox.Open(entries, group.Members.ToList().IndexOf(member), System.Windows.Application.Current?.MainWindow, Lumora.Services.Usage.UsageViewContext.None); // Vergleichen zählt nicht (ADR-0072)
     }
 
     private async Task LoadSettingsAsync()

@@ -542,6 +542,10 @@ public sealed partial class GalleryViewModel
     private async Task AddToAlbumCoreAsync(int albumId, string name, IReadOnlyList<int> ids)
     {
         var added = await _albumActions!.Albums.AddFilesAsync(albumId, ids);
+        if (added > 0)
+        {
+            Lumora.Services.Usage.UsageReport.Used(ids); // Nutzungs-Signale (ADR-0072)
+        }
         _lastAlbumName = name;
         var rest = ids.Count - added;
         SetResultStatus(rest == 0
@@ -576,6 +580,7 @@ public sealed partial class GalleryViewModel
         }
 
         await _albumActions.Albums.SetCoverAsync(albumId, item.Id);
+        Lumora.Services.Usage.UsageReport.Used([item.Id]); // Nutzungs-Signale (ADR-0072)
         SetResultStatus($"„{item.Name}“ ist jetzt das Titelbild von „{SelectedAlbumName}“.");
     }
 

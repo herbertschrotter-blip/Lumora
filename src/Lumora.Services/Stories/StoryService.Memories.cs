@@ -107,6 +107,7 @@ public sealed partial class StoryService
         }, ct).ConfigureAwait(false);
 
         var homeCountry = found.Count == 0 ? null : await ReadAsync(c => HomeCountry(c, scope), ct).ConfigureAwait(false);
+        var forgotten = await ForgottenMemoryAsync(scope, today, ct).ConfigureAwait(false); // ADR-0072, StoryService.Treasures.cs
         var result = new List<StoryMemory>(found.Count);
         foreach (var m in found)
         {
@@ -130,6 +131,11 @@ public sealed partial class StoryService
                 Spread(ids, cover, 5),
                 m.StoryId,
                 m.Pinned));
+        }
+
+        if (forgotten is not null)
+        {
+            result.Add(forgotten);
         }
 
         _memoryCache[cacheKey] = (DateTime.UtcNow, result);
@@ -160,6 +166,14 @@ public sealed partial class StoryService
         if (!scope.HasLibrary)
         {
             throw new InvalidOperationException("Ohne Bibliothek gibt es keine Rückblicke.");
+        }
+
+        if (IsForgottenKey(key))
+        {
+            var forgottenId = await OpenForgottenAsync(key, scope, ct).ConfigureAwait(false); // ADR-0072
+            await EnsureCoverAsync(forgottenId, ct).ConfigureAwait(false);
+            Publish(scope.GroupId, StoriesChangeKind.Created, forgottenId);
+            return forgottenId;
         }
 
         var zone = _clock.Zone;

@@ -620,6 +620,57 @@ namespace Lumora.Data.Migrations
                     b.ToTable("FileTags", (string)null);
                 });
 
+            modelBuilder.Entity("Lumora.Domain.Entities.FileUsageDay", b =>
+                {
+                    b.Property<int>("FileId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Day")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Opens")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
+
+                    b.Property<int>("Seconds")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
+
+                    b.Property<int>("Shares")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
+
+                    b.Property<int>("SoftOpens")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
+
+                    b.Property<int>("SoftSeconds")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
+
+                    b.Property<int>("Uses")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
+
+                    b.Property<int>("Zooms")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
+
+                    b.HasKey("FileId", "Day");
+
+                    b.HasIndex("Day", "FileId")
+                        .HasDatabaseName("IX_FileUsageDays_Day");
+
+                    b.ToTable("FileUsageDays", (string)null);
+                });
+
             modelBuilder.Entity("Lumora.Domain.Entities.Folder", b =>
                 {
                     b.Property<int>("Id")
@@ -1598,6 +1649,15 @@ namespace Lumora.Data.Migrations
                     b.HasOne("Lumora.Domain.Entities.Tag", null)
                         .WithMany()
                         .HasForeignKey("TagId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Lumora.Domain.Entities.FileUsageDay", b =>
+                {
+                    b.HasOne("Lumora.Domain.Entities.MediaFile", null)
+                        .WithMany()
+                        .HasForeignKey("FileId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

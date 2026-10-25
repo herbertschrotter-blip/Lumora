@@ -524,6 +524,28 @@ Statusleiste meldet „Storys aktuell“ bzw. „Storys werden berechnet …“.
   **Diashow**. Jede Änderung gilt sofort, die Storys werden im Hintergrund neu berechnet; angeheftete, ausgeblendete und
   eigene Storys bleiben.
 
+### Nutzung lernen (seit 0.4.45, ADR-0072)
+Lumora merkt sich **lokal**, welche Fotos Sie mögen, und wählt „die schönsten“ dann ein wenig mehr nach Ihrem Geschmack
+(Story-Highlights, Titelbilder, Collagen, „die schönsten“ im Story-Assistenten).
+
+- **Was zählt:** ein Foto in der Lightbox ansehen (nur solange das Fenster vorne ist, je Ansicht ab 1 s, höchstens 2 min),
+  hineinzoomen, an mehreren Tagen wiederkommen, verwenden (zu einem Album oder einer Story hinzufügen, als Titelbild wählen)
+  und weitergeben (Strg+C, in ein anderes Programm ziehen, „Kopieren nach…“ außerhalb der Bibliothek, Exportieren).
+  **Gedämpft:** Lightbox aus einer Story, Diashow. **Zählt nicht:** Sortieren, Seite „Doppelte“, Durchblättern unter 1 s.
+- **Gespeichert** werden nur Tagessummen je Foto im Katalog (eine versteckte Bibliothek nur in ihrem Container) — keine
+  Zeitpunkte einzelner Ansichten, nichts im Protokoll, nichts verlässt den PC.
+- **Wirkung:** ein kleiner Zuschlag (weniger als ein Favorit) in der Highlight-Auswahl; beim Überfahren eines Highlights
+  steht der Grund, z. B. „scharf · oft angesehen“ oder „2× geteilt“. Fotos ohne Nutzung bekommen nie einen Abzug.
+- **Vergessene Schätze:** unter den Rückblicken (und unter „Alle“) erscheinen jeden Monat bis zu 24 gute Fotos (Favorit,
+  ab 4 Sternen, scharf und gut belichtet oder früher oft angesehen), die vor über einem Jahr aufgenommen und seit einem Jahr
+  nicht geöffnet wurden — öffnen, anheften, Diashow wie jeder Rückblick.
+- **Galerie › Inhalt › Lieblinge:** nur Fotos, bei denen Lumora eine Vorliebe gelernt hat (z. B. an drei Tagen geöffnet);
+  wirkt mit allen anderen Filtern zusammen.
+- **Lightbox › Info:** Zeile **Nutzung**, z. B. „9× angesehen an 6 Tagen · 4 min · 1× verwendet“.
+- **Einstellungen › Storys › Nutzung lernen:** an/aus (Standard an; aus = nichts mehr messen und das Gelernte nicht
+  verwenden), **„Vergessene Schätze“ anbieten**, Zahlen (Fotos, Tage, Lieblinge, seit) und **Gelernte Nutzung löschen…**
+  (mit Rückfrage; Favoriten, Sterne, Alben und Storys bleiben).
+
 ### Story-Assistent (seit 0.4.24, ADR-0063)
 Über der Story-Übersicht steht eine Eingabeleiste: einen Satz in eigenen Worten schreiben, z. B. „Collage mit meiner
 Schwester bis 20 Jahre“, „Story von allen Sonnenuntergängen am Meer“, „Diashow: Papa und ich, die besten 50“, „Weihnachten

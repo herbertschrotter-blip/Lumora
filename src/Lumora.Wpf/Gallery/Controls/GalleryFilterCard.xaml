@@ -160,6 +160,20 @@
                         <TextBlock Text="Doppelte" VerticalAlignment="Center" />
                     </StackPanel>
                 </ToggleButton>
+
+                <!-- Lieblinge (ADR-0072): Fotos mit gelernter Vorliebe aus der Nutzung — Zeile „Inhalt“ (in „Datei“ bräche sie bei 1280 DIP um) -->
+                <ToggleButton x:Name="LovedChip"
+                              Style="{StaticResource GalleryFilterChip}"
+                              AutomationProperties.AutomationId="GalleryLovedFilter"
+                              AutomationProperties.Name="Lieblinge"
+                              ToolTip="Nur Fotos, die Lumora aus Ihrer Nutzung gelernt hat: oft und an mehreren Tagen angesehen, verwendet oder weitergegeben (Favoriten und Sterne sind eigene Filter)"
+                              IsChecked="{Binding LovedOnly, Mode=TwoWay}"
+                              gc:FilterChip.IsActive="{Binding LovedOnly}">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="HeartPulse24" FontSize="13" Margin="0,0,6,0" />
+                        <TextBlock Text="Lieblinge" VerticalAlignment="Center" />
+                    </StackPanel>
+                </ToggleButton>
             </gc:ToolbarFlowPanel>
 
             <!-- Fußzeile: wirkende Bedingungen in Worten (nur bei aktiven Filtern) -->

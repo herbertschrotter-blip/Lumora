@@ -180,6 +180,7 @@ internal sealed partial class SmokeScenario
         InitCatalogBackupSmoke(services); // Schritt „Katalog-Sicherung“ (ADR-0069, SmokeScenario.CatalogBackup.cs)
         InitModelPackagesSmoke(services); // Schritt „Modelle & Daten“ (ADR-0070, SmokeScenario.ModelPackages.cs)
         InitPhotoMenuSmoke(services); // Titelbild, Rechtsklick-Menü, Ordnerleiste, Fotos nach außen (ADR-0068, SmokeScenario.PhotoMenu.cs)
+        InitUsageSmoke(services); // Schritt „Nutzungs-Signale“ (ADR-0072, SmokeScenario.Usage.cs)
         _messenger.Register<SmokeScenario, ScanCompletedMessage>(this, static (r, m) => r._lastScan = m.Result);
     }
 
@@ -203,6 +204,7 @@ internal sealed partial class SmokeScenario
         var watchQuietBefore = _watch.QuietPeriod;
         await _watch.SetEnabledAsync(false).ConfigureAwait(true);
         await DisableMotifsForSmokeAsync().ConfigureAwait(true); // Motiv-Erkennung erst im eigenen Schritt (ADR-0052)
+        await DisableUsageForSmokeAsync().ConfigureAwait(true); // „Nutzung lernen“ erst im eigenen Schritt (ADR-0072)
         try
         {
             await RunStepsAsync().ConfigureAwait(true);
@@ -270,6 +272,7 @@ internal sealed partial class SmokeScenario
         await StepAsync("Personen-Kacheln und Titelbild: Person mit zwei Gesichtern und Album, „Als Titelbild für ▸“ setzt Person (Gesicht im Foto), Album und Ordner mit Häkchen, wieder automatisch, Personen-Kachel mit Chips (hell/dunkel)", CoversAndPersonTilesAsync).ConfigureAwait(true); // ADR-0068
         await StepAsync("Rechtsklick-Menü und Ordnerleiste: Kachel-Menü mit der abgenommenen Gliederung, „Als Titelbild für“ offen (hell/dunkel), Leiste per Strg+B zu/auf (gemerkt), Ordner-Chip UND Favoriten, Kreuz hebt den Ordner auf (hell/dunkel)", PhotoMenuAndFolderPaneAsync).ConfigureAwait(true); // ADR-0068
         await StepAsync("Fotos nach außen: Ziehen liefert Datei-Drop neben dem internen Format und erlaubt nur Kopieren, Strg+C legt die Dateien in die (abgefangene) Zwischenablage", ExternalCopyAsync).ConfigureAwait(true); // ADR-0068
+        await StepAsync("Nutzungs-Signale (simulierte Zeit): Lightbox zählt 5 s aktiv + Zoom, nicht im Hintergrund, nicht unter 1 s, nicht aus „Doppelte“; Weitergabe; nur Tagessummen; Wiederkehr → Galerie „Lieblinge“ (hell), Zeile „Nutzung“, Einstellungen › Storys „Nutzung lernen“ (dunkel), löschen, aus → nichts gespeichert", UsageSignalsAsync).ConfigureAwait(true); // ADR-0072
         await StepAsync("Versteckte Bibliothek: anlegen (_hidden simuliert), Fotos im eigenen Katalog im Container, Zusperren nach Untätigkeit + Aushängen (Fake), falsches Kennwort, wieder öffnen, normale Bibliothek unverändert, keine Spuren im AppData, Sicherheits-Check (Fake-Leser, hell/dunkel, im normalen Modus kein Reiter)", HiddenLibraryAsync).ConfigureAwait(true); // ADR-0049
         // Nach dem Katalogwechsel ist die normale Sitzung neu aufgebaut — die restlichen Schritte laufen mit deren Diensten
         await RunAfterHiddenLibraryAsync(async s =>

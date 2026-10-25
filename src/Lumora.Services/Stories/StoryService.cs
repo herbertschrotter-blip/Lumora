@@ -34,6 +34,7 @@ public sealed partial class StoryService : IStoryService, IDisposable
     private readonly IStoryIndexService? _index;
     private readonly StoryClock _clock;
     private readonly StoryHomeCache _homes;
+    private readonly Usage.IUsageService? _usage; // „Vergessene Schätze“ (ADR-0072, StoryService.Treasures.cs)
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, (DateTime At, IReadOnlyList<StoryMemory> Memories)> _memoryCache = new(StringComparer.Ordinal);
 
     public StoryService(
@@ -46,8 +47,10 @@ public sealed partial class StoryService : IStoryService, IDisposable
         IAlbumService? albums = null,
         IStoryIndexService? index = null,
         StoryClock? clock = null,
-        StoryHomeCache? homes = null)
+        StoryHomeCache? homes = null,
+        Usage.IUsageService? usage = null)
     {
+        _usage = usage;
         _factory = factory;
         _logger = logger;
         _selector = selector;
@@ -65,6 +68,11 @@ public sealed partial class StoryService : IStoryService, IDisposable
         _messenger.Register<StoryService, CaptureDatesChangedMessage>(this, static (r, _) => r._memoryCache.Clear());
         _messenger.Register<StoryService, StorySettingsChangedMessage>(this, static (r, _) => r._memoryCache.Clear());
         _messenger.Register<StoryService, LibraryGroupsChangedMessage>(this, static (r, _) => r._memoryCache.Clear());
+        _messenger.Register<StoryService, UsageChangedMessage>(this, static (r, _) =>
+        {
+            r._memoryCache.Clear();
+            r._forgottenCache.Clear(); // ADR-0072: Lernen/„Vergessene Schätze“ umgeschaltet oder gelöscht
+        });
     }
 
     public void Dispose() => _messenger.UnregisterAll(this);
@@ -401,6 +409,10 @@ public sealed partial class StoryService : IStoryService, IDisposable
                 subtitle = place is not null && homeCountry is not null && !string.Equals(place.Country, homeCountry, StringComparison.Ordinal)
                     ? visitText + StoryTitleBuilder.Dot + place.Country
                     : visitText;
+                break;
+            case StoryKind.Memory when IsForgottenKey(row.Signature): // „Vergessene Schätze“ (ADR-0072)
+                autoTitle = ForgottenKicker;
+                subtitle = ForgottenSubtitle(first.Year, last.Year);
                 break;
             case StoryKind.Memory when row.Signature.StartsWith("R:M:", StringComparison.Ordinal):
                 autoTitle = StoryTitleBuilder.MonthYears(first.Month, first.Year, last.Year);

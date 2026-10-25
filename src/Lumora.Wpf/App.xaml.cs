@@ -197,6 +197,7 @@ public partial class App : Application, ICatalogHostSwitcher
         Lumora.Slideshow.SlideshowServiceCollectionExtensions.AddSlideshow(services); // Diashow für Galerie, Album, Lightbox und später Storys (Wpf/Slideshow, ADR-0059)
         Lumora.Stories.StoriesUiServiceCollectionExtensions.AddStoriesUi(services); // Seite „Storys“, Reiter „Storys“, Galerie-Menü „Als Story…“ (Wpf/Stories, ADR-0060)
         Lumora.Settings.ModelPackages.ModelPackagesUi.AddModelPackagesUi(services); // Einstellungen › Modelle & Daten (Wpf/Settings/ModelPackages, ADR-0070)
+        Lumora.Usage.UsageUiServiceCollectionExtensions.AddUsageUi(services); // Einstellungen › Storys › „Nutzung lernen“ (Wpf/Usage, ADR-0072)
         Lumora.PhotoMenu.PhotoMenuServiceCollectionExtensions.AddPhotoMenu(services); // Rechtsklick-Menü, Titelbild, Eigenschaften, Export (Wpf/PhotoMenu, ADR-0068)
 
         services.AddSingleton<MainWindow>();
@@ -365,6 +366,8 @@ public partial class App : Application, ICatalogHostSwitcher
         _host.Services.GetRequiredService<Lumora.Services.Stories.IStoryIndexService>().Start();
         // Story-Seite (ADR-0060): Zähler „n neu“ an „Storys“ in der Navigation
         _host.Services.GetRequiredService<Lumora.Stories.StoriesNavigationBadgeUpdater>().Start();
+        // Nutzungs-Signale (ADR-0072): Dienst früh erzeugen, damit Meldungen (UsageSignalMessage) von Anfang an ankommen
+        Lumora.Services.Usage.UsageServiceCollectionExtensions.StartUsageSignals(_host.Services);
     }
 
     // ----- Katalogwechsel (ADR-0049) -----

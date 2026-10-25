@@ -57,6 +57,10 @@ public partial class LightboxWindow : AppFluentWindow
         Loaded += OnLoaded;
         Closing += OnClosing;
         Closed += OnClosed;
+        // Nutzungs-Signale (ADR-0072): Ansehdauer zählt nur, solange dieses Fenster vorne und nicht minimiert ist
+        Activated += (_, _) => _viewModel.SetUsageActive(WindowState != WindowState.Minimized);
+        Deactivated += (_, _) => _viewModel.SetUsageActive(false);
+        StateChanged += (_, _) => _viewModel.SetUsageActive(IsActive && WindowState != WindowState.Minimized);
 
         VideoOverlay.Loaded += OnVideoOverlayLoaded;
         VideoOverlay.PreviewMouseMove += OnAnyMouseMove;

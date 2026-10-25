@@ -179,6 +179,11 @@ public partial class GalleryView
         // ADR-0068: zusätzlich echter Datei-Drop für andere Programme — dann nur „Kopieren“ erlaubt (ExternalFileTransfer)
         var external = ExternalDragFiles(item);
         var (data, allowed) = Lumora.PhotoMenu.ExternalFileTransfer.CreateDragData(ids, external);
-        DragDrop.DoDragDrop(GalleryList, data, allowed);
+        var effect = DragDrop.DoDragDrop(GalleryList, data, allowed);
+        if (allowed == Lumora.PhotoMenu.ExternalFileTransfer.ExternalEffects && effect == DragDropEffects.Copy && external is not null
+            && Lumora.Usage.ExternalDropProbe.CursorOverOtherProcess())
+        {
+            Lumora.Services.Usage.UsageReport.Shared(external.FileIds); // in ein anderes Programm gezogen (Nutzungs-Signale, ADR-0072)
+        }
     }
 }

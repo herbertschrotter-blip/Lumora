@@ -533,8 +533,15 @@ public sealed partial class SlideshowViewModel : ObservableObject, IDisposable
         return length < max ? length : max;
     }
 
+    /// <summary>Nutzungs-Signale (ADR-0072): Anzeigezeit je Folie, nur solange das Fenster vorne ist, gedämpft.</summary>
+    public Lumora.Services.Usage.UsageViewTracker? UsageTracker { get; init; }
+
+    /// <summary>Fenster vorne bzw. im Hintergrund (vom Fenster gemeldet).</summary>
+    public void SetUsageActive(bool active) => UsageTracker?.SetActive(active);
+
     private void Commit(SlideshowSlide slide)
     {
+        UsageTracker?.Show(slide.Info.FileId); // ADR-0072
         CurrentIndex = slide.Index;
         PositionText = $"{slide.Index + 1:N0} / {Count:N0}";
         var caption = SlideshowCaption.For(slide.Info.CaptureDate, slide.Info.PlaceName);
@@ -802,6 +809,7 @@ public sealed partial class SlideshowViewModel : ObservableObject, IDisposable
         }
 
         _disposed = true;
+        UsageTracker?.Stop(); // letzte Folie zählen (ADR-0072)
         _version++;
         _showCts?.Cancel();
         _showCts?.Dispose();

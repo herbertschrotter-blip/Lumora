@@ -109,6 +109,9 @@ public enum StoryMemoryKind
 
     /// <summary>„Oktober in früheren Jahren“.</summary>
     ThisMonth = 1,
+
+    /// <summary>„Vergessene Schätze“: gute Fotos, die seit über einem Jahr niemand angesehen hat (ADR-0072, je Monat neu).</summary>
+    ForgottenTreasures = 2,
 }
 
 /// <summary>

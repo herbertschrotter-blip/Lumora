@@ -77,6 +77,21 @@ internal static class StorySql
         return list;
     }
 
+    /// <summary>Bestimmte Dateien des Bereichs (Vergessene Schätze, ADR-0072), nach (Zeit, Id) sortiert.</summary>
+    public static List<StoryTimelineItem> ReadByIds(SqliteConnection connection, IReadOnlyCollection<int> libraryIds, IReadOnlyCollection<int> fileIds, TimeZoneInfo zone)
+    {
+        if (fileIds.Count == 0)
+        {
+            return [];
+        }
+
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = $"SELECT {TimelineColumns} FROM Files f WHERE f.Id IN ({IdList(fileIds)}) AND f.LibraryId IN ({IdList(libraryIds)}) AND {Eligible};";
+        var list = ReadItems(cmd, zone);
+        list.Sort(static (x, y) => x.Time != y.Time ? x.Time.CompareTo(y.Time) : x.FileId.CompareTo(y.FileId));
+        return list;
+    }
+
     /// <summary>Alle Dateien der Orte (inkrementelle Orte-Storys).</summary>
     public static List<StoryTimelineItem> ReadByPlaces(SqliteConnection connection, IReadOnlyCollection<int> libraryIds, IReadOnlyCollection<int> placeIds, TimeZoneInfo zone)
     {

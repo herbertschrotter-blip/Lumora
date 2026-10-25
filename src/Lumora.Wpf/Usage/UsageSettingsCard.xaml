@@ -1,0 +1,73 @@
+<UserControl x:Class="Lumora.Usage.UsageSettingsCard"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:local="clr-namespace:Lumora.Usage"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance local:UsageSettingsViewModel, IsDesignTimeCreatable=False}"
+             d:DesignWidth="900">
+    <!-- Karte „Nutzung lernen“ in Einstellungen › Storys (ADR-0072, Mockup 20). DataContext = UsageSettingsViewModel. -->
+    <UserControl.Resources>
+        <ResourceDictionary Source="../Settings/Sections/SettingsStyles.xaml" />
+    </UserControl.Resources>
+
+    <Border Style="{StaticResource SectionCard}" AutomationProperties.AutomationId="SettingsStoriesUsage">
+        <StackPanel>
+            <StackPanel Orientation="Horizontal">
+                <ui:SymbolIcon Symbol="HeartPulse24" FontSize="18" Margin="0,0,8,0" VerticalAlignment="Center"
+                               Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                <ui:TextBlock Style="{StaticResource SectionTitle}" Text="Nutzung lernen" Margin="0" VerticalAlignment="Center" />
+            </StackPanel>
+            <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
+                       Text="Lumora merkt sich lokal, welche Fotos Sie öfter ansehen, zoomen, in Alben und Storys verwenden oder weitergeben — und wählt „die schönsten“ dann ein wenig mehr nach Ihrem Geschmack. Gespeichert werden nur Tagessummen je Foto in diesem Katalog (eine versteckte Bibliothek nur in ihrem Container); nichts verlässt den PC, nichts steht im Protokoll." />
+
+            <ui:ToggleSwitch Margin="0,12,0,0" Content="Nutzung lernen" IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                             AutomationProperties.AutomationId="SettingsUsageEnabled" AutomationProperties.Name="Nutzung lernen" />
+            <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,0"
+                       Text="Öffnen, Ansehdauer (nur solange das Fenster vorne ist, 1 s bis 2 min je Ansicht), Zoom, Wiederkehr an anderen Tagen, Verwendung, Weitergabe. Zählt nicht: Sortieren, „Doppelte“, Durchblättern unter 1 s; Diashow und Storys nur gedämpft. Fehlende Nutzung ist nie ein Abzug." />
+
+            <ui:ToggleSwitch Margin="0,12,0,0" Content="„Vergessene Schätze“ anbieten" IsChecked="{Binding ForgottenEnabled, Mode=TwoWay}"
+                             IsEnabled="{Binding IsEnabled}"
+                             AutomationProperties.AutomationId="SettingsUsageForgotten" AutomationProperties.Name="Vergessene Schätze anbieten" />
+            <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,0" Text="Unter den Rückblicken: gute Fotos, die über ein Jahr nicht angesehen wurden — jeden Monat eine neue Auswahl." />
+
+            <UniformGrid Columns="4" Margin="0,14,0,0" AutomationProperties.AutomationId="SettingsUsageSummary">
+                <Border Margin="0,0,8,0" Padding="10,8" CornerRadius="6" Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding FilesText}" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <TextBlock Text="Fotos mit Nutzung" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                </Border>
+                <Border Margin="0,0,8,0" Padding="10,8" CornerRadius="6" Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding DaysText}" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <TextBlock Text="Tage" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                </Border>
+                <Border Margin="0,0,8,0" Padding="10,8" CornerRadius="6" Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding LovedText}" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <TextBlock Text="Lieblinge" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                </Border>
+                <Border Padding="10,8" CornerRadius="6" Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding SinceText}" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <TextBlock Text="gelernt seit" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                </Border>
+            </UniformGrid>
+
+            <DockPanel Margin="0,12,0,0">
+                <ui:Button DockPanel.Dock="Right" Content="Gelernte Nutzung löschen…" Icon="{ui:SymbolIcon Delete24}"
+                           Command="{Binding EraseCommand}"
+                           AutomationProperties.AutomationId="SettingsUsageErase" AutomationProperties.Name="Gelernte Nutzung löschen" />
+                <TextBlock Style="{StaticResource Hint}" VerticalAlignment="Center" Text="{Binding StatusText}"
+                           AutomationProperties.AutomationId="SettingsUsageStatus"
+                           Visibility="{Binding StatusText, Converter={StaticResource NullToVis}}" />
+            </DockPanel>
+        </StackPanel>
+    </Border>
+</UserControl>

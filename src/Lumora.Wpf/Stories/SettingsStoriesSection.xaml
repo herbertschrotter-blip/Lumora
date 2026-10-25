@@ -6,6 +6,7 @@
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:local="clr-namespace:Lumora.Stories"
              xmlns:slideshow="clr-namespace:Lumora.Slideshow"
+             xmlns:usage="clr-namespace:Lumora.Usage"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance local:StorySettingsViewModel, IsDesignTimeCreatable=False}"
              d:DesignWidth="1000">
@@ -104,9 +105,13 @@
                                   AutomationProperties.Name="Anteil der Highlights" />
                     </StackPanel>
                     <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,0"
-                               Text="Schärfe, Belichtung, Bildwirkung, bestätigte Personen, Favoriten und Bewertung; Serien und Doppelte nur einmal. Unscharfe und dunkle Fotos werden nie automatisch Titelbild, wenn es eine Alternative gibt — das Titelbild lässt sich je Story selbst wählen." />
+                               Text="Schärfe, Belichtung, Bildwirkung, bestätigte Personen, Favoriten und Bewertung, dazu ein kleiner Zuschlag aus der gelernten Nutzung („oft angesehen“); Serien und Doppelte nur einmal. Unscharfe und dunkle Fotos werden nie automatisch Titelbild, wenn es eine Alternative gibt — das Titelbild lässt sich je Story selbst wählen." />
                 </StackPanel>
             </Border>
+
+            <!-- Nutzung lernen (ADR-0072, Mockup 20); DataContext = UsageSettingsViewModel -->
+            <usage:UsageSettingsCard x:Name="UsageCard" DataContext="{Binding Usage}"
+                                     Visibility="{Binding DataContext.HasUsage, RelativeSource={RelativeSource AncestorType=local:SettingsStoriesSection}, Converter={StaticResource BoolToVis}}" />
 
             <!-- Diashow (ADR-0059), aus „Darstellung“ hierher verschoben; DataContext = SlideshowSettingsViewModel -->
             <slideshow:SettingsSlideshowSection x:Name="SlideshowSection" DataContext="{Binding Slideshow}"

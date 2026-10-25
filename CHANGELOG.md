@@ -3,6 +3,71 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.4.45] — 2026-10-25
+
+### Feature (ADR-0072) — Nutzungs-Signale: Lumora lernt, was gefällt (Mockup 20, Issue #16)
+- **Messen (nur lokal, nur Tagessummen):** Die Lightbox zählt je Foto die Zeit, in der ihr Fenster vorne und nicht
+  minimiert ist — je Ansicht ab 1 s, höchstens 2 min; Durchblättern im Schnelllauf (< 1 s) zählt nicht. Zoom zählt mit,
+  Wiederkehr ergibt sich aus mehreren Tageszeilen. Lightbox aus einer Story und die Diashow zählen **gedämpft**, aus der
+  Seite „Doppelte“ **gar nicht**. Verwendung (Zu Album hinzufügen, Story-Einträge, selbst gewähltes Titelbild in Menü,
+  Album- und Story-Ansicht, „Als Story…“; Hinzufügen nur, wenn wirklich etwas dazukam) und Weitergabe (Strg+C, Ziehen in
+  ein anderes Programm — nur wenn der Zeiger beim Loslassen über einem fremden Fenster liegt, Lumoras eigene Ziele melden
+  ebenfalls „Kopieren“ —, „Kopieren nach…“ außerhalb der Bibliothek, „Exportieren (verkleinert)…“) melden die Aktionen aus
+  0.4.44 direkt. Gespeichert wird nur die Tagessumme je
+  Foto (`FileUsageDays`) im Katalog der Sitzung — eine versteckte Bibliothek nur in ihrem Container; keine Zeitpunkte, nichts
+  im Protokoll (nur Zahlen).
+- **Wirkung:** kleiner, gedämpfter Zuschlag in der Highlight-Auswahl (höchstens 0,12 — weniger als ein Favorit; ohne
+  Nutzung 0, nie ein Abzug) für Story-Highlights, Titelbilder, Collagen und „die schönsten“ im Story-Assistenten; der Grund
+  steht im Tooltip („oft angesehen“, „2× geteilt“, „weitergegeben“, „verwendet“).
+- **Vergessene Schätze:** neuer Rückblick (unter „Rückblicke“ und unter „Alle“): bis zu 24 gute Fotos (Favorit, ab 4
+  Sternen, scharf + gut belichtet oder früher oft angesehen), vor über einem Jahr aufgenommen und seit einem Jahr nicht
+  geöffnet; jeden Monat eine neue Auswahl, mindestens 6, gespeichert erst beim Öffnen (Titel „Vergessene Schätze“).
+- **Galerie › Inhalt › „Lieblinge“:** Filter auf Fotos mit gelernter Vorliebe (z. B. an drei Tagen geöffnet), UND mit allen
+  Filtern, in „Es gilt“ mit ✕. Entschieden als Filter statt Sortierschlüssel „Meistgesehen“ (schnell über eine kleine Menge,
+  keine Sortierung aller Dateien je Seite).
+- **Lightbox › Info:** Zeile „Nutzung“ („9× angesehen an 6 Tagen · 4 min · 1× verwendet“).
+- **Einstellungen › Storys › Karte „Nutzung lernen“:** an/aus (Standard an; aus = nichts messen, nichts verwenden — das
+  Gelernte bleibt bis zum Löschen), „Vergessene Schätze“ anbieten, Zahlen (Fotos, Tage, Lieblinge, seit), **Gelernte Nutzung
+  löschen…** mit Rückfrage.
+- **„Neu aufbauen“** trägt die Tageszeilen auf die neuen FileIds (`UserDataCarryOver.Usage.cs`).
+- **Melde-Weg für weitere Aktionen:** `UsageReport.Used(fileIds)` / `UsageReport.Shared(fileIds)` (Messenger-Nachricht
+  `UsageSignalMessage`, eine Zeile, keine DI nötig) — für „Foto verbessern“ (Verwendung), Drucken, Teilen und die
+  Handy-App (Weitergabe).
+- **Technik:** Migration `AddUsageSignals` (nur CREATE TABLE `FileUsageDays` + `IX_FileUsageDays_Day`); Services `Usage/`
+  (`UsageViewTracker` mit `TimeProvider`, `UsageSignalService` = `IUsageSignals` + `IUsageService` mit Sammeln/UPSERT in einer
+  Transaktion, `UsageScoring` mit Rohwert in C# und SQL, `UsageReport`, `AddUsageSignals`); `HighlightCandidate.Usage`,
+  `QualityHighlightSelector` liest die Summen; `StoryMemoryKind.ForgottenTreasures`, `StoryService.Treasures.cs`,
+  `StorySql.ReadByIds`; `ILightboxService.Open(…, UsageViewContext)` (Standard-Methode im Interface);
+  `GalleryFilterState.LovedOnly`, `GalleryViewModel.Usage.cs`; Wpf `Usage/` (`UsageSettingsViewModel`, `UsageSettingsCard`,
+  `AddUsageUi`); Diashow-Folien über `SlideshowViewModel.UsageTracker`. Keine neuen Pakete.
+- **Tests:** Services 1475 → 1493 (3 übersprungen wie vorher) — Tagessummen (gleicher Tag eine Zeile, nächster Tag neue,
+  keine Zeitstempel), Grenzen der Ansehdauer (< 1 s nicht, > 2 min gekappt), Schnelllauf und Fenster im Hintergrund zählen
+  nicht, Herkunft Story/Diashow gedämpft und „Doppelte“ gar nicht, Verwendung/Weitergabe über den Messenger je Datei einmal,
+  abgeschaltet nichts gespeichert (auch Gesammeltes, auch aus einer anderen Sitzung) und nichts verwendet, Löschen samt
+  Meldung, versteckter Katalog getrennt und keine Dateien neben dem Katalog, Ende der Sitzung schreibt Gesammeltes, gelöschte
+  Datei fällt heraus, Rohwert C# = SQL und „Lieblinge“-Schwelle, Zuschlag gedämpft (< Favorit) ohne Abzug mit Grund,
+  Auswahl aus dem Katalog nur mit „Nutzung lernen“, „Vergessene Schätze“ (Kandidaten, Monats-Schlüssel, Öffnen speichert
+  dieselbe Auswahl, abschaltbar, mindestens sechs), „Neu aufbauen“ trägt die Tageszeilen. Wpf 1300 → 1308 (7 übersprungen
+  wie vorher, `[Collection(UiTestCollection.Name)]`) — Lightbox misst nur aktiv (inkl. Zoom, Schnelllauf), aus Story
+  gedämpft / aus „Doppelte“ nicht, letzte Ansicht beim Schließen, Zeile „Nutzung“, Einstellungen speichern + Löschen mit
+  Rückfrage, Karte ohne Binding-Fehler, Grund im Tooltip, Galerie-Filter „Lieblinge“ (SQL, Leertext, echte Zählung, aus →
+  leer). Wpf-Suite dreimal hintereinander grün.
+- **Rauchtest:** neuer Schritt „Nutzungs-Signale“ vor „Versteckte Bibliothek“ mit simulierter Uhr (`TimeProvider`):
+  „Nutzung lernen“ ist bis dahin aus (frühere Schritte verschieben keine Highlights), dann Lightbox 5 s aktiv + Zoom zählt,
+  40 s im Hintergrund und 0,4 s Schnelllauf nicht, aus „Doppelte“ nicht, Weitergabe, nur Tagessummen, zwei frühere Tage →
+  „Lieblinge“ zeigt genau das Foto, Zeile „Nutzung“, Einstellungen-Karte, Löschen, aus → nichts gespeichert; Screenshots
+  `32-nutzung-hell` (Galerie „Lieblinge“) und `32-nutzung-dunkel` (Einstellungen › Storys). Lauf: 56/56 OK, 0
+  Binding-Fehler, kein ERR/FTL.
+
+### Offen
+- Mockup 20 ist ein autonom erstellter Entwurf — Abnahme durch Herbert steht aus.
+- Drucken, Teilen und die Handy-App (Welle 7) gibt es noch nicht; sie melden später über `UsageReport.Shared`.
+- „Foto verbessern“ (Agent F, 0.4.45) meldet „Verbessern“ als Verwendung erst nach dem Zusammenführen
+  (`UsageReport.Used([fileId])` nach erfolgreichem Speichern).
+- Papierkorb/„Aus der Bibliothek entfernen“ + Rückgängig bringt die Datei zurück, ihre gelernte Nutzung aber nicht
+  (`FileLinkUndoStore` sichert nur Alben, Ordner-Verknüpfungen und Story-Einträge); „Doppelte aufräumen“ überträgt sie nicht
+  auf die behaltene Datei. Intelligente Alben speichern den Filter „Lieblinge“ nicht.
+
 ## [0.4.44] — 2026-10-25
 
 ### Feature (ADR-0068) — Galerie mit Ordnerleiste, Titelbild überall, neues Rechtsklick-Menü, Kopieren nach außen (Mockups 17/18)

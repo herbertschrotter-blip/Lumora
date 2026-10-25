@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lumora — Nutzungs-Signale (Entwurf 20)</title>
+<style>
+/* =====================================================================
+   Mockup 20 · Nutzungs-Signale (GitHub-Issue #16). Tokens 1:1 aus 08–19.
+   Lumora lernt lokal, welche Fotos gefallen: Öffnen in der Lightbox, Ansehdauer (nur aktiv: Fenster im Vordergrund,
+   je Ansicht 1 s bis höchstens 2 min), Zoom, Wiederkehr an anderen Tagen, Verwendung (Album, Story, Titelbild) und
+   Weitergabe (Drucken/Teilen/Exportieren/Kopieren nach außen). NICHT gezählt: Sortieren, Seite „Doppelte“,
+   Durchblättern im Schnelllauf (< 1 s je Foto); Diashow und Ansehen aus einer Story nur gedämpft.
+   Gespeichert werden nur Tagessummen je Foto (keine Zeitpunkte einzelner Ansichten), je Katalog — die versteckte
+   Bibliothek nur im Container; nichts davon im Protokoll.
+   Wirkung: kleiner, gedämpfter Zuschlag in „die schönsten“/Highlights mit Grund im Tooltip („oft angesehen“);
+   fehlende Nutzung ist nie ein Abzug. Neu: Rückblick „Vergessene Schätze“ (gute Fotos, ein Jahr nicht angesehen),
+   Galerie-Filter „Lieblinge“ (Fotos mit gelernter Vorliebe), Zeile „Nutzung“ im Info-Bereich der Lightbox,
+   Einstellungen › Storys: „Nutzung lernen“ (Standard an), „Vergessene Schätze anbieten“, „Gelernte Nutzung löschen…“
+   mit Rückfrage. Hell/Dunkel über „dark“, Ansichten oben umschaltbar.
+   ENTWURF – autonom erstellt, Abnahme durch Herbert ausstehend.
+   ===================================================================== */
+:root {
+  --mica-base:#F3F3F3; --layer-default:rgba(255,255,255,0.7); --layer-card:#FFFFFF; --layer-subtle:rgba(0,0,0,0.026);
+  --layer-secondary:rgba(0,0,0,0.04); --layer-tertiary:rgba(0,0,0,0.06);
+  --text-primary:#1A1A1A; --text-secondary:#5C5C5C; --text-tertiary:#8B8B8B; --text-on-accent:#FFFFFF;
+  --stroke-default:rgba(0,0,0,0.0578); --stroke-divider:rgba(0,0,0,0.0803); --stroke-card:rgba(0,0,0,0.0578); --ctl-bottom:rgba(0,0,0,0.16);
+  --accent:#5B5FC7; --accent-light:#7579D8; --accent-dark:#4145A0; --accent-soft:rgba(91,95,199,0.08); --accent-soft-2:rgba(91,95,199,0.16);
+  --success:#107C10; --success-soft:rgba(16,124,16,0.10); --warning:#C29C00; --warning-soft:rgba(194,156,0,0.14); --danger:#C42B1C;
+  --shadow-card:0 2px 4px rgba(0,0,0,0.02), 0 1px 2px rgba(0,0,0,0.03); --shadow-flyout:0 8px 16px rgba(0,0,0,0.14);
+  --brand-indigo:#5B5FC7; --brand-violet:#8B5CF6; --brand-coral:#F97362; --brand-amber:#F5A524;
+  --page-bg:#E4E4EA; --smoke:rgba(0,0,0,0.3);
+}
+body.dark {
+  color-scheme:dark;
+  --mica-base:#202020; --layer-default:rgba(43,43,43,0.7); --layer-card:#2C2C2C; --layer-subtle:rgba(255,255,255,0.03);
+  --layer-secondary:rgba(255,255,255,0.0418); --layer-tertiary:rgba(255,255,255,0.0605);
+  --text-primary:#FFFFFF; --text-secondary:#D0D0D0; --text-tertiary:#A0A0A0;
+  --stroke-default:rgba(255,255,255,0.0837); --stroke-divider:rgba(255,255,255,0.0837); --stroke-card:rgba(255,255,255,0.0578); --ctl-bottom:rgba(255,255,255,0.22);
+  --accent:#818CF8; --accent-light:#A5B0FF; --accent-dark:#6066D8; --accent-soft:rgba(129,140,248,0.12); --accent-soft-2:rgba(129,140,248,0.24);
+  --success:#6CCB5F; --success-soft:rgba(108,203,95,0.12); --warning:#FCE100; --warning-soft:rgba(252,225,0,0.14); --danger:#FF6B5E;
+  --shadow-card:0 2px 4px rgba(0,0,0,0.18), 0 1px 2px rgba(0,0,0,0.22); --shadow-flyout:0 8px 16px rgba(0,0,0,0.4);
+  --brand-indigo:#818CF8; --brand-violet:#A78BFA; --brand-coral:#FB8A7A; --brand-amber:#FBBF24;
+  --page-bg:#121214; --smoke:rgba(0,0,0,0.55);
+}
+* { box-sizing:border-box; } html,body { margin:0; }
+body { background:var(--page-bg); color:var(--text-primary); font-family:'Segoe UI Variable Text','Segoe UI',system-ui,sans-serif; font-size:14px; }
+button { font:inherit; color:inherit; }
+.ic { font-family:'Segoe Fluent Icons','Segoe MDL2 Assets'; font-size:16px; line-height:1; font-style:normal; }
+.ic.s { font-size:12px; }
+.hidden { display:none !important; }
+.mock-bar { position:sticky; top:0; z-index:100; display:flex; gap:16px; align-items:center; flex-wrap:wrap; padding:7px 20px; background:#2B2B33; color:#EEE; font-size:12px; }
+.mock-bar .grp { display:flex; gap:4px; align-items:center; }
+.mock-bar button { background:#44444F; color:#EEE; border:1px solid #5A5A66; border-radius:4px; padding:3px 9px; cursor:pointer; font-size:12px; }
+.mock-bar button.on { background:#5B5FC7; border-color:#7579D8; }
+.mock-bar .note { margin-left:auto; color:#AAB; }
+.stage-wrap { padding:16px 20px 32px; display:flex; justify-content:center; }
+.win-box { position:relative; flex:none; }
+.window { position:absolute; left:0; top:0; transform-origin:0 0; background:var(--mica-base); border-radius:8px; border:1px solid var(--stroke-default);
+  box-shadow:0 16px 48px rgba(0,0,0,0.22); overflow:hidden; display:grid; grid-template-columns:232px 1fr; grid-template-rows:36px 1fr 30px; }
+.titlebar { grid-column:1/-1; display:flex; align-items:center; gap:10px; padding-left:14px; font-size:12px; color:var(--text-secondary); }
+.titlebar .tile { width:16px; height:16px; border-radius:4px; background:linear-gradient(135deg,#6366F1,#4145A0); }
+.titlebar .wc { margin-left:auto; display:flex; height:100%; } .titlebar .wc span { width:46px; display:grid; place-items:center; font-family:'Segoe Fluent Icons'; font-size:10px; color:var(--text-primary); }
+.nav { padding:2px 8px 10px; display:flex; flex-direction:column; gap:2px; }
+.wbs { font-family:'Segoe UI Variable Display','Segoe UI',sans-serif; font-size:22px; padding:2px 12px 10px;
+  background:linear-gradient(100deg,var(--brand-indigo),var(--brand-violet) 45%,var(--brand-coral) 75%,var(--brand-amber)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.lib-switch { margin:0 2px 8px; padding:8px 10px; border-radius:6px; background:var(--layer-card); border:1px solid var(--stroke-card); box-shadow:var(--shadow-card); display:flex; gap:10px; align-items:center; }
+.lib-switch b { display:block; font-weight:600; } .lib-switch small { display:block; color:var(--text-tertiary); font-size:11px; }
+.nav-item { display:flex; align-items:center; gap:12px; padding:9px 12px; border-radius:4px; position:relative; white-space:nowrap; }
+.nav-item.active { background:var(--layer-secondary); }
+.nav-item.active::before { content:''; position:absolute; left:0; top:10px; bottom:10px; width:3px; border-radius:2px; background:var(--accent); }
+.nav .spacer { flex:1; }
+.content { position:relative; min-width:0; min-height:0; background:var(--layer-default); border-top-left-radius:8px; border-left:1px solid var(--stroke-default); border-top:1px solid var(--stroke-default); overflow:auto; }
+.statusbar { grid-column:1/-1; display:flex; align-items:center; gap:18px; padding:0 14px; font-size:12px; color:var(--text-secondary); border-top:1px solid var(--stroke-divider); background:var(--mica-base); }
+.statusbar .r { margin-left:auto; display:flex; gap:10px; align-items:center; }
+.btn-acc { background:var(--accent); color:var(--text-on-accent); border:1px solid transparent; border-radius:4px; padding:5px 14px; font-size:13px; cursor:pointer; display:inline-flex; gap:6px; align-items:center; white-space:nowrap; }
+body.dark .btn-acc { color:#111; } .btn-acc:hover { background:var(--accent-light); }
+.btn-std { background:var(--layer-card); border:1px solid var(--stroke-divider); border-bottom-color:var(--ctl-bottom); border-radius:4px; padding:5px 12px; font-size:13px; cursor:pointer; display:inline-flex; gap:6px; align-items:center; white-space:nowrap; }
+.btn-std:hover { background:var(--layer-subtle); }
+.btn-std.danger { color:var(--danger); }
+.phead { padding:18px 24px 6px; } .phead h1 { font-size:28px; font-weight:600; margin:0; }
+.tabs { display:flex; gap:4px; padding:4px 24px 10px; border-bottom:1px solid var(--stroke-divider); flex-wrap:wrap; }
+.tabs span { padding:6px 12px; border-radius:4px; color:var(--text-secondary); }
+.tabs span.on { color:var(--text-primary); font-weight:600; box-shadow:inset 0 -3px 0 var(--accent); }
+.body { padding:14px 24px 24px; display:grid; gap:12px; max-width:960px; }
+.card { background:var(--layer-card); border:1px solid var(--stroke-card); border-radius:8px; box-shadow:var(--shadow-card); padding:14px 16px; }
+.card h2 { font-size:15px; margin:0 0 4px; display:flex; gap:10px; align-items:center; }
+.muted { color:var(--text-secondary); font-size:12px; line-height:1.5; }
+.opt { display:grid; grid-template-columns:1fr auto; gap:12px; align-items:center; padding:10px 0; border-top:1px solid var(--stroke-divider); }
+.opt:first-of-type { border-top:0; }
+.opt b { font-weight:600; font-size:13px; display:block; }
+.sw { width:40px; height:20px; border-radius:10px; border:1px solid var(--text-secondary); position:relative; flex:none; cursor:pointer; display:inline-block; }
+.sw::after { content:''; position:absolute; top:4px; left:4px; width:10px; height:10px; border-radius:50%; background:var(--text-secondary); transition:left .12s; }
+.sw.on { background:var(--accent); border-color:var(--accent); } .sw.on::after { left:24px; background:#fff; }
+.chk { width:16px; height:16px; border-radius:3px; border:1px solid var(--text-secondary); display:inline-grid; place-items:center; flex:none; font-family:'Segoe Fluent Icons'; font-size:10px; color:transparent; cursor:pointer; }
+.chk.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+/* --- Mockup 20: Nutzungs-Signale --- */
+.content { display:flex; flex-direction:column; }
+.view { display:none; } .view.on { display:block; }
+.fcard { margin:6px 24px 10px; background:var(--layer-card); border:1px solid var(--stroke-card); border-radius:8px; box-shadow:var(--shadow-card); }
+.frow { display:flex; gap:6px; align-items:center; flex-wrap:wrap; padding:8px 14px; }
+.frow + .frow { padding-top:0; }
+.frow .lbl { width:54px; font-size:11px; font-weight:700; letter-spacing:.04em; color:var(--text-tertiary); }
+.chip { display:inline-flex; gap:6px; align-items:center; height:30px; padding:0 10px; border-radius:15px; border:1px solid var(--stroke-divider); background:var(--layer-card); font-size:13px; cursor:pointer; white-space:nowrap; }
+.chip.on { background:var(--accent-soft-2); border-color:var(--accent); color:var(--accent-dark); font-weight:600; }
+body.dark .chip.on { color:var(--accent-light); }
+.chip .new { font-size:10px; font-weight:700; border-radius:7px; padding:0 5px; background:var(--accent); color:var(--text-on-accent); }
+.active-row { padding:7px 14px; border-top:1px solid var(--stroke-divider); background:var(--layer-subtle); font-size:12px; color:var(--text-secondary); border-radius:0 0 8px 8px; display:flex; gap:8px; align-items:center; }
+.active-row .cond { background:var(--layer-card); border:1px solid var(--stroke-divider); border-radius:10px; padding:1px 8px; color:var(--text-primary); }
+.grid { display:grid; grid-template-columns:repeat(6,1fr); gap:6px; padding:4px 24px 20px; }
+.tile { position:relative; aspect-ratio:4/3; border-radius:6px; overflow:hidden; }
+.tile .ph { position:absolute; inset:0; }
+.tile .usage { position:absolute; left:6px; bottom:6px; font-size:11px; font-weight:600; color:#fff; background:rgba(0,0,0,0.5); border-radius:9px; padding:1px 7px; display:flex; gap:4px; align-items:center; }
+.tip { position:absolute; z-index:30; background:var(--layer-card); border:1px solid var(--stroke-card); border-radius:6px; box-shadow:var(--shadow-flyout); padding:8px 10px; font-size:12px; max-width:260px; line-height:1.45; }
+body.dark .tip { background:#2B2B2B; }
+.tip b { display:block; font-size:12px; margin-bottom:2px; }
+.sortbar { display:flex; gap:10px; align-items:center; padding:0 24px 8px; font-size:12px; color:var(--text-secondary); }
+.sortbar .sel { border:1px solid var(--stroke-divider); border-radius:4px; padding:3px 10px; background:var(--layer-card); color:var(--text-primary); }
+/* Lightbox */
+.lb { display:grid; grid-template-columns:1fr 300px; height:100%; background:#111; color:#eee; }
+.lb .img { position:relative; display:grid; place-items:center; }
+.lb .img .ph { width:78%; aspect-ratio:3/2; border-radius:2px; }
+.lb .top { position:absolute; top:0; left:0; right:0; display:flex; gap:10px; align-items:center; padding:10px 14px; font-size:13px; background:linear-gradient(rgba(0,0,0,.6),transparent); }
+.lb .top .r { margin-left:auto; display:flex; gap:12px; }
+.lb .side { background:#1c1c1c; border-left:1px solid #333; padding:14px 16px; font-size:12px; overflow:auto; }
+.lb .side h4 { margin:12px 0 6px; font-size:11px; letter-spacing:.05em; color:#999; text-transform:uppercase; }
+.lb .row { display:grid; grid-template-columns:96px 1fr; gap:4px 8px; padding:3px 0; }
+.lb .row span:first-child { color:#9a9a9a; }
+.lb .meter { position:absolute; bottom:14px; left:50%; transform:translateX(-50%); font-size:11px; background:rgba(0,0,0,.55); border-radius:10px; padding:3px 10px; color:#ccc; display:flex; gap:6px; align-items:center; }
+.dot { width:7px; height:7px; border-radius:50%; background:#6CCB5F; display:inline-block; }
+.dot.off { background:#777; }
+/* Storys */
+.mem-strip { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; padding:6px 24px 14px; }
+.mem { border-radius:10px; overflow:hidden; position:relative; height:190px; color:#fff; box-shadow:var(--shadow-card); cursor:pointer; }
+.mem .bg { position:absolute; inset:0; display:grid; grid-template-columns:2fr 1fr; grid-template-rows:1fr 1fr; gap:2px; }
+.mem .bg i:first-child { grid-row:1/3; }
+.mem .shade { position:absolute; inset:0; background:linear-gradient(transparent 35%, rgba(0,0,0,.72)); }
+.mem .tx { position:absolute; left:14px; right:14px; bottom:12px; }
+.mem .kick { font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; opacity:.9; display:flex; gap:6px; align-items:center; }
+.mem .t { font-size:18px; font-weight:600; margin-top:2px; }
+.mem .s { font-size:12px; opacity:.85; margin-top:2px; }
+.mem.treasure { outline:2px solid var(--brand-amber); outline-offset:-2px; }
+.sec-h { padding:6px 24px 4px; font-size:15px; font-weight:600; display:flex; gap:8px; align-items:center; }
+.sec-h small { font-size:12px; color:var(--text-secondary); font-weight:400; }
+.kinds { display:flex; gap:6px; padding:2px 24px 10px; flex-wrap:wrap; }
+/* Story-Ansicht */
+.story-h { padding:16px 24px 4px; }
+.story-h .k { font-size:12px; color:var(--text-secondary); text-transform:uppercase; letter-spacing:.05em; font-weight:700; }
+.story-h h1 { margin:2px 0 0; font-size:26px; font-weight:600; }
+.story-h .s { color:var(--text-secondary); font-size:13px; margin-top:4px; }
+.coll { display:grid; grid-template-columns:2fr 1fr 1fr; grid-template-rows:150px 150px; gap:6px; padding:10px 24px 20px; }
+.coll .tile { aspect-ratio:auto; }
+.coll .tile:first-child { grid-row:1/3; }
+.why { position:absolute; right:8px; top:8px; font-size:11px; color:#fff; background:rgba(0,0,0,.55); border-radius:9px; padding:2px 8px; display:flex; gap:4px; align-items:center; }
+/* Einstellungen */
+.sw-row { display:grid; grid-template-columns:28px 1fr auto; gap:12px; align-items:center; padding:12px 0; border-top:1px solid var(--stroke-divider); }
+.sw-row:first-of-type { border-top:0; }
+.sw-row .ic { color:var(--text-secondary); }
+.sw-row b { font-size:13px; display:block; font-weight:600; }
+.sw-row small { display:block; color:var(--text-secondary); font-size:12px; line-height:1.45; margin-top:2px; }
+.facts { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:10px; }
+.fact { background:var(--layer-secondary); border-radius:6px; padding:8px 10px; }
+.fact b { display:block; font-size:18px; font-weight:600; } .fact span { font-size:11px; color:var(--text-secondary); }
+.counts { display:grid; grid-template-columns:1fr 1fr; gap:4px 24px; font-size:12px; margin-top:6px; }
+.counts div { display:flex; gap:8px; align-items:center; }
+.counts .ok { color:var(--success); } .counts .no { color:var(--text-tertiary); }
+.kvs { display:grid; grid-template-columns:130px 1fr; gap:4px 10px; font-size:12px; }
+.kvs span:nth-child(odd) { color:var(--text-secondary); }
+.smoke { position:absolute; inset:0; background:var(--smoke); z-index:40; display:grid; place-items:center; }
+.dlg { width:520px; background:var(--layer-card); border:1px solid var(--stroke-card); border-radius:8px; box-shadow:0 24px 48px rgba(0,0,0,.3); overflow:hidden; }
+body.dark .dlg { background:#2B2B2B; }
+.dlg .in { padding:20px 24px 14px; display:grid; gap:12px; }
+.dlg h2 { margin:0; font-size:20px; font-weight:600; }
+.dlg .ft { display:flex; gap:8px; justify-content:flex-end; padding:14px 24px; background:var(--layer-subtle); border-top:1px solid var(--stroke-divider); }
+.btn-danger { background:var(--danger); color:#fff; border:1px solid transparent; border-radius:4px; padding:5px 14px; font-size:13px; cursor:pointer; }
+.hint { display:flex; gap:8px; align-items:flex-start; font-size:12px; color:var(--text-secondary); border-radius:6px; padding:8px 10px; background:var(--layer-secondary); }
+/* Platzhalter-Fotos (Verläufe, keine echten Bilder) */
+.p1{background:linear-gradient(135deg,#F59E0B,#B45309)} .p2{background:linear-gradient(135deg,#38BDF8,#1E3A8A)} .p3{background:linear-gradient(135deg,#34D399,#065F46)}
+.p4{background:linear-gradient(135deg,#F472B6,#9D174D)} .p5{background:linear-gradient(135deg,#A78BFA,#4C1D95)} .p6{background:linear-gradient(135deg,#FCD34D,#92400E)}
+.p7{background:linear-gradient(135deg,#94A3B8,#334155)} .p8{background:linear-gradient(135deg,#FB923C,#7C2D12)} .p9{background:linear-gradient(135deg,#5EEAD4,#115E59)}
+</style>
+</head>
+<body>
+<div class="mock-bar">
+  <span><b>Mockup 20 · Nutzungs-Signale · Entwurf (autonom)</b></span>
+  <span class="grp">Design: <button id="mbLight">Hell</button><button id="mbDark" class="on">Dunkel</button></span>
+  <span class="grp">Ansicht: <button data-v="gallery" class="on">Galerie „Lieblinge“</button><button data-v="lightbox">Lightbox (Messung)</button><button data-v="stories">Storys: Vergessene Schätze</button><button data-v="story">Highlights mit Grund</button><button data-v="settings">Einstellungen</button><button data-v="erase">Löschen (Rückfrage)</button></span>
+  <span class="note">nur lokal · nur Tagessummen · nichts im Protokoll</span>
+</div>
+
+<div class="stage-wrap"><div class="win-box" id="winBox">
+<div class="window" id="win">
+  <div class="titlebar"><span class="tile"></span> Lumora<span class="wc"><span>&#xE921;</span><span>&#xE922;</span><span>&#xE8BB;</span></span></div>
+  <nav class="nav">
+    <div class="wbs">lumora</div>
+    <div class="lib-switch"><span class="ic">&#xE8F1;</span><div><b>Familienfotos</b><small>Bibliothek wechseln</small></div></div>
+    <div class="nav-item" data-nav="gallery"><span class="ic">&#xE91B;</span>Galerie</div>
+    <div class="nav-item"><span class="ic">&#xE8F1;</span>Alben</div>
+    <div class="nav-item" data-nav="stories"><span class="ic">&#xE786;</span>Storys</div>
+    <div class="nav-item"><span class="ic">&#xE716;</span>Personen</div>
+    <div class="nav-item"><span class="ic">&#xE707;</span>Orte</div>
+    <div class="spacer"></div>
+    <div class="nav-item" data-nav="settings"><span class="ic">&#xE713;</span>Einstellungen</div>
+  </nav>
+  <main class="content">
+
+    <!-- ===== Galerie: Filter „Lieblinge“ ===== -->
+    <section class="view" id="v-gallery">
+      <div class="phead"><h1>Galerie</h1></div>
+      <div class="fcard">
+        <div class="frow"><span class="lbl">DATEI</span>
+          <span class="chip">Alle</span><span class="chip"><span class="ic s">&#xEB9F;</span>Bilder</span>
+          <span class="chip"><span class="ic s">&#xEB52;</span>Nur Favoriten</span>
+          <span class="chip">Bewertung: egal</span><span class="chip">Ablage: Überall</span></div>
+        <div class="frow"><span class="lbl">INHALT</span><span class="chip">Tags</span><span class="chip">Personen</span><span class="chip">Motive</span><span class="chip">Ort</span><span class="chip">Doppelte</span><span class="chip on" id="lovedChip"><span class="ic s">&#xE734;</span>Lieblinge <span class="new">neu</span></span></div>
+        <div class="active-row">Es gilt: <span class="cond">Lieblinge (oft angesehen oder verwendet) ✕</span><span style="margin-left:auto">38 von 5 212 Dateien</span></div>
+      </div>
+      <div class="sortbar">Sortieren <span class="sel">Aufnahmedatum ▾</span><span class="sel">neu → alt</span><span style="margin-left:auto">„Lieblinge“ = Fotos, die Lumora aus Ihrer Nutzung gelernt hat — Favoriten und Sterne bleiben eigene Filter.</span></div>
+      <div class="grid" id="lovedGrid"></div>
+      <div class="tip" id="lovedTip" style="left:520px;top:330px"><b>Gelernt: oft angesehen</b>9× geöffnet an 6 Tagen · 4 min angesehen · 2× gezoomt · in 1 Album<br><span style="color:var(--text-tertiary)">zuletzt vor 3 Wochen</span></div>
+    </section>
+
+    <!-- ===== Lightbox: was gemessen wird ===== -->
+    <section class="view" id="v-lightbox" style="height:100%">
+      <div class="lb">
+        <div class="img"><div class="top"><span class="ic">&#xE72B;</span> 12 / 214 · Strand am Abend.jpg<div class="r"><span class="ic">&#xE734;</span><span class="ic">&#xE8A3;</span><span class="ic">&#xE946;</span><span class="ic">&#xE8BB;</span></div></div>
+          <div class="ph p1"></div>
+          <div class="meter" id="meter"><span class="dot"></span>zählt: Fenster aktiv · 0:42 (höchstens 2:00 je Ansicht)</div>
+        </div>
+        <aside class="side">
+          <h4>Datei</h4>
+          <div class="row"><span>Name</span><span>Strand am Abend.jpg</span></div>
+          <div class="row"><span>Aufgenommen</span><span>14.08.2019, 20:41</span></div>
+          <div class="row"><span>Ort</span><span>Grado, Italien</span></div>
+          <h4>Nutzung (gelernt)</h4>
+          <div class="row"><span>Angesehen</span><span>9× an 6 Tagen · 4 min</span></div>
+          <div class="row"><span>Verwendet</span><span>1 Album · Titelbild einer Story</span></div>
+          <div class="row"><span>Weitergegeben</span><span>1× exportiert</span></div>
+          <div class="row"><span>Zuletzt</span><span>vor 3 Wochen</span></div>
+          <h4>So zählt Lumora</h4>
+          <div style="color:#bbb;line-height:1.5">Nur, solange dieses Fenster vorne ist: je Ansicht ab 1 s, höchstens 2 min. Schnelles Durchblättern (unter 1 s), Sortieren und die Seite „Doppelte“ zählen nicht; Diashow und Storys nur gedämpft. Gespeichert wird nur die Tagessumme.</div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ===== Storys: Vergessene Schätze ===== -->
+    <section class="view" id="v-stories">
+      <div class="phead"><h1>Storys</h1></div>
+      <div class="kinds"><span class="chip on">Alle</span><span class="chip">Reisen &amp; Ereignisse</span><span class="chip">Rückblicke <small>3</small></span><span class="chip">Personen</span><span class="chip">Orte</span><span class="chip">Eigene</span></div>
+      <div class="sec-h"><span class="ic">&#xE81C;</span>Rückblicke <small>heute, 25. Oktober</small></div>
+      <div class="mem-strip">
+        <div class="mem"><div class="bg"><i class="p2"></i><i class="p9"></i><i class="p7"></i></div><div class="shade"></div>
+          <div class="tx"><div class="kick">Heute vor 3 Jahren</div><div class="t">Sonntag, 25. Oktober 2023</div><div class="s">48 Fotos · Wien</div></div></div>
+        <div class="mem treasure" id="treasure"><div class="bg"><i class="p6"></i><i class="p4"></i><i class="p3"></i></div><div class="shade"></div>
+          <div class="tx"><div class="kick"><span class="ic s">&#xE734;</span>Vergessene Schätze</div><div class="t">24 schöne Fotos, lange nicht angesehen</div><div class="s">2012–2021 · seit über einem Jahr nicht mehr geöffnet</div></div></div>
+        <div class="mem"><div class="bg"><i class="p8"></i><i class="p1"></i><i class="p5"></i></div><div class="shade"></div>
+          <div class="tx"><div class="kick">Oktober in früheren Jahren</div><div class="t">Oktober · 2015–2025</div><div class="s">612 Fotos · 9 Videos</div></div></div>
+      </div>
+      <div class="tip" style="left:420px;top:330px"><b>Vergessene Schätze</b>Gute Fotos (scharf, gut belichtet, Favorit, Sterne oder früher oft angesehen), die seit über einem Jahr niemand in Lumora geöffnet hat. Jeden Monat eine neue Auswahl; anheften, ausblenden und öffnen wie jeder Rückblick.</div>
+      <div class="sec-h" style="margin-top:110px">Reisen &amp; Ereignisse</div>
+      <div class="muted" style="padding:0 24px">… wie bisher (Mockup 09)</div>
+    </section>
+
+    <!-- ===== Story: Highlights mit Grund ===== -->
+    <section class="view" id="v-story">
+      <div class="story-h"><div class="k">Reise · 8 Tage</div><h1>Grado und Triest</h1><div class="s">Grado · Triest · Aquileia — Italien · 421 Fotos · 9 Videos</div></div>
+      <div class="coll">
+        <div class="tile"><div class="ph p1"></div><span class="why"><span class="ic s">&#xE734;</span>scharf · oft angesehen</span></div>
+        <div class="tile"><div class="ph p2"></div></div>
+        <div class="tile"><div class="ph p3"></div><span class="why">2 Personen · 2× geteilt</span></div>
+        <div class="tile"><div class="ph p9"></div></div>
+        <div class="tile"><div class="ph p5"></div><span class="why">Favorit · gut belichtet</span></div>
+      </div>
+      <div class="tip" style="left:120px;top:250px"><b>Warum ausgewählt</b>scharf · oft angesehen<br><span style="color:var(--text-tertiary)">„oft angesehen“: kleiner Zuschlag aus Ihrer Nutzung (an mehreren Tagen geöffnet). Fotos ohne Nutzung bekommen keinen Abzug.</span></div>
+      <div style="padding:0 24px 20px" class="muted">Der Zuschlag ist gedämpft (höchstens so viel wie ein Favorit), Ansehen aus einer Story oder Diashow zählt nur halb bzw. ein Viertel — sonst würden Highlights sich selbst verstärken. Gilt gleich für Story-Highlights, Titelbilder und „die schönsten“ im Story-Assistenten.</div>
+    </section>
+
+    <!-- ===== Einstellungen › Storys: Nutzung lernen ===== -->
+    <section class="view" id="v-settings">
+      <div class="phead"><h1>Einstellungen</h1></div>
+      <div class="tabs"><span>Bibliotheken &amp; Eingänge</span><span>Tags</span><span>Kategorien</span><span>Gesichter</span><span>Motive</span><span>Archive</span><span>Darstellung</span><span class="on">Storys</span><span>Assistent</span><span>Orte</span><span>Modelle &amp; Daten</span><span>Speicher &amp; Wartung</span><span>Info</span></div>
+      <div class="body">
+        <div class="card"><h2>Story-Arten</h2><div class="muted">… wie bisher (Ereignisse &amp; Reisen, Rückblicke, Personen, Orte)</div></div>
+        <div class="card">
+          <h2><span class="ic">&#xE734;</span>Nutzung lernen</h2>
+          <div class="muted">Lumora merkt sich lokal, welche Fotos Sie öfter ansehen, zoomen, in Alben und Storys verwenden oder weitergeben — und wählt „die schönsten“ dann ein wenig mehr nach Ihrem Geschmack. Gespeichert werden nur Tagessummen je Foto in diesem Katalog (eine versteckte Bibliothek nur in ihrem Container); nichts verlässt den PC, nichts steht im Protokoll.</div>
+          <div class="sw-row"><span class="ic">&#xE9D9;</span><div><b>Nutzung lernen</b><small>Öffnen, Ansehdauer (nur aktiv, 1 s bis 2 min je Ansicht), Zoom, Wiederkehr an anderen Tagen, Verwendung, Weitergabe.</small></div><span class="sw on" id="swLearn"></span></div>
+          <div class="sw-row"><span class="ic">&#xE81C;</span><div><b>„Vergessene Schätze“ anbieten</b><small>Unter den Rückblicken: gute Fotos, die über ein Jahr nicht angesehen wurden.</small></div><span class="sw on"></span></div>
+          <div class="facts"><div class="fact"><b>1 284</b><span>Fotos mit Nutzung</span></div><div class="fact"><b>57</b><span>Tage</span></div><div class="fact"><b>38</b><span>Lieblinge</span></div><div class="fact"><b>seit</b><span>12.09.2026</span></div></div>
+          <div class="counts">
+            <div class="ok"><span class="ic s">&#xE73E;</span>zählt: Lightbox (Galerie, Personen, Orte, Alben)</div>
+            <div class="ok"><span class="ic s">&#xE73E;</span>zählt: Album, Story, Titelbild, Exportieren/Kopieren</div>
+            <div class="ok"><span class="ic s">&#xE73E;</span>gedämpft: Diashow, Lightbox aus einer Story</div>
+            <div class="no"><span class="ic s">&#xE711;</span>zählt nicht: Sortieren, Doppelte, Durchblättern unter 1 s</div>
+          </div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button class="btn-std danger" data-v="erase"><span class="ic s">&#xE74D;</span>Gelernte Nutzung löschen…</button></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Rückfrage Löschen -->
+    <div class="smoke hidden" id="dlg"><div class="dlg"><div class="in">
+      <h2>Gelernte Nutzung löschen?</h2>
+      <div class="muted">Lumora vergisst alles, was es in diesem Katalog über Ihre Nutzung gelernt hat: 1 284 Fotos an 57 Tagen. Highlights, „Lieblinge“ und „Vergessene Schätze“ beruhen danach wieder nur auf Güte, Favoriten und Sternen. Favoriten, Sterne, Alben und Storys bleiben unverändert.</div>
+      <div class="hint"><span class="ic s">&#xE946;</span>Das lässt sich nicht rückgängig machen. „Nutzung lernen“ bleibt eingeschaltet — zum Abschalten den Schalter verwenden.</div>
+    </div><div class="ft"><button class="btn-danger" data-v="settings">Löschen</button><button class="btn-std" data-v="settings">Abbrechen</button></div></div></div>
+  </main>
+
+  <div class="statusbar">
+    <span><span class="ic s">&#xE8F1;</span> Familienfotos</span>
+    <span>5 212 Fotos und Videos</span>
+    <span class="r"><span class="ic s" style="color:var(--text-tertiary)">&#xE73E;</span><span style="color:var(--text-tertiary)">Keine Aktivität</span></span>
+  </div>
+</div>
+</div></div>
+
+<script>
+const $=(s)=>document.querySelector(s), $$=(s)=>[...document.querySelectorAll(s)];
+const P=['p1','p2','p3','p4','p5','p6','p7','p8','p9'];
+$('#lovedGrid').innerHTML = Array.from({length:18},(_,i)=>`<div class="tile"><div class="ph ${P[(i*4)%9]}"></div>${i%3===0?'<span class="usage"><span class="ic s">&#xE734;</span>oft angesehen</span>':i%4===1?'<span class="usage">verwendet</span>':''}</div>`).join('');
+function view(v){
+  const base = v==='erase' ? 'settings' : v;
+  $$('.mock-bar [data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
+  $$('.view').forEach(s=>s.classList.toggle('on', s.id==='v-'+base));
+  $('#dlg').classList.toggle('hidden', v!=='erase');
+  $$('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.nav===(base==='story'?'stories':base) || (base==='lightbox'&&n.dataset.nav==='gallery')));
+  $('#win').style.gridTemplateColumns = base==='lightbox' ? '0 1fr' : '232px 1fr';
+}
+document.addEventListener('click',e=>{ const v=e.target.closest('[data-v]'); if(v){ view(v.dataset.v); return; } const n=e.target.closest('[data-nav]'); if(n){ view(n.dataset.nav); } });
+let active=true; $('#meter').onclick=()=>{ active=!active; $('#meter').innerHTML = active ? '<span class="dot"></span>zählt: Fenster aktiv · 0:42 (höchstens 2:00 je Ansicht)' : '<span class="dot off"></span>pausiert: anderes Fenster im Vordergrund'; };
+function fit(){ const w=1280,h=860,win=$('#win'); win.style.width=w+'px'; win.style.height=h+'px'; const s=Math.min(1,(document.documentElement.clientWidth-40)/w);
+  win.style.transform=`scale(${s})`; $('#winBox').style.width=w*s+'px'; $('#winBox').style.height=h*s+'px'; }
+function theme(d){ document.body.classList.toggle('dark',d); $('#mbLight').classList.toggle('on',!d); $('#mbDark').classList.toggle('on',d); }
+$('#mbLight').onclick=()=>theme(false); $('#mbDark').onclick=()=>theme(true);
+window.addEventListener('resize',fit); fit(); theme(true); view('gallery');
+</script>
+</body>
+</html>

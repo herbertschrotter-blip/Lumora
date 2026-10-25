@@ -31,6 +31,9 @@ public enum GalleryFilterConditionKind
     Duplicates,
     /// <summary>Eigenes Album (ADR-0054).</summary>
     Album,
+
+    /// <summary>Nur „Lieblinge“ aus der gelernten Nutzung (ADR-0072).</summary>
+    Loved,
 }
 
 /// <summary>

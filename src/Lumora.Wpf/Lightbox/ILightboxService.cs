@@ -26,5 +26,12 @@ public interface ILightboxService
     /// <summary>Öffnet das Lightbox-Fenster (oder holt es nach vorn) und zeigt entries[startIndex].</summary>
     void Open(IReadOnlyList<LightboxEntry> entries, int startIndex, Window? owner = null);
 
+    /// <summary>
+    /// Wie <see cref="Open(IReadOnlyList{LightboxEntry}, int, Window?)"/>, mit Herkunft für die Nutzungs-Signale (ADR-0072):
+    /// aus einer Story gedämpft, aus „Doppelte“ gar nicht gezählt. Ersatz-Implementierungen (Tests) ignorieren sie.
+    /// </summary>
+    void Open(IReadOnlyList<LightboxEntry> entries, int startIndex, Window? owner, Lumora.Services.Usage.UsageViewContext usage)
+        => Open(entries, startIndex, owner);
+
     bool IsOpen { get; }
 }

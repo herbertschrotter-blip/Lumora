@@ -25,6 +25,7 @@ public sealed class SlideshowService : ISlideshowService, IDisposable
     private readonly LibVlcHost _vlc;
     private readonly ILoggerFactory _loggers;
     private readonly ILogger<SlideshowService> _logger;
+    private readonly Lumora.Services.Usage.IUsageSignals? _usage;
     private SlideshowWindow? _window;
     private int _startVersion;
 
@@ -34,8 +35,10 @@ public sealed class SlideshowService : ISlideshowService, IDisposable
         ISlideshowImageDecoder decoder,
         ISlideshowSettingsStore settings,
         LibVlcHost vlc,
-        ILoggerFactory loggers)
+        ILoggerFactory loggers,
+        Lumora.Services.Usage.IUsageSignals? usage = null)
     {
+        _usage = usage; // Nutzungs-Signale: Diashow zählt gedämpft (ADR-0072)
         _loader = loader;
         _decoder = decoder;
         _settings = settings;
@@ -126,7 +129,10 @@ public sealed class SlideshowService : ISlideshowService, IDisposable
                 }
             },
             _loggers.CreateLogger<SlideshowViewModel>(),
-            _settings);
+            _settings)
+        {
+            UsageTracker = _usage?.CreateTracker(Lumora.Services.Usage.UsageViewContext.Slideshow), // ADR-0072
+        };
         var window = new SlideshowWindow(viewModel, video, _loggers.CreateLogger<SlideshowWindow>());
 
         var owner = Application.Current?.MainWindow;

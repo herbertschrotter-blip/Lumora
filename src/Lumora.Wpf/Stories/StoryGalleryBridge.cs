@@ -106,6 +106,7 @@ public sealed class StoryGalleryBridge
         try
         {
             var id = await _stories.CreateFromSelectionAsync(fileIds, string.IsNullOrWhiteSpace(title) ? null : title.Trim());
+            Lumora.Services.Usage.UsageReport.Used(fileIds); // eigene Story aus der Auswahl (Nutzungs-Signale, ADR-0072)
             _logger.LogInformation("Storys: eigene Story {Id} aus {Count} Dateien", id, fileIds.Count);
             RequestOpen(id);
             return id;
@@ -129,6 +130,10 @@ public sealed class StoryGalleryBridge
         try
         {
             var added = await _stories.AddFilesAsync(target.StoryId, fileIds);
+            if (added > 0)
+            {
+                Lumora.Services.Usage.UsageReport.Used(fileIds); // Nutzungs-Signale (ADR-0072)
+            }
             AddTarget = null;
             RequestOpen(target.StoryId);
             return added;

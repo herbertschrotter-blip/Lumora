@@ -14,6 +14,7 @@ namespace Lumora.Services.Quality;
 /// <param name="ImageHash">Gültiger pHash (ADR-0053), null ohne.</param>
 /// <param name="LowDetail">Fast einfarbiges Bild (pHash ist Rauschen, zählt nie als Serie).</param>
 /// <param name="ContentHash">Gültige Inhalts-Prüfsumme (SHA-256), null ohne.</param>
+/// <param name="Usage">Gelernte Nutzung (ADR-0072), null ohne bzw. wenn „Nutzung lernen“ aus ist — nie ein Abzug.</param>
 public sealed record HighlightCandidate(
     int FileId,
     int Position,
@@ -28,14 +29,16 @@ public sealed record HighlightCandidate(
     int Rating,
     ulong? ImageHash,
     bool LowDetail,
-    byte[]? ContentHash);
+    byte[]? ContentHash,
+    Usage.UsageTotals? Usage = null);
 
 /// <summary>
 /// Rechenkern der Highlight-Auswahl (ADR-0057), ohne Datenbank (Tests, Messung):
 /// <list type="number">
 /// <item>Wert je Datei: Güte (Schärfe halb relativ zur Story, halb absolut; Belichtung; Bildwirkung, falls vorhanden) +
 /// bestätigte Personen (mehr und gut sichtbare Gesichter heben stärker) + Favorit + Bewertung + kleiner Video-Bonus
-/// (Abwechslung) − Abschlag für fast einfarbige Bilder.</item>
+/// (Abwechslung) − Abschlag für fast einfarbige Bilder + gedämpfter Zuschlag aus der gelernten Nutzung (ADR-0072, höchstens
+/// <see cref="Usage.UsageScoring.MaxBonus"/>, ohne Nutzung 0).</item>
 /// <item>Gruppen: gleiche Inhalts-Prüfsumme immer zusammen; Serie = pHash-Abstand ≤ Schwelle UND Aufnahmezeit-Abstand ≤
 /// <see cref="SeriesSeconds"/>, eine Serie umfasst höchstens <see cref="SeriesSpanSeconds"/>. Je Gruppe zählt nur die
 /// beste Datei, der Rest wird <c>SimilarCount</c>.</item>
@@ -158,7 +161,8 @@ public static class HighlightPlanner
                 : 0;
             var rating = x.Rating > 1 ? RatingStep * (Math.Min(x.Rating, 5) - 1) : 0;
             total[i] = quality + people + (x.IsFavorite ? FavoriteBonus : 0) + rating
-                       + (x.IsVideo ? VideoBonus : 0) - (x.LowDetail ? LowDetailPenalty : 0);
+                       + (x.IsVideo ? VideoBonus : 0) - (x.LowDetail ? LowDetailPenalty : 0)
+                       + Usage.UsageScoring.Bonus(x.Usage); // gelernte Nutzung (ADR-0072): gedämpft, höchstens 0,12, nie negativ
         }
 
         return new Scores(total, sharpRank, aestheticRank);
@@ -355,6 +359,11 @@ public static class HighlightPlanner
         if (x.Sharpness is { } sharp && sharp >= 0.55 && s.SharpRank[index] >= 0.6)
         {
             parts.Add("scharf");
+        }
+
+        if (Usage.UsageScoring.Reason(x.Usage) is { } usage)
+        {
+            parts.Add(usage); // „oft angesehen“, „2× geteilt“ (ADR-0072) — vor Personen/Favorit, damit es im Tooltip steht
         }
 
         if (x.ConfirmedFaces == 1)
