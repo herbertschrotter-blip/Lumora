@@ -214,6 +214,16 @@ internal sealed class FakeContainers : IContainerTools
         Mounted.Add((containerFile, driveLetter));
         return Task.FromResult(new ContainerCommandResult(true, "ok"));
     }
+
+    public List<string> MountedImages { get; } = new();
+
+    public ContainerCommandResult VirtualDiskResult { get; set; } = new(true, "Container ist als X: eingehängt und entsperrt.");
+
+    public Task<ContainerCommandResult> MountVirtualDiskAsync(string imageFile, CancellationToken ct = default)
+    {
+        MountedImages.Add(imageFile);
+        return Task.FromResult(VirtualDiskResult);
+    }
 }
 
 internal sealed class FixedDriveRoots(params string[] roots) : IDriveRootSource

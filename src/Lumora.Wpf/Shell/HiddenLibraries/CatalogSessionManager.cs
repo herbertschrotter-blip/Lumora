@@ -127,6 +127,9 @@ public interface ICatalogSessionManager
 
     Task<ContainerCommandResult> MountContainerAsync(string containerFile, char driveLetter);
 
+    /// <summary>BitLocker-VHDX einhängen und von Windows entsperren lassen (0.5.4) — ohne VeraCrypt.</summary>
+    Task<ContainerCommandResult> MountVirtualDiskAsync(string imageFile);
+
     /// <summary>Beim Beenden (nach dem Schließen der Sitzung): Container aushängen, wenn eingestellt. Synchron mit Zeitgrenze.</summary>
     ContainerCommandResult? DismountAfterExit(TimeSpan timeout);
 }
@@ -551,6 +554,9 @@ public sealed class CatalogSessionManager : ICatalogSessionManager
 
     public Task<ContainerCommandResult> MountContainerAsync(string containerFile, char driveLetter)
         => Containers.MountVeraCryptAsync(containerFile, driveLetter);
+
+    public Task<ContainerCommandResult> MountVirtualDiskAsync(string imageFile)
+        => Containers.MountVirtualDiskAsync(imageFile);
 
     /// <summary>Für <c>App.OnExit</c>: merkt sich die aktive Bibliothek vor dem Schließen der Sitzung.</summary>
     public void PrepareExit()

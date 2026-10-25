@@ -217,12 +217,6 @@ public sealed partial class HiddenLibrariesViewModel : ObservableObject
             return;
         }
 
-        if (!_sessions.Containers.IsVeraCryptInstalled)
-        {
-            await ShowAsync("Container öffnen", "VeraCrypt ist nicht installiert. Den Container bitte selbst einhängen (VeraCrypt bzw. Doppelklick auf die VHDX), danach „Suchen“.").ConfigureAwait(true);
-            return;
-        }
-
         var used = DriveInfoLetters();
         var free = Enumerable.Range('D', 'Z' - 'D' + 1).Select(c => (char)c).Where(c => !used.Contains(c)).ToList();
         var answer = _dialogs.AskMountContainer(free);
@@ -231,7 +225,16 @@ public sealed partial class HiddenLibrariesViewModel : ObservableObject
             return;
         }
 
-        var result = await _sessions.MountContainerAsync(answer.ContainerFile, answer.DriveLetter).ConfigureAwait(true);
+        // BitLocker-VHDX (0.5.4): Windows hängt ein und fragt das Kennwort; VeraCrypt nur für andere Containerdateien
+        if (!IContainerTools.IsVirtualDiskFile(answer.ContainerFile) && !_sessions.Containers.IsVeraCryptInstalled)
+        {
+            await ShowAsync("Container öffnen", "VeraCrypt ist nicht installiert. Den Container bitte selbst einhängen, danach „Suchen“.").ConfigureAwait(true);
+            return;
+        }
+
+        var result = IContainerTools.IsVirtualDiskFile(answer.ContainerFile)
+            ? await _sessions.MountVirtualDiskAsync(answer.ContainerFile).ConfigureAwait(true)
+            : await _sessions.MountContainerAsync(answer.ContainerFile, answer.DriveLetter).ConfigureAwait(true);
         if (!result.Success)
         {
             await ShowAsync("Container öffnen", result.Message).ConfigureAwait(true);

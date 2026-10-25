@@ -82,21 +82,22 @@
                 </StackPanel>
             </StackPanel>
 
-            <!-- Container öffnen -->
+            <!-- Container öffnen: VeraCrypt-Datei (mit Laufwerksbuchstabe) oder BitLocker-VHDX (Windows wählt den Buchstaben, 0.5.4) -->
             <StackPanel x:Name="MountPanel" Visibility="Collapsed">
-                <TextBlock Style="{StaticResource Label}" Text="VeraCrypt-Containerdatei" />
+                <TextBlock Style="{StaticResource Label}" Text="Containerdatei (BitLocker-VHDX oder VeraCrypt)" />
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <ui:TextBox x:Name="ContainerFileBox" AutomationProperties.Name="Containerdatei" />
+                    <ui:TextBox x:Name="ContainerFileBox" AutomationProperties.Name="Containerdatei" TextChanged="OnContainerFileChanged" />
                     <ui:Button Grid.Column="1" Margin="8,0,0,0" Content="Durchsuchen…" Click="OnBrowseContainer" />
                 </Grid>
-                <TextBlock Style="{StaticResource Label}" Text="Laufwerksbuchstabe" />
-                <ComboBox x:Name="LetterBox" Width="90" HorizontalAlignment="Left" AutomationProperties.Name="Laufwerksbuchstabe" />
-                <TextBlock Style="{StaticResource Hint}" Margin="0,12,0,0"
-                           Text="VeraCrypt fragt das Container-Kennwort in seinem eigenen Fenster — Lumora sieht es nie. Lumora merkt sich weder Datei noch Laufwerk." />
+                <StackPanel x:Name="LetterPanel">
+                    <TextBlock Style="{StaticResource Label}" Text="Laufwerksbuchstabe" />
+                    <ComboBox x:Name="LetterBox" Width="90" HorizontalAlignment="Left" AutomationProperties.Name="Laufwerksbuchstabe" />
+                </StackPanel>
+                <TextBlock x:Name="MountHint" Style="{StaticResource Hint}" Margin="0,12,0,0" />
             </StackPanel>
 
             <TextBlock x:Name="ErrorText" Margin="0,12,0,0" TextWrapping="Wrap" Visibility="Collapsed"

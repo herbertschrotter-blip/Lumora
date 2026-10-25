@@ -1224,8 +1224,10 @@ selbst einhängen) und von denen Lumora im Alltag **nichts zeigt** (ADR-0049).
 - **Container aushängen** (seit 0.4.38 Standard **aus**, in den Einstellungen der geöffneten versteckten Bibliothek einschaltbar; ist es an, muss der Container vor dem nächsten Öffnen wieder eingehängt werden — VHDX per Doppelklick im Explorer): beim
   Zusperren und Beenden hängt Lumora ein VeraCrypt-Volume über die VeraCrypt-Befehlszeile bzw. eine eingehängte VHDX
   wie Explorer › „Auswerfen“ aus (ohne Administratorrechte, seit 0.4.31); sind noch Dateien offen oder ist es kein erkennbarer Container, erscheint ein Hinweis.
-  **Container öffnen…** startet VeraCrypt mit Containerdatei und Laufwerksbuchstabe — das Container-Kennwort fragt
-  VeraCrypt in seinem eigenen Fenster, Lumora sieht es nie. VeraCrypt wird nicht mitgeliefert.
+  **Container öffnen…** (Einstellungen › Versteckte Bibliotheken): eine **BitLocker-VHDX** hängt Windows ein wie ein
+  Doppelklick im Explorer und fragt das BitLocker-Kennwort in seinem eigenen Fenster „Laufwerk entsperren“ (seit 0.5.4,
+  kein VeraCrypt nötig, Windows wählt den Laufwerksbuchstaben); eine **VeraCrypt-Datei** hängt VeraCrypt unter dem
+  gewählten Buchstaben ein und fragt selbst. Lumora sieht kein Container-Kennwort. VeraCrypt wird nicht mitgeliefert.
 - **Kennwort vergessen:** Container einhängen und im Ordner `.lumora` der Bibliothek eine Datei `reset-password.txt`
   anlegen (Inhalt egal; `.lumora` ist versteckt — im Explorer „Ausgeblendete Elemente“ einblenden). Beim nächsten
   „Öffnen“ bietet Lumora **Kennwort zurücksetzen** an und löscht die Datei danach.

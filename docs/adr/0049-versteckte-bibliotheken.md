@@ -2,7 +2,8 @@
 
 - **Status:** Accepted (Nachtrag 0.4.14: Zusperren beendet den versteckten Modus, Reiter nur in geöffneter versteckter Bibliothek;
   Nachtrag 0.4.31: VHDX wird ausgeworfen wie im Explorer statt per `Dismount-DiskImage`; Nachtrag 0.4.38: Aushängen
-  standardmäßig aus — Herbert: „ich will es nicht aus Lumora aushängen“; alte Kenndateien ohne bewusste Wahl gelten als aus)
+  standardmäßig aus — Herbert: „ich will es nicht aus Lumora aushängen“; alte Kenndateien ohne bewusste Wahl gelten als aus;
+  Nachtrag 0.5.4: „Container öffnen…“ hängt auch eine BitLocker-VHDX ein — ohne VeraCrypt)
 - **Datum:** 2026-10-21
 - **Entscheider:** Herbert Schrotter (Anforderungen: Container, `_hidden`, Kennwort, Zusperren, Aushängen, Spurenfreiheit),
   Claude (Umsetzung und Detailentscheidungen ohne Rückfrage, siehe unten)
@@ -153,3 +154,26 @@ konnte nicht ausgehängt werden“. `Dismount-DiskImage` braucht Administratorre
 
 **Konsequenzen:** Der echte Lauf auf Herberts PC (X:, BitLocker-VHDX) steht aus — Tests prüfen nur mit Fakes und, dass
 `ContainerTools` kein PowerShell mehr enthält.
+
+## Nachtrag 0.5.4 — BitLocker-VHDX über „Container öffnen…“ einhängen (Herbert, 2026-10-25)
+
+**Anlass:** Nach einem Neustart war Herberts BitLocker-VHDX nicht mehr eingehängt; „Container öffnen…“ konnte nur
+VeraCrypt und verwies sonst auf den Doppelklick im Explorer. Herbert: „bau ein, dass Lumora die BitLocker-VHDX selbst
+einhängt (Container öffnen auch ohne VeraCrypt)“.
+
+**Entscheidung:**
+- „Container öffnen…“ nimmt auch `.vhdx`/`.vhd`. Für eine VHDX entfällt der Laufwerksbuchstabe — Windows wählt ihn
+  (meist derselbe wie zuletzt); VeraCrypt ist dafür nicht nötig.
+- Einhängen über das Shell-Verb „mount“ der Datei (`Shell.Application`, STA-Thread) — derselbe Weg wie Explorer ›
+  „Bereitstellen“ bzw. Doppelklick. Braucht Windows dafür Administratorrechte, fragt Windows selbst; Lumora startet
+  sich nicht erhöht und kein Skript. Neue Schnittstelle `IVirtualDiskMounter` (Windows: `ShellVirtualDiskMounter`;
+  Tests und Rauchtest mit Fakes, nie echt).
+- Das neue Laufwerk ist der Buchstabe, den es vor dem Einhängen nicht gab (höchstens 2 min warten). Ist es nicht lesbar
+  (gesperrte BitLocker-Partition), öffnet Lumora die Windows-Abfrage „Laufwerk entsperren“ (`%windir%\System32\bdeunlock.exe X:`
+  — dieselbe wie Explorer › Klick auf das gesperrte Laufwerk). Das Kennwort fragt Windows in seinem Fenster, Lumora sieht
+  es nie. Danach höchstens 15 s warten, bis das Laufwerk lesbar ist; sonst Hinweis „eingehängt, aber noch gesperrt“.
+- Danach sucht Lumora wie bisher nach Bibliotheken; gemerkt wird weder Datei noch Laufwerk.
+
+**Konsequenzen:** Der echte Lauf auf Herberts PC steht aus (ob Windows beim Bereitstellen nach Administratorrechten fragt
+und ob `bdeunlock` erst nach der Eingabe zurückkehrt). Ist die Datei schon eingehängt, erscheint kein neues Laufwerk —
+dann meldet Lumora das mit dem Weg über den Explorer.

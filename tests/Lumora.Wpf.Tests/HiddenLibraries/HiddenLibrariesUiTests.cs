@@ -207,5 +207,63 @@ public sealed class HiddenLibrariesUiTests : IDisposable
         await unlock.SubmitAsync();
         unlock.UnlockAnswer.Should().Be(new HiddenLibraryUnlockAnswer("richtig-1", IsReset: false));
     });
+
+    [Fact]
+    public async Task Container_oeffnen_haengt_eine_BitLocker_VHDX_auch_ohne_VeraCrypt_ein()
+    {
+        // 0.5.4: BitLocker-VHDX über Windows (Einhängen + Entsperr-Abfrage), VeraCrypt nur für andere Containerdateien
+        _containers.IsVeraCryptInstalled = false;
+        var manager = CreateManager(enabled: true);
+        var dialogs = new ScriptedHiddenDialogs { MountAnswer = new ContainerMountAnswer(@"J:\sicherung.vhdx", '\0') };
+        var messages = new ScriptedDialogs();
+        var vm = CreateViewModel(manager, dialogs, messages);
+
+        await vm.MountContainerCommand.ExecuteAsync(null);
+
+        _containers.MountedImages.Should().Equal(@"J:\sicherung.vhdx");
+        _containers.Mounted.Should().BeEmpty("kein VeraCrypt für eine VHDX");
+        messages.Errors.Should().BeEmpty();
+
+        _containers.VirtualDiskResult = new ContainerCommandResult(false, "Container ist als X: eingehängt, aber noch gesperrt.");
+        await vm.MountContainerCommand.ExecuteAsync(null);
+        messages.Errors.Should().Equal("Container ist als X: eingehängt, aber noch gesperrt.");
+
+        dialogs.MountAnswer = new ContainerMountAnswer(@"J:\tresor.hc", 'M');
+        await vm.MountContainerCommand.ExecuteAsync(null);
+        _containers.Mounted.Should().BeEmpty();
+        messages.Errors.Last().Should().Contain("VeraCrypt ist nicht installiert");
+    }
+
+    [Fact]
+    public Task Dialog_Container_oeffnen_braucht_fuer_eine_VHDX_keinen_Laufwerksbuchstaben() => OnUiAsync(async () =>
+    {
+        var vhdx = Path.Combine(_root, "sicherung.vhdx");
+        var hc = Path.Combine(_root, "tresor.hc");
+        File.WriteAllBytes(vhdx, []);
+        File.WriteAllBytes(hc, []);
+        var mount = new HiddenLibraryDialog(HiddenLibraryDialog.Mode.Mount);
+        mount.SetLetters(['M', 'N']);
+        mount.Show();
+        try
+        {
+            mount.IsLetterVisible.Should().BeTrue("ohne Datei wie bisher");
+            mount.FillMount(vhdx);
+            mount.IsLetterVisible.Should().BeFalse("Windows wählt den Buchstaben selbst");
+            await mount.SubmitAsync();
+            mount.MountAnswer.Should().Be(new ContainerMountAnswer(vhdx, '\0'));
+
+            var veraCrypt = new HiddenLibraryDialog(HiddenLibraryDialog.Mode.Mount);
+            veraCrypt.SetLetters(['M', 'N']);
+            veraCrypt.Show();
+            veraCrypt.FillMount(hc);
+            veraCrypt.IsLetterVisible.Should().BeTrue();
+            await veraCrypt.SubmitAsync();
+            veraCrypt.MountAnswer.Should().Be(new ContainerMountAnswer(hc, 'N'));
+        }
+        finally
+        {
+            mount.Close();
+        }
+    });
 }
 

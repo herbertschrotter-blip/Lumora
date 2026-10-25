@@ -41,4 +41,7 @@ internal sealed class SmokeContainerTools : IContainerTools
 
     public Task<ContainerCommandResult> MountVeraCryptAsync(string containerFile, char driveLetter, CancellationToken ct = default)
         => Task.FromResult(new ContainerCommandResult(false, "Rauchtest: kein VeraCrypt."));
+
+    public Task<ContainerCommandResult> MountVirtualDiskAsync(string imageFile, CancellationToken ct = default)
+        => Task.FromResult(new ContainerCommandResult(false, "Rauchtest: nichts einhängen."));
 }

@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using Microsoft.Win32;
 using Lumora.Services.HiddenLibraries;
@@ -16,7 +17,7 @@ public sealed record HiddenLibraryCreateAnswer(string Folder, string Name, strin
 /// <summary>Antwort von „Öffnen“: das Kennwort bzw. bei <see cref="IsReset"/> das neue Kennwort.</summary>
 public sealed record HiddenLibraryUnlockAnswer(string Password, bool IsReset);
 
-/// <summary>Antwort von „Container öffnen…“.</summary>
+/// <summary>Antwort von „Container öffnen…“; bei einer BitLocker-VHDX ist <see cref="DriveLetter"/> '\0' (Windows wählt den Buchstaben).</summary>
 public sealed record ContainerMountAnswer(string ContainerFile, char DriveLetter);
 
 /// <summary>Dialoge der versteckten Bibliotheken (ADR-0049); Tests ersetzen sie. null = abgebrochen.</summary>
@@ -93,7 +94,7 @@ public sealed partial class HiddenLibraryDialog : Dialogs.AppFluentWindow
                 "Wählen Sie einen Ordner im eingehängten verschlüsselten Container. Lumora legt dort den Katalog an und scannt die Fotos.",
                 "Anlegen"),
             Mode.Unlock => ("Versteckte Bibliothek öffnen", string.Empty, "Öffnen"),
-            _ => ("Container öffnen", "VeraCrypt hängt die Containerdatei unter dem gewählten Laufwerksbuchstaben ein.", "VeraCrypt starten"),
+            _ => ("Container öffnen", "Eine BitLocker-VHDX hängt Windows ein und fragt nach dem Kennwort; eine VeraCrypt-Datei hängt VeraCrypt unter dem gewählten Buchstaben ein.", "Öffnen"),
         };
         Title = title;
         DialogTitleBar.Title = title;
@@ -102,6 +103,7 @@ public sealed partial class HiddenLibraryDialog : Dialogs.AppFluentWindow
         CreatePanel.Visibility = mode == Mode.Create ? Visibility.Visible : Visibility.Collapsed;
         UnlockPanel.Visibility = mode == Mode.Unlock ? Visibility.Visible : Visibility.Collapsed;
         MountPanel.Visibility = mode == Mode.Mount ? Visibility.Visible : Visibility.Collapsed;
+        UpdateMountKind();
         Loaded += OnLoaded;
     }
 
@@ -284,13 +286,39 @@ public sealed partial class HiddenLibraryDialog : Dialogs.AppFluentWindow
         return true;
     }
 
+    /// <summary>Für Tests: Containerdatei eintragen.</summary>
+    internal void FillMount(string file) => ContainerFileBox.Text = file;
+
+    /// <summary>Für Tests: Feld „Laufwerksbuchstabe“ sichtbar (nur VeraCrypt).</summary>
+    internal bool IsLetterVisible => LetterPanel.Visibility == Visibility.Visible;
+
+    private string MountFile => (ContainerFileBox.Text ?? string.Empty).Trim().Trim('"');
+
+    private void OnContainerFileChanged(object sender, TextChangedEventArgs e) => UpdateMountKind();
+
+    /// <summary>BitLocker-VHDX: Windows wählt den Buchstaben und fragt das Kennwort — kein Feld „Laufwerksbuchstabe“.</summary>
+    private void UpdateMountKind()
+    {
+        var vhdx = IContainerTools.IsVirtualDiskFile(MountFile);
+        LetterPanel.Visibility = vhdx ? Visibility.Collapsed : Visibility.Visible;
+        MountHint.Text = vhdx
+            ? "Windows hängt die VHDX ein (wie ein Doppelklick im Explorer, ggf. mit Rückfrage nach Administratorrechten) und fragt das BitLocker-Kennwort in seinem eigenen Fenster — Lumora sieht es nie. Lumora merkt sich weder Datei noch Laufwerk."
+            : "VeraCrypt fragt das Container-Kennwort in seinem eigenen Fenster — Lumora sieht es nie. Lumora merkt sich weder Datei noch Laufwerk.";
+    }
+
     private bool SubmitMount()
     {
-        var file = (ContainerFileBox.Text ?? string.Empty).Trim().Trim('"');
+        var file = MountFile;
         if (file.Length == 0 || !Path.IsPathFullyQualified(file) || !File.Exists(file))
         {
             ShowError("Bitte eine vorhandene Containerdatei angeben.");
             return false;
+        }
+
+        if (IContainerTools.IsVirtualDiskFile(file))
+        {
+            MountAnswer = new ContainerMountAnswer(file, '\0');
+            return true;
         }
 
         if (LetterBox.SelectedItem is not string letter || letter.Length == 0)
@@ -308,8 +336,8 @@ public sealed partial class HiddenLibraryDialog : Dialogs.AppFluentWindow
         // AddToRecent = false: nichts unter „Zuletzt verwendet“; Lumora merkt sich die Datei nicht (ADR-0049)
         var dialog = new OpenFileDialog
         {
-            Title = "VeraCrypt-Containerdatei wählen",
-            Filter = "Alle Dateien (*.*)|*.*",
+            Title = "Containerdatei wählen",
+            Filter = "BitLocker-Container (*.vhdx;*.vhd)|*.vhdx;*.vhd|Alle Dateien (*.*)|*.*",
             CheckFileExists = true,
             AddToRecent = false,
         };

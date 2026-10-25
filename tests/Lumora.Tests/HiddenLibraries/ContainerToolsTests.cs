@@ -151,6 +151,86 @@ public sealed class ContainerToolsTests
         }
     }
 
+    private static readonly VirtualDiskMountTimings FastTimings = new(TimeSpan.FromMilliseconds(5), TimeSpan.FromMilliseconds(200), TimeSpan.FromMilliseconds(100));
+
+    [Fact]
+    public async Task Vhdx_is_mounted_by_windows_and_unlocked_in_the_windows_dialog_without_veracrypt()
+    {
+        var file = TempVhdx();
+        try
+        {
+            var devices = new FakeDevices { ['C'] = @"\Device\HarddiskVolume3" };
+            var mounter = new FakeMounter { OnMount = () => devices['X'] = @"\Device\HarddiskVolume9" };
+            var runner = new FakeRunner { OnRun = (_, _) => mounter.Ready.Add('X') };
+            var tools = new ContainerTools(runner, devices, new FakeLocator(null), new FakeEjector(), mounter, FastTimings);
+
+            var result = await tools.MountVirtualDiskAsync(file);
+
+            result.Should().Be(new ContainerCommandResult(true, "Container ist als X: eingehängt und entsperrt."));
+            mounter.Mounted.Should().Equal(file);
+            var unlock = runner.Calls.Single();
+            unlock.File.Should().Be(ContainerTools.UnlockDialogPath).And.EndWith("bdeunlock.exe");
+            unlock.Args.Should().Equal("X:");
+            unlock.Args.Should().NotContain(a => a.Contains("password", StringComparison.OrdinalIgnoreCase), "das Kennwort fragt Windows, Lumora sieht es nie");
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+    }
+
+    [Fact]
+    public async Task Vhdx_without_bitlocker_needs_no_unlock_and_failures_are_explained()
+    {
+        var file = TempVhdx();
+        try
+        {
+            var devices = new FakeDevices();
+            var open = new FakeMounter { OnMount = () => devices['V'] = @"\Device\HarddiskVolume9" };
+            open.Ready.Add('V');
+            var runner = new FakeRunner();
+            (await new ContainerTools(runner, devices, new FakeLocator(null), new FakeEjector(), open, FastTimings).MountVirtualDiskAsync(file))
+                .Should().Be(new ContainerCommandResult(true, "Container ist als V: eingehängt."));
+            runner.Calls.Should().BeEmpty("nicht gesperrt — keine Entsperr-Abfrage");
+
+            var nothing = await new ContainerTools(runner, new FakeDevices(), new FakeLocator(null), new FakeEjector(), new FakeMounter(), FastTimings).MountVirtualDiskAsync(file);
+            nothing.Success.Should().BeFalse();
+            nothing.Message.Should().Contain("kein neues Laufwerk");
+
+            var lockedDevices = new FakeDevices();
+            var stillLocked = await new ContainerTools(new FakeRunner(), lockedDevices, new FakeLocator(null), new FakeEjector(),
+                new FakeMounter { OnMount = () => lockedDevices['L'] = @"\Device\HarddiskVolume9" }, FastTimings).MountVirtualDiskAsync(file);
+            stillLocked.Should().Be(new ContainerCommandResult(false, "Container ist als L: eingehängt, aber noch gesperrt. Bitte im Explorer entsperren und dann „Suchen“ wählen."));
+
+            (await new ContainerTools(runner, new FakeDevices(), new FakeLocator(null), new FakeEjector(), new FakeMounter { Accepts = false }, FastTimings).MountVirtualDiskAsync(file))
+                .Message.Should().Be("Windows konnte die Containerdatei nicht einhängen.");
+            (await new ContainerTools(runner, new FakeDevices(), new FakeLocator(null), new FakeEjector()).MountVirtualDiskAsync(file))
+                .Success.Should().BeFalse("ohne Einhänge-Weg (z. B. Rauchtest) nichts tun");
+            var tc = Path.ChangeExtension(file, ".hc");
+            (await new ContainerTools(runner, new FakeDevices(), new FakeLocator(null), new FakeEjector(), new FakeMounter(), FastTimings).MountVirtualDiskAsync(tc))
+                .Message.Should().Contain("nicht gefunden");
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+    }
+
+    [Theory]
+    [InlineData(@"J:\sicherung.vhdx", true)]
+    [InlineData(@"J:\alt.VHD", true)]
+    [InlineData(@"J:\tresor.hc", false)]
+    [InlineData(@"J:\ohne", false)]
+    public void Virtual_disk_files_are_recognized_by_extension(string path, bool expected)
+        => IContainerTools.IsVirtualDiskFile(path).Should().Be(expected);
+
+    private static string TempVhdx()
+    {
+        var file = Path.Combine(Path.GetTempPath(), $"lumora-test-{Guid.NewGuid():N}.vhdx");
+        File.WriteAllBytes(file, []);
+        return file;
+    }
+
     [Theory]
     [InlineData("\"C:\\Program Files\\VeraCrypt\\VeraCrypt.exe\" /v \"%1\"", @"C:\Program Files\VeraCrypt\VeraCrypt.exe")]
     [InlineData(@"C:\VC\VeraCrypt.exe /v %1", @"C:\VC\VeraCrypt.exe")]
@@ -193,6 +273,30 @@ public sealed class ContainerToolsTests
             OnEject?.Invoke();
             return Task.FromResult(!isMounted());
         }
+    }
+
+    private sealed class FakeMounter : IVirtualDiskMounter
+    {
+        public List<string> Mounted { get; } = new();
+
+        public HashSet<char> Ready { get; } = new();
+
+        public Action? OnMount { get; init; }
+
+        public bool Accepts { get; init; } = true;
+
+        public Task<bool> MountAsync(string imagePath, CancellationToken ct)
+        {
+            Mounted.Add(imagePath);
+            if (Accepts)
+            {
+                OnMount?.Invoke();
+            }
+
+            return Task.FromResult(Accepts);
+        }
+
+        public bool IsVolumeReady(char driveLetter) => Ready.Contains(char.ToUpperInvariant(driveLetter));
     }
 
     private sealed class FakeLocator(string? exe) : IVeraCryptLocator

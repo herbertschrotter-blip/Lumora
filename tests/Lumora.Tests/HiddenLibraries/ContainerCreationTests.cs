@@ -532,6 +532,9 @@ public sealed class ContainerCreationTests : IDisposable
             Mounted.Add((containerFile, driveLetter));
             return Task.FromResult(new ContainerCommandResult(true, "ok"));
         }
+
+        public Task<ContainerCommandResult> MountVirtualDiskAsync(string imageFile, CancellationToken ct = default)
+            => throw new InvalidOperationException("Der Assistent hängt keine VHDX über Container öffnen ein.");
     }
 
     private sealed class FakeOutputRunner : IProcessOutputRunner

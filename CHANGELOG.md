@@ -3,6 +3,18 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.4] — 2026-10-25
+
+### Added — „Container öffnen…“ hängt eine BitLocker-VHDX ein (ohne VeraCrypt)
+- Einstellungen › Versteckte Bibliotheken › **Container öffnen…** nimmt jetzt auch `.vhdx`/`.vhd`: Lumora hängt die Datei ein wie
+  Explorer › „Bereitstellen“ (Shell-Verb „mount“; fragt Windows nach Administratorrechten, dann Windows selbst) und öffnet bei
+  einer gesperrten BitLocker-Partition die Windows-Abfrage „Laufwerk entsperren“ (`bdeunlock.exe X:`). Das Kennwort sieht
+  Lumora nie. Danach sucht Lumora die Bibliothek auf dem neuen Laufwerk. Für eine VHDX entfällt das Feld „Laufwerksbuchstabe“
+  (Windows wählt ihn); VeraCrypt ist nur noch für VeraCrypt-Dateien nötig. Herberts Wunsch nach einem Neustart.
+- **Technik:** `IVirtualDiskMounter` (Windows: `ShellVirtualDiskMounter`), `IContainerTools.MountVirtualDiskAsync` +
+  `IsVirtualDiskFile`, `VirtualDiskMountTimings`; neues Laufwerk = Buchstabe, den es vorher nicht gab. ADR-0049 Nachtrag 0.5.4.
+- **Offen:** echter Lauf auf Herberts PC (Rückfrage nach Administratorrechten? kehrt `bdeunlock` erst nach der Eingabe zurück?).
+
 ## [0.5.3] — 2026-10-25
 
 ### Fixed — „Verbessern“: Werkzeuge ließen sich nicht anklicken

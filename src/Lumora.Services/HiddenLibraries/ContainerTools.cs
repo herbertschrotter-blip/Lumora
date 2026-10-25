@@ -16,6 +16,16 @@ public enum ContainerKind
 /// <summary>Ergebnis eines Container-Befehls; <see cref="Message"/> ist für den Benutzer (ohne Pfade der Bibliothek).</summary>
 public sealed record ContainerCommandResult(bool Success, string Message);
 
+/// <summary>
+/// Wartezeiten beim Einhängen einer VHDX (0.5.4): <paramref name="Poll"/> Abfrage-Takt, <paramref name="Appear"/> bis das neue
+/// Laufwerk da ist (schließt eine Windows-Rückfrage nach Administratorrechten ein), <paramref name="UnlockSettle"/> nach der
+/// Windows-Abfrage „Laufwerk entsperren“, bis das Laufwerk lesbar ist. Tests verkürzen sie.
+/// </summary>
+public sealed record VirtualDiskMountTimings(TimeSpan Poll, TimeSpan Appear, TimeSpan UnlockSettle)
+{
+    public static VirtualDiskMountTimings Default { get; } = new(TimeSpan.FromMilliseconds(250), TimeSpan.FromMinutes(2), TimeSpan.FromSeconds(15));
+}
+
 /// <summary>Ergebnis eines Prozesslaufs.</summary>
 public sealed record ProcessRunResult(int ExitCode, bool TimedOut);
 
@@ -48,6 +58,19 @@ public interface IVirtualDiskEjector
     Task<bool> EjectAsync(char driveLetter, Func<bool> isMounted, TimeSpan timeout, CancellationToken ct);
 }
 
+/// <summary>
+/// Image-Datei (VHD/VHDX) einhängen wie Explorer › „Bereitstellen“ und prüfen, ob ein Laufwerk lesbar ist (Nachtrag 0.5.4,
+/// ADR-0049/ADR-0061). Tests und Rauchtest ersetzen ihn; nie echt einhängen in Tests.
+/// </summary>
+public interface IVirtualDiskMounter
+{
+    /// <summary>Übergibt die Datei an Windows zum Einhängen; true = Windows hat den Auftrag angenommen (der Buchstabe kommt später).</summary>
+    Task<bool> MountAsync(string imagePath, CancellationToken ct);
+
+    /// <summary>Laufwerk lesbar — false z. B. für eine gesperrte BitLocker-Partition.</summary>
+    bool IsVolumeReady(char driveLetter);
+}
+
 /// <summary>Findet <c>VeraCrypt.exe</c> (Registry, Standardpfad); null = nicht installiert. Lumora installiert nichts.</summary>
 public interface IVeraCryptLocator
 {
@@ -56,7 +79,8 @@ public interface IVeraCryptLocator
 
 /// <summary>
 /// Container ein- und aushängen (ADR-0049). Lumora sieht kein Container-Kennwort: „Container öffnen…“ startet VeraCrypt,
-/// das in SEINEM Fenster fragt. Aushängen nur ohne Gewalt (kein <c>/force</c>) — sind noch Dateien offen, meldet es das.
+/// das in SEINEM Fenster fragt, bzw. hängt eine BitLocker-VHDX ein und öffnet die Windows-Abfrage „Laufwerk entsperren“
+/// (0.5.4). Aushängen nur ohne Gewalt (kein <c>/force</c>) — sind noch Dateien offen, meldet es das.
 /// </summary>
 public interface IContainerTools
 {
@@ -69,6 +93,17 @@ public interface IContainerTools
 
     /// <summary>Startet VeraCrypt zum Einhängen; VeraCrypt fragt das Kennwort selbst. Wartet, bis VeraCrypt sich beendet.</summary>
     Task<ContainerCommandResult> MountVeraCryptAsync(string containerFile, char driveLetter, CancellationToken ct = default);
+
+    /// <summary>
+    /// Hängt eine VHD/VHDX ein wie Explorer › „Bereitstellen“ (Windows wählt den Buchstaben) und öffnet bei einer gesperrten
+    /// BitLocker-Partition die Windows-Abfrage „Laufwerk entsperren“ — das Kennwort sieht Lumora nie. Kein VeraCrypt nötig.
+    /// </summary>
+    Task<ContainerCommandResult> MountVirtualDiskAsync(string imageFile, CancellationToken ct = default);
+
+    /// <summary>Endung <c>.vhdx</c> bzw. <c>.vhd</c>: Einhängen über Windows statt VeraCrypt.</summary>
+    static bool IsVirtualDiskFile(string path)
+        => Path.GetExtension(path) is { } ext
+           && (ext.Equals(".vhdx", StringComparison.OrdinalIgnoreCase) || ext.Equals(".vhd", StringComparison.OrdinalIgnoreCase));
 }
 
 public sealed class ContainerTools : IContainerTools
@@ -79,18 +114,29 @@ public sealed class ContainerTools : IContainerTools
     private static readonly TimeSpan EjectTimeout = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan MountTimeout = TimeSpan.FromMinutes(10);
 
+    /// <summary>Die Windows-Abfrage „Laufwerk entsperren“ wartet auf das Kennwort des Benutzers.</summary>
+    private static readonly TimeSpan UnlockTimeout = TimeSpan.FromMinutes(10);
+
     private readonly IProcessRunner _runner;
     private readonly IVolumeDeviceQuery _devices;
     private readonly IVeraCryptLocator _veraCrypt;
     private readonly IVirtualDiskEjector _virtualDisks;
+    private readonly IVirtualDiskMounter? _mounter;
+    private readonly VirtualDiskMountTimings _timings;
 
-    public ContainerTools(IProcessRunner runner, IVolumeDeviceQuery devices, IVeraCryptLocator veraCrypt, IVirtualDiskEjector virtualDisks)
+    public ContainerTools(IProcessRunner runner, IVolumeDeviceQuery devices, IVeraCryptLocator veraCrypt, IVirtualDiskEjector virtualDisks,
+        IVirtualDiskMounter? mounter = null, VirtualDiskMountTimings? timings = null)
     {
         _runner = runner;
         _devices = devices;
         _veraCrypt = veraCrypt;
         _virtualDisks = virtualDisks;
+        _mounter = mounter;
+        _timings = timings ?? VirtualDiskMountTimings.Default;
     }
+
+    /// <summary>Die Windows-Abfrage „Laufwerk entsperren“ — dieselbe, die der Explorer bei einem gesperrten Laufwerk öffnet.</summary>
+    public static string UnlockDialogPath => Path.Combine(Environment.SystemDirectory, "bdeunlock.exe");
 
     public bool IsVeraCryptInstalled => _veraCrypt.FindExecutable() is not null;
 
@@ -159,6 +205,80 @@ public sealed class ContainerTools : IContainerTools
         return new ContainerCommandResult(false, result.TimedOut
             ? "VeraCrypt hat nicht rechtzeitig geantwortet."
             : "Der Container wurde nicht eingehängt (abgebrochen oder falsches Kennwort).");
+    }
+
+    public async Task<ContainerCommandResult> MountVirtualDiskAsync(string imageFile, CancellationToken ct = default)
+    {
+        if (_mounter is null)
+        {
+            return new ContainerCommandResult(false, "Einhängen über Windows ist hier nicht verfügbar. Bitte die Datei im Explorer doppelklicken.");
+        }
+
+        if (!IContainerTools.IsVirtualDiskFile(imageFile) || !File.Exists(imageFile))
+        {
+            return new ContainerCommandResult(false, "Die Containerdatei (.vhdx) wurde nicht gefunden.");
+        }
+
+        // Windows wählt den Laufwerksbuchstaben selbst — das neue Laufwerk ist der Buchstabe, den es vorher nicht gab
+        var before = UsedLetters();
+        if (!await _mounter.MountAsync(imageFile, ct).ConfigureAwait(false))
+        {
+            return new ContainerCommandResult(false, "Windows konnte die Containerdatei nicht einhängen.");
+        }
+
+        var letter = await WaitAsync(() => UsedLetters().Except(before).Order().Cast<char?>().FirstOrDefault(), _timings.Appear, ct).ConfigureAwait(false);
+        if (letter is not { } drive)
+        {
+            return new ContainerCommandResult(false,
+                "Es ist kein neues Laufwerk erschienen — abgebrochen, oder die Datei ist schon eingehängt. Dann das Laufwerk im Explorer entsperren und „Suchen“ wählen.");
+        }
+
+        if (_mounter.IsVolumeReady(drive))
+        {
+            return new ContainerCommandResult(true, $"Container ist als {drive}: eingehängt.");
+        }
+
+        // Gesperrte BitLocker-Partition: Windows fragt das Kennwort in SEINEM Fenster (bdeunlock X:), Lumora sieht es nie
+        await _runner.RunAsync(UnlockDialogPath, [$"{drive}:"], UnlockTimeout, ct).ConfigureAwait(false);
+        var unlocked = await WaitAsync(() => _mounter.IsVolumeReady(drive) ? true : (bool?)null, _timings.UnlockSettle, ct).ConfigureAwait(false);
+        return unlocked == true
+            ? new ContainerCommandResult(true, $"Container ist als {drive}: eingehängt und entsperrt.")
+            : new ContainerCommandResult(false, $"Container ist als {drive}: eingehängt, aber noch gesperrt. Bitte im Explorer entsperren und dann „Suchen“ wählen.");
+    }
+
+    private List<char> UsedLetters()
+    {
+        var used = new List<char>();
+        for (var c = 'A'; c <= 'Z'; c++)
+        {
+            if (_devices.GetDeviceName(c) is not null)
+            {
+                used.Add(c);
+            }
+        }
+
+        return used;
+    }
+
+    /// <summary>Fragt <paramref name="probe"/> ab, bis es einen Wert liefert oder <paramref name="timeout"/> um ist.</summary>
+    private async Task<T?> WaitAsync<T>(Func<T?> probe, TimeSpan timeout, CancellationToken ct)
+        where T : struct
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (true)
+        {
+            if (probe() is { } value)
+            {
+                return value;
+            }
+
+            if (DateTime.UtcNow >= deadline)
+            {
+                return null;
+            }
+
+            await Task.Delay(_timings.Poll, ct).ConfigureAwait(false);
+        }
     }
 
     private async Task<ContainerCommandResult> DismountVeraCryptAsync(char letter, CancellationToken ct)
