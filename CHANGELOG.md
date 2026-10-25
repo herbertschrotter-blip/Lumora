@@ -3,6 +3,14 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.4.32] — 2026-10-25
+
+### Docs — Mockup 16 „Tag- und Kategorie-Symbole“, abgenommen
+- `mockups/16-tag-kategorie-symbole.html`: kleine Tag- und Kategorie-Marken auf Galerie-Kacheln (oben links; Collage
+  nur beim Darüberfahren), Leiste in der Lightbox mit Namen, Zahl der Fotos mit Tags/Kategorien im Ordnerbaum; Hover
+  nennt die Namen; Schalter je Ort in Einstellungen › Darstellung.
+- PLAN.md Kap. 7: neues Vorhaben „Tag- und Kategorie-Symbole“.
+
 ## [0.4.31] — 2026-10-25
 
 ### Fix (ADR-0049, Nachtrag 0.4.31) — BitLocker-Container beim Beenden wieder aushängen
