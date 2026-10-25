@@ -62,6 +62,25 @@ public sealed class PhotoContextMenuBuilderTests
     }
 
     [Fact]
+    public void Fehlendes_Foto_laesst_sich_aus_der_Bibliothek_entfernen()
+    {
+        TestUiThread.Run(() =>
+        {
+            var removed = 0;
+            var context = new PhotoMenuContext(PhotoMenuSource.Gallery, Jpeg() with { IsMissing = true }, [7]);
+            var menu = Build(context, GalleryHost() with { RemoveMissing = () => removed++ }, Actions());
+
+            var headers = Headers(menu.Items);
+            headers.IndexOf("Aus der Bibliothek entfernen").Should().Be(headers.IndexOf("In den Papierkorb") + 1);
+            Item(menu.Items, "Aus der Bibliothek entfernen").Command.Execute(null);
+            removed.Should().Be(1);
+
+            Headers(Build(context, GalleryHost(), Actions()).Items).Should().NotContain("Aus der Bibliothek entfernen", "ohne fehlende Dateien kein Eintrag");
+            return true;
+        }, Timeout);
+    }
+
+    [Fact]
     public void Mehrfachauswahl_zeigt_nur_sinnvolle_Eintraege()
     {
         TestUiThread.Run(() =>

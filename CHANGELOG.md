@@ -3,6 +3,22 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.2] — 2026-10-25
+
+### Changed — Personen-Kacheln ruhiger, Kartenknöpfe in einer Leiste, Ordnerleiste verstellbar, Fehlende per Rechtsklick
+- Personen: Die Chips „✓ n“ und „n Vorschläge“ sitzen in einer eigenen Zeile ganz unten auf der Kachel und stehen damit auf allen
+  Kacheln gleich hoch (vorher je nach Namenslänge und Beziehung verschieden). Farben ruhiger: grauer Grund, gedämpfte Schrift,
+  nur das Symbol farbig; der klickbare Vorschläge-Chip in der Akzentfarbe. Herberts Wunsch, weicht von Grün/Gelb aus Mockup 17 ab.
+  Die Liste „Benannte Personen“ ist mindestens eine ganze Kachelreihe hoch — mit Hinweisleisten oben bekam sie vorher nur die
+  halbe Resthöhe und schnitt Namen und Chips ab.
+- Orte: Zoom, Bereich, Welt und Kartenstil stehen als flache Knöpfe in einer halbtransparenten, abgerundeten Leiste oben rechts,
+  „Ausschnitt in der Galerie zeigen“ oben links in derselben Leiste. Vorher waren die einzelnen Knöpfe auf der Karte kaum zu sehen.
+- Galerie: Die Ordnerleiste lässt sich am rechten Rand breiter oder schmaler ziehen (200–640 px), die Breite wird gemerkt
+  (Settings `ui.gallery.folderPaneWidth`); Doppelklick auf den Rand setzt sie auf 290 px zurück.
+- Galerie: Rechtsklick auf ein fehlendes Foto (Plakette „fehlt“) bietet „Aus der Bibliothek entfernen“ direkt unter „In den
+  Papierkorb“ — entfernt nur den Katalog-Eintrag, keine Datei, mit Bestätigung und Rückgängig (ADR-0065). Bisher ging das nur über
+  die Aktionsleiste, das Ordner-Kontextmenü „Fehlende entfernen (n)“ und Einstellungen › Speicher & Wartung.
+
 ## [0.5.1] — 2026-10-25
 
 ### Docs — Mockup 19 „Modelle & Daten“ und Mockup 20 „Nutzungs-Signale“, abgenommen

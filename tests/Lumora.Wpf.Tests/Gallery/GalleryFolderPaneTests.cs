@@ -118,6 +118,44 @@ public sealed class GalleryFolderPaneTests : IAsyncLifetime
     });
 
     [Fact]
+    public Task Breite_der_Leiste_laesst_sich_ziehen_wird_begrenzt_und_gemerkt() => OnUi(async () =>
+    {
+        var (store, script) = ScriptedService.Create<IGalleryViewSettingsStore>();
+        var saved = new Dictionary<string, string?>();
+        script.Handlers[nameof(IGalleryViewSettingsStore.SetAsync)] = args =>
+        {
+            saved[(string)args[0]!] = (string?)args[1];
+            return Task.CompletedTask;
+        };
+        script.Handlers[nameof(IGalleryViewSettingsStore.GetAsync)] = args =>
+            Task.FromResult<string?>((string)args[0]! == GalleryFolderPaneState.WidthSettingKey ? "412" : null);
+
+        var restored = new GalleryFolderPaneState(store);
+        await restored.LoadAsync();
+        restored.PaneWidth.Should().Be(412, "gemerkte Breite");
+
+        restored.ResizeBy(-1000);
+        restored.PaneWidth.Should().Be(GalleryFolderPaneState.MinWidth);
+        restored.ResizeBy(5000);
+        restored.PaneWidth.Should().Be(GalleryFolderPaneState.MaxWidth);
+        saved.Should().NotContainKey(GalleryFolderPaneState.WidthSettingKey, "beim Ziehen wird erst am Ende gespeichert");
+
+        restored.ResizeBy(-140.4);
+        restored.CommitWidth();
+        restored.PaneWidth.Should().Be(500);
+        saved[GalleryFolderPaneState.WidthSettingKey].Should().Be("500");
+
+        restored.ResetWidth();
+        restored.PaneWidth.Should().Be(GalleryFolderPaneState.DefaultWidth);
+        saved[GalleryFolderPaneState.WidthSettingKey].Should().Be("290");
+
+        var early = new GalleryFolderPaneState(store);
+        early.ResizeBy(30);
+        await early.LoadAsync();
+        early.PaneWidth.Should().Be(320, "frühes Ziehen gewinnt gegen den gespeicherten Wert");
+    });
+
+    [Fact]
     public Task StrgB_schaltet_zwischen_Leiste_und_schmaler_Kante_um() => OnUi(() =>
     {
         var state = new GalleryFolderPaneState();
@@ -129,6 +167,11 @@ public sealed class GalleryFolderPaneTests : IAsyncLifetime
             window.UpdateLayout();
             var paneHost = (ContentControl)page.FindName("PaneHost");
             paneHost.Visibility.Should().Be(Visibility.Visible);
+            paneHost.ActualWidth.Should().Be(GalleryFolderPaneState.DefaultWidth);
+            ((FrameworkElement)page.FindName("PaneResizeGrip")).Visibility.Should().Be(Visibility.Visible, "Ziehgriff am Rand der offenen Leiste");
+            state.ResizeBy(60);
+            window.UpdateLayout();
+            paneHost.ActualWidth.Should().Be(GalleryFolderPaneState.DefaultWidth + 60);
 
             var binding = page.InputBindings.OfType<KeyBinding>().Single();
             (binding.Key, binding.Modifiers).Should().Be((Key.B, ModifierKeys.Control));

@@ -27,13 +27,26 @@
         <shell:BoolToVisibilityConverter x:Key="InverseBoolToVis" Invert="True" />
         <shell:NullToVisibilityConverter x:Key="NullToVis" />
 
-        <!-- Runde Kartenknöpfe (Zoom, Bereich, Welt) -->
+        <!-- Kartenknöpfe (Zoom, Bereich, Welt, Stil): flach in einer halbtransparenten Leiste (0.5.2, Herberts Wunsch —
+             einzeln auf der Karte waren sie im dunklen Design kaum zu sehen) -->
         <Style x:Key="MapButton" TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
             <Setter Property="Width" Value="36" />
             <Setter Property="Height" Value="36" />
             <Setter Property="Padding" Value="0" />
-            <Setter Property="Margin" Value="0,0,0,6" />
+            <Setter Property="Margin" Value="0,1" />
+            <Setter Property="Appearance" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
             <Setter Property="HorizontalContentAlignment" Value="Center" />
+        </Style>
+
+        <!-- Halbtransparente Leiste über der Karte; der Hintergrund ist eine eigene Ebene, damit die Knöpfe deckend bleiben -->
+        <Style x:Key="MapBarBackground" TargetType="Border">
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Background" Value="{DynamicResource SolidBackgroundFillColorBaseBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Opacity" Value="0.82" />
+            <Setter Property="IsHitTestVisible" Value="False" />
         </Style>
 
         <Style x:Key="TileContainer" TargetType="ListBoxItem">
@@ -216,23 +229,26 @@
                                     BadgeForeground="{DynamicResource TextOnAccentFillColorPrimaryBrush}"
                                     PlaceholderBrush="{DynamicResource ControlStrongStrokeColorDefaultBrush}" />
 
-                    <!-- Kartenknöpfe oben rechts -->
-                    <StackPanel Margin="10" HorizontalAlignment="Right" VerticalAlignment="Top">
-                        <ui:Button Style="{StaticResource MapButton}" Icon="{ui:SymbolIcon ZoomIn24}" ToolTip="Hineinzoomen (+)"
-                                   AutomationProperties.Name="Hineinzoomen" Command="{Binding ZoomInCommand}" />
-                        <ui:Button Style="{StaticResource MapButton}" Icon="{ui:SymbolIcon ZoomOut24}" ToolTip="Hinauszoomen (−)"
-                                   AutomationProperties.Name="Hinauszoomen" Command="{Binding ZoomOutCommand}" />
-                        <ui:Button Style="{StaticResource MapButton}" Icon="{ui:SymbolIcon Image24}" ToolTip="Bereich aller verorteten Fotos"
-                                   AutomationProperties.Name="Alle Fotos zeigen" Command="{Binding ShowAllPhotosCommand}" />
-                        <ui:Button Style="{StaticResource MapButton}" Icon="{ui:SymbolIcon Globe24}" ToolTip="Ganze Welt"
-                                   AutomationProperties.Name="Ganze Welt" Command="{Binding ShowWorldCommand}" />
-                        <!-- Kartenstil (ADR-0055): Menü mit allen Stilen, gespeichert wie in Einstellungen › Darstellung -->
-                        <ui:Button x:Name="MapStyleButton" Style="{StaticResource MapButton}" Icon="{ui:SymbolIcon Layer24}"
-                                   ToolTip="{Binding MapStyleLabel, StringFormat='Kartenstil: {0}'}"
-                                   AutomationProperties.AutomationId="PlacesMapStyle"
-                                   AutomationProperties.Name="Kartenstil wählen"
-                                   Click="OnMapStyleClick" />
-                    </StackPanel>
+                    <!-- Kartenknöpfe oben rechts in einer halbtransparenten Leiste -->
+                    <Grid Margin="10" HorizontalAlignment="Right" VerticalAlignment="Top">
+                        <Border Style="{StaticResource MapBarBackground}" />
+                        <StackPanel Margin="3">
+                            <ui:Button Style="{StaticResource MapButton}" Icon="{ui:SymbolIcon ZoomIn24}" ToolTip="Hineinzoomen (+)"
+                                       AutomationProperties.Name="Hineinzoomen" Command="{Binding ZoomInCommand}" />
+                            <ui:Button Style="{StaticResource MapButton}" Icon="{ui:SymbolIcon ZoomOut24}" ToolTip="Hinauszoomen (−)"
+                                       AutomationProperties.Name="Hinauszoomen" Command="{Binding ZoomOutCommand}" />
+                            <ui:Button Style="{StaticResource MapButton}" Icon="{ui:SymbolIcon Image24}" ToolTip="Bereich aller verorteten Fotos"
+                                       AutomationProperties.Name="Alle Fotos zeigen" Command="{Binding ShowAllPhotosCommand}" />
+                            <ui:Button Style="{StaticResource MapButton}" Icon="{ui:SymbolIcon Globe24}" ToolTip="Ganze Welt"
+                                       AutomationProperties.Name="Ganze Welt" Command="{Binding ShowWorldCommand}" />
+                            <!-- Kartenstil (ADR-0055): Menü mit allen Stilen, gespeichert wie in Einstellungen › Darstellung -->
+                            <ui:Button x:Name="MapStyleButton" Style="{StaticResource MapButton}" Icon="{ui:SymbolIcon Layer24}"
+                                       ToolTip="{Binding MapStyleLabel, StringFormat='Kartenstil: {0}'}"
+                                       AutomationProperties.AutomationId="PlacesMapStyle"
+                                       AutomationProperties.Name="Kartenstil wählen"
+                                       Click="OnMapStyleClick" />
+                        </StackPanel>
+                    </Grid>
 
                     <!-- Rückfall auf OSM, weil der Schlüssel fehlt (ADR-0055) -->
                     <Border Margin="10,0,10,34" Padding="10,6" CornerRadius="6" HorizontalAlignment="Center" VerticalAlignment="Bottom"
@@ -247,13 +263,16 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Ausschnitt in der Galerie zeigen (oben links) -->
-                    <ui:Button Margin="10" HorizontalAlignment="Left" VerticalAlignment="Top"
-                               Icon="{ui:SymbolIcon ImageMultiple24}"
-                               Content="{Binding VisibleText}"
-                               ToolTip="Alle Fotos im sichtbaren Ausschnitt in der Galerie zeigen"
-                               AutomationProperties.Name="Ausschnitt in der Galerie zeigen"
-                               Command="{Binding ShowVisibleInGalleryCommand}" />
+                    <!-- Ausschnitt in der Galerie zeigen (oben links), dieselbe Leiste wie rechts -->
+                    <Grid Margin="10" HorizontalAlignment="Left" VerticalAlignment="Top">
+                        <Border Style="{StaticResource MapBarBackground}" />
+                        <ui:Button Margin="3" Appearance="Transparent" BorderThickness="0"
+                                   Icon="{ui:SymbolIcon ImageMultiple24}"
+                                   Content="{Binding VisibleText}"
+                                   ToolTip="Alle Fotos im sichtbaren Ausschnitt in der Galerie zeigen"
+                                   AutomationProperties.Name="Ausschnitt in der Galerie zeigen"
+                                   Command="{Binding ShowVisibleInGalleryCommand}" />
+                    </Grid>
 
                     <!-- Leerzustand -->
                     <Border HorizontalAlignment="Center" VerticalAlignment="Center" Padding="20,14" CornerRadius="8" MaxWidth="420"

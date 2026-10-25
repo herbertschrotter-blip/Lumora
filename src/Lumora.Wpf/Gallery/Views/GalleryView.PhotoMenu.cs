@@ -131,6 +131,7 @@ public partial class GalleryView
             ApplySearch = result => _viewModel.ApplyRelatedSearchAsync(result.Label, result.FileIds),
             MoveTo = () => _viewModel.MoveSelectionCommand.Execute(null),
             Recycle = () => _viewModel.RecycleSelectionCommand.Execute(null),
+            RemoveMissing = _viewModel.ShowRemoveMissingAction || target.Missing ? () => _viewModel.RemoveMissingSelectionCommand.Execute(null) : null,
             ExternalCandidates = () => _viewModel.ExternalCandidates(target),
             CopyInitialDirectory = target.FolderPath,
         };

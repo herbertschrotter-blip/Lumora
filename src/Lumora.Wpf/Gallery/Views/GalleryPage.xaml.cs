@@ -1,4 +1,6 @@
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using Lumora.Folders;
 
 namespace Lumora.Gallery.Views;
@@ -27,4 +29,14 @@ public partial class GalleryPage : UserControl
     public FolderPane Pane { get; }
 
     public GalleryFolderPaneState PaneState { get; }
+
+    private void OnPaneResizeDelta(object sender, DragDeltaEventArgs e) => PaneState.ResizeBy(e.HorizontalChange);
+
+    private void OnPaneResizeCompleted(object sender, DragCompletedEventArgs e) => PaneState.CommitWidth();
+
+    private void OnPaneResizeDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        PaneState.ResetWidth();
+        e.Handled = true;
+    }
 }

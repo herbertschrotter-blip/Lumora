@@ -60,6 +60,10 @@ public sealed record PhotoMenuHost
 
     public Action? Recycle { get; init; }
 
+    /// <summary>„Aus der Bibliothek entfernen“ (ADR-0065, 0.5.2): nur wenn die Auswahl fehlende Dateien enthält; entfernt sie aus dem
+    /// Katalog, keine Datei wird gelöscht. Null = Eintrag entfällt.</summary>
+    public Action? RemoveMissing { get; init; }
+
     /// <summary>Dateien für Strg+C aus bekannten Daten (ohne Katalog-Abfrage); null = über den Katalog.</summary>
     public Func<IEnumerable<ExternalCandidate>>? ExternalCandidates { get; init; }
 
@@ -231,6 +235,11 @@ public static class PhotoContextMenuBuilder
 
         RemoveTrailingSeparators(file.Items);
         Add(items, "In den Papierkorb", SymbolRegular.Delete24, host.Recycle, PhotoMenuGestures.Recycle);
+        if (host.RemoveMissing is not null)
+        {
+            Add(items, "Aus der Bibliothek entfernen", SymbolRegular.DismissCircle24, host.RemoveMissing,
+                toolTip: "Fehlende Dateien aus der Bibliothek entfernen — es wird keine Datei gelöscht");
+        }
 
         if (single)
         {

@@ -11,10 +11,35 @@
              d:DesignWidth="1100"
              d:DesignHeight="700">
     <!-- Seite „Galerie“ (ADR-0068, Mockup 18): links die ein-/ausklappbare Ordnerleiste (Strg+B, Zustand gemerkt), rechts die
-         Galerie. Ein Ordner wirkt als Filter-Chip „Ordner: …“ und lässt sich mit allen übrigen Filtern kombinieren. -->
+         Galerie. Ein Ordner wirkt als Filter-Chip „Ordner: …“ und lässt sich mit allen übrigen Filtern kombinieren.
+         Die Breite der offenen Leiste lässt sich am rechten Rand ziehen (0.5.2, gemerkt; Doppelklick = Standardbreite). -->
     <UserControl.Resources>
         <shell:BoolToVisibilityConverter x:Key="BoolToVis" />
         <shell:BoolToVisibilityConverter x:Key="InvBoolToVis" Invert="True" />
+
+        <!-- Ziehgriff am rechten Rand der Leiste: breit genug zum Greifen, beim Überfahren eine Akzentlinie -->
+        <Style x:Key="PaneResizeGrip" TargetType="Thumb">
+            <Setter Property="Width" Value="7" />
+            <Setter Property="Cursor" Value="SizeWE" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border Background="Transparent">
+                            <Border x:Name="Line" Width="2" HorizontalAlignment="Center" Background="Transparent" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Line" Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsDragging" Value="True">
+                                <Setter TargetName="Line" Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
     <UserControl.InputBindings>
@@ -27,12 +52,24 @@
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
-        <!-- offen: die Leiste -->
+        <!-- offen: die Leiste, rechts der Ziehgriff für die Breite -->
         <ContentControl x:Name="PaneHost"
                         Grid.Column="0"
-                        Width="{x:Static local:GalleryFolderPaneState.OpenWidth}"
+                        Width="{Binding PaneWidth}"
                         Focusable="False"
                         Visibility="{Binding IsOpen, Converter={StaticResource BoolToVis}}" />
+        <Thumb x:Name="PaneResizeGrip"
+               Grid.Column="0"
+               HorizontalAlignment="Right"
+               Margin="0,0,-3,0"
+               Style="{StaticResource PaneResizeGrip}"
+               ToolTip="Breite der Ordnerleiste ziehen (Doppelklick: Standardbreite)"
+               AutomationProperties.AutomationId="FolderPaneResize"
+               AutomationProperties.Name="Breite der Ordnerleiste"
+               DragDelta="OnPaneResizeDelta"
+               DragCompleted="OnPaneResizeCompleted"
+               MouseDoubleClick="OnPaneResizeDoubleClick"
+               Visibility="{Binding IsOpen, Converter={StaticResource BoolToVis}}" />
 
         <!-- zu: schmale Kante mit Ordner-Symbol -->
         <Border Grid.Column="0"

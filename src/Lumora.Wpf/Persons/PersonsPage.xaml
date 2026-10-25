@@ -68,21 +68,32 @@
             <gallery:VirtualizingTilePanel ItemWidth="138" ItemHeight="176" />
         </ItemsPanelTemplate>
 
-        <!-- Chip auf der Personen-Kachel (Mockup 17): eigener, flacher Knopf ohne Hover-Rahmen -->
+        <!-- Chips auf der Personen-Kachel: ruhig und neutral (0.5.2, Herberts Wunsch statt Grün/Gelb aus Mockup 17) —
+             grauer Grund, gedämpfte Schrift; nur das Symbol trägt Farbe. Der Vorschläge-Chip ist klickbar und hat deshalb
+             Akzent-Schrift und -Rand. -->
+        <Style x:Key="PersonChip" TargetType="Border">
+            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="Padding" Value="7,1" />
+            <Setter Property="Margin" Value="2,0" />
+            <Setter Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+            <Setter Property="TextElement.Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        </Style>
         <Style x:Key="PersonChipButton" TargetType="Button">
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Focusable" Value="False" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Chip" CornerRadius="9" Padding="7,1" Margin="2,0"
-                                Background="{DynamicResource SystemFillColorCautionBackgroundBrush}"
-                                BorderThickness="1" BorderBrush="{DynamicResource SystemFillColorCautionBrush}">
+                        <Border x:Name="Chip" Style="{StaticResource PersonChip}"
+                                BorderBrush="{DynamicResource AccentTextFillColorPrimaryBrush}"
+                                TextElement.Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}">
                             <ContentPresenter />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Chip" Property="BorderThickness" Value="1.5" />
+                                <Setter TargetName="Chip" Property="Background" Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -91,11 +102,20 @@
         </Style>
 
         <!-- Personen-Kachel (ADR-0068, Mockup 17): Titelbild (kleines Symbol = automatisch gewählt), Name bis zwei Zeilen,
-             Beziehung, Chips „✓ n“ (bestätigt, grün) und „n“ Vorschläge (gelb, Klick öffnet „Vorschläge“). Die Kachel ist so hoch,
-             dass nichts abgeschnitten wird (bis 0.4.37: 196 px Zeile bei ~203 px Inhalt → Text unten abgeschnitten). -->
+             Beziehung, Chips „✓ n“ (bestätigt) und „n“ Vorschläge (Klick öffnet „Vorschläge“). Die Kachel ist so hoch,
+             dass nichts abgeschnitten wird (bis 0.4.37: 196 px Zeile bei ~203 px Inhalt → Text unten abgeschnitten).
+             Die Chips sitzen in einer eigenen Zeile ganz unten, damit sie auf allen Kacheln gleich hoch stehen — egal ob der
+             Name ein- oder zweizeilig ist und ob es eine Beziehung gibt (0.5.2). -->
         <DataTemplate x:Key="PersonTile" DataType="{x:Type vm:PersonTileViewModel}">
-            <StackPanel Margin="8,8,8,4" Cursor="Hand" Background="Transparent" ToolTip="{Binding TileToolTip}">
-                <Grid Width="130" Height="130">
+            <Grid Margin="8,8,8,8" Cursor="Hand" Background="Transparent" ToolTip="{Binding TileToolTip}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid Grid.Row="0" Width="130" Height="130">
                     <Border CornerRadius="65" Background="{DynamicResource SubtleFillColorSecondaryBrush}">
                         <ui:SymbolIcon Symbol="Person24" FontSize="48" HorizontalAlignment="Center" VerticalAlignment="Center"
                                        Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
@@ -120,17 +140,14 @@
                                        Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
                     </Border>
                 </Grid>
-                <TextBlock Margin="0,8,0,0" Text="{Binding Name}" FontWeight="SemiBold" TextAlignment="Center"
+                <TextBlock Grid.Row="1" Margin="0,8,0,0" Text="{Binding Name}" FontWeight="SemiBold" TextAlignment="Center"
                            TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="38"
                            LineHeight="19" LineStackingStrategy="BlockLineHeight" />
-                <TextBlock Text="{Binding RelationName}" FontSize="11" TextAlignment="Center" TextTrimming="CharacterEllipsis"
+                <TextBlock Grid.Row="2" Text="{Binding RelationName}" FontSize="11" TextAlignment="Center" TextTrimming="CharacterEllipsis"
                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                            Visibility="{Binding HasRelation, Converter={StaticResource BoolToVis}}" />
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,4,0,0">
-                    <Border CornerRadius="9" Padding="7,1" Margin="2,0"
-                            Background="{DynamicResource SystemFillColorSuccessBackgroundBrush}"
-                            BorderThickness="1" BorderBrush="{DynamicResource SystemFillColorSuccessBrush}"
-                            AutomationProperties.Name="Bestätigt">
+                <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,4,0,0">
+                    <Border Style="{StaticResource PersonChip}" AutomationProperties.Name="Bestätigt">
                         <StackPanel Orientation="Horizontal">
                             <ui:SymbolIcon Symbol="Checkmark16" FontSize="10" VerticalAlignment="Center" Margin="0,0,3,0"
                                            Foreground="{DynamicResource SystemFillColorSuccessBrush}"
@@ -145,13 +162,12 @@
                             AutomationProperties.Name="Vorschläge"
                             Visibility="{Binding HasSuggestions, Converter={StaticResource BoolToVis}}">
                         <StackPanel Orientation="Horizontal">
-                            <ui:SymbolIcon Symbol="PersonQuestionMark16" FontSize="10" VerticalAlignment="Center" Margin="0,0,3,0"
-                                           Foreground="{DynamicResource SystemFillColorCautionBrush}" />
+                            <ui:SymbolIcon Symbol="PersonQuestionMark16" FontSize="10" VerticalAlignment="Center" Margin="0,0,3,0" />
                             <TextBlock Text="{Binding SuggestionText}" FontSize="11" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                 </StackPanel>
-            </StackPanel>
+            </Grid>
         </DataTemplate>
 
         <!-- Gruppen-Kachel: erstes Mitglied, Anzahl, „ähnelt …?“ -->
@@ -341,9 +357,11 @@
 
         <!-- ===== Übersicht ===== -->
         <Grid Grid.Row="2" Visibility="{Binding IsOverview, Converter={StaticResource BoolToVis}}">
+            <!-- Benannte Personen mindestens eine ganze Kachelreihe hoch (248 + Rand): bei Hinweisleisten oben bekam die Liste
+                 sonst nur die halbe Resthöhe und schnitt Namen und Chips unten ab (0.5.2) -->
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
+                <RowDefinition Height="*" MinHeight="252" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
