@@ -3,6 +3,12 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.1] — 2026-10-25
+
+### Docs — Mockup 19 „Modelle & Daten“ und Mockup 20 „Nutzungs-Signale“, abgenommen
+- Beide autonom entworfen und schon gebaut (0.4.42 bzw. 0.4.45); Herbert hat sie unverändert abgenommen.
+  Kopfkommentar der Mockups und PLAN.md Kap. 7 nachgezogen. (closes #26, closes #27)
+
 ## [0.5.0] — 2026-10-25
 
 ### Release — Lumora 0.5.0 (erste Ausgabe für den Produktivbetrieb)
