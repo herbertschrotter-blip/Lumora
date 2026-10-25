@@ -84,8 +84,12 @@ public sealed partial class FolderTreeViewModel : ObservableObject
         Libraries.IInboxActions? inboxActions = null,
         Gallery.CaptureDates.CaptureDateActions? captureDateActions = null,
         ILibraryScope? scope = null,
-        Removal.RemovalActions? removalActions = null)
+        Removal.RemovalActions? removalActions = null,
+        Exclusions.ScanExclusionActions? exclusionActions = null,
+        FolderMoveActions? moveActions = null)
     {
+        _exclusionActions = exclusionActions; // „Ordner ausschließen…“, ausgeschlossene Ordner ausblenden (ADR-0066, FolderTreeViewModel.Exclusions.cs)
+        _moveActions = moveActions; // „Verschieben nach…“ und Ziehen (ADR-0066, FolderTreeViewModel.Move.cs)
         _removalActions = removalActions; // Ordner in den Papierkorb, Fehlende entfernen (ADR-0065, FolderTreeViewModel.Removal.cs)
         _scope = scope ?? new LibraryScope(factory); // Bereich: Bibliothek bzw. „Alle verknüpften“ (ADR-0048)
         _inboxActions = inboxActions; // „Eingang hinzufügen…“ im Seitenkopf (ADR-0042, FolderTreeViewModel.AddInbox.cs)
@@ -102,6 +106,7 @@ public sealed partial class FolderTreeViewModel : ObservableObject
         _messenger.Register<FolderTreeViewModel, LibraryRootsChangedMessage>(this, static (r, m) => UiThread.Post(() => { _ = r.ReloadAsync(); }));
         _messenger.Register<FolderTreeViewModel, FoldersChangedMessage>(this, static (r, m) => UiThread.Post(() => r.ScheduleReload(m.LibraryId)));
         _messenger.Register<FolderTreeViewModel, FilesChangedMessage>(this, static (r, m) => UiThread.Post(() => r.OnFilesChanged(m)));
+        _messenger.Register<FolderTreeViewModel, ScanExclusionsChangedMessage>(this, static (r, m) => UiThread.Post(() => r.ScheduleReload(m.LibraryId ?? r._libraryId))); // ADR-0066
     }
 
     [ObservableProperty]
@@ -349,6 +354,7 @@ public sealed partial class FolderTreeViewModel : ObservableObject
                 missing = grouped.Where(x => x.Missing > 0).ToDictionary(x => x.FolderId, x => x.Missing);
             }
 
+            rows = await HideExcludedFoldersAsync(rows, libraryIds).ConfigureAwait(true); // ADR-0066
             _libraryOfFolder = rows.ToDictionary(r => r.Id, r => r.LibraryId);
             BuildIndex(rows, counts);
             BuildMissingIndex(missing); // ADR-0065

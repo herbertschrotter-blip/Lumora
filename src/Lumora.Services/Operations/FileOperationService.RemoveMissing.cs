@@ -114,74 +114,9 @@ public sealed partial class FileOperationService
                 return new MissingRemovalBatchResult(0, 0, reappeared.Count, skippedOffline, notMissing, 0, unknown.Count, offlineRoots.ToList());
             }
 
-            // 3. Batch + Operationen + Abzüge in EINER Transaktion (ADR-0012: alles steht, bevor der Katalog sich ändert)
-            var batch = new OperationBatch
-            {
-                OperationType = OperationType.RemoveFromCatalog,
-                Status = BatchStatus.Pending,
-                CreatedAtUtc = DateTime.UtcNow,
-                Description = toRemove.Count == 1 ? "1 fehlende Datei aus der Bibliothek entfernt" : $"{toRemove.Count} fehlende Dateien aus der Bibliothek entfernt",
-            };
-            var items = toRemove.Select(cf => (File: cf, Op: new FileOperation
-            {
-                FileId = cf.File.Id,
-                Action = OperationType.RemoveFromCatalog,
-                SourcePath = cf.FullPath,
-                DestPath = null,
-                Status = FileOperationStatus.Pending,
-            })).ToList();
-            await using (var tx = await ctx.Database.BeginTransactionAsync(ct).ConfigureAwait(false))
-            {
-                ctx.OperationBatches.Add(batch);
-                await ctx.SaveChangesAsync(ct).ConfigureAwait(false);
-                foreach (var (_, op) in items)
-                {
-                    op.BatchId = batch.Id;
-                    ctx.FileOperations.Add(op);
-                }
-
-                await ctx.SaveChangesAsync(ct).ConfigureAwait(false);
-                var (connection, transaction) = RawConnection(ctx);
-                foreach (var (cf, _) in items)
-                {
-                    RemovalUndoStore.CaptureFile(connection, transaction, batch.Id, cf.File.Id);
-                }
-
-                await tx.CommitAsync(ct).ConfigureAwait(false);
-            }
-
-            batch.Status = BatchStatus.Applying;
-            await ctx.SaveChangesAsync(CancellationToken.None).ConfigureAwait(false);
-
-            // 4. Katalog je Datei (ab hier ohne Abbruch: die Abzüge stehen)
-            var failedIds = new List<int>();
-            var removedFolderIds = new HashSet<int>();
-            var removed = 0;
-            foreach (var (cf, op) in items)
-            {
-                await MarkApplyingAsync(ctx, op, CancellationToken.None).ConfigureAwait(false);
-                var error = await CommitItemAsync(ctx, op, undo: false, null,
-                    token => RemoveCatalogEntryAsync(ctx, cf.File, token, op.Id)).ConfigureAwait(false); // Verknüpfungen gesichert (ADR-0054)
-                if (error is null)
-                {
-                    removed++;
-                    DeleteThumbnailFiles(cf.Library.Id, cf.File.Id);
-                    changes.Add(cf.Library.Id, FilesChangeKind.Removed, cf.File.Id);
-                    removedFolderIds.Add(cf.Folder.Id);
-                }
-                else
-                {
-                    // Zeile blieb: Operation gescheitert (nichts zurückzunehmen), ihr Abzug wird verworfen
-                    op.Status = FileOperationStatus.Failed;
-                    await ctx.SaveChangesAsync(CancellationToken.None).ConfigureAwait(false);
-                    failedIds.Add(cf.File.Id);
-                }
-            }
-
-            if (failedIds.Count > 0)
-            {
-                await DeleteUndoRowsAsync(ctx, batch.Id, failedIds).ConfigureAwait(false);
-            }
+            // 3. + 4. Batch, Operationen, Abzüge, Katalog je Datei (gemeinsam mit ExcludeFromCatalog, ADR-0066)
+            var description = toRemove.Count == 1 ? "1 fehlende Datei aus der Bibliothek entfernt" : $"{toRemove.Count} fehlende Dateien aus der Bibliothek entfernt";
+            var (batch, removed, failedIds, removedFolderIds) = await RemoveCatalogRowsWithUndoAsync(ctx, OperationType.RemoveFromCatalog, description, toRemove, changes, ct).ConfigureAwait(false);
 
             // 5. leere, nicht mehr vorhandene Ordner
             var foldersRemoved = 0;
@@ -197,14 +132,7 @@ public sealed partial class FileOperationService
                 }
             }
 
-            batch.Status = removed > 0 ? BatchStatus.Applied : BatchStatus.Failed;
-            batch.CompletedAtUtc = DateTime.UtcNow;
-            await ctx.SaveChangesAsync(CancellationToken.None).ConfigureAwait(false);
-            if (removed == 0)
-            {
-                await DeleteUndoRowsAsync(ctx, batch.Id).ConfigureAwait(false);
-            }
-
+            await FinishCatalogRemovalBatchAsync(ctx, batch, removed).ConfigureAwait(false);
             Publish(changes);
             foreach (var libraryId in toRemove.Select(cf => cf.Library.Id).Distinct())
             {
@@ -226,6 +154,108 @@ public sealed partial class FileOperationService
             removed, reappeared, offline, notMissing, folders, batchId);
 
     /// <summary>
+    /// Batch + eine Operation je Datei + je Datei ein Abzug in EINER Transaktion (ADR-0012: alles steht, bevor der Katalog sich
+    /// ändert), danach je Datei eine Item-Transaktion: Verknüpfungen sichern (ADR-0054), FTS mit alten Werten, Thumbnails-Zeilen,
+    /// Files-Zeile (Kaskaden), danach die Cache-Datei. Scheitert die Buchung einer Datei, ist ihre Operation Failed und ihr Abzug
+    /// verworfen. Gemeinsam für „Fehlende entfernen“ (ADR-0065) und „Ausgeschlossene entfernen“ (ADR-0066).
+    /// </summary>
+    private async Task<(OperationBatch Batch, int Removed, List<int> FailedIds, HashSet<int> RemovedFolderIds)> RemoveCatalogRowsWithUndoAsync(
+        LibraryContext ctx, OperationType type, string description, IReadOnlyList<CatalogFile> toRemove, ChangeSet changes, CancellationToken ct)
+    {
+        var batch = new OperationBatch
+        {
+            OperationType = type,
+            Status = BatchStatus.Pending,
+            CreatedAtUtc = DateTime.UtcNow,
+            Description = description,
+        };
+        var items = toRemove.Select(cf => (File: cf, Op: new FileOperation
+        {
+            FileId = cf.File.Id,
+            Action = type,
+            SourcePath = cf.FullPath,
+            DestPath = null,
+            Status = FileOperationStatus.Pending,
+        })).ToList();
+        await using (var tx = await ctx.Database.BeginTransactionAsync(ct).ConfigureAwait(false))
+        {
+            ctx.OperationBatches.Add(batch);
+            await ctx.SaveChangesAsync(ct).ConfigureAwait(false);
+            foreach (var (_, op) in items)
+            {
+                op.BatchId = batch.Id;
+                ctx.FileOperations.Add(op);
+            }
+
+            await ctx.SaveChangesAsync(ct).ConfigureAwait(false);
+            var (connection, transaction) = RawConnection(ctx);
+            foreach (var (cf, _) in items)
+            {
+                RemovalUndoStore.CaptureFile(connection, transaction, batch.Id, cf.File.Id);
+            }
+
+            await tx.CommitAsync(ct).ConfigureAwait(false);
+        }
+
+        batch.Status = BatchStatus.Applying;
+        await ctx.SaveChangesAsync(CancellationToken.None).ConfigureAwait(false);
+
+        // ab hier ohne Abbruch: die Abzüge stehen
+        var failedIds = new List<int>();
+        var removedFolderIds = new HashSet<int>();
+        var removed = 0;
+        foreach (var (cf, op) in items)
+        {
+            await MarkApplyingAsync(ctx, op, CancellationToken.None).ConfigureAwait(false);
+            var error = await CommitItemAsync(ctx, op, undo: false, null,
+                token => RemoveCatalogEntryAsync(ctx, cf.File, token, op.Id)).ConfigureAwait(false); // Verknüpfungen gesichert (ADR-0054)
+            if (error is null)
+            {
+                removed++;
+                DeleteThumbnailFiles(cf.Library.Id, cf.File.Id);
+                changes.Add(cf.Library.Id, FilesChangeKind.Removed, cf.File.Id);
+                removedFolderIds.Add(cf.Folder.Id);
+            }
+            else
+            {
+                // Zeile blieb: Operation gescheitert (nichts zurückzunehmen), ihr Abzug wird verworfen
+                op.Status = FileOperationStatus.Failed;
+                await ctx.SaveChangesAsync(CancellationToken.None).ConfigureAwait(false);
+                failedIds.Add(cf.File.Id);
+            }
+        }
+
+        if (failedIds.Count > 0)
+        {
+            await DeleteUndoRowsAsync(ctx, batch.Id, failedIds).ConfigureAwait(false);
+        }
+
+        return (batch, removed, failedIds, removedFolderIds);
+    }
+
+    /// <summary>Batch abschließen: Applied, sobald etwas entfernt wurde; sonst Failed und Abzüge verworfen.</summary>
+    private async Task FinishCatalogRemovalBatchAsync(LibraryContext ctx, OperationBatch batch, int removed)
+    {
+        batch.Status = removed > 0 ? BatchStatus.Applied : BatchStatus.Failed;
+        batch.CompletedAtUtc = DateTime.UtcNow;
+        await ctx.SaveChangesAsync(CancellationToken.None).ConfigureAwait(false);
+        if (removed == 0)
+        {
+            await DeleteUndoRowsAsync(ctx, batch.Id).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>Ordnerzeile für das Aufräumen leerer Ordner.</summary>
+    private sealed record FolderRowInfo(int Id, int? ParentId, string Path, int LibraryId);
+
+    private static async Task<List<FolderRowInfo>> LoadFolderRowsAsync(LibraryContext ctx, IReadOnlyList<int> libraryIds)
+        => await ctx.Folders.AsNoTracking()
+            .Where(f => libraryIds.Contains(f.LibraryId))
+            .Select(f => new FolderRowInfo(f.Id, f.ParentId, f.Path, f.LibraryId))
+            .ToListAsync(CancellationToken.None)
+            .ConfigureAwait(false);
+
+    /// <summary>
     /// Leere Ordner, die es auf der Platte nicht mehr gibt, aus dem Baum entfernen — Kandidaten: die Ordner der entfernten
     /// Dateien samt ihren Elternordnern und (bei „Fehlende entfernen“ am Ordner) der Ordner samt Unterordnern. Entfernt wird
     /// nur, was keine Dateien, keine Unterordner-Zeilen und keine Verknüpfungen hat, keine Wurzel ist, unter einer erreichbaren
@@ -240,11 +270,7 @@ public sealed partial class FileOperationService
         Dictionary<int, bool> availability)
     {
         var libraryIds = roots.Select(r => r.LibraryId).Distinct().ToList();
-        var folders = await ctx.Folders.AsNoTracking()
-            .Where(f => libraryIds.Contains(f.LibraryId))
-            .Select(f => new { f.Id, f.ParentId, f.Path, f.LibraryId })
-            .ToListAsync(CancellationToken.None)
-            .ConfigureAwait(false);
+        var folders = await LoadFolderRowsAsync(ctx, libraryIds).ConfigureAwait(false);
         var byId = folders.ToDictionary(f => f.Id);
 
         var candidates = new HashSet<int>();
@@ -277,11 +303,21 @@ public sealed partial class FileOperationService
                    || rootPaths.Any(r => PathEquals(r, path))
                    || Directory.Exists(path);
         });
+        return await RemoveEmptyFolderRowsAsync(ctx, batchId, folders, candidates).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Entfernt von den Kandidaten, was keine Dateien, keine (verbliebenen) Unterordner-Zeilen und keine Verknüpfungen hat —
+    /// tiefste zuerst, bis sich nichts mehr ändert; mit Abzug für „Rückgängig“ (ADR-0065, ADR-0066).
+    /// </summary>
+    private async Task<int> RemoveEmptyFolderRowsAsync(LibraryContext ctx, int batchId, List<FolderRowInfo> folders, HashSet<int> candidates)
+    {
         if (candidates.Count == 0)
         {
             return 0;
         }
 
+        var byId = folders.ToDictionary(f => f.Id);
         var withFiles = new HashSet<int>();
         var withLinks = new HashSet<int>();
         foreach (var chunk in candidates.Chunk(QueryChunkSize))

@@ -34,7 +34,8 @@ public partial class SettingsPage : UserControl
         Places.TrackSettings.PlacesSettingsViewModel? places = null,
         Stories.Assistant.AssistantSettingsViewModel? assistant = null,
         Shell.HiddenLibraries.SecurityCheck.SecurityCheckViewModel? securityCheck = null,
-        Removal.MissingFilesSettingsViewModel? missingFiles = null)
+        Removal.MissingFilesSettingsViewModel? missingFiles = null,
+        Exclusions.ScanExclusionsSettingsViewModel? scanExclusions = null)
     {
         _sections = sections;
         InitializeComponent();
@@ -53,7 +54,15 @@ public partial class SettingsPage : UserControl
         TagsTab.Content = tags;
         CategoriesTab.Content = categories;
         InfoView.DataContext = info;
-        library.SetFooter(new SettingsWatchSection { DataContext = viewModel });
+        // Unter der Bibliotheksliste: Ordnerüberwachung und — falls angebunden — Ausschlüsse beim Einlesen (ADR-0066)
+        var footer = new StackPanel();
+        footer.Children.Add(new SettingsWatchSection { DataContext = viewModel });
+        if (scanExclusions is not null)
+        {
+            footer.Children.Add(new SettingsScanExclusionsSection { DataContext = scanExclusions });
+        }
+
+        library.SetFooter(footer);
         Shell.HiddenLibraries.HiddenLibrariesUi.AddSettingsTab(Tabs, hiddenLibraries); // nur mit „_hidden“ (ADR-0049)
         Shell.HiddenLibraries.SecurityCheck.SecurityCheckUi.AddSettingsTab(Tabs, securityCheck); // nur in der versteckten Sitzung (ADR-0064)
 
@@ -63,6 +72,7 @@ public partial class SettingsPage : UserControl
 
         Loaded += (_, _) => _ = viewModel.LoadCommand.ExecuteAsync(null);
         Loaded += (_, _) => _ = missingFiles?.RefreshAsync(); // ADR-0065
+        Loaded += (_, _) => _ = scanExclusions?.RefreshAsync(); // ADR-0066
     }
 
     /// <summary>Tag des angezeigten Reiters (Rauchtest, Tests).</summary>

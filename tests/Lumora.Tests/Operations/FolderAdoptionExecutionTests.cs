@@ -295,13 +295,13 @@ public sealed class FolderAdoptionExecutionTests
 
         var ids = await service.GetFileIdsUnderAsync(parentId);
 
-        ids.Should().HaveCount(3, "b.jpg, c.jpg und das vom Scanner katalogisierte .thumbs-Bild unter Reise (rekursiv)");
+        ids.Should().HaveCount(2, "b.jpg und c.jpg unter Reise (rekursiv) — .thumbs liest der Scanner seit 0.4.33 nicht mehr ein (ADR-0066)");
         await service.SetRatingAsync(ids, 5);
         await service.SetFavoriteAsync(ids, true);
         var tag = await tags.CreateAsync("Reise");
-        (await service.ChangeTagsAsync(ids, new[] { tag.Id }, Array.Empty<int>())).Assigned.Should().Be(3);
+        (await service.ChangeTagsAsync(ids, new[] { tag.Id }, Array.Empty<int>())).Assigned.Should().Be(2);
         var category = await categories.CreateAsync("Projekt", new[] { "Nord", "Süd" });
-        (await service.SetCategoryValueAsync(ids, category.Id, category.Values[0].Id)).Should().Be(3);
+        (await service.SetCategoryValueAsync(ids, category.Id, category.Values[0].Id)).Should().Be(2);
 
         foreach (var id in ids)
         {
@@ -310,7 +310,7 @@ public sealed class FolderAdoptionExecutionTests
             file.IsFavorite.Should().BeTrue();
         }
 
-        (await categories.GetValuesForFilesAsync(ids)).Should().HaveCount(3);
+        (await categories.GetValuesForFilesAsync(ids)).Should().HaveCount(2);
         (await fx.FindFileAsync("a.jpg"))!.Rating.Should().BeNull("Dateien außerhalb des Ordners bleiben unberührt");
         fx.Messages.OfKind(FilesChangeKind.Metadata).Should().NotBeEmpty();
         await service.SetRatingAsync(ids, null);

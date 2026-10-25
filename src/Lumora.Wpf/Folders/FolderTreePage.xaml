@@ -94,6 +94,15 @@
                           Margin="4,0,0,6" />
 
                 <StackPanel Grid.Row="3">
+                    <!-- ADR-0066: dezenter Hinweis auf ausgeschlossene Ordner (im Baum ausgeblendet) -->
+                    <TextBlock Text="{Binding ExcludedFoldersText}"
+                               FontSize="11"
+                               Margin="4,0,0,6"
+                               TextTrimming="CharacterEllipsis"
+                               ToolTip="Diese Ordner liest Lumora nicht ein — verwalten unter Einstellungen › Bibliotheken &amp; Eingänge › Ausschlüsse beim Einlesen"
+                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                               Visibility="{Binding ExcludedFoldersText, Converter={StaticResource NullToVis}}"
+                               AutomationProperties.Name="Ausgeschlossene Ordner" />
                     <ui:InfoBar Message="{Binding HintText}"
                                 Severity="Warning"
                                 IsClosable="False"
@@ -158,7 +167,10 @@
                               ItemTemplate="{StaticResource FolderNodeTemplate}"
                               AllowDrop="True"
                               DragOver="OnTreeDragOver"
+                              DragLeave="OnTreeDragLeave"
                               Drop="OnTreeDrop"
+                              PreviewMouseLeftButtonDown="OnTreePreviewMouseLeftButtonDown"
+                              PreviewMouseMove="OnTreePreviewMouseMove"
                               BorderThickness="0"
                               Background="Transparent"
                               VirtualizingStackPanel.IsVirtualizing="True"
@@ -181,6 +193,14 @@
                                                       Icon="{ui:SymbolIcon Rename24}"
                                                       IsEnabled="{Binding CanRename}"
                                                       Command="{Binding PlacementTarget.Tag.RenameFolderCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                      CommandParameter="{Binding}" />
+                                            <!-- ADR-0066: Ordner in einen anderen Ordner derselben Bibliothek verschieben (auch per Ziehen) -->
+                                            <MenuItem Header="Verschieben nach…"
+                                                      Icon="{ui:SymbolIcon FolderArrowUp24}"
+                                                      ToolTip="Ordner samt Inhalt in einen anderen Ordner dieser Bibliothek verschieben (rückgängig machbar) — oder im Baum auf einen Ordner ziehen"
+                                                      IsEnabled="{Binding CanMove}"
+                                                      Visibility="{Binding PlacementTarget.Tag.HasMoveActions, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BoolToVis}}"
+                                                      Command="{Binding PlacementTarget.Tag.MoveFolderCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                                       CommandParameter="{Binding}" />
                                             <!-- ADR-0034: Ordner aus dem Eingang in die Bibliothek übernehmen; Ordner bewerten/kategorisieren -->
                                             <Separator Visibility="{Binding IsInInbox, Converter={StaticResource BoolToVis}}" />
@@ -230,6 +250,14 @@
                                                       ToolTip="Dateien, die es auf der Platte nicht mehr gibt, aus der Bibliothek entfernen (mit Unterordnern) — es wird keine Datei gelöscht"
                                                       Visibility="{Binding HasMissing, Converter={StaticResource BoolToVis}}"
                                                       Command="{Binding PlacementTarget.Tag.RemoveMissingInFolderCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                      CommandParameter="{Binding}" />
+                                            <!-- ADR-0066: Ordner künftig nicht mehr einlesen (Rückfrage: aus der Bibliothek entfernen oder nur künftig) -->
+                                            <MenuItem Header="Ordner ausschließen…"
+                                                      Icon="{ui:SymbolIcon EyeOff24}"
+                                                      ToolTip="Ordner samt Unterordnern künftig nicht mehr einlesen — aufheben unter Einstellungen › Bibliotheken &amp; Eingänge"
+                                                      IsEnabled="{Binding CanExclude}"
+                                                      Visibility="{Binding PlacementTarget.Tag.HasExclusionActions, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BoolToVis}}"
+                                                      Command="{Binding PlacementTarget.Tag.ExcludeFolderCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                                       CommandParameter="{Binding}" />
                                         </ContextMenu>
                                     </Setter.Value>

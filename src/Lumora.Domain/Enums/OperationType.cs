@@ -50,4 +50,20 @@ public enum OperationType
     /// Operation; Abzüge in <c>DuplicateCleanupUndo</c> (KeptFileId 0), „Rückgängig“ schreibt sie zurück.
     /// </summary>
     RemoveFromCatalog = 11,
+
+    // ---- ADR-0066: Ordner verschieben, Ausschlüsse beim Einlesen ----
+
+    /// <summary>
+    /// Ordner samt Inhalt in einen anderen Ordner derselben Bibliothek verschoben (ADR-0066): eine Ordner-Operation (FileId
+    /// null, Quelle → Ziel), dazu eine Move-Operation je katalogisierter Datei darin. FileIds bleiben; „Rückgängig“ verschiebt
+    /// den Ordner zurück und stellt Pfade, Elternordner und Wurzel der Folders-Zeilen wieder her.
+    /// </summary>
+    MoveFolder = 12,
+
+    /// <summary>
+    /// Vorhandene Dateien in ausgeschlossenen Ordnern aus der Bibliothek entfernt (ADR-0066) — nur Katalog, keine Datei wird
+    /// angefasst. Wie <see cref="RemoveFromCatalog"/>: je Datei eine Operation und ein Abzug in <c>DuplicateCleanupUndo</c>
+    /// (KeptFileId 0); „Rückgängig“ schreibt die Zeilen mit denselben FileIds zurück.
+    /// </summary>
+    ExcludeFromCatalog = 13,
 }

@@ -1,0 +1,120 @@
+<UserControl x:Class="Lumora.Settings.Sections.SettingsScanExclusionsSection"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:exclusions="clr-namespace:Lumora.Exclusions"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance exclusions:ScanExclusionsSettingsViewModel}"
+             d:DesignWidth="900">
+    <!-- Ausschlüsse beim Einlesen (ADR-0066) unter der Bibliotheksliste in Einstellungen › Bibliotheken & Eingänge, neben der
+         Ordnerüberwachung; DataContext = ScanExclusionsSettingsViewModel (von der SettingsPage gesetzt). -->
+    <UserControl.Resources>
+        <ResourceDictionary Source="SettingsStyles.xaml" />
+    </UserControl.Resources>
+
+    <Border Style="{StaticResource SectionCard}" Margin="0,4,0,0">
+        <StackPanel>
+            <ui:TextBlock Style="{StaticResource SectionTitle}" Text="Ausschlüsse beim Einlesen" />
+            <TextBlock Style="{StaticResource Hint}"
+                       Text="Diese Ordner liest Lumora nicht ein — ihre Dateien tauchen in Galerie, Doppelten und Storys nicht auf. Auf der Platte bleibt alles, wie es ist." />
+
+            <!-- Allgemeine Liste: Ordnernamen in jeder Tiefe, alle Bibliotheken des Katalogs -->
+            <TextBlock Style="{StaticResource Label}" Margin="0,12,0,4" Text="Ordnernamen (in jeder Tiefe, alle Bibliotheken)" />
+            <ItemsControl ItemsSource="{Binding FolderNames}" AutomationProperties.Name="Ausgeschlossene Ordnernamen">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Margin="0,0,8,6" Padding="10,2,2,2" CornerRadius="12"
+                                Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding}" VerticalAlignment="Center" />
+                                <ui:Button Appearance="Transparent" Padding="4" Margin="4,0,0,0"
+                                           Icon="{ui:SymbolIcon Dismiss12}"
+                                           ToolTip="Aus der Liste nehmen — solche Ordner werden wieder eingelesen"
+                                           AutomationProperties.Name="{Binding StringFormat='„{0}“ aus der Liste nehmen'}"
+                                           Command="{Binding DataContext.RemoveNameCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                           CommandParameter="{Binding}" />
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                <ui:TextBox Width="220" PlaceholderText="Ordnername, z. B. .cache"
+                            Text="{Binding NewName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            AutomationProperties.Name="Neuer Ordnername" />
+                <ui:Button Content="Hinzufügen" Icon="{ui:SymbolIcon Add16}" Margin="8,0,0,0"
+                           IsDefault="False"
+                           Command="{Binding AddNameCommand}"
+                           AutomationProperties.Name="Ordnernamen hinzufügen" />
+            </StackPanel>
+
+            <!-- Je Bibliothek: bestimmte Ordner -->
+            <TextBlock Style="{StaticResource Label}" Margin="0,14,0,4">
+                <Run Text="Ordner dieser Bibliothek" /><Run Text="{Binding LibraryName, StringFormat=' ({0})', Mode=OneWay}" />
+            </TextBlock>
+            <ItemsControl ItemsSource="{Binding Folders}" AutomationProperties.Name="Ausgeschlossene Ordner der Bibliothek">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="{Binding Display}" ToolTip="{Binding FullPath}"
+                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                            <ui:Button Grid.Column="1" Content="Ausschluss aufheben" Icon="{ui:SymbolIcon Eye16}" Margin="12,0,0,0" Padding="8,3"
+                                       ToolTip="Ordner wieder einlesen"
+                                       AutomationProperties.Name="Ausschluss aufheben"
+                                       Command="{Binding DataContext.LiftFolderCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                       CommandParameter="{Binding}" />
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Style="{StaticResource Hint}"
+                       Visibility="{Binding HasFolders, Converter={StaticResource InvBoolToVis}}"
+                       Text="Keine — im Reiter „Ordner“ per Rechtsklick › „Ordner ausschließen…“." />
+
+            <!-- Schon katalogisierte Dateien in ausgeschlossenen Ordnern (z. B. .thumbs vor 0.4.33) -->
+            <Grid Margin="0,12,0,0" Visibility="{Binding HasCatalogedExcluded, Converter={StaticResource BoolToVis}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="{Binding CatalogedText}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                <ui:Button Grid.Column="1" Margin="12,0,0,0" Content="Aus der Bibliothek entfernen…" Icon="{ui:SymbolIcon DismissCircle24}"
+                           ToolTip="Einträge aus ausgeschlossenen Ordnern aus der Bibliothek entfernen — es wird keine Datei gelöscht"
+                           AutomationProperties.Name="Ausgeschlossene aus der Bibliothek entfernen"
+                           Command="{Binding RemoveExistingCommand}" />
+            </Grid>
+
+            <!-- Ergebnis mit Rückgängig -->
+            <StackPanel Orientation="Horizontal" Margin="0,10,0,0"
+                        Visibility="{Binding ResultText, Converter={StaticResource NullToVis}}">
+                <TextBlock Text="{Binding ResultText}" TextWrapping="Wrap" MaxWidth="600" VerticalAlignment="Center">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ResultIsWarning}" Value="True">
+                                    <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCautionBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                <ui:Button Content="Rückgängig" Icon="{ui:SymbolIcon ArrowUndo16}" Margin="12,0,0,0" Padding="8,3"
+                           AutomationProperties.Name="Ausschluss rückgängig"
+                           Command="{Binding UndoCommand}"
+                           Visibility="{Binding CanUndo, Converter={StaticResource BoolToVis}}" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</UserControl>

@@ -61,6 +61,10 @@ public sealed class LibraryWatchService : ILibraryWatchService
     private readonly IOwnChangeRegistry _ownChanges;
     private readonly TimeSpan _rootRetryInterval;
 
+    /// <summary>Ausschlüsse beim Einlesen (ADR-0066): Ereignisse in ausgeschlossenen Ordnern zählen nicht. Null = keine.</summary>
+    private readonly Scanning.Exclusions.IScanExclusionStore? _exclusionStore;
+    private volatile Scanning.Exclusions.ScanExclusionSet _exclusions = Scanning.Exclusions.ScanExclusionSet.None;
+
     /// <summary>Kennung der automatischen Scans für die Scan-Sperre (0.2.29): ihr Warten ist nie das der Bibliotheksseite.</summary>
     private readonly ScanOptions _autoScanOptions = new() { GateCallerId = Guid.NewGuid() };
 
@@ -100,6 +104,7 @@ public sealed class LibraryWatchService : ILibraryWatchService
     /// <param name="rootRetryInterval">Optional (Tests); produktiv <see cref="RootRetryInterval"/>.</param>
     /// <param name="scanGate">Optional (Tests); produktiv der Singleton, den auch der ScanService belegt.</param>
     /// <param name="ownChanges">Optional (Tests); produktiv der Singleton, in den der FileOperationService schreibt.</param>
+    /// <param name="exclusions">Optional (Tests); produktiv die Ausschlüsse des Katalogs (ADR-0066).</param>
     public LibraryWatchService(
         ILibraryService libraries,
         IScanService scans,
@@ -110,8 +115,10 @@ public sealed class LibraryWatchService : ILibraryWatchService
         IMessenger? messenger = null,
         TimeSpan? rootRetryInterval = null,
         IScanGate? scanGate = null,
-        IOwnChangeRegistry? ownChanges = null)
+        IOwnChangeRegistry? ownChanges = null,
+        Scanning.Exclusions.IScanExclusionStore? exclusions = null)
     {
+        _exclusionStore = exclusions;
         _libraries = libraries;
         _scans = scans;
         _settingsStore = settingsStore;
@@ -214,6 +221,7 @@ public sealed class LibraryWatchService : ILibraryWatchService
         _messenger.Register<LibraryWatchService, ScanProgressMessage>(this, static (r, m) => r.OnExternalScanProgress(m));
         _messenger.Register<LibraryWatchService, ScanCompletedMessage>(this, static (r, m) => r.OnExternalScanFinished(m.LibraryId, m.Result.Outcome == ScanOutcome.Completed));
         _messenger.Register<LibraryWatchService, ScanAbortedMessage>(this, static (r, m) => r.OnExternalScanFinished(m.LibraryId, completedOk: false));
+        _messenger.Register<LibraryWatchService, ScanExclusionsChangedMessage>(this, static (r, m) => _ = r.ReloadExclusionsAsync()); // ADR-0066
         _scanGate.Acquired += OnScanGateAcquired;
         _ownChanges.Revoked += OnOwnChangeRevoked;
 
@@ -392,11 +400,17 @@ public sealed class LibraryWatchService : ILibraryWatchService
         }
 
         var roots = library is null ? [] : GetRootPaths(library).ToArray();
+        var exclusions = await ReadExclusionsAsync(library?.Id, ct).ConfigureAwait(false); // ADR-0066
         lock (_gate)
         {
             if (!_started || version != _attachVersion)
             {
                 return; // ein jüngerer Wechsel ist bereits unterwegs
+            }
+
+            if (exclusions is not null)
+            {
+                _exclusions = exclusions;
             }
 
             var unchanged = _libraryId == library?.Id && _roots.SequenceEqual(roots, StringComparer.OrdinalIgnoreCase);
@@ -534,6 +548,15 @@ public sealed class LibraryWatchService : ILibraryWatchService
             return;
         }
 
+        // ADR-0066: in ausgeschlossenen Ordnern (.thumbs in jeder Tiefe, Ordner der Bibliothek) nichts zählen. Ein Renamed zählt,
+        // wenn eine der beiden Seiten nicht ausgeschlossen ist (Medium in/aus einem ausgeschlossenen Ordner verschoben).
+        var exclusions = _exclusions;
+        if (exclusions.IsExcludedPath(fullPath) && (oldPath is null || exclusions.IsExcludedPath(oldPath)))
+        {
+            _logger.LogDebug("Ordnerüberwachung: Ereignis in ausgeschlossenem Ordner ignoriert");
+            return;
+        }
+
         if (_ownChanges.IsOwn(fullPath) && (oldPath is null || _ownChanges.IsOwn(oldPath)))
         {
             _logger.LogDebug("Ordnerüberwachung: eigene Änderung ignoriert — {Change} {Path}", change, fullPath);
@@ -541,6 +564,45 @@ public sealed class LibraryWatchService : ILibraryWatchService
         }
 
         CountEvent(change.ToString(), fullPath, requireRoot: false);
+    }
+
+    private async Task ReloadExclusionsAsync()
+    {
+        int? libraryId;
+        lock (_gate)
+        {
+            libraryId = _libraryId;
+        }
+
+        var exclusions = await ReadExclusionsAsync(libraryId, CancellationToken.None).ConfigureAwait(false);
+        lock (_gate)
+        {
+            if (exclusions is not null && _libraryId == libraryId)
+            {
+                _exclusions = exclusions; // nur, wenn inzwischen keine andere Bibliothek aktiv ist
+            }
+        }
+    }
+
+    /// <summary>Ausschlüsse der Bibliothek lesen (ADR-0066); null bei Fehler (die bisherigen bleiben).</summary>
+    private async Task<Scanning.Exclusions.ScanExclusionSet?> ReadExclusionsAsync(int? libraryId, CancellationToken ct)
+    {
+        if (_exclusionStore is null)
+        {
+            return Scanning.Exclusions.ScanExclusionSet.None;
+        }
+
+        try
+        {
+            return libraryId is { } id
+                ? await _exclusionStore.LoadSetAsync(id, ct).ConfigureAwait(false)
+                : Scanning.Exclusions.ScanExclusionSet.None;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Ordnerüberwachung: Ausschlüsse konnten nicht gelesen werden");
+            return null;
+        }
     }
 
     /// <summary>Eine Operation der App hat einen Pfad zurückgenommen (Katalog nicht gebucht): zählt wie ein Ereignis.</summary>

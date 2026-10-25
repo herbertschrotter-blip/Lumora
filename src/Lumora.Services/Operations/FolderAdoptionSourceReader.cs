@@ -24,7 +24,11 @@ public static class FolderAdoptionSourceReader
 
     public static bool IsIgnoredFileName(string name) => s_ignoredFiles.Contains(name);
 
-    public static AdoptionSourceSnapshot Read(string folder, CancellationToken ct = default)
+    /// <param name="exclusions">
+    /// Ausschlüsse beim Einlesen der Bibliothek (ADR-0066): ausgeschlossene Ordner (außer den Systemordnern oben) werden nicht
+    /// übernommen und bleiben liegen — sie zählen als Rest, der Quellordner kommt dann nicht in den Papierkorb.
+    /// </param>
+    public static AdoptionSourceSnapshot Read(string folder, CancellationToken ct = default, Scanning.Exclusions.ScanExclusionSet? exclusions = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(folder);
         var full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder));
@@ -64,6 +68,10 @@ public static class FolderAdoptionSourceReader
                         else if ((dir.Attributes & FileAttributes.ReparsePoint) != 0)
                         {
                             warnings.Add($"Verknüpfung wird nicht übernommen: {dir.FullName}");
+                        }
+                        else if (exclusions?.IsExcludedPath(dir.FullName) == true)
+                        {
+                            warnings.Add($"Vom Einlesen ausgeschlossen, bleibt liegen: {dir.FullName}"); // ADR-0066
                         }
                         else
                         {

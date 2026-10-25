@@ -13,6 +13,14 @@
 
     <HierarchicalDataTemplate x:Key="FolderNodeTemplate" DataType="{x:Type local:FolderNode}" ItemsSource="{Binding Children}">
         <Grid x:Name="Row" ToolTip="{Binding Path}">
+            <!-- ADR-0066: Drop-Markierung, wenn ein gezogener Ordner hier abgelegt würde (Rahmen in Akzentfarbe) -->
+            <Border x:Name="DropMarker"
+                    CornerRadius="4"
+                    Margin="-2,0,-6,0"
+                    BorderThickness="2"
+                    BorderBrush="{DynamicResource AccentFillColorDefaultBrush}"
+                    Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                    Visibility="Hidden" />
             <!-- dezente, gut sichtbare Akzent-Tönung hinter der Zeile -->
             <Border x:Name="SelectionFill"
                     CornerRadius="4"
@@ -62,6 +70,9 @@
             </StackPanel>
         </Grid>
         <HierarchicalDataTemplate.Triggers>
+            <DataTrigger Binding="{Binding IsDropTarget}" Value="True">
+                <Setter TargetName="DropMarker" Property="Visibility" Value="Visible" />
+            </DataTrigger>
             <DataTrigger Binding="{Binding IsSelected}" Value="True">
                 <Setter TargetName="SelectionFill" Property="Visibility" Value="Visible" />
                 <Setter TargetName="SelectionBar" Property="Visibility" Value="Visible" />

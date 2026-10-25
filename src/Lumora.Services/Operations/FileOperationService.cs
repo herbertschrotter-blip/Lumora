@@ -62,6 +62,7 @@ public sealed partial class FileOperationService : IFileOperationService, IDispo
     private readonly IMessenger _messenger;
     private readonly IScanGate _scanGate;
     private readonly IOwnChangeRegistry _ownChanges;
+    private readonly Scanning.Exclusions.IScanExclusionStore _exclusions; // ADR-0066
     private readonly SemaphoreSlim _writeLock = new(1, 1);
 
     /// <summary>Ein FTS-'delete' ist gescheitert; nach dem nächsten SaveChanges wird der Index neu aufgebaut (nur unter _writeLock).</summary>
@@ -69,6 +70,7 @@ public sealed partial class FileOperationService : IFileOperationService, IDispo
 
     /// <param name="scanGate">Optional (Tests); produktiv der Singleton, den auch ScanService und Ordnerüberwachung nutzen.</param>
     /// <param name="ownChanges">Optional (Tests); produktiv der Singleton, den die Ordnerüberwachung abfragt.</param>
+    /// <param name="exclusions">Ausschlüsse beim Einlesen (ADR-0066); ohne Angabe aus der Settings-Tabelle desselben Katalogs.</param>
     public FileOperationService(
         ILibraryContextFactory factory,
         IAppDataPaths paths,
@@ -77,7 +79,8 @@ public sealed partial class FileOperationService : IFileOperationService, IDispo
         ILogger<FileOperationService> logger,
         IMessenger? messenger = null,
         IScanGate? scanGate = null,
-        IOwnChangeRegistry? ownChanges = null)
+        IOwnChangeRegistry? ownChanges = null,
+        Scanning.Exclusions.IScanExclusionStore? exclusions = null)
     {
         _factory = factory;
         _paths = paths;
@@ -87,6 +90,7 @@ public sealed partial class FileOperationService : IFileOperationService, IDispo
         _messenger = messenger ?? WeakReferenceMessenger.Default;
         _scanGate = scanGate ?? new ScanGate();
         _ownChanges = ownChanges ?? new OwnChangeRegistry();
+        _exclusions = exclusions ?? new Scanning.Exclusions.ScanExclusionStore(factory, _messenger);
     }
 
     // ------------------------------------------------------------------ Verträge
@@ -392,6 +396,11 @@ public sealed partial class FileOperationService : IFileOperationService, IDispo
                 changes.Add(libraryId, FilesChangeKind.Moved, file.Id);
             }
 
+            if (error is null)
+            {
+                await FollowExclusionsAsync(libraryId, oldPath, newPath).ConfigureAwait(false); // ADR-0066
+            }
+
             Publish(changes);
             PublishFoldersChanged(libraryId);
             _logger.LogInformation("Ordner umbenannt: {Old} → {New} ({Files} Dateien, {Subfolders} Unterordner, Batch {BatchId})", oldPath, newPath, files.Count, descendants.Count, batch.Id);
@@ -432,7 +441,8 @@ public sealed partial class FileOperationService : IFileOperationService, IDispo
                 .Where(b => b.Status == BatchStatus.Applied
                             && (b.OperationType == OperationType.Move || b.OperationType == OperationType.Rename || b.OperationType == OperationType.RenameFolder
                                 || b.OperationType == OperationType.AdoptFolder
-                                || b.OperationType == OperationType.RecycleFolder || b.OperationType == OperationType.RemoveFromCatalog)) // ADR-0065
+                                || b.OperationType == OperationType.RecycleFolder || b.OperationType == OperationType.RemoveFromCatalog // ADR-0065
+                                || b.OperationType == OperationType.MoveFolder || b.OperationType == OperationType.ExcludeFromCatalog)) // ADR-0066
                 .OrderByDescending(b => b.Id)
                 .Select(b => (int?)b.Id)
                 .FirstOrDefaultAsync(ct)
@@ -1069,9 +1079,13 @@ public sealed partial class FileOperationService : IFileOperationService, IDispo
             {
                 results.AddRange(await UndoAdoptFolderAsync(ctx, ops, changes, own, ct).ConfigureAwait(false)); // ADR-0034
             }
-            else if (batch.OperationType is OperationType.RecycleFolder or OperationType.RemoveFromCatalog)
+            else if (batch.OperationType is OperationType.RecycleFolder or OperationType.RemoveFromCatalog or OperationType.ExcludeFromCatalog)
             {
-                results.AddRange(await UndoRemovalAsync(ctx, batch, ops, changes, own, ct).ConfigureAwait(false)); // ADR-0065
+                results.AddRange(await UndoRemovalAsync(ctx, batch, ops, changes, own, ct).ConfigureAwait(false)); // ADR-0065, ADR-0066
+            }
+            else if (batch.OperationType == OperationType.MoveFolder)
+            {
+                results.AddRange(await UndoMoveFolderAsync(ctx, ops, changes, own, ct).ConfigureAwait(false)); // ADR-0066
             }
             else
             {
@@ -1341,6 +1355,11 @@ public sealed partial class FileOperationService : IFileOperationService, IDispo
 
         if (folder is not null)
         {
+            if (error is null)
+            {
+                await FollowExclusionsAsync(folder.LibraryId, newPath, oldPath).ConfigureAwait(false); // ADR-0066
+            }
+
             PublishFoldersChanged(folder.LibraryId);
         }
 
@@ -2006,7 +2025,8 @@ public sealed partial class FileOperationService : IFileOperationService, IDispo
 
     private static bool IsUndoableType(OperationType type)
         => type is OperationType.Move or OperationType.Rename or OperationType.RenameFolder or OperationType.AdoptFolder
-            or OperationType.RecycleFolder or OperationType.RemoveFromCatalog; // ADR-0065
+            or OperationType.RecycleFolder or OperationType.RemoveFromCatalog // ADR-0065
+            or OperationType.MoveFolder or OperationType.ExcludeFromCatalog; // ADR-0066
 
     /// <summary>Voller Pfad ohne abschließende Trennzeichen; Laufwerks-/UNC-Wurzeln behalten ihres („E:\“).</summary>
     private static string NormalizeDirectoryPath(string path)

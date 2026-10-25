@@ -123,6 +123,40 @@ public interface IFileOperationService
     /// </summary>
     Task<MissingRemovalBatchResult> RemoveMissingAsync(IReadOnlyList<int> fileIds, int? pruneUnderFolderId = null, CancellationToken ct = default)
         => throw new NotSupportedException("Fehlende entfernen wird nicht unterstützt.");
+
+    // ---- ADR-0066: Ausschlüsse beim Einlesen, Ordner verschieben (FileOperationService.RemoveExcluded.cs / .MoveFolder.cs) ----
+
+    /// <summary>
+    /// Vorhandene Dateien in ausgeschlossenen Ordnern aus dem Katalog entfernen (ExcludeFromCatalog-Batch) — keine Datei wird
+    /// angefasst. Nur Dateien, deren Ordner nach den aktuell gespeicherten Ausschlüssen ihrer Bibliothek ausgeschlossen ist
+    /// (der Ausschluss wird also vorher gespeichert). Abzug je Zeile für „Rückgängig“ wie bei „Fehlende entfernen“, danach leere
+    /// ausgeschlossene Ordnerzeilen aus dem Baum. Standard: nicht unterstützt.
+    /// </summary>
+    Task<ExclusionRemovalResult> RemoveExcludedAsync(IReadOnlyList<int> fileIds, CancellationToken ct = default)
+        => throw new NotSupportedException("Ausgeschlossene entfernen wird nicht unterstützt.");
+
+    /// <summary>
+    /// Ordner samt Inhalt in einen anderen Ordner derselben Bibliothek verschieben (MoveFolder-Batch, <c>Directory.Move</c>):
+    /// FileIds bleiben, Pfade, Elternordner und Wurzel der Folders-Zeilen werden nachgezogen; rückgängig machbar. Abgelehnt (ohne
+    /// Änderung, <see cref="FolderOperationResult.Success"/> false und BatchId 0): Wurzel selbst bzw. Wurzel darin, Ziel = Ordner
+    /// selbst oder darin, Ziel schon Elternordner, gleichnamiger Ordner im Ziel, Ziel außerhalb der Bibliothek bzw. ausgeschlossen,
+    /// anderes Laufwerk, Laufwerk nicht erreichbar, Ordner oder Ziel nicht vorhanden. Standard: nicht unterstützt.
+    /// </summary>
+    Task<FolderOperationResult> MoveFolderAsync(int folderId, string targetFolderPath, CancellationToken ct = default)
+        => throw new NotSupportedException("Ordner verschieben wird nicht unterstützt.");
+}
+
+/// <summary>Ergebnis von <see cref="IFileOperationService.RemoveExcludedAsync"/> (ADR-0066).</summary>
+/// <param name="BatchId">Protokoll-Batch (0, wenn nichts entfernt wurde).</param>
+/// <param name="Removed">Aus dem Katalog entfernt.</param>
+/// <param name="FoldersRemoved">Leere ausgeschlossene Ordnerzeilen aus dem Baum entfernt.</param>
+/// <param name="SkippedNotExcluded">Ordner der Datei ist (nicht mehr) ausgeschlossen: nicht entfernt.</param>
+/// <param name="Failed">Katalog-Buchung gescheitert bzw. Datei unbekannt.</param>
+public sealed record ExclusionRemovalResult(int BatchId, int Removed, int FoldersRemoved, int SkippedNotExcluded, int Failed)
+{
+    public static ExclusionRemovalResult Empty { get; } = new(0, 0, 0, 0, 0);
+
+    public bool CanUndo => BatchId > 0 && Removed > 0;
 }
 
 /// <summary>Ergebnis von <see cref="IFileOperationService.RecycleFolderAsync"/> (ADR-0065).</summary>

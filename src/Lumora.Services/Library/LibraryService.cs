@@ -249,6 +249,9 @@ public sealed class LibraryService : ILibraryService
             groupId = await ctx.Libraries.AsNoTracking().Where(l => l.Id == libraryId).Select(l => l.GroupId).FirstOrDefaultAsync(ct).ConfigureAwait(false);
             await ctx.LibraryRoots.Where(r => r.LibraryId == libraryId).ExecuteDeleteAsync(ct).ConfigureAwait(false);
             await ctx.Libraries.Where(l => l.Id == libraryId).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+            // Ausgeschlossene Ordner gehören der Bibliothek (ADR-0066) und gehen mit ihr
+            var exclusionsKey = Scanning.Exclusions.ScanExclusionStore.FoldersKey(libraryId);
+            await ctx.Settings.Where(s => s.Key == exclusionsKey).ExecuteDeleteAsync(ct).ConfigureAwait(false);
         }
 
         // Letzte Bibliothek ihrer Gruppe (ADR-0048): Gruppe samt Begriffen weg — sonst blieben sie unsichtbar liegen.

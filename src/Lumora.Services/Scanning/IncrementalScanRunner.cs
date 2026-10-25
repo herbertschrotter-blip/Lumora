@@ -63,15 +63,17 @@ internal sealed class IncrementalScanRunner
         int nextFolderId,
         int nextFileId,
         ScanProgressReporter reporter,
-        CancellationToken ct)
+        CancellationToken ct,
+        Exclusions.ScanExclusionSet? exclusions = null)
     {
         var totalSw = Stopwatch.StartNew();
 
-        // 1) Katalog-Snapshot der Wurzel
+        // 1) Katalog-Snapshot der Wurzel — ohne Dateien in ausgeschlossenen Ordnern (ADR-0066): die bleiben, wie sie sind
+        //    (weder „fehlt“ noch aktualisiert), bis der Benutzer sie bewusst aus der Bibliothek entfernt.
         CatalogSnapshot catalog;
         using (var connection = _contextFactory.OpenSqliteConnection())
         {
-            catalog = CatalogSnapshot.Load(connection, libraryId, rootId, _logger);
+            catalog = CatalogSnapshot.Load(connection, libraryId, rootId, _logger, exclusions);
         }
 
         _logger.LogInformation(
@@ -153,7 +155,7 @@ internal sealed class IncrementalScanRunner
             }
 
             var filesSinceRecheck = 0;
-            foreach (var df in _enumerator.Enumerate(rootPath, ct, OnIoError))
+            foreach (var df in _enumerator.Enumerate(rootPath, ct, OnIoError, exclusions))
             {
                 var folderId = GetOrCreateFolderId(df.FolderPath);
                 filesSeen++;
@@ -411,9 +413,10 @@ internal sealed class IncrementalScanRunner
         }
 
         /// <summary>Nur Ordner (und ihre Dateien) der angegebenen Wurzel — andere Wurzeln bleiben unberührt (ADR-0020).</summary>
-        public static CatalogSnapshot Load(SqliteConnection connection, int libraryId, int rootId, ILogger logger)
+        public static CatalogSnapshot Load(SqliteConnection connection, int libraryId, int rootId, ILogger logger, Exclusions.ScanExclusionSet? exclusions = null)
         {
             var snapshot = new CatalogSnapshot();
+            var excludedFolderIds = new HashSet<int>();
 
             using (var cmd = connection.CreateCommand())
             {
@@ -425,6 +428,11 @@ internal sealed class IncrementalScanRunner
                 {
                     var id = reader.GetInt32(0);
                     var path = reader.GetString(1);
+                    if (exclusions?.IsExcludedPath(path) == true)
+                    {
+                        excludedFolderIds.Add(id); // Ordnerzeile bleibt im Pfad-Index (keine Doppelanlage), Dateien zählen nicht
+                    }
+
                     if (!snapshot.FolderIdsByPath.TryAdd(path, id))
                     {
                         logger.LogWarning("Doppelter Ordnerpfad im Katalog (nur Schreibweise verschieden): {Path} — Id {Id} wird ignoriert", path, id);
@@ -454,6 +462,11 @@ internal sealed class IncrementalScanRunner
                         Missing = reader.GetInt64(5) != 0,
                     };
                     var folderId = reader.GetInt32(1);
+                    if (excludedFolderIds.Contains(folderId))
+                    {
+                        continue;
+                    }
+
                     var name = reader.GetString(2);
 
                     if (!snapshot._filesByFolder.TryGetValue(folderId, out var byName))

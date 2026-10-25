@@ -1,5 +1,3 @@
-using System.Globalization;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Lumora.Services.Database;
@@ -265,29 +263,9 @@ public sealed class RemovalService : IRemovalService
             () =>
             {
                 using var connection = _factory.OpenSqliteConnection();
-                var total = UserDataCounts.None;
-                foreach (var chunk in fileIds.Chunk(Chunk))
-                {
-                    ct.ThrowIfCancellationRequested();
-                    var list = string.Join(",", chunk.Select(i => i.ToString(CultureInfo.InvariantCulture)));
-                    total = total.Add(new UserDataCounts(
-                        chunk.Length,
-                        Count(connection, $"SELECT COUNT(*) FROM Files WHERE Id IN ({list}) AND (IsFavorite = 1 OR Rating > 0);"),
-                        Count(connection, $"SELECT COUNT(DISTINCT f.FileId) FROM Faces f JOIN Persons p ON p.Id = f.PersonId WHERE f.FileId IN ({list});"),
-                        Count(connection, $"SELECT COUNT(DISTINCT FileId) FROM AlbumItems WHERE FileId IN ({list});"),
-                        Count(connection, $"SELECT COUNT(*) FROM (SELECT FileId FROM FileTags WHERE FileId IN ({list}) UNION SELECT FileId FROM FileCategoryValues WHERE FileId IN ({list}));")));
-                }
-
-                return total;
+                return UserDataCounter.Count(connection, fileIds, ct); // gemeinsam mit den Ausschlüssen (ADR-0066)
             },
             ct);
-    }
-
-    private static int Count(SqliteConnection connection, string sql)
-    {
-        using var cmd = connection.CreateCommand();
-        cmd.CommandText = sql;
-        return Convert.ToInt32(cmd.ExecuteScalar(), CultureInfo.InvariantCulture);
     }
 
     /// <summary>Dateien und Unterordner auf der Platte (unlesbare Teile übersprungen).</summary>

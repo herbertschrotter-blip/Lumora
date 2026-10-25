@@ -60,6 +60,8 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IScanGate, ScanGate>(); // nie zwei Scans derselben Bibliothek, nie Scan neben Datei-Batch
         services.TryAddSingleton<IOwnChangeRegistry>(_ => new OwnChangeRegistry()); // eigene Schreibvorgänge für die Ordnerüberwachung
         services.TryAddSingleton<IScanService, ScanService>();
+        // Ausschlüsse beim Einlesen: allgemeine Liste + je Bibliothek, Entfernen mit Rückgängig (Services/Scanning/Exclusions, ADR-0066)
+        Scanning.Exclusions.ScanExclusionServiceCollectionExtensions.AddScanExclusions(services);
 
         // Thumbnails — Video-Renderer (FFmpeg) ist WPF-frei und lebt hier; derselbe FFmpeg-Wrapper
         // dient als Fallback für Bildformate ohne WIC-Codec (WebP/HEIC/AVIF/RAW).

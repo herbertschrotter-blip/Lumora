@@ -37,7 +37,11 @@ public sealed class FolderEnumerator
     /// bevor der Ordner bzw. die Datei übersprungen wird. Der Incremental-Scan prüft darin den Root erneut
     /// (PLAN Kap. 12: IOException → Root-Recheck) und darf den Scan durch eine Ausnahme beenden.
     /// </param>
-    public IEnumerable<DiscoveredFile> Enumerate(string rootPath, CancellationToken ct = default, Action<string, Exception>? onIoError = null)
+    /// <param name="exclusions">
+    /// Ausschlüsse beim Einlesen (ADR-0066): ausgeschlossene Unterordner (Name aus der allgemeinen Liste in jeder Tiefe bzw.
+    /// Ordner der Bibliothek) werden samt Inhalt nicht betreten. Null = keine.
+    /// </param>
+    public IEnumerable<DiscoveredFile> Enumerate(string rootPath, CancellationToken ct = default, Action<string, Exception>? onIoError = null, Exclusions.ScanExclusionSet? exclusions = null)
     {
         if (!Directory.Exists(rootPath))
         {
@@ -115,7 +119,8 @@ public sealed class FolderEnumerator
                 foreach (var sub in Directory.EnumerateDirectories(folder, "*", Options))
                 {
                     // Katalog einer versteckten Bibliothek (.lumora, ADR-0049) liegt in der Bibliothek — nie mitscannen
-                    if (!Infrastructure.CatalogFolders.IsCatalogFolder(sub))
+                    if (!Infrastructure.CatalogFolders.IsCatalogFolder(sub)
+                        && exclusions?.IsExcludedChildDirectory(sub) != true) // ADR-0066: ausgeschlossen → nicht betreten
                     {
                         queue.Enqueue(sub);
                     }

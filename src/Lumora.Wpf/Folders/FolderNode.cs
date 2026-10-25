@@ -103,6 +103,16 @@ public sealed partial class FolderNode : ObservableObject
     /// <summary>Umbenennen nur für normale Ordner (Wurzeln sind Bibliothekseinstellung, Platzhalter nichts).</summary>
     public bool CanRename => !IsPlaceholder && !IsLibraryRoot;
 
+    /// <summary>„Ordner ausschließen…“ nur für normale Ordner — nicht die Wurzel selbst, keine Kopfknoten (ADR-0066).</summary>
+    public bool CanExclude => IsFolder && !IsLibraryRoot;
+
+    /// <summary>Verschieben (Menü, Ziehen) nur für normale Ordner — Wurzeln nicht (ADR-0066).</summary>
+    public bool CanMove => IsFolder && !IsLibraryRoot;
+
+    /// <summary>Drop-Markierung beim Ziehen eines Ordners auf diesen (ADR-0066).</summary>
+    [ObservableProperty]
+    private bool _isDropTarget;
+
     public ObservableCollection<FolderNode> Children { get; } = new();
 
     partial void OnIsExpandedChanged(bool value)

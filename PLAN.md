@@ -116,13 +116,13 @@ src/
     Library/                          # LibraryService, LibraryCatalogCleanup
     Media/                            # MediaFormatRegistry (ADR-0016)
     Messaging/                        # Nachrichten-Records für WeakReferenceMessenger (ADR-0017)
-    Operations/                       # FileOperationService, WindowsRecycleBin (ADR-0012/0018); Ordner in den Papierkorb, Fehlende entfernen, RemovalUndoStore (ADR-0065)
+    Operations/                       # FileOperationService, WindowsRecycleBin (ADR-0012/0018); Ordner in den Papierkorb, Fehlende entfernen, RemovalUndoStore (ADR-0065); Ordner verschieben (FolderMoveRules), Ausgeschlossene entfernen (ADR-0066)
     Removal/                          # RemovalService: Vorschau/Zahlen, Offline-Guard, Ausführung über die Datei-Operationen (ADR-0065)
     Places/Clustering/                # GeoClusterIndex (Morton-Raster, Gruppen je Zoomstufe), MercatorProjection (ADR-0051)
     Places/Accuracy/                  # Ungenaue Orte (ADR-0062): GeoAccuracyRules, GeoJumpDetector (rein), GeoAccuracyService (Hintergrund)
     Places/Tracks/                    # GPS-Spuren (ADR-0062): TrackCodec, FitTrackReader, XmlTrackReader (GPX/TCX), GpsTrackStore, GpsTrackImportService (ZIP), GpsTrackAutoImport (Ordner/USB), GeoTrackSettings
     Places/Suggestions/               # Vorschläge (ADR-0062): PhotoTimeResolver, CameraOffsetEstimator, GeoSuggestionEngine (rein), GeoSuggestionService
-    Scanning/                         # ScanService, FolderEnumerator, IncrementalScanRunner, RootAvailabilityProbe, MassMissingGuard (ADR-0019)
+    Scanning/                         # ScanService, FolderEnumerator, IncrementalScanRunner, RootAvailabilityProbe, MassMissingGuard (ADR-0019); Exclusions/ = Ausschlüsse beim Einlesen: ScanExclusionSet, ScanExclusionStore, ScanExclusionService (ADR-0066)
     Sorter/                           # FileSorterService, FlattenService, SorterPatternEngine, SorterProfileStore
     Stories/                          # Storys (ADR-0058): StoryDetector (rein), StoryReconciler (Signatur + gemeinsame Dateien), StoryTitleBuilder (sachliche Überschriften), StoryIndexService (Hintergrund, voll/inkrementell), StoryService (IStoryService für die Story-Seite), StorySettingsStore (stories.*), BasicHighlightSelector (Ersatz bis ADR-0057)
     Quality/                          # IHighlightSelector — Vertrag zwischen Foto-Güte (ADR-0057) und Storys
@@ -302,6 +302,12 @@ FilesFts           -- FTS5 virtual table (Files.Name, Extension)
   entfernen“: `KeptFileId = 0` (kein behaltenes Gegenstück; die Seite „Doppelte“ blendet sie aus), je entfernter Datei ein
   Abzug, `FileId = 0` = Abzug der entfernten `Folders`-Zeilen samt `FolderLinks` hinein. Neue `OperationType`-Werte
   `RecycleFolder` (9), `DeleteFolder` (10), `RemoveFromCatalog` (11) (als int gespeichert).
+  Seit 0.4.33 (ADR-0066, keine Migration) auch für „Ausgeschlossene aus der Bibliothek entfernen“ (`ExcludeFromCatalog` (13));
+  dazu `MoveFolder` (12) für „Ordner verschieben“ (ohne Abzüge, Pfade/ParentId/RootId der Folders-Zeilen werden nachgezogen).
+- Ausschlüsse beim Einlesen — seit 0.4.33 (ADR-0066, keine Migration, nur Settings): `scan.excludedNames` (JSON-Array von
+  Ordnernamen für alle Bibliotheken des Katalogs; fehlt der Eintrag, gelten `.thumbs` und `.temp`),
+  `scan.excludedFolders.{LibraryId}` (JSON-Array `{"root":LibraryRoots.Id,"path":"relativ zur Wurzel"}`, gehört der Bibliothek,
+  geht beim Löschen der Bibliothek mit). Je Katalog — die versteckte Sitzung hat ihre eigene Liste.
 - Foto-Güte — umgesetzt in 0.4.7 (Migration `AddFileQuality`, ADR-0057, nur CREATE TABLE):
   `FileQuality (FileId PK → Files ON DELETE CASCADE, Sharpness REAL, Exposure REAL, Aesthetic REAL NULL (Bildwirkung aus
   den Motiv-Vektoren), AestheticVersion NULL (Modell + Prompt-Satz), Version, SourceSize, SourceModifiedAt, ErrorCode NULL)`
@@ -473,8 +479,8 @@ Status (Stand 0.2.0): ✅ umgesetzt · 🟡 teilweise · ⬜ offen
 | ⬜ | **Nutzungs-Signale** | lokal messen, was Herbert mag: Öffnen, Ansehdauer (aktiv, 1 s–2 min, kein Durchblättern), Zoom, Wiederkehr an anderen Tagen, Verwendung in Album/Story/Collage/Titelbild, Drucken/Teilen/Exportieren über Lumora, später Handy (Welle 7). Nicht zählen: Sortieren, Doppelte, Suche nach einem Foto. Nur Tagessummen je Foto (kein Ereignisprotokoll), je Katalog, versteckt nur im Container, abschaltbar + „Nutzungsdaten löschen“, nichts im Protokoll. Nutzung: kleiner Zuschlag in der Highlight-Auswahl (ADR-0057) mit Grund („oft angesehen“, „3× geteilt“), gedämpft gegen Selbstverstärkung (Ansehen in Storys zählt weniger), fehlende Nutzung ist kein Abzug; neue Story-Art „Vergessene Schätze“ | Herbert 2026-10-22; Mockup folgt |
 | ✅ | **Sicherheits-Check (versteckte Bibliothek)** | prüft Windows-Spuren (BitLocker C:, Ruhezustand, Schnellstart, Auslagerungsdatei, Verlauf, Miniaturbilder, Indizierung, VeraCrypt-Verlauf), öffnet die Windows-Einstellung, ändert selbst nichts; Option „nach dem Zusperren beenden“ | Mockup 14, ADR-0064, umgesetzt in 0.4.28 |
 | ⬜ | **Aktivitäts-Anzeige** | alle Hintergrund-Vorgänge unten rechts mit Fortschritt, Liste, Pause/Abbrechen, Rückgängig | Mockup 15 (abgenommen 2026-10-25) |
-| ⬜ | **Ausschlüsse beim Einlesen** | allgemeine Liste (.thumbs, .temp …) + je Bibliothek, Rechtsklick „Ordner ausschließen“, Bestehende nach Rückfrage aus dem Katalog entfernen | Herbert 2026-10-25 |
-| ⬜ | **Ordner verschieben** | Reiter Ordner: „Verschieben nach…“ und Ziehen, mit Rückgängig | Herbert 2026-10-25 |
+| ✅ | **Ausschlüsse beim Einlesen** | allgemeine Liste (.thumbs, .temp …) + je Bibliothek, Rechtsklick „Ordner ausschließen“, Bestehende nach Rückfrage aus dem Katalog entfernen | Herbert 2026-10-25, ADR-0066, umgesetzt in 0.4.33 |
+| ✅ | **Ordner verschieben** | Reiter Ordner: „Verschieben nach…“ und Ziehen, mit Rückgängig | Herbert 2026-10-25, ADR-0066, umgesetzt in 0.4.33 |
 | ⬜ | **Tag- und Kategorie-Symbole** | kleine Marken auf Galerie-Kacheln, in der Lightbox und im Ordnerbaum, Hover mit Namen, Schalter je Ort | Mockup 16 (abgenommen 2026-10-25) |
 | ⬜ | **Welle 7 Android-Begleit-App** | PC stellt Katalog + Vorschaubilder im Heimnetz bereit, Handy zeigt und bewertet | Memory/Plan |
 | ⬜ | **Welle 8 Foto verbessern** | hochskalieren, Gesichter restaurieren, einfärben, entfernen, Zuschneiden/Licht; Ergebnis als neue Datei; Augen-offen/Lächeln als Gütemerkmal | Mockup 13 (abgenommen 2026-10-23) |

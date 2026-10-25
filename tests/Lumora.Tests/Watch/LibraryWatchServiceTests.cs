@@ -77,7 +77,8 @@ public sealed partial class LibraryWatchServiceTests
             Fixture.Messenger,
             rootRetryInterval: TimeSpan.FromMilliseconds(400),
             scanGate: Gate,
-            ownChanges: OwnChanges);
+            ownChanges: OwnChanges,
+            exclusions: new Lumora.Services.Scanning.Exclusions.ScanExclusionStore(Fixture.ContextFactory, Fixture.Messenger)); // ADR-0066 wie in der App
 
         /// <summary>FileOperationService wie in der App: dieselbe Scan-Sperre und dieselbe Liste eigener Pfade.</summary>
         public FileOperationService CreateFileOperations() => Fixture.CreateFileOperationService(scanGate: Gate, ownChanges: OwnChanges);

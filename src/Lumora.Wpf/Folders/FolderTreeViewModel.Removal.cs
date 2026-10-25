@@ -21,6 +21,9 @@ public sealed partial class FolderTreeViewModel
     private Dictionary<int, int> _directMissing = new();
     private Dictionary<int, int> _totalMissing = new();
 
+    /// <summary>Wer „Rückgängig“ im Ergebnisfeld ausführt; null = <see cref="RemovalActions.UndoAsync"/> (ADR-0066: auch Verschieben/Ausschließen).</summary>
+    private Func<int, Task<RemovalActionResult>>? _undoHandler;
+
     /// <summary>Batch der letzten Lösch-/Entfernen-Aktion, die sich noch zurücknehmen lässt (Knopf „Rückgängig“ im Ergebnisfeld).</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanUndoRemoval))]
@@ -37,6 +40,8 @@ public sealed partial class FolderTreeViewModel
         RecycleFolderCommand.NotifyCanExecuteChanged();
         RemoveMissingInFolderCommand.NotifyCanExecuteChanged();
         UndoRemovalCommand.NotifyCanExecuteChanged();
+        ExcludeFolderCommand.NotifyCanExecuteChanged(); // ADR-0066
+        MoveFolderCommand.NotifyCanExecuteChanged(); // ADR-0066
         OnPropertyChanged(nameof(CanUndoRemoval));
     }
 
@@ -83,7 +88,8 @@ public sealed partial class FolderTreeViewModel
     [RelayCommand(CanExecute = nameof(CanUndoRemoval))]
     private async Task UndoRemovalAsync()
     {
-        if (RemovalUndoBatchId is not { } batchId || _removalActions is null)
+        var handler = _undoHandler ?? (_removalActions is { } removal ? removal.UndoAsync : null);
+        if (RemovalUndoBatchId is not { } batchId || handler is null)
         {
             return;
         }
@@ -91,7 +97,8 @@ public sealed partial class FolderTreeViewModel
         IsFolderActionRunning = true;
         try
         {
-            var result = await _removalActions.UndoAsync(batchId).ConfigureAwait(true);
+            var result = await handler(batchId).ConfigureAwait(true);
+            _undoHandler = null;
             RemovalUndoBatchId = null;
             ShowRemovalResult(result);
         }
@@ -121,6 +128,7 @@ public sealed partial class FolderTreeViewModel
             var result = await action().ConfigureAwait(true);
             if (result is not null)
             {
+                _undoHandler = null;
                 RemovalUndoBatchId = result.UndoBatchId;
                 ShowRemovalResult(result);
             }

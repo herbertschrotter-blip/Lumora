@@ -64,9 +64,11 @@ public sealed class ScanService : IScanService
     private readonly ILogger<ScanService> _logger;
     private readonly IMessenger _messenger;
     private readonly IScanGate _scanGate;
+    private readonly Exclusions.IScanExclusionStore _exclusions;
 
     /// <param name="messenger">Optional (Tests); produktiv WeakReferenceMessenger.Default.</param>
     /// <param name="scanGate">Optional (Tests: eigene Instanz); produktiv der gemeinsame Singleton (auch für die Ordnerüberwachung).</param>
+    /// <param name="exclusions">Ausschlüsse beim Einlesen (ADR-0066); ohne Angabe aus der Settings-Tabelle desselben Katalogs.</param>
     public ScanService(
         ILibraryContextFactory contextFactory,
         FolderEnumerator enumerator,
@@ -75,7 +77,8 @@ public sealed class ScanService : IScanService
         ILibraryService libraryService,
         ILogger<ScanService> logger,
         IMessenger? messenger = null,
-        IScanGate? scanGate = null)
+        IScanGate? scanGate = null,
+        Exclusions.IScanExclusionStore? exclusions = null)
     {
         _contextFactory = contextFactory;
         _enumerator = enumerator;
@@ -85,6 +88,7 @@ public sealed class ScanService : IScanService
         _logger = logger;
         _messenger = messenger ?? WeakReferenceMessenger.Default;
         _scanGate = scanGate ?? new ScanGate();
+        _exclusions = exclusions ?? new Exclusions.ScanExclusionStore(contextFactory, _messenger);
     }
 
     public Task<ScanResult> ScanAsync(
@@ -158,6 +162,7 @@ public sealed class ScanService : IScanService
     {
         var sw = Stopwatch.StartNew();
         var roots = await LoadRootsAsync(libraryId, ct).ConfigureAwait(false);
+        var exclusions = await LoadExclusionsAsync(libraryId, ct).ConfigureAwait(false); // ADR-0066
         var runner = new IncrementalScanRunner(_contextFactory, _enumerator, _bulkWriter, _logger);
 
         var outcomes = new List<(ScanRoot Root, IncrementalScanRunner.Outcome Outcome)>();
@@ -176,7 +181,7 @@ public sealed class ScanService : IScanService
 
             // Start-Ids vor jeder Wurzel neu lesen: die vorige Wurzel hat bereits Zeilen geschrieben.
             var (nextFolderId, nextFileId) = ReadNextIds();
-            var outcome = await runner.RunAsync(libraryId, root.Id, root.Path, options, nextFolderId, nextFileId, reporter, ct).ConfigureAwait(false);
+            var outcome = await runner.RunAsync(libraryId, root.Id, root.Path, options, nextFolderId, nextFileId, reporter, ct, exclusions).ConfigureAwait(false);
             outcomes.Add((root, outcome));
             if (outcome.Result.Outcome == ScanOutcome.LibraryOffline)
             {
@@ -284,7 +289,8 @@ public sealed class ScanService : IScanService
             "Scan startet: Library={LibraryId} Wurzeln={Roots} Mode={Mode} StartIds Folder={FolderId} File={FileId}",
             libraryId, string.Join(" | ", roots.Select(r => $"{r.Role}:{r.Path}")), mode, nextFolderId, nextFileId);
 
-        // 6) Enumeration + In-Memory-Aggregation je Wurzel
+        // 6) Enumeration + In-Memory-Aggregation je Wurzel; ausgeschlossene Ordner werden nicht betreten (ADR-0066)
+        var exclusions = await LoadExclusionsAsync(libraryId, ct).ConfigureAwait(false);
         var enumSw = Stopwatch.StartNew();
         var folderMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         var folderRows = new List<BulkScanWriter.FolderRow>();
@@ -328,7 +334,7 @@ public sealed class ScanService : IScanService
                 return id;
             }
 
-            foreach (var df in _enumerator.Enumerate(rootPath, ct))
+            foreach (var df in _enumerator.Enumerate(rootPath, ct, exclusions: exclusions))
             {
                 var folderId = GetOrCreateFolderId(df.FolderPath);
 
@@ -408,6 +414,14 @@ public sealed class ScanService : IScanService
     }
 
     // ---- Gemeinsame Helfer ----------------------------------------------------------------------
+
+    /// <summary>Ausschlüsse der Bibliothek (ADR-0066); Info-Log nur mit Zahlen.</summary>
+    private async Task<Exclusions.ScanExclusionSet> LoadExclusionsAsync(int libraryId, CancellationToken ct)
+    {
+        var set = await _exclusions.LoadSetAsync(libraryId, ct).ConfigureAwait(false);
+        _logger.LogInformation("Ausschlüsse beim Einlesen: {Names} Ordnernamen, {Folders} Ordner der Bibliothek {LibraryId}", set.FolderNames.Count, set.FolderPaths.Count, libraryId);
+        return set;
+    }
 
     private static ScanResult OfflineResult(int libraryId, string rootPath, ScanMode mode, TimeSpan elapsed) =>
         new(libraryId, rootPath, 0, 0, 0, 0, elapsed, TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero)

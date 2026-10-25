@@ -21,13 +21,17 @@ public sealed class FolderAdoptionService : IFolderAdoptionService
     private readonly IFileOperationService _fileOps;
     private readonly ILibraryService _libraries;
     private readonly ILogger<FolderAdoptionService> _logger;
+    private readonly Scanning.Exclusions.IScanExclusionStore? _exclusions;
 
+    /// <param name="exclusions">Ausschlüsse beim Einlesen (ADR-0066): ausgeschlossene Ordner der Quelle bleiben liegen; optional (Tests).</param>
     public FolderAdoptionService(
         ILibraryContextFactory factory,
         IFileOperationService fileOps,
         ILibraryService libraries,
-        ILogger<FolderAdoptionService> logger)
+        ILogger<FolderAdoptionService> logger,
+        Scanning.Exclusions.IScanExclusionStore? exclusions = null)
     {
+        _exclusions = exclusions;
         _factory = factory;
         _fileOps = fileOps;
         _libraries = libraries;
@@ -83,8 +87,24 @@ public sealed class FolderAdoptionService : IFolderAdoptionService
             lastTarget);
     }
 
-    public Task<AdoptionSourceSnapshot> ReadSourceAsync(string sourceFolder, CancellationToken ct = default)
-        => Task.Run(() => FolderAdoptionSourceReader.Read(sourceFolder, ct), ct);
+    public async Task<AdoptionSourceSnapshot> ReadSourceAsync(string sourceFolder, CancellationToken ct = default)
+    {
+        Scanning.Exclusions.ScanExclusionSet? exclusions = null;
+        if (_exclusions is not null)
+        {
+            // Bibliothek der Wurzel, unter der die Quelle liegt (ADR-0066)
+            var source = Path.TrimEndingDirectorySeparator(Path.GetFullPath(sourceFolder));
+            await using var ctx = _factory.Create();
+            var roots = await ctx.LibraryRoots.AsNoTracking().ToListAsync(ct).ConfigureAwait(false);
+            var root = roots.Where(r => IsSameOrInside(source, r.Path)).OrderByDescending(r => r.Path.Length).FirstOrDefault();
+            if (root is not null)
+            {
+                exclusions = await _exclusions.LoadSetAsync(root.LibraryId, ct).ConfigureAwait(false);
+            }
+        }
+
+        return await Task.Run(() => FolderAdoptionSourceReader.Read(sourceFolder, ct, exclusions), ct).ConfigureAwait(false);
+    }
 
     public FolderAdoptionPlan BuildPlan(AdoptionSourceSnapshot snapshot, string targetFolder, bool collapseEmptyChains)
         => FolderAdoptionPlanner.Plan(snapshot, targetFolder, collapseEmptyChains, FileSystemAdoptionTargetProbe.Instance);

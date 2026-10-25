@@ -3,6 +3,63 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.4.33] — 2026-10-25
+
+### Feature (ADR-0066) — Ausschlüsse beim Einlesen und Ordner verschieben
+- **Ausschlüsse beim Einlesen:** Ordner, die Lumora nicht einliest — **allgemeine Liste** (Ordnernamen in jeder Tiefe, Groß/Klein
+  egal, für alle Bibliotheken des Katalogs; Standard `.thumbs` und `.temp` aus den alten PowerShell-Viewern, auch für bestehende
+  Kataloge ohne Eintrag) und **Ordner je Bibliothek** (relativ zur Wurzel gespeichert, gehört der Bibliothek, nicht der Gruppe).
+  Ablage in der Settings-Tabelle des jeweiligen Katalogs (`scan.excludedNames`, `scan.excludedFolders.{Id}`) — die versteckte
+  Sitzung hat ihre eigene Liste; **keine Migration**. Wirkt im vollen Scan, im Incremental-Scan (schon katalogisierte Dateien
+  in ausgeschlossenen Ordnern werden nicht abgeglichen — kein „fehlt“), in der Ordnerüberwachung (Ereignisse dort zählen nicht),
+  beim Übernehmen aus dem Eingang (ausgeschlossene Ordner bleiben liegen) und im Ordnerbaum (ausgeblendet, dezent „n Ordner
+  ausgeschlossen“).
+- **Reiter „Ordner“ › Rechtsklick › „Ordner ausschließen…“** (nicht an der Wurzel, gesperrt in „Alle verknüpften“): sind darin
+  schon Dateien in der Bibliothek, Rückfrage mit Zahlen (Sterne/Favorit, Personen, Alben, Tags/Kategorien) — **„Aus der
+  Bibliothek entfernen“** (keine Datei wird gelöscht) oder **„Nur künftig ausschließen“**. Entfernen als eigener
+  **ExcludeFromCatalog-Batch** (OperationType 13) über den Entfernen-Weg aus 0.4.30 (Abzüge, FTS, Thumbnails, Cache, leere
+  ausgeschlossene Ordnerzeilen); **Rückgängig** bringt die Einträge mit denselben FileIds zurück und hebt den gerade gesetzten
+  Ausschluss wieder auf.
+- **Einstellungen › Bibliotheken & Eingänge › „Ausschlüsse beim Einlesen“** (unter der Ordnerüberwachung): Namen hinzufügen
+  (gleiche Rückfrage) / entfernen, Ordner der Bibliothek mit **„Ausschluss aufheben“** (liest danach neu ein), Zahl „noch in der
+  Bibliothek“ mit **„Aus der Bibliothek entfernen…“** und Rückgängig (für `.thumbs`, die vor 0.4.33 eingelesen wurden).
+- **Ordner verschieben** (Reiter „Ordner“): Rechtsklick › **„Verschieben nach…“** (Windows-Ordnerdialog, beginnt in der Wurzel)
+  und **Ziehen** eines Ordners auf einen anderen (Drop-Rahmen nur auf erlaubten Zielen, Esc bricht ab, Ablegen fragt nach).
+  **MoveFolder-Batch** (OperationType 12): `Directory.Move` in einem Schritt, Katalog **ohne neue FileIds** (Pfade, ParentId,
+  RootId der Folders-Zeilen; Ausschlüsse ziehen mit), Quelle und Ziel für die Überwachung eigen, **Rückgängig** im Ergebnisfeld
+  und über die Galerie-Taste. Abgelehnt mit klarer Meldung: Wurzel bzw. Wurzel darin, in sich selbst, schon dort, gleichnamiger
+  Ordner im Ziel (kein Zusammenführen), außerhalb der Bibliothek/andere Bibliothek, ausgeschlossenes Ziel, **anderes Laufwerk**
+  (Hinweis auf „In die Bibliothek übernehmen…“), offline/fehlend, „Alle verknüpften“. Umbenennen zieht die Ausschlüsse ebenfalls mit.
+- **Technik:** `Services/Scanning/Exclusions` (`ScanExclusionSet`, `ScanExclusionStore`, `ScanExclusionService`,
+  `ScanExclusionsChangedMessage`), `FolderEnumerator`/`IncrementalScanRunner`/`ScanService`/`LibraryWatchService`/
+  `FolderAdoptionSourceReader` mit Ausschlüssen, `IFileOperationService.RemoveExcludedAsync`/`MoveFolderAsync`,
+  `FolderMoveRules`, `UserDataCounter` (aus `RemovalService` herausgelöst), „Fehlende entfernen“ nutzt jetzt denselben Helfer
+  `RemoveCatalogRowsWithUndoAsync`; Wpf `Exclusions/` (`ScanExclusionActions`, `ScanExclusionsSettingsViewModel`,
+  `IFolderEditDialogs`), `FolderMoveActions`, `FolderTreeViewModel.Exclusions/.Move`. Info-Logs nur mit Zahlen.
+- **Tests:** Services 1327 → 1359 (3 übersprungen wie vorher) — Regeln (jede Tiefe, Wurzel nie), Ablage (Standard, leer,
+  ungültig, relativ, Wurzel/außerhalb abgelehnt, Elternordner, Verschieben zieht mit, Bibliothek löschen, eigener Katalog),
+  voller/Incremental-Scan ignorieren `.thumbs` in jeder Tiefe, „Nur künftig“ ohne „fehlt“ und Aufheben liest ein, je
+  Bibliothek nur dort, Übernehmen lässt liegen, Entfernen nach Bestätigung + Rückgängig (FileIds, Tags, Album, FTS, Ordnerzeilen),
+  Galerie-Taste, ohne Ausschluss nichts; Verschieben (FileIds, Angaben, Ordnerzeilen, Rückgängig, Ablehnungen, andere
+  Bibliothek, Eingang → Archiv mit neuer Wurzel, eigen für die Überwachung, Ausschlüsse ziehen mit); Überwachung ignoriert
+  `.thumbs` und neue Ordner-Ausschlüsse, eigenes Verschieben ohne Scan. `FolderAdoptionExecutionTests` angepasst (das
+  `.thumbs`-Bild wird nicht mehr eingelesen). Wpf 1212 → 1224 (7 übersprungen wie vorher, dreimal grün) — Ordnerbaum (ausgeblendet + Hinweis,
+  ausschließen mit Entfernen/Rückgängig, nur künftig, Wurzel/„Alle verknüpften“ gesperrt, Verschieben über Zielauswahl +
+  Rückgängig, Ziehen mit Vorprüfung/Rückfrage/Ablehnung), Einstellungs-Karte (Standardliste, bereits katalogisierte entfernen,
+  Namen hinzufügen + Rückgängig, ungültig/doppelt, Aufheben liest ein, Rückgängig ohne Rückkehr lässt die Regel).
+- **Rauchtest:** neuer Schritt „Ausschlüsse und Ordner verschieben“ vor „Versteckte Bibliothek“ (Bild in `.thumbs` nicht
+  eingelesen, Ordner ausschließen + aus dem Katalog, im Baum ausgeblendet, in den Einstellungen aufheben → wieder eingelesen,
+  Ordner verschieben + Rückgängig mit derselben FileId, Screenshot `24-ordner-ausgeschlossen`, Aufräumen über den
+  Test-Papierkorb). Drei Läufe: 48/48 OK (vor dem Selbst-Review), 43/48 (bekannter Wackler „Bibliotheks-Trennung“ — „Ort-Flyout
+  in A wieder ohne den Ort aus B“ — mit Folgefehlern in Motive/Orte/Doppelte/Alben), Wiederholung 48/48 OK; jeweils 0
+  Binding-Fehler, kein ERR/FTL außer den Wackler-Meldungen. Wpf-Suite dreimal grün.
+
+### Offen
+- Nach „Nur künftig ausschließen“ nimmt „Neu aufbauen“ die Einträge in ausgeschlossenen Ordnern ohne eigene Rückfrage heraus
+  (wie jeden nicht mehr gefundenen Ordner; „Neu aufbauen“ hat seine eigene Bestätigung).
+- Entfernen eines Namens aus der allgemeinen Liste liest nur die aktuelle Bibliothek sofort neu ein.
+- Verschieben auf ein anderes Laufwerk derselben Bibliothek ist abgelehnt (ADR-0066).
+
 ## [0.4.32] — 2026-10-25
 
 ### Docs — Mockup 16 „Tag- und Kategorie-Symbole“, abgenommen
@@ -10,6 +67,7 @@ Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Form
   nur beim Darüberfahren), Leiste in der Lightbox mit Namen, Zahl der Fotos mit Tags/Kategorien im Ordnerbaum; Hover
   nennt die Namen; Schalter je Ort in Einstellungen › Darstellung.
 - PLAN.md Kap. 7: neues Vorhaben „Tag- und Kategorie-Symbole“.
+
 
 ## [0.4.31] — 2026-10-25
 

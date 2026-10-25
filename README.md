@@ -141,6 +141,15 @@ in Einstellungen › Bibliotheken & Eingänge.
   (Anzeigename), Entfernen (nur Eingänge, nur aus dem Katalog). Scannen/Aktualisieren läuft über alle Ordner. Ein
   Kasten „So funktioniert's“ erklärt den Ablauf; die Datenbank enthält nur Verweise und Bewertungen, keine Bilder.
 - Unter der Liste: **Ordnerüberwachung** (Schalter, Ruhezeit; siehe „Ordnerüberwachung“).
+- Darunter (seit 0.4.33, ADR-0066): **Ausschlüsse beim Einlesen** — Ordner, die Lumora nicht einliest (ihre Dateien tauchen
+  in Galerie, Doppelten und Storys nicht auf; auf der Platte bleibt alles). **Ordnernamen** gelten in jeder Tiefe und für alle
+  Bibliotheken (Standard `.thumbs` und `.temp` — die Vorschauordner der alten PowerShell-Viewer); Name eingeben →
+  **Hinzufügen**, ✕ nimmt ihn heraus (die Bibliothek wird danach neu eingelesen). **Ordner dieser Bibliothek** kommen aus dem
+  Reiter „Ordner“ (Rechtsklick › „Ordner ausschließen…“); **Ausschluss aufheben** liest den Ordner wieder ein. Sind in
+  ausgeschlossenen Ordnern noch Dateien in der Bibliothek (z. B. `.thumbs` von vor 0.4.33), zeigt die Karte die Zahl mit
+  **Aus der Bibliothek entfernen…** (Rückfrage mit Sternen/Personen/Alben/Tags, **Rückgängig** bringt die Einträge zurück).
+  Beim Hinzufügen fragt Lumora, wenn schon Dateien betroffen sind: „Aus der Bibliothek entfernen“ oder „Nur künftig
+  ausschließen“. Die versteckte Bibliothek hat ihre eigene Liste.
 
 ### Bibliotheken getrennt oder verknüpft (seit 0.2.51, ADR-0048)
 Jede Bibliothek ist für sich: eine geöffnete Bibliothek zeigt **nichts** aus einer anderen — keine Fotos, keine Tags,
@@ -532,6 +541,15 @@ Papierkorb** (Netz, USB-/VeraCrypt-Laufwerk), fragt Lumora eigens „Dieses Lauf
 löschen?“ mit eigenem Knopf; sonst passiert nichts (endgültig gelöscht lässt sich nicht zurücknehmen). **Fehlende
 entfernen (n)** erscheint, wenn der Ordner (samt Unterordnern) n Dateien hat, die es auf der Platte nicht mehr gibt: Lumora
 vergisst diese Einträge (keine Datei wird gelöscht) und nimmt danach leere, nicht mehr vorhandene Ordner aus dem Baum.
+Seit 0.4.33 (ADR-0066): **Verschieben nach…** — Zielordner derselben Bibliothek im Windows-Ordnerdialog wählen; oder einen
+Ordner im Baum **auf einen anderen ziehen** (das Ziel bekommt einen Rahmen, Esc bricht ab, Ablegen fragt nach). Alle Angaben,
+Alben und Verknüpfungen bleiben (dieselben Einträge, nur der Pfad ändert sich); **Rückgängig** im Ergebnisfeld oder in der
+Galerie verschiebt zurück. Nicht möglich: Wurzel, in sich selbst, gleichnamiger Ordner im Ziel (kein Zusammenführen), andere
+Bibliothek, anderes Laufwerk (dafür „In die Bibliothek übernehmen…“), „Alle verknüpften“. **Ordner ausschließen…** — der
+Ordner samt Unterordnern wird künftig nicht mehr eingelesen und verschwindet aus dem Baum (oben steht dezent „n Ordner
+ausgeschlossen“); sind darin schon Dateien in der Bibliothek, fragt Lumora mit Zahlen: „Aus der Bibliothek entfernen“ (keine
+Datei wird gelöscht; Rückgängig bringt die Einträge zurück und hebt den Ausschluss wieder auf) oder „Nur künftig ausschließen“.
+Aufheben unter Einstellungen › Bibliotheken & Eingänge › Ausschlüsse beim Einlesen.
 **Eingang hinzufügen…** oben neben „Ordner“ nimmt einen unsortierten Quellordner als Eingang der aktiven Bibliothek auf
 (gleicher Ablauf wie in den Einstellungen, danach Angebot „Jetzt aktualisieren“; die Seite bleibt offen).
 
@@ -900,7 +918,8 @@ Vorschaubild. Solange das noch läuft, nennt die Seite „Noch n … offen — d
 ### Ordnerüberwachung
 Die Bibliotheksordner der aktiven Bibliothek werden im Hintergrund überwacht (`FileSystemWatcher` je Wurzel, rekursiv).
 Neue, gelöschte, umbenannte oder geänderte Fotos und Videos (nur Formate aus dem Formatregister; `.tmp`/`.part`,
-`~`-Dateien, `Thumbs.db`, `.thumbnails`, `@eaDir` und der eigene Thumbnail-Cache werden ignoriert) starten eine
+`~`-Dateien, `Thumbs.db`, `.thumbnails`, `@eaDir`, der eigene Thumbnail-Cache und — seit 0.4.33 — ausgeschlossene Ordner
+wie `.thumbs`/`.temp` werden ignoriert) starten eine
 **Ruhezeit** (Standard 3 s, einstellbar 1–60 s). Erst wenn in dieser Zeit nichts mehr passiert, läuft automatisch
 „Aktualisieren“ (Incremental-Scan, stabile FileIds) — die Statusleiste zeigt vorher „Änderungen erkannt —
 Aktualisierung in n s“, danach „Automatisch aktualisiert: …“. Regeln:

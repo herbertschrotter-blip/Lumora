@@ -174,6 +174,7 @@ internal sealed partial class SmokeScenario
         InitSlideshowSmoke(services); // Schritt „Diashow“ (ADR-0059, SmokeScenario.Slideshow.cs)
         InitStoryPageSmoke(services); // Schritt „Story-Seite“ (ADR-0060, SmokeScenario.StoryPage.cs)
         InitFolderRemovalSmoke(services); // Schritt „Ordner löschen / Fehlende entfernen“ (ADR-0065, SmokeScenario.FolderRemoval.cs)
+        InitExclusionsMoveSmoke(services); // Schritt „Ausschlüsse und Ordner verschieben“ (ADR-0066, SmokeScenario.ExclusionsMove.cs)
         _messenger.Register<SmokeScenario, ScanCompletedMessage>(this, static (r, m) => r._lastScan = m.Result);
     }
 
@@ -256,6 +257,7 @@ internal sealed partial class SmokeScenario
         await StepAsync("Ungenaue Orte: Genauigkeit bewertet, synthetische GPX-Spur zu zwei Fotos ohne Ort eingelesen (Doppelte übersprungen), Vorschläge „Garmin-Spur“ und Zähler, Karte mit Spur, „nur im Katalog“ übernommen (Datei unverändert) + Rückgängig, Bereich „Ungenau“, Einstellungen › Orte (hell/dunkel)", InaccuratePlacesAsync).ConfigureAwait(true); // ADR-0062
         await StepAsync("Story-Assistent: Satz (Attrappe statt Ollama) → Verständnis-Karte mit Treffern → eigene Story → Collage aus den Originalen in Temp (1920 × 1080) → Verlauf, aufgeräumt (hell/dunkel)", StoryAssistantAsync).ConfigureAwait(true); // ADR-0063
         await StepAsync("Ordner löschen und Fehlende entfernen: Unterordner mit 2 Fotos einlesen, in den (Test-)Papierkorb + Rückgängig (dieselben FileIds), Datei löschen → „fehlt“, Galerie „Nur fehlende“, Einstellungen-Zahl, „Fehlende entfernen (1)“ am Ordner → Katalog sauber, aufgeräumt", FolderRemovalAsync).ConfigureAwait(true); // ADR-0065
+        await StepAsync("Ausschlüsse und Ordner verschieben: Bild in „.thumbs“ nicht eingelesen, Ordner ausschließen + aus dem Katalog (Rückfrage mit Zahl), im Baum ausgeblendet, in den Einstellungen aufheben → wieder eingelesen, Ordner verschieben + Rückgängig (dieselbe FileId), aufgeräumt", ExclusionsMoveAsync).ConfigureAwait(true); // ADR-0066
         await StepAsync("Versteckte Bibliothek: anlegen (_hidden simuliert), Fotos im eigenen Katalog im Container, Zusperren nach Untätigkeit + Aushängen (Fake), falsches Kennwort, wieder öffnen, normale Bibliothek unverändert, keine Spuren im AppData, Sicherheits-Check (Fake-Leser, hell/dunkel, im normalen Modus kein Reiter)", HiddenLibraryAsync).ConfigureAwait(true); // ADR-0049
         // Nach dem Katalogwechsel ist die normale Sitzung neu aufgebaut — die restlichen Schritte laufen mit deren Diensten
         await RunAfterHiddenLibraryAsync(async s =>

@@ -86,6 +86,9 @@ public static class SmokeTestRunner
         services.Replace(ServiceDescriptor.Singleton<Services.Operations.IRecycleBin>(sp => sp.GetRequiredService<Smoke.SmokeRecycleBin>()));
         services.AddSingleton<Smoke.SmokeRemovalDialogs>();
         services.AddSingleton<Removal.IRemovalDialogs>(sp => sp.GetRequiredService<Smoke.SmokeRemovalDialogs>());
+        // „Ordner ausschließen…“ / „Ordner verschieben“ (ADR-0066): Rückfragen automatisch, Ziel vom Schritt (vor AddFolderActions, TryAdd)
+        services.AddSingleton<Smoke.SmokeFolderEditDialogs>();
+        services.AddSingleton<Exclusions.IFolderEditDialogs>(sp => sp.GetRequiredService<Smoke.SmokeFolderEditDialogs>());
         return services;
     }
 
