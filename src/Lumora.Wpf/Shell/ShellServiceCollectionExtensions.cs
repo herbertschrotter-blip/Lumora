@@ -23,6 +23,7 @@ public static class ShellServiceCollectionExtensions
         services.AddSingleton<IThemeService, ThemeService>();
         services.AddSingleton<IAppRestartService, AppRestartService>();
         services.AddSingleton<StatusBarViewModel>();
+        Activity.ActivityUiServiceCollectionExtensions.AddActivityUi(services); // Aktivitäts-Anzeige unten rechts (ADR-0067)
         services.AddSingleton<ShellViewModel>();
 
         // Seiten + ViewModels

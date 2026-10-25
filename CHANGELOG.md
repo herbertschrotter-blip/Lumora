@@ -3,6 +3,55 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.4.36] — 2026-10-25
+
+### Feature (ADR-0067) — Aktivitäts-Anzeige unten rechts (Mockup 15)
+- **Eine Anzeige ganz rechts in der Statusleiste für alle Hintergrund-Vorgänge**: wichtigster Vorgang (vom Benutzer gestartete
+  vor Hintergrund-Indizes) mit Drehsymbol, Text („Verschieben: 120 von 340“) und kleinem Balken, Zähler „+n“; ohne Vorgang
+  8 s „Alles erledigt“, danach „Keine Aktivität“. **Ersetzt die Einzelanzeigen** (Scan, Vorschaubilder, „Wartet auf laufenden
+  Scan…“, „Änderung wartet auf den Katalog…“, Ordnerüberwachung, Entpacken, Gesichter, Motive, Aufnahmedatum, Orte, GPS-Spuren,
+  Doppelte, Foto-Güte, Storys, „Hintergrund …/Bereit“). Links bleibt die Bibliothek, rechts bleiben Hinweise ohne Vorgang
+  (Recovery, offline, Doppelte im Eingang, Orte-Zahlen, Sicherheits-Check).
+- **Klick klappt die Liste auf** (hell/dunkel; Esc, Klick daneben, Fensterwechsel schließen): **Läuft** (Titel mit Zahlen, Ziel nur
+  mit Ordnernamen, Balken, Restzeit nach 3 s, Pause/Fortsetzen bei Gesichtern und Motiven, Abbrechen), **Wartet** (mit Grund,
+  wartende Datei-Vorgänge abbrechbar), **Zuletzt fertig** (≤ 10, Ergebnis + Zeitpunkt, **Rückgängig** wo es eines gibt,
+  **Fehlende zeigen** nach einem Einlesen mit neu fehlenden Dateien → Galerie „Nur fehlende“, **Details** bei Fehlern und
+  Übersprungenen, „Liste leeren“). Nur die laufende Sitzung, nichts gespeichert; versteckte Sitzung und Zusperren beginnen leer
+  (eine Zentrale je DI-Container).
+- **Kurze Meldung** über der Statusleiste beim Fertigwerden eines selbst gestarteten Vorgangs (6 s, mit Rückgängig); Ergebnis von
+  „Rückgängig“ ebenso. Hintergrund-Indizes und Einlesen ohne Meldung.
+- **Angeschlossen:** Verschieben, Umbenennen, Papierkorb (Dateien und Ordner), Fehlende/Ausgeschlossene entfernen, Ordner
+  umbenennen/verschieben, In die Bibliothek übernehmen, Rückgängig, Zurückholen aus dem Papierkorb, Sortieren/Flatten (ein Lauf =
+  ein Vorgang), Einlesen voll/inkrementell, automatisches Entpacken, Vorschaubilder, Doppelte, Gesichter, Motive, Aufnahmedatum,
+  Orte nachtragen/prüfen, Foto-Güte, Storys, GPS-Spuren, Ordnerüberwachung (anstehend/angehalten), Scan-Sperre und
+  Katalog-Schreibsperre (Wartet). **Nicht angeschlossen:** manuelles Entpacken im Dialog, „Speicherort ändern“, Gesichtsdaten
+  löschen, Story-Assistent/Collage (Fortschritt weiter dort); Kopieren gibt es nicht; Einlesen ist aus der Liste nicht abbrechbar.
+- **Technik:** `Services/Activity` — `IActivityCenter`/`ActivityCenter` (Ordnung nach Wichtigkeit, Begrenzung, Drosselung der
+  Benachrichtigung auf höchstens alle 150 ms über `TimeProvider`, `Finished` sofort), `ActivityScope` (AsyncLocal: Besitzer,
+  Datei-Fortschritt, Unterdrücken), `ActivityBridge` (Messenger-Records + Vorschaubild-Warteschlange → Zentrale; Abbrechen/Pause
+  über die Wege der Dienste), `ActivityTrackingFileOperationService` als registriertes `IFileOperationService` um den
+  unveränderten `FileOperationService` (Abbrechen per verknüpftem Token mit `CancelAsync`, Rückgängig über `UndoBatchAsync`, zieht
+  Einträge nach, die über die Galerie-Taste zurückgenommen werden); `SorterMoveExecutor` meldet den Lauf (Rückgängig nur am
+  letzten Lauf). Eingriffe in bestehende Dienste: je eine Zeile `ActivityScope.ReportItems` in `RunBatchAsync` und
+  `ActivityScope.Suppress()` beim Papierkorb des Archivs (manuell/automatisch). Wpf `Shell/Activity` (`ActivityStatusViewModel`,
+  `ActivityItemViewModel` — Zeilen in place, `ActivityIndicator` — Liste und Meldung als Überlagerung im Fenster statt Popup),
+  `StatusBar.xaml` umgebaut, `StatusBarViewModel.Activities` (alte Texte bleiben als Zustand, Vorschaubild-Timer dort aus).
+  Logs nur mit Art/Id. Keine Migration, keine neuen Pakete.
+- **Tests:** Services 1359 → 1388 (3 übersprungen wie vorher) — Zentrale (Wichtigkeit, Schlüssel, Wartet mit eigenem Abbrechen,
+  Fertig/„Zuletzt fertig“ nur für Benutzer-Vorgänge bzw. Fehler, Begrenzung 10, Drosselung, Abbrechen einmal und nach Entsorgen,
+  Pause, Rückgängig inkl. Fehler bleibt erneut versuchbar, Restzeit, Entsorgen leert), Datei-Vorgänge mit echtem
+  `FileOperationService` (Fortschritt je Datei, Rückgängig aus der Liste ohne zweiten Eintrag, Galerie-Taste zieht nach,
+  verschachtelt/unterdrückt ohne Eintrag, Abbrechen, wartende Scan-Sperre am selben Eintrag, Ordnername), Brücke (Einlesen mit
+  „Fehlende zeigen“, Abbruch, Gesichter Pause/Abbrechen über den Dienst, GPU-Hinweis, Index-Fehler einmal, einfache Indizes,
+  Scan-Sperre, Katalog-Sperre, Ordnerüberwachung, Entpacken mit Details, Vorschaubild-Warteschlange). Wpf 1224 → 1229 (7
+  übersprungen wie vorher) — Statusleiste („+n“, „Alles erledigt“ → „Keine Aktivität“), Liste (drei Abschnitte, in place),
+  kurze Meldung (nur Benutzer-Vorgänge, Rückgängig, nicht bei Abbruch), Pause/Abbrechen/Details, Darstellung hell/dunkel ohne
+  Binding-Fehler.
+- **Rauchtest:** neuer Schritt „Aktivitäten“ vor „Versteckte Bibliothek“ (Verschieben wartet auf die gehaltene Scan-Sperre →
+  Statusleiste und Liste „Wartet“, Screenshot `25-aktivitaeten-hell`; fertig → „Zuletzt fertig“ mit Rückgängig und kurze Meldung,
+  `25-aktivitaeten-dunkel`; Rückgängig über die Liste, dieselbe FileId; aufgeräumt). Angepasst statt gelöscht: „Wartezustände“
+  (Abbrechen über die Liste), „Gesichter“ (Pause/Fortsetzen über die Liste), „Auto-Entpacken“ (Ergebnis unter „Zuletzt fertig“).
+
 ## [0.4.35] — 2026-10-25
 
 ### Feature (Mockup 16) — Tag- und Kategorie-Symbole auf Kacheln, Lightbox und Ordnerbaum

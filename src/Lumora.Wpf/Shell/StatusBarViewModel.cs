@@ -81,8 +81,10 @@ public sealed partial class StatusBarViewModel : ObservableObject, IDisposable
         Lumora.Services.Motifs.IMotifIndexService? motifIndex = null,
         ILibraryScope? libraryScope = null,
         Lumora.Duplicates.IDuplicatesPageNavigator? duplicates = null,
-        Lumora.Services.HiddenLibraries.SecurityCheck.ISecurityCheckService? securityCheck = null)
+        Lumora.Services.HiddenLibraries.SecurityCheck.ISecurityCheckService? securityCheck = null,
+        Lumora.Shell.Activity.ActivityStatusViewModel? activities = null)
     {
+        Activities = activities; // Aktivitäts-Anzeige ganz rechts (ADR-0067)
         _libraryScope = libraryScope; // Anzeige „Alle verknüpften (Name)“ (ADR-0048)
         _messenger = messenger ?? WeakReferenceMessenger.Default;
         _thumbnails = thumbnails;
@@ -121,10 +123,21 @@ public sealed partial class StatusBarViewModel : ObservableObject, IDisposable
         InitStories(); // Story-Erkennung: „Storys aktuell“ (ADR-0060, StatusBarViewModel.Stories.cs)
         InitGeoTracks(); // Ungenaue Orte und GPS-Spuren (ADR-0062, StatusBarViewModel.GeoTracks.cs)
         InitSecurityCheck(securityCheck); // Sicherheits-Check nur in der versteckten Sitzung (ADR-0064, StatusBarViewModel.SecurityCheck.cs)
+        if (activities is not null)
+        {
+            _thumbnailTimer.Stop(); // Vorschaubild-Warteschlange zeigt seit 0.4.36 die Aktivitäts-Anzeige (ADR-0067) — kein zweiter Abfrage-Timer
+        }
     }
 
     /// <summary>Datei-Operationen, die auf einen laufenden Scan derselben Bibliothek warten (Hinweis + „Abbrechen“).</summary>
     public ScanGateWaitIndicator FileOperationWait { get; }
+
+    /// <summary>
+    /// Aktivitäts-Anzeige ganz rechts (ADR-0067, Mockup 15): ersetzt seit 0.4.36 die Einzelanzeigen für Scan, Vorschaubilder,
+    /// Entpacken, Indizes, Wartezustände usw. Deren Texte oben bleiben als Zustand erhalten (Tests, Rauchtest), werden aber
+    /// nicht mehr einzeln gezeigt. null in Tests ohne Zentrale.
+    /// </summary>
+    public Lumora.Shell.Activity.ActivityStatusViewModel? Activities { get; }
 
     /// <summary>Einmal nach dem Laden des Hauptfensters: aktive Bibliothek, Offline-Hinweis und Batch-Status ermitteln.</summary>
     public async Task InitializeAsync()

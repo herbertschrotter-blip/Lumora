@@ -489,6 +489,7 @@ public sealed class ArchiveAutoExtractService : IArchiveAutoExtractService
         string? recycleError;
         try
         {
+            using var quiet = Activity.ActivityScope.Suppress(); // Teil des Entpackens, kein eigener Eintrag in der Aktivitäts-Anzeige (ADR-0067)
             var batch = await _fileOps.RecycleAsync([candidate.FileId], ct).ConfigureAwait(false);
             if (batch.Succeeded == 1)
             {

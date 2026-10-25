@@ -115,7 +115,10 @@ internal sealed partial class SmokeScenario
             ("$r", inboxRoot.Id)).ConfigureAwait(true);
         Check(cataloged == 2, $"DB: {cataloged} entpackte Dateien unter der Eingangs-Wurzel");
         await WaitUntilAsync(() => _statusBar.ArchiveText?.StartsWith("Automatisch entpackt: 1 Archiv · 2 Dateien", StringComparison.Ordinal) == true,
-            ShortWait, "Statusleiste meldet das Ergebnis").ConfigureAwait(true);
+            ShortWait, "Ergebnis des Entpackens").ConfigureAwait(true);
+        // Seit 0.4.36 (ADR-0067) steht das Ergebnis in der Aktivitäts-Anzeige unter „Zuletzt fertig“
+        await WaitUntilAsync(() => _activities?.Recent.Any(r => r.Title == "Archive entpacken" && r.Subtitle?.Contains("1 Archiv entpackt · 2 Dateien", StringComparison.Ordinal) == true) == true,
+            ShortWait, "Aktivitäts-Anzeige: Archive entpacken unter „Zuletzt fertig“").ConfigureAwait(true);
         _navigation.NavigateTo(NavigationTags.Gallery);
         await WaitUntilAsync(() => _navigation.CurrentTag == NavigationTags.Gallery && !_gallery.IsLoading && _gallery.TotalCount == _mediaCount,
             ShortWait, $"Galerie zeigt {_mediaCount} Dateien inkl. entpackter").ConfigureAwait(true);

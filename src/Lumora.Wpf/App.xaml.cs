@@ -261,6 +261,9 @@ public partial class App : Application, ICatalogHostSwitcher
             Log.Warning(themeEx, "Theme konnte nicht angewendet werden — Standard-Theme bleibt aktiv");
         }
 
+        // Aktivitäts-Anzeige (ADR-0067): Fortschrittsquellen anschließen, bevor der erste Scan oder Hintergrund-Dienst meldet
+        Lumora.Services.Activity.ActivityServiceCollectionExtensions.StartActivities(services);
+
         // Versteckte Bibliothek: Bibliothek im neuen Katalog anlegen und ersten Scan starten (ADR-0049)
         if (prepare is not null)
         {

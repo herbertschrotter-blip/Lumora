@@ -695,7 +695,7 @@ einen Fingerabdruck (512 Werte) im Katalog (ADR-0035) — vollständig auf diese
   nur die zwei benötigten Dateien nach `%LocalAppData%\Lumora\models\buffalo_l\` (Fortschritt, abbrechbar). Ohne
   Klick wird nichts geladen. Die Modelle sind nur für die nicht-kommerzielle Nutzung freigegeben und liegen nie im Repo
   oder im portablen Paket.
-- **Statusleiste**: „Gesichter: 1.234 / 19.556 · 37 ms/Foto“ mit **Pause**/**Fortsetzen** und **Abbrechen** (bis zum
+- **Aktivitäten** (unten rechts, seit 0.4.36): „Gesichter erkennen: 1.234 von 19.556“ mit **Pause**/**Fortsetzen** und **Abbrechen** (bis zum
   nächsten Scan oder Neustart). Der Index startet 10 s nach dem App-Start, nach jedem Scan und bei neuen Dateien,
   arbeitet die neuesten Fotos zuerst ab und läuft mit niedriger Priorität.
 - Videos werden noch nicht analysiert; Fotos, die WIC nicht dekodieren kann (z. B. HEIC ohne Codec), werden als
@@ -720,7 +720,7 @@ Je Foto (Videos: Vorschaubild) entsteht im Hintergrund ein Bild-Vektor im Katalo
   Fotos, auch ohne passenden Begriff). Die Bedingung steht in „Es gilt“. Die **Suche** findet Begriffe mit
   (`strand` → Fotos mit dem Motiv „Strand“), **„Motiv: Hund“** sucht nur in den Motiven. Listenspalte **„Motive“**.
 - **Lightbox** (Info-Panel, Taste I): Abschnitt „Motive: Strand, Meer, Sonnenuntergang“ (wahrscheinlichste zuerst).
-- **Statusleiste**: „Motive: 1.234 / 19.556 · 26 ms/Foto“ mit Pause/Fortsetzen/Abbrechen. Startet 15 s nach dem
+- **Aktivitäten** (unten rechts, seit 0.4.36): „Motive erkennen: 1.234 von 19.556“ mit Pause/Fortsetzen/Abbrechen. Startet 15 s nach dem
   App-Start (bestehende Kataloge werden nachgeholt), nach jedem Scan und bei neuen Dateien; ruht während eines Scans und
   rechnet nie gleichzeitig mit der Gesichtserkennung auf der Grafikkarte.
 
@@ -968,18 +968,32 @@ Aktualisierung in n s“, danach „Automatisch aktualisiert: …“. Regeln:
   Meldungen je Sekunde (gebündelt, Background-Priorität).
 
 ### Statusleiste
-Links: aktive Bibliothek, Scan-Fortschritt bzw. -Ergebnis, Vorschaubilder in der Warteschlange und — solange eine
-Datei-Operation (Verschieben, Papierkorb, In die Bibliothek, Ordner übernehmen, Umbenennen, Ordner anlegen/umbenennen, Rückgängig, Sortierer-Lauf)
-auf einen laufenden Scan derselben Bibliothek wartet — „Wartet auf laufenden Scan…“ mit **Abbrechen**: die Operation
-wird dann verworfen, bevor sie etwas ändert (beim Sortierer entfallen die restlichen Ziele; schon verschobene Dateien
-bleiben verschoben und sind rückgängig machbar). Rechts: Hinweise
-(Ordnerüberwachung: Countdown, laufende/abgeschlossene automatische Aktualisierung, angehaltene Automatik;
-Orte: „GPS-Spuren: n / m Dateien“ beim Einlesen, „Orte prüfen: n / m“, sonst „Orte: n geschätzt · m Vorschläge · k
-Garmin-Aktivitäten“;
-Fortschritt der Doppelten-Erkennung und „N Dateien im Eingang sind schon in der Bibliothek — Anzeigen“;
-unvollständige oder fehlgeschlagene Dateivorgänge mit Details im Tooltip; Bibliothek offline; nur in einer geöffneten
-versteckten Bibliothek „Sicherheits-Check: x von y erfüllt“) und die
-Hintergrund-Aktivität („Bereit“, wenn nichts läuft).
+Links: aktive Bibliothek. Rechts: Hinweise, die keine Vorgänge sind (unvollständige oder fehlgeschlagene Dateivorgänge mit
+Details im Tooltip; Bibliothek offline; „N Dateien im Eingang sind schon in der Bibliothek — Anzeigen“; „Orte: n geschätzt ·
+m Vorschläge · k Garmin-Aktivitäten“; nur in einer geöffneten versteckten Bibliothek „Sicherheits-Check: x von y erfüllt“).
+
+### Aktivitäten (seit 0.4.36, ADR-0067)
+Ganz rechts in der Statusleiste steht **eine** Anzeige für alles, was im Hintergrund läuft: Verschieben, Umbenennen, In den
+Papierkorb (auch Ordner), Fehlende/Ausgeschlossene entfernen, Ordner umbenennen/verschieben, In die Bibliothek übernehmen,
+Sortieren/Flatten, Rückgängig, Einlesen (voll/inkrementell), automatisches Entpacken, Vorschaubilder, Doppelte, Gesichter,
+Motive, Aufnahmedatum, Orte (Nachtragen, Genauigkeit), Foto-Güte, Storys, GPS-Spuren, die anstehende bzw. angehaltene
+automatische Aktualisierung und Änderungen, die auf den Katalog warten.
+- **Statusleiste:** der wichtigste Vorgang (vom Benutzer gestartete vor Hintergrund-Indizes) mit Drehsymbol, Text
+  („Verschieben: 120 von 340“) und kleinem Balken, dazu „+n“ für weitere. Ohne Vorgang kurz „Alles erledigt“, danach
+  „Keine Aktivität“.
+- **Klick klappt die Liste auf** (Esc, Klick daneben oder Fensterwechsel schließt sie): **Läuft** (Titel mit Zahlen, Ziel nur
+  mit Ordnernamen, Balken, Restzeit, sobald schätzbar, **Pause/Fortsetzen** bei Gesichtern und Motiven, **Abbrechen** —
+  bereits Erledigtes bleibt, Rückgängig ist möglich), **Wartet** (mit Grund, z. B. „wartet auf laufendes Einlesen derselben
+  Bibliothek“, „wartet auf den Katalog“; wartende Datei-Vorgänge lassen sich abbrechen, bevor sie etwas ändern) und
+  **Zuletzt fertig** (höchstens 10, Ergebnis und Zeitpunkt; **Rückgängig** wo es ein Rückgängig gibt — derselbe Weg wie die
+  Galerie-Taste —, **Fehlende zeigen** nach einem Einlesen mit neu fehlenden Dateien, **Details** bei Fehlern und
+  Übersprungenen; „Liste leeren“). Die Liste gilt nur für die laufende Sitzung, nichts wird gespeichert; beim Wechsel in eine
+  versteckte Bibliothek und beim Zusperren beginnt sie leer.
+- **Kurze Meldung** über der Statusleiste, wenn ein selbst gestarteter Vorgang fertig ist (z. B. „340 Dateien verschoben —
+  nach „Urlaub 2024““ mit **Rückgängig**); Hintergrund-Indizes und Einlesen melden sich nicht.
+- Gesichter und Motive teilen sich die Grafikkarte Foto um Foto; die Liste zeigt dann „(abwechselnd mit „Gesichter““).
+  Das manuelle Entpacken im Entpacken-Dialog, „Neu aufbauen“ und „Speicherort ändern“ zeigen ihren Fortschritt weiter in
+  ihren Dialogen bzw. auf der Bibliotheksseite.
 
 ### Versteckte Bibliotheken
 Bibliotheken, deren Fotos in einem **verschlüsselten Container** liegen (VeraCrypt-Datei oder BitLocker-VHDX, den Sie

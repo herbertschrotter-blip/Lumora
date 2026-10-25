@@ -29,7 +29,17 @@ public sealed partial class StatusBarViewModel
         _messenger.Register<StatusBarViewModel, GeoPlacesSummaryMessage>(this, static (r, m) => UiThread.Post(() => { r._placesSummary = m; r.UpdateGeoTracksText(); }));
     }
 
-    private void UpdateGeoTracksText() => GeoTracksText = DescribeGeoTracks(_trackImport, _accuracy, _placesSummary);
+    /// <summary>
+    /// Nur die Zusammenfassung „Orte: n geschätzt · m Vorschläge · k Garmin-Aktivitäten“ — Einlesen und Prüfung zeigt seit
+    /// 0.4.36 die Aktivitäts-Anzeige (ADR-0067); null = ausblenden.
+    /// </summary>
+    [ObservableProperty] private string? _geoPlacesSummaryText;
+
+    private void UpdateGeoTracksText()
+    {
+        GeoTracksText = DescribeGeoTracks(_trackImport, _accuracy, _placesSummary);
+        GeoPlacesSummaryText = DescribeGeoTracks(GpsTrackImportStatus.Idle, GeoAccuracyStatus.Idle, _placesSummary);
+    }
 
     /// <summary>Text je Zustand; null = ausblenden.</summary>
     internal static string? DescribeGeoTracks(GpsTrackImportStatus import, GeoAccuracyStatus accuracy, GeoPlacesSummaryMessage? summary)

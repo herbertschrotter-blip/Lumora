@@ -1,0 +1,302 @@
+<UserControl x:Class="Lumora.Shell.Activity.ActivityIndicator"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:shell="clr-namespace:Lumora.Shell"
+             xmlns:act="clr-namespace:Lumora.Shell.Activity"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance act:ActivityStatusViewModel}">
+    <!--
+        Aktivitäts-Anzeige ganz rechts in der Statusleiste (ADR-0067, Mockup 15). DataContext = ActivityStatusViewModel.
+        Liste und kurze Meldung liegen in einem Canvas der Größe 0 am rechten Rand und ragen über die Statusleiste hinaus
+        (kein Popup: bleibt im Fenster, nie über fremden Fenstern, im Screenshot des Rauchtests sichtbar). Schließen bei
+        Klick daneben, Esc oder Fensterwechsel übernimmt der Code-Behind.
+    -->
+    <UserControl.Resources>
+        <shell:BoolToVisibilityConverter x:Key="BoolToVis" />
+        <shell:BoolToVisibilityConverter x:Key="InvBoolToVis" Invert="True" />
+        <shell:NullToVisibilityConverter x:Key="NullToVis" />
+
+        <Style x:Key="ActivityToggle" TargetType="ToggleButton">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd"
+                                Background="Transparent"
+                                BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                BorderThickness="1,0,0,0"
+                                Padding="10,0">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SectionHeading" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Margin" Value="14,8,14,4" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+        </Style>
+
+        <Style x:Key="RowIconButton" TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+            <Setter Property="Appearance" Value="Transparent" />
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="2,0,0,0" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+        </Style>
+
+        <Style x:Key="RowLinkButton" TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+            <Setter Property="Appearance" Value="Transparent" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Padding" Value="6,2" />
+            <Setter Property="Margin" Value="2,0,0,0" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+        </Style>
+
+        <!-- Eine Zeile: Symbol | Titel, zweite Zeile, Balken | Knöpfe -->
+        <DataTemplate x:Key="ActivityRow" DataType="{x:Type act:ActivityItemViewModel}">
+            <Border BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" Padding="14,8"
+                    AutomationProperties.Name="{Binding AutomationName}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="28" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <ui:SymbolIcon Grid.Column="0" Symbol="{Binding Icon}" FontSize="16" Margin="0,2,0,0" VerticalAlignment="Top" HorizontalAlignment="Left">
+                        <ui:SymbolIcon.Style>
+                            <Style TargetType="ui:SymbolIcon">
+                                <Setter Property="Foreground" Value="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSuccess}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsWarning}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCautionBrush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsError}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsWaiting}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:SymbolIcon.Style>
+                    </ui:SymbolIcon>
+                    <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                        <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsWaiting}" Value="True">
+                                            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBlock Text="{Binding Subtitle}" FontSize="12" Margin="0,2,0,0" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   Visibility="{Binding Subtitle, Converter={StaticResource NullToVis}}" />
+                        <ProgressBar Height="4" Margin="0,6,0,0" Minimum="0" Maximum="1"
+                                     Value="{Binding Fraction, Mode=OneWay}"
+                                     IsIndeterminate="{Binding IsIndeterminate, Mode=OneWay}"
+                                     Visibility="{Binding ShowBar, Converter={StaticResource BoolToVis}}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top">
+                        <ui:Button Style="{StaticResource RowIconButton}" Icon="{ui:SymbolIcon Pause24}" ToolTip="Pause (hält nach dem aktuellen Foto an)"
+                                   AutomationProperties.Name="Pause" Command="{Binding PauseCommand}"
+                                   Visibility="{Binding ShowPause, Converter={StaticResource BoolToVis}}" />
+                        <ui:Button Style="{StaticResource RowIconButton}" Icon="{ui:SymbolIcon Play24}" ToolTip="Fortsetzen"
+                                   AutomationProperties.Name="Fortsetzen" Command="{Binding ResumeCommand}"
+                                   Visibility="{Binding ShowResume, Converter={StaticResource BoolToVis}}" />
+                        <ui:Button Style="{StaticResource RowIconButton}" Icon="{ui:SymbolIcon Dismiss16}" ToolTip="Abbrechen (bereits Erledigtes bleibt, Rückgängig möglich)"
+                                   AutomationProperties.Name="Abbrechen" Command="{Binding CancelCommand}"
+                                   Visibility="{Binding CanCancel, Converter={StaticResource BoolToVis}}" />
+                        <ui:Button Style="{StaticResource RowLinkButton}" Content="Rückgängig"
+                                   AutomationProperties.Name="Rückgängig" Command="{Binding UndoCommand}"
+                                   Visibility="{Binding HasUndo, Converter={StaticResource BoolToVis}}" />
+                        <ui:Button Style="{StaticResource RowLinkButton}" Content="Fehlende zeigen"
+                                   AutomationProperties.Name="Fehlende zeigen" Command="{Binding ShowMissingCommand}"
+                                   Visibility="{Binding HasShowMissing, Converter={StaticResource BoolToVis}}" />
+                        <ui:Button Style="{StaticResource RowLinkButton}" Content="Details"
+                                   AutomationProperties.Name="Details" Command="{Binding ShowDetailsCommand}"
+                                   Visibility="{Binding HasDetails, Converter={StaticResource BoolToVis}}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid>
+        <!-- Statusleiste: Drehsymbol bzw. Häkchen, wichtigster Vorgang, kleiner Balken, Zähler „+n“ -->
+        <ToggleButton x:Name="Toggle"
+                      Style="{StaticResource ActivityToggle}"
+                      IsChecked="{Binding IsFlyoutOpen, Mode=TwoWay}"
+                      ToolTip="{Binding StatusToolTip}"
+                      AutomationProperties.AutomationId="StatusActivity"
+                      AutomationProperties.Name="{Binding StatusText, StringFormat='Aktivitäten: {0}'}">
+            <StackPanel Orientation="Horizontal" Height="27">
+                <ui:ProgressRing IsIndeterminate="True" Width="12" Height="12" Margin="0,0,8,0" VerticalAlignment="Center"
+                                 Visibility="{Binding ShowPrimaryBar, Converter={StaticResource BoolToVis}}" />
+                <ui:SymbolIcon Symbol="Clock16" FontSize="13" Margin="0,0,6,0" VerticalAlignment="Center"
+                               Foreground="{DynamicResource SystemFillColorCautionBrush}"
+                               Visibility="{Binding PrimaryIsWaiting, Converter={StaticResource BoolToVis}}" />
+                <ui:SymbolIcon Symbol="CheckmarkCircle16" FontSize="13" Margin="0,0,6,0" VerticalAlignment="Center"
+                               Foreground="{DynamicResource SystemFillColorSuccessBrush}"
+                               Visibility="{Binding ShowAllDone, Converter={StaticResource BoolToVis}}" />
+                <ui:SymbolIcon Symbol="CheckmarkCircle16" FontSize="13" Margin="0,0,6,0" VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                               Visibility="{Binding IsIdle, Converter={StaticResource BoolToVis}}" />
+                <TextBlock Text="{Binding StatusText}" FontSize="12" VerticalAlignment="Center" MaxWidth="320" TextTrimming="CharacterEllipsis">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsIdle}" Value="True">
+                                    <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                <ProgressBar Width="90" Height="4" Margin="8,0,0,0" VerticalAlignment="Center" Minimum="0" Maximum="1"
+                             Value="{Binding PrimaryFraction, Mode=OneWay}"
+                             IsIndeterminate="{Binding PrimaryIsIndeterminate, Mode=OneWay}"
+                             Visibility="{Binding ShowPrimaryBar, Converter={StaticResource BoolToVis}}" />
+                <Border Margin="8,0,0,0" Padding="6,0" CornerRadius="8" VerticalAlignment="Center"
+                        Background="{DynamicResource AccentFillColorDefaultBrush}"
+                        Visibility="{Binding OthersText, Converter={StaticResource NullToVis}}">
+                    <TextBlock Text="{Binding OthersText}" FontSize="10" FontWeight="Bold" Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+                </Border>
+            </StackPanel>
+        </ToggleButton>
+
+        <Canvas Width="0" Height="0" HorizontalAlignment="Right" VerticalAlignment="Top" ClipToBounds="False">
+            <!-- Kurze Meldung beim Fertigwerden eines vom Benutzer gestarteten Vorgangs -->
+            <Border x:Name="Toast"
+                    Canvas.Right="0" Canvas.Bottom="6" Width="380" Padding="14,10" CornerRadius="8" BorderThickness="1"
+                    Background="{DynamicResource SolidBackgroundFillColorSecondaryBrush}"
+                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                    AutomationProperties.AutomationId="ActivityToast"
+                    AutomationProperties.Name="{Binding ToastTitle, TargetNullValue='Meldung'}"
+                    Visibility="{Binding ShowToastOverlay, Converter={StaticResource BoolToVis}}">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="12" ShadowDepth="3" Opacity="0.3" />
+                </Border.Effect>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <ui:SymbolIcon Grid.Column="0" FontSize="16" Margin="0,0,10,0" VerticalAlignment="Center">
+                        <ui:SymbolIcon.Style>
+                            <Style TargetType="ui:SymbolIcon">
+                                <Setter Property="Symbol" Value="CheckmarkCircle24" />
+                                <Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ToastIsWarning}" Value="True">
+                                        <Setter Property="Symbol" Value="Warning24" />
+                                        <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCautionBrush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding ToastIsError}" Value="True">
+                                        <Setter Property="Symbol" Value="ErrorCircle16" />
+                                        <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:SymbolIcon.Style>
+                    </ui:SymbolIcon>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding ToastTitle}" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <TextBlock Text="{Binding ToastSubtitle}" FontSize="12" TextTrimming="CharacterEllipsis"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   Visibility="{Binding ToastSubtitle, Converter={StaticResource NullToVis}}" />
+                    </StackPanel>
+                    <ui:Button Grid.Column="2" Style="{StaticResource RowLinkButton}" Content="Rückgängig" VerticalAlignment="Center"
+                               AutomationProperties.Name="Rückgängig" Command="{Binding UndoToastCommand}"
+                               Visibility="{Binding ToastHasUndo, Converter={StaticResource BoolToVis}}" />
+                    <ui:Button Grid.Column="3" Style="{StaticResource RowIconButton}" Icon="{ui:SymbolIcon Dismiss16}" VerticalAlignment="Center"
+                               ToolTip="Meldung schließen" AutomationProperties.Name="Meldung schließen" Command="{Binding DismissToastCommand}" />
+                </Grid>
+            </Border>
+
+            <!-- Aufgeklappte Liste: Läuft · Wartet · Zuletzt fertig -->
+            <Border x:Name="Flyout"
+                    Canvas.Right="0" Canvas.Bottom="6" Width="470" CornerRadius="8" BorderThickness="1"
+                    Background="{DynamicResource SolidBackgroundFillColorSecondaryBrush}"
+                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                    AutomationProperties.AutomationId="ActivityFlyout"
+                    AutomationProperties.Name="Aktivitäten"
+                    Visibility="{Binding IsFlyoutOpen, Converter={StaticResource BoolToVis}}">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="16" ShadowDepth="4" Opacity="0.3" />
+                </Border.Effect>
+                <DockPanel>
+                    <Grid DockPanel.Dock="Top" Margin="14,12,8,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ui:SymbolIcon Grid.Column="0" Symbol="History24" FontSize="16" Margin="0,0,8,0" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <TextBlock Grid.Column="1" Text="Aktivitäten" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <TextBlock Grid.Column="2" Text="{Binding HeaderSummary}" FontSize="12" VerticalAlignment="Center" Margin="8,0"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <ui:Button Grid.Column="3" Style="{StaticResource RowIconButton}" Icon="{ui:SymbolIcon Dismiss16}" VerticalAlignment="Center"
+                                   ToolTip="Schließen (Esc)" AutomationProperties.Name="Aktivitäten schließen" Command="{Binding CloseFlyoutCommand}" />
+                    </Grid>
+                    <ScrollViewer MaxHeight="460" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="0,0,0,6">
+                            <TextBlock Text="Keine Vorgänge in dieser Sitzung." FontSize="12" Margin="14,6,14,10"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}" />
+                            <TextBlock Text="LÄUFT" Style="{StaticResource SectionHeading}" Visibility="{Binding HasRunning, Converter={StaticResource BoolToVis}}" />
+                            <ItemsControl ItemsSource="{Binding Running}" ItemTemplate="{StaticResource ActivityRow}" Focusable="False"
+                                          AutomationProperties.Name="Läuft" />
+                            <TextBlock Text="WARTET" Style="{StaticResource SectionHeading}" Visibility="{Binding HasWaiting, Converter={StaticResource BoolToVis}}" />
+                            <ItemsControl ItemsSource="{Binding Waiting}" ItemTemplate="{StaticResource ActivityRow}" Focusable="False"
+                                          AutomationProperties.Name="Wartet" />
+                            <Grid Visibility="{Binding HasRecent, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="ZULETZT FERTIG" Style="{StaticResource SectionHeading}" />
+                                <ui:Button HorizontalAlignment="Right" Margin="0,2,8,0" Style="{StaticResource RowLinkButton}" Content="Liste leeren"
+                                           AutomationProperties.Name="Liste leeren" Command="{Binding ClearRecentCommand}" />
+                            </Grid>
+                            <ItemsControl ItemsSource="{Binding Recent}" ItemTemplate="{StaticResource ActivityRow}" Focusable="False"
+                                          AutomationProperties.Name="Zuletzt fertig" />
+                        </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+        </Canvas>
+    </Grid>
+</UserControl>

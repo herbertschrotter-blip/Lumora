@@ -1,4 +1,5 @@
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Lumora.Services.Scanning;
@@ -28,14 +29,22 @@ internal sealed partial class SmokeScenario
         {
             var create = _fileOps.CreateFolderAsync(_libraryId, _root, GateWaitFolderName);
             await WaitUntilAsync(() => wait.IsWaiting, ShortWait, "Statusleiste: Datei-Operation wartet").ConfigureAwait(true);
-            Check(wait.Text == "Wartet auf laufenden Scan…" && wait.CancelCommand.CanExecute(null), $"Statusleiste: „{wait.Text}“ mit „Abbrechen“");
+            Check(wait.Text == "Wartet auf laufenden Scan…" && wait.CancelCommand.CanExecute(null), $"Wartezustand: „{wait.Text}“ mit „Abbrechen“");
+
+            // Seit 0.4.36 (ADR-0067) zeigt die Aktivitäts-Anzeige den Wartezustand: „Datei-Vorgang — wartet“ mit Grund und Abbrechen
+            await WaitUntilAsync(() => GateWaitActivityRow() is not null, ShortWait, "Aktivitäts-Anzeige: Datei-Vorgang wartet").ConfigureAwait(true);
+            var waitRow = GateWaitActivityRow()!;
+            Check(waitRow.Subtitle == "wartet auf laufendes Einlesen derselben Bibliothek" && waitRow.CancelCommand.CanExecute(null) && _activities!.HasActive,
+                $"Liste „Wartet“: {waitRow.Subtitle}; Statusleiste „{_activities?.StatusText}“");
             await SnapshotAsync("12-statusleiste-wartet").ConfigureAwait(true);
 
-            wait.CancelCommand.Execute(null);
+            waitRow.CancelCommand.Execute(null); // Abbrechen über die Liste (ScanGate.CancelWait, derselbe Weg wie bisher)
             var error = await CatchAsync(() => create).ConfigureAwait(true);
             Check(error is ScanGateWaitCanceledException, $"Datei-Operation abgebrochen ({error?.GetType().Name ?? "keine Ausnahme"})");
             await WaitUntilAsync(() => !wait.IsWaiting, ShortWait, "Hinweis verschwindet").ConfigureAwait(true);
-            Check(_statusBar.ScanResultText == "Wartende Datei-Operation abgebrochen", $"Statusleiste bestätigt: „{_statusBar.ScanResultText}“");
+            Check(_statusBar.ScanResultText == "Wartende Datei-Operation abgebrochen", $"Zustand bestätigt: „{_statusBar.ScanResultText}“");
+            await WaitUntilAsync(() => _activities!.Recent.FirstOrDefault()?.Subtitle?.Contains("Wartende Datei-Operation abgebrochen", System.StringComparison.Ordinal) == true,
+                ShortWait, "„Zuletzt fertig“: Wartende Datei-Operation abgebrochen").ConfigureAwait(true);
             Check(!Directory.Exists(folderPath), "kein Ordner angelegt");
         }
 

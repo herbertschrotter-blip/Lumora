@@ -5,6 +5,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:shell="clr-namespace:Lumora.Shell"
+             xmlns:act="clr-namespace:Lumora.Shell.Activity"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance shell:StatusBarViewModel}"
              d:DesignWidth="1200"
@@ -33,244 +34,58 @@
         </Style>
     </UserControl.Resources>
 
+    <!--
+        Statusleiste (ADR-0013). Seit 0.4.36 (ADR-0067, Mockup 15): links die Bibliothek, rechts Hinweise, die keine
+        Vorgänge sind (Recovery, offline, Doppelte im Eingang, Orte-Zahlen, Sicherheits-Check), und ganz rechts die
+        Aktivitäts-Anzeige für ALLE Hintergrund-Vorgänge — sie ersetzt die früheren Einzelanzeigen (Scan, Vorschaubilder,
+        Wartezustände, Entpacken, Ordnerüberwachung, Gesichter, Motive, Aufnahmedatum, Orte, Doppelte, Foto-Güte, Storys).
+    -->
     <Border Background="{DynamicResource LayerFillColorAltBrush}"
             BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
             BorderThickness="0,1,0,0"
-            Padding="12,0">
+            Padding="12,0,0,0">
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <!-- Links: Bibliothek · Scan · Vorschaubilder -->
+            <!-- Links: Bibliothek -->
             <StackPanel Grid.Column="0" Orientation="Horizontal">
                 <StackPanel Orientation="Horizontal"
                             Visibility="{Binding ActiveLibraryName, Converter={StaticResource NullToVis}}">
                     <ui:SymbolIcon Symbol="Library16" Style="{StaticResource StatusIcon}" />
                     <TextBlock Style="{StaticResource StatusText}" Text="{Binding ActiveLibraryName}" />
                 </StackPanel>
-
-                <StackPanel Orientation="Horizontal"
-                            Visibility="{Binding IsScanning, Converter={StaticResource BoolToVis}}">
-                    <Border Style="{StaticResource StatusSeparator}" />
-                    <ui:ProgressRing IsIndeterminate="True" Width="12" Height="12" Margin="0,0,8,0" VerticalAlignment="Center" />
-                    <TextBlock Style="{StaticResource StatusText}" Text="{Binding ScanText}" />
-                </StackPanel>
-
-                <!-- Datei-Operation wartet auf einen laufenden Scan derselben Bibliothek (ADR-0025, 0.2.22) -->
-                <StackPanel Orientation="Horizontal"
-                            AutomationProperties.Name="Wartende Datei-Operation"
-                            ToolTip="{Binding FileOperationWait.ToolTip}"
-                            Visibility="{Binding FileOperationWait.IsWaiting, Converter={StaticResource BoolToVis}}">
-                    <Border Style="{StaticResource StatusSeparator}" />
-                    <ui:SymbolIcon Symbol="Clock16"
-                                   Style="{StaticResource StatusIcon}"
-                                   Foreground="{DynamicResource SystemFillColorCautionBrush}" />
-                    <TextBlock Style="{StaticResource StatusText}" Text="{Binding FileOperationWait.Text}" />
-                    <ui:Button Content="Abbrechen"
-                               Appearance="Transparent"
-                               Command="{Binding FileOperationWait.CancelCommand}"
-                               AutomationProperties.Name="Wartende Datei-Operation abbrechen"
-                               FontSize="12"
-                               Height="22"
-                               Padding="8,0"
-                               Margin="8,0,0,0"
-                               VerticalAlignment="Center" />
-                </StackPanel>
-
-                <!-- Schreibvorgänge warten auf die Katalog-DB, z. B. während „Neu aufbauen“ schreibt (ADR-0030, 0.2.29) -->
-                <StackPanel Orientation="Horizontal"
-                            AutomationProperties.Name="Wartende Änderung"
-                            ToolTip="Ein anderer Vorgang (z. B. „Neu aufbauen“) schreibt gerade den Katalog. Die Änderung wird danach automatisch gespeichert — die App bitte bis dahin nicht schließen."
-                            Visibility="{Binding CatalogWriteWaitText, Converter={StaticResource NullToVis}}">
-                    <Border Style="{StaticResource StatusSeparator}" />
-                    <ui:SymbolIcon Symbol="Clock16"
-                                   Style="{StaticResource StatusIcon}"
-                                   Foreground="{DynamicResource SystemFillColorCautionBrush}" />
-                    <TextBlock Style="{StaticResource StatusText}" Text="{Binding CatalogWriteWaitText}" />
-                </StackPanel>
-
-                <StackPanel Orientation="Horizontal"
-                            Visibility="{Binding ScanResultText, Converter={StaticResource NullToVis}}">
-                    <Border Style="{StaticResource StatusSeparator}" />
-                    <ui:SymbolIcon Symbol="CheckmarkCircle16"
-                                   Style="{StaticResource StatusIcon}"
-                                   Foreground="{DynamicResource SystemFillColorSuccessBrush}"
-                                   Visibility="{Binding ScanResultIsError, Converter={StaticResource InvBoolToVis}}" />
-                    <ui:SymbolIcon Symbol="ErrorCircle16"
-                                   Style="{StaticResource StatusIcon}"
-                                   Foreground="{DynamicResource SystemFillColorCriticalBrush}"
-                                   Visibility="{Binding ScanResultIsError, Converter={StaticResource BoolToVis}}" />
-                    <TextBlock Style="{StaticResource StatusText}" Text="{Binding ScanResultText}" />
-                </StackPanel>
-
-                <StackPanel Orientation="Horizontal"
-                            Visibility="{Binding HasThumbnailWork, Converter={StaticResource BoolToVis}}">
-                    <Border Style="{StaticResource StatusSeparator}" />
-                    <ui:SymbolIcon Symbol="Image16" Style="{StaticResource StatusIcon}" />
-                    <TextBlock Style="{StaticResource StatusText}"
-                               Text="{Binding ThumbnailPending, StringFormat='Vorschaubilder: {0:N0} in Warteschlange'}" />
-                </StackPanel>
             </StackPanel>
 
-            <!-- Rechts: Recovery-Hinweis (ADR-0013 Nr. 4) · Hinweise · Hintergrund-Aktivität -->
-            <StackPanel Grid.Column="1" Orientation="Horizontal">
+            <!-- Rechts: Hinweise (keine Vorgänge) -->
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,0,10,0">
                 <StackPanel Orientation="Horizontal"
                             ToolTip="{Binding RecoveryDetails}"
                             Visibility="{Binding RecoveryText, Converter={StaticResource NullToVis}}">
+                    <Border Style="{StaticResource StatusSeparator}" />
                     <ui:SymbolIcon Symbol="ErrorCircle16"
                                    Style="{StaticResource StatusIcon}"
                                    Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
                     <TextBlock Style="{StaticResource StatusText}" Text="{Binding RecoveryText}" />
-                    <Border Style="{StaticResource StatusSeparator}" />
-                </StackPanel>
-
-                <!-- Ordnerüberwachung (Services/Watch): Countdown bis zur automatischen Aktualisierung bzw. Hinweis -->
-                <StackPanel Orientation="Horizontal"
-                            AutomationProperties.Name="Ordnerüberwachung"
-                            Visibility="{Binding WatchText, Converter={StaticResource NullToVis}}">
-                    <ui:SymbolIcon Symbol="ArrowSync16"
-                                   Style="{StaticResource StatusIcon}"
-                                   Visibility="{Binding WatchIsWarning, Converter={StaticResource InvBoolToVis}}" />
-                    <ui:SymbolIcon Symbol="Warning16"
-                                   Style="{StaticResource StatusIcon}"
-                                   Foreground="{DynamicResource SystemFillColorCautionBrush}"
-                                   Visibility="{Binding WatchIsWarning, Converter={StaticResource BoolToVis}}" />
-                    <TextBlock Style="{StaticResource StatusText}" Text="{Binding WatchText}" />
-                    <Border Style="{StaticResource StatusSeparator}" />
-                </StackPanel>
-
-                <!-- Automatisches Entpacken (Services/Archive, ADR-0032): Fortschritt bzw. Ergebnis, Tooltip = gemeldete Archive -->
-                <StackPanel Orientation="Horizontal"
-                            AutomationProperties.Name="Automatisches Entpacken"
-                            ToolTip="{Binding ArchiveDetails}"
-                            Visibility="{Binding ArchiveText, Converter={StaticResource NullToVis}}">
-                    <ui:ProgressRing IsIndeterminate="True" Width="12" Height="12" Margin="0,0,8,0" VerticalAlignment="Center"
-                                     Visibility="{Binding ArchiveIsRunning, Converter={StaticResource BoolToVis}}" />
-                    <ui:SymbolIcon Symbol="FolderZip24"
-                                   Style="{StaticResource StatusIcon}"
-                                   Visibility="{Binding ArchiveIsWarning, Converter={StaticResource InvBoolToVis}}" />
-                    <ui:SymbolIcon Symbol="Warning16"
-                                   Style="{StaticResource StatusIcon}"
-                                   Foreground="{DynamicResource SystemFillColorCautionBrush}"
-                                   Visibility="{Binding ArchiveIsWarning, Converter={StaticResource BoolToVis}}" />
-                    <TextBlock Style="{StaticResource StatusText}" Text="{Binding ArchiveText}" MaxWidth="560" TextTrimming="CharacterEllipsis" />
-                    <Border Style="{StaticResource StatusSeparator}" />
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal"
                             Visibility="{Binding HintText, Converter={StaticResource NullToVis}}">
+                    <Border Style="{StaticResource StatusSeparator}" />
                     <ui:SymbolIcon Symbol="Warning16"
                                    Style="{StaticResource StatusIcon}"
                                    Foreground="{DynamicResource SystemFillColorCautionBrush}" />
                     <TextBlock Style="{StaticResource StatusText}" Text="{Binding HintText}" />
-                    <Border Style="{StaticResource StatusSeparator}" />
                 </StackPanel>
 
-                <!-- Gesichts-Index (Services/Faces, ADR-0035): Fortschritt, Pause/Fortsetzen, Abbrechen; Fehler als Warnung -->
-                <StackPanel Orientation="Horizontal"
-                            AutomationProperties.Name="Gesichtserkennung"
-                            ToolTip="{Binding FaceIndexToolTip}"
-                            Visibility="{Binding FaceIndexText, Converter={StaticResource NullToVis}}">
-                    <ui:SymbolIcon Symbol="PersonCircle24"
-                                   Style="{StaticResource StatusIcon}"
-                                   Visibility="{Binding FaceIndexIsWarning, Converter={StaticResource InvBoolToVis}}" />
-                    <ui:SymbolIcon Symbol="Warning16"
-                                   Style="{StaticResource StatusIcon}"
-                                   Foreground="{DynamicResource SystemFillColorCautionBrush}"
-                                   Visibility="{Binding FaceIndexIsWarning, Converter={StaticResource BoolToVis}}" />
-                    <TextBlock Style="{StaticResource StatusText}" Text="{Binding FaceIndexText}" MaxWidth="420" TextTrimming="CharacterEllipsis" />
-                    <ui:Button Content="Pause"
-                               Appearance="Transparent"
-                               Command="{Binding PauseFaceIndexCommand}"
-                               Visibility="{Binding FaceIndexShowPause, Converter={StaticResource BoolToVis}}"
-                               AutomationProperties.Name="Gesichtserkennung pausieren"
-                               FontSize="12" Height="22" Padding="8,0" Margin="8,0,0,0" VerticalAlignment="Center" />
-                    <ui:Button Content="Fortsetzen"
-                               Appearance="Transparent"
-                               Command="{Binding ResumeFaceIndexCommand}"
-                               Visibility="{Binding FaceIndexIsPaused, Converter={StaticResource BoolToVis}}"
-                               AutomationProperties.Name="Gesichtserkennung fortsetzen"
-                               FontSize="12" Height="22" Padding="8,0" Margin="8,0,0,0" VerticalAlignment="Center" />
-                    <ui:Button Content="Abbrechen"
-                               Appearance="Transparent"
-                               Command="{Binding CancelFaceIndexCommand}"
-                               Visibility="{Binding FaceIndexIsActive, Converter={StaticResource BoolToVis}}"
-                               AutomationProperties.Name="Gesichtserkennung abbrechen"
-                               FontSize="12" Height="22" Padding="8,0" Margin="4,0,0,0" VerticalAlignment="Center" />
-                    <Border Style="{StaticResource StatusSeparator}" />
-                </StackPanel>
-
-                <!-- Motiv-Index (Services/Motifs, ADR-0052): Fortschritt, Pause/Fortsetzen, Abbrechen; Fehler als Warnung -->
-                <StackPanel Orientation="Horizontal"
-                            AutomationProperties.Name="Motiv-Erkennung"
-                            ToolTip="{Binding MotifIndexToolTip}"
-                            Visibility="{Binding MotifIndexText, Converter={StaticResource NullToVis}}">
-                    <ui:SymbolIcon Symbol="ImageSearch24"
-                                   Style="{StaticResource StatusIcon}"
-                                   Visibility="{Binding MotifIndexIsWarning, Converter={StaticResource InvBoolToVis}}" />
-                    <ui:SymbolIcon Symbol="Warning16"
-                                   Style="{StaticResource StatusIcon}"
-                                   Foreground="{DynamicResource SystemFillColorCautionBrush}"
-                                   Visibility="{Binding MotifIndexIsWarning, Converter={StaticResource BoolToVis}}" />
-                    <TextBlock Style="{StaticResource StatusText}" Text="{Binding MotifIndexText}" MaxWidth="420" TextTrimming="CharacterEllipsis" />
-                    <ui:Button Content="Pause"
-                               Appearance="Transparent"
-                               Command="{Binding PauseMotifIndexCommand}"
-                               Visibility="{Binding MotifIndexShowPause, Converter={StaticResource BoolToVis}}"
-                               AutomationProperties.Name="Motiv-Erkennung pausieren"
-                               FontSize="12" Height="22" Padding="8,0" Margin="8,0,0,0" VerticalAlignment="Center" />
-                    <ui:Button Content="Fortsetzen"
-                               Appearance="Transparent"
-                               Command="{Binding ResumeMotifIndexCommand}"
-                               Visibility="{Binding MotifIndexIsPaused, Converter={StaticResource BoolToVis}}"
-                               AutomationProperties.Name="Motiv-Erkennung fortsetzen"
-                               FontSize="12" Height="22" Padding="8,0" Margin="8,0,0,0" VerticalAlignment="Center" />
-                    <ui:Button Content="Abbrechen"
-                               Appearance="Transparent"
-                               Command="{Binding CancelMotifIndexCommand}"
-                               Visibility="{Binding MotifIndexIsActive, Converter={StaticResource BoolToVis}}"
-                               AutomationProperties.Name="Motiv-Erkennung abbrechen"
-                               FontSize="12" Height="22" Padding="8,0" Margin="4,0,0,0" VerticalAlignment="Center" />
-                    <Border Style="{StaticResource StatusSeparator}" />
-                </StackPanel>
-
-                <!-- Aufnahmedatum nachtragen (Services/Metadata, ADR-0046) -->
-                <StackPanel Orientation="Horizontal"
-                            AutomationProperties.Name="Aufnahmedatum"
-                            ToolTip="Aufnahmedatum wird im Hintergrund aus EXIF, Video-Metadaten bzw. Dateinamen gelesen (nur lokale Dateien, nichts wird heruntergeladen)."
-                            Visibility="{Binding CaptureDateText, Converter={StaticResource NullToVis}}">
-                    <ui:SymbolIcon Symbol="CalendarClock24" Style="{StaticResource StatusIcon}" />
-                    <TextBlock Style="{StaticResource StatusText}" Text="{Binding CaptureDateText}" />
-                    <Border Style="{StaticResource StatusSeparator}" />
-                </StackPanel>
-
-                <!-- Orte nachtragen (Services/Places, ADR-0050) -->
-                <StackPanel Orientation="Horizontal"
-                            AutomationProperties.Name="Orte"
-                            ToolTip="Koordinaten werden im Hintergrund aus EXIF, XMP-Begleitdateien bzw. Video-Metadaten gelesen (nur lokale Dateien, nichts wird heruntergeladen)."
-                            Visibility="{Binding GeoBackfillText, Converter={StaticResource NullToVis}}">
-                    <ui:SymbolIcon Symbol="Location24" Style="{StaticResource StatusIcon}" />
-                    <TextBlock Style="{StaticResource StatusText}" Text="{Binding GeoBackfillText}" />
-                    <Border Style="{StaticResource StatusSeparator}" />
-                </StackPanel>
-
-                <!-- Ungenaue Orte und GPS-Spuren (ADR-0062): Einlesen, Prüfung, „Orte: n geschätzt · m Vorschläge · k Garmin-Aktivitäten“ -->
-                <StackPanel Orientation="Horizontal"
-                            AutomationProperties.Name="GPS-Spuren und ungenaue Orte"
-                            AutomationProperties.AutomationId="StatusGeoTracks"
-                            ToolTip="Ungenaue Orte und GPS-Spuren: alles wird nur auf diesem PC gelesen und berechnet (Seite Orte › Ungenau, Einstellungen › Orte)."
-                            Visibility="{Binding GeoTracksText, Converter={StaticResource NullToVis}}">
-                    <ui:SymbolIcon Symbol="LocationArrow20" Style="{StaticResource StatusIcon}" />
-                    <TextBlock Style="{StaticResource StatusText}" Text="{Binding GeoTracksText}" />
-                    <Border Style="{StaticResource StatusSeparator}" />
-                </StackPanel>
-
-                <!-- Doppelte (Services/Duplicates, ADR-0053): Hinweis „im Eingang schon in der Bibliothek — Anzeigen“, Fortschritt -->
+                <!-- Doppelte (ADR-0053): „im Eingang schon in der Bibliothek — Anzeigen“ -->
                 <StackPanel Orientation="Horizontal"
                             AutomationProperties.Name="Doppelte im Eingang"
                             Visibility="{Binding InboxDuplicatesText, Converter={StaticResource NullToVis}}">
+                    <Border Style="{StaticResource StatusSeparator}" />
                     <ui:SymbolIcon Symbol="DocumentCopy24" Style="{StaticResource StatusIcon}"
                                    Foreground="{DynamicResource SystemFillColorCautionBrush}" />
                     <TextBlock Style="{StaticResource StatusText}" Text="{Binding InboxDuplicatesText}" />
@@ -284,56 +99,35 @@
                                Command="{Binding DismissInboxDuplicatesCommand}"
                                AutomationProperties.Name="Hinweis ausblenden"
                                FontSize="11" Height="22" Padding="6,0" Margin="2,0,0,0" VerticalAlignment="Center" />
-                    <Border Style="{StaticResource StatusSeparator}" />
                 </StackPanel>
+
+                <!-- Ungenaue Orte und GPS-Spuren (ADR-0062): nur noch die Zahlen; Einlesen/Prüfung in der Aktivitäts-Anzeige -->
                 <StackPanel Orientation="Horizontal"
-                            AutomationProperties.Name="Doppelte"
-                            ToolTip="Prüfsummen (nur Dateien gleicher Größe) und Bild-Fingerabdrücke werden im Hintergrund berechnet (nur lokale Dateien, nichts wird heruntergeladen)."
-                            Visibility="{Binding DuplicateIndexText, Converter={StaticResource NullToVis}}">
-                    <ui:SymbolIcon Symbol="DocumentCopy24" Style="{StaticResource StatusIcon}" />
-                    <TextBlock Style="{StaticResource StatusText}" Text="{Binding DuplicateIndexText}" />
+                            AutomationProperties.Name="GPS-Spuren und ungenaue Orte"
+                            AutomationProperties.AutomationId="StatusGeoTracks"
+                            ToolTip="Ungenaue Orte und GPS-Spuren: alles wird nur auf diesem PC gelesen und berechnet (Seite Orte › Ungenau, Einstellungen › Orte)."
+                            Visibility="{Binding GeoPlacesSummaryText, Converter={StaticResource NullToVis}}">
                     <Border Style="{StaticResource StatusSeparator}" />
+                    <ui:SymbolIcon Symbol="LocationArrow20" Style="{StaticResource StatusIcon}" />
+                    <TextBlock Style="{StaticResource StatusText}" Text="{Binding GeoPlacesSummaryText}" />
                 </StackPanel>
-                <!-- Foto-Güte (ADR-0057) -->
-                <StackPanel Orientation="Horizontal"
-                            AutomationProperties.Name="Foto-Güte"
-                            ToolTip="Schärfe, Belichtung und Bildwirkung werden im Hintergrund aus den Vorschaubildern berechnet — Grundlage für die Highlights der Storys."
-                            Visibility="{Binding QualityIndexText, Converter={StaticResource NullToVis}}">
-                    <ui:SymbolIcon Symbol="Sparkle16" Style="{StaticResource StatusIcon}" />
-                    <TextBlock Style="{StaticResource StatusText}" Text="{Binding QualityIndexText}" />
-                    <Border Style="{StaticResource StatusSeparator}" />
-                </StackPanel>
-                <!-- Story-Erkennung (ADR-0060): „Storys aktuell“ / „Storys werden berechnet …“ -->
-                <StackPanel Orientation="Horizontal"
-                            AutomationProperties.Name="Storys"
-                            AutomationProperties.AutomationId="StatusStories"
-                            ToolTip="Storys werden im Hintergrund nach dem Scan, nach neuen Aufnahmedaten, Orten und Gesichtern neu berechnet."
-                            Visibility="{Binding StoryIndexText, Converter={StaticResource NullToVis}}">
-                    <ui:SymbolIcon Symbol="BookOpen24" Style="{StaticResource StatusIcon}" />
-                    <TextBlock Style="{StaticResource StatusText}" Text="{Binding StoryIndexText}" />
-                    <Border Style="{StaticResource StatusSeparator}" />
-                </StackPanel>
+
                 <!-- Sicherheits-Check (ADR-0064): nur in der versteckten Sitzung „Sicherheits-Check: x von y erfüllt“ -->
                 <StackPanel Orientation="Horizontal"
                             AutomationProperties.Name="Sicherheits-Check"
                             AutomationProperties.AutomationId="StatusSecurityCheck"
                             ToolTip="Einstellungen › Sicherheits-Check: Windows-Stellen, die sich etwas merken. Lumora ändert keine Windows-Einstellung."
                             Visibility="{Binding SecurityCheckText, Converter={StaticResource NullToVis}}">
+                    <Border Style="{StaticResource StatusSeparator}" />
                     <ui:SymbolIcon Symbol="ShieldCheckmark24" Style="{StaticResource StatusIcon}" />
                     <TextBlock Style="{StaticResource StatusText}" Text="{Binding SecurityCheckText}" />
-                    <Border Style="{StaticResource StatusSeparator}" />
                 </StackPanel>
-                <StackPanel Orientation="Horizontal"
-                            Visibility="{Binding IsBackgroundActive, Converter={StaticResource BoolToVis}}">
-                    <Ellipse Width="7" Height="7" Margin="0,0,6,0" VerticalAlignment="Center"
-                             Fill="{DynamicResource AccentFillColorDefaultBrush}" />
-                    <TextBlock Style="{StaticResource StatusText}" Text="{Binding BackgroundActivityText}" />
-                </StackPanel>
-                <TextBlock Style="{StaticResource StatusText}"
-                           Text="Bereit"
-                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                           Visibility="{Binding IsBackgroundActive, Converter={StaticResource InvBoolToVis}}" />
             </StackPanel>
+
+            <!-- Ganz rechts: Aktivitäts-Anzeige (ADR-0067) -->
+            <Grid Grid.Column="2" Visibility="{Binding Activities, Converter={StaticResource NullToVis}}">
+                <act:ActivityIndicator DataContext="{Binding Activities}" />
+            </Grid>
         </Grid>
     </Border>
 </UserControl>

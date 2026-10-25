@@ -636,10 +636,12 @@ public sealed partial class FileOperationService : IFileOperationService, IDispo
             {
                 if (prepare is null || await prepare(ctx, run, ct).ConfigureAwait(false))
                 {
+                    var itemIndex = 0;
                     foreach (var (cf, op) in run.Items)
                     {
                         ct.ThrowIfCancellationRequested();
                         await executeItem(ctx, run, cf, op, ct).ConfigureAwait(false);
+                        Activity.ActivityScope.ReportItems(++itemIndex, run.Items.Count); // Aktivitäts-Anzeige (ADR-0067), gedrosselt in der Zentrale
                     }
                 }
             }

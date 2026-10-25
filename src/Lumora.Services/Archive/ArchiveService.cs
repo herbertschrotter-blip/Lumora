@@ -389,6 +389,7 @@ public sealed class ArchiveService : IArchiveService
 
         try
         {
+            using var quiet = Activity.ActivityScope.Suppress(); // Teil des Entpackens, kein eigener Eintrag in der Aktivitäts-Anzeige (ADR-0067)
             var batch = await _fileOps.RecycleAsync([fileId], ct).ConfigureAwait(false);
             if (batch.Succeeded == 1)
             {

@@ -13,7 +13,7 @@ namespace Lumora.Services.Sorter;
 /// (kein automatischer Scan der Ordnerüberwachung dafür). Der Executor hält nie die Scan-Sperre selbst — die belegt der
 /// <see cref="IFileOperationService"/> je Batch und gibt sie vor der Rückkehr frei.
 /// </summary>
-public sealed class SorterMoveExecutor
+public sealed partial class SorterMoveExecutor
 {
     private readonly IFileOperationService _fileOps;
     private readonly SorterRunLog _runLog;
@@ -27,8 +27,10 @@ public sealed class SorterMoveExecutor
         SorterRunLog runLog,
         SorterCatalog catalog,
         ILogger<SorterMoveExecutor> logger,
-        IOwnChangeRegistry? ownChanges = null)
+        IOwnChangeRegistry? ownChanges = null,
+        Activity.IActivityCenter? activities = null) // Aktivitäts-Anzeige (ADR-0067): ein Lauf = ein Vorgang
     {
+        _activities = activities;
         _fileOps = fileOps;
         _runLog = runLog;
         _catalog = catalog;
@@ -36,7 +38,7 @@ public sealed class SorterMoveExecutor
         _ownChanges = ownChanges ?? new OwnChangeRegistry();
     }
 
-    public async Task<SorterExecutionResult> ExecuteAsync(
+    private async Task<SorterExecutionResult> ExecuteCoreAsync(
         SorterPlan plan,
         string runKey,
         IProgress<SorterProgress>? progress,
@@ -160,7 +162,7 @@ public sealed class SorterMoveExecutor
 
     public Task<SorterRunRecord?> GetLastRunAsync(string runKey, CancellationToken ct) => _runLog.GetAsync(runKey, ct);
 
-    public async Task<SorterUndoResult?> UndoLastRunAsync(string runKey, IProgress<SorterProgress>? progress, CancellationToken ct)
+    private async Task<SorterUndoResult?> UndoLastRunCoreAsync(string runKey, IProgress<SorterProgress>? progress, CancellationToken ct)
     {
         var record = await _runLog.GetAsync(runKey, ct).ConfigureAwait(false);
         if (record is null || record.Undone || record.BatchIds.Count == 0)

@@ -45,9 +45,12 @@ internal sealed partial class SmokeScenario
         section!.BringIntoView();
         await SnapshotAsync("21-einstellungen-und-statusleiste-gesichter").ConfigureAwait(true);
 
-        // Pause über die Statusleiste: nach dem aktuellen Foto kommt nichts mehr dazu.
-        Check(_statusBar.PauseFaceIndexCommand.CanExecute(null), "Pause ist bedienbar");
-        _statusBar.PauseFaceIndexCommand.Execute(null);
+        // Pause über die Aktivitäts-Anzeige (seit 0.4.36, ADR-0067; vorher Knopf in der Statusleiste): nach dem aktuellen Foto
+        // kommt nichts mehr dazu.
+        await WaitUntilAsync(() => FacesActivityRow() is { ShowPause: true }, ShortWait, "Aktivitäts-Anzeige: Gesichter erkennen").ConfigureAwait(true);
+        var facesRow = FacesActivityRow()!;
+        Check(facesRow.Title.StartsWith("Gesichter erkennen: ", StringComparison.Ordinal) && facesRow.PauseCommand.CanExecute(null), $"Liste „Läuft“: „{facesRow.Title}“, Pause bedienbar");
+        facesRow.PauseCommand.Execute(null);
         await WaitUntilAsync(() => index.Status.State == FaceIndexState.Paused && _statusBar.FaceIndexIsPaused, ShortWait, "Index pausiert").ConfigureAwait(true);
         await Task.Delay(SmokeFaceAnalyzerFactory.Delay * 3).ConfigureAwait(true);
         var pausedScans = await CountFaceScansAsync().ConfigureAwait(true);
@@ -56,8 +59,9 @@ internal sealed partial class SmokeScenario
         Check(stillPaused == pausedScans && pausedScans < images, $"pausiert: {pausedScans} → {stillPaused} FaceScans (von {images})");
         Check(_statusBar.FaceIndexText!.Contains("angehalten", StringComparison.Ordinal), $"Statusleiste: „{_statusBar.FaceIndexText}“");
 
-        _statusBar.ResumeFaceIndexCommand.Execute(null);
-        await WaitUntilAsync(() => index.Status.State == FaceIndexState.Idle && _statusBar.FaceIndexText is null, LongWait, "Index fertig").ConfigureAwait(true);
+        await WaitUntilAsync(() => FacesActivityRow() is { ShowResume: true }, ShortWait, "Aktivitäts-Anzeige: Gesichter angehalten").ConfigureAwait(true);
+        FacesActivityRow()!.ResumeCommand.Execute(null);
+        await WaitUntilAsync(() => index.Status.State == FaceIndexState.Idle && _statusBar.FaceIndexText is null && FacesActivityRow() is null, LongWait, "Index fertig, Eintrag still verschwunden").ConfigureAwait(true);
 
         var scans = await CountFaceScansAsync().ConfigureAwait(true);
         var faceRows = await DbScalarAsync<long>(
