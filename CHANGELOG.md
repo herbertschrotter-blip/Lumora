@@ -3,6 +3,17 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.4.37] — 2026-10-25
+
+### Docs — Mockup 17 „Personen, Titelbild, Rechtsklick-Menü“ und Mockup 18 „Galerie mit Ordnerleiste“, abgenommen
+- `mockups/17-personen-kontextmenue.html`: Personen-Kacheln ohne abgeschnittenen Text mit Chips, „Als Titelbild für ▸“
+  überall mit automatischer Wahl, neu gegliedertes Rechtsklick-Menü; dazu Fotos per Ziehen/Strg+C in andere Programme
+  kopieren (nur Kopie, in der versteckten Bibliothek gesperrt).
+- `mockups/18-galerie-ordnerleiste.html`: Galerie mit ein-/ausklappbarer Ordnerleiste, Ordner als Filter-Chip, Menüpunkt
+  „Ordner“ entfällt.
+- PLAN.md Kap. 7: Vorhaben „Personen-Kacheln, Titelbild, Rechtsklick-Menü“, „Galerie mit Ordnerleiste“,
+  „Fotos in andere Programme kopieren“. (closes #3)
+
 ## [0.4.36] — 2026-10-25
 
 ### Feature (ADR-0067) — Aktivitäts-Anzeige unten rechts (Mockup 15)

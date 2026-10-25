@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lumora — Personen, Titelbild, Rechtsklick-Menü (Entwurf 17)</title>
+<style>
+/* =====================================================================
+   Mockup 17 · Personen-Kacheln, Titelbild überall, Rechtsklick-Menü. Tokens 1:1 aus 08–16.
+   Personen-Kachel ohne abgeschnittenen Text (Name bis zwei Zeilen, Beziehung, Chips „bestätigt“/„Vorschläge“).
+   Rechtsklick auf jedes Foto: „Als Titelbild für ▸“ (Personen im Foto, Alben, Storys, Ordner); ohne eigene Wahl
+   wählt Lumora automatisch (Gesichts- und Foto-Güte). Kontextmenü neu gegliedert mit Untermenüs und Vorschlägen.
+   Namen im Mockup sind erfunden. Hell/Dunkel über „dark“.
+   ABGENOMMEN von Herbert am 2026-10-25: Personen-Kachel (Name bis zwei Zeilen, Beziehung, Chips „bestätigt“/„Vorschläge“,
+   Klick auf Vorschläge-Chip öffnet „Vorschläge“, Symbol „automatisch gewählt“); „Als Titelbild für ▸“ mit Personen im
+   Foto, Alben, Storys, Ordner und „Wieder automatisch wählen lassen“; automatische Wahl (Person: bestes Gesicht; Album/
+   Story/Ordner: beste Foto-Güte); Rechtsklick-Menü mit allen gezeigten Untermenüs und Vorschlägen (Personen, Suchen,
+   Drehen, Datei-Aktionen, Eigenschaften, Bewerten/Papierkorb im Menü). Ergänzt am selben Tag: Datei ▸ „Kopieren (in die
+   Zwischenablage)“ und Fotos per Ziehen in andere Programme kopieren (nur Kopie, versteckte Bibliothek gesperrt).
+   ===================================================================== */
+:root {
+  --mica-base:#F3F3F3; --layer-default:rgba(255,255,255,0.7); --layer-card:#FFFFFF; --layer-subtle:rgba(0,0,0,0.026);
+  --layer-secondary:rgba(0,0,0,0.04); --layer-tertiary:rgba(0,0,0,0.06);
+  --text-primary:#1A1A1A; --text-secondary:#5C5C5C; --text-tertiary:#8B8B8B; --text-on-accent:#FFFFFF;
+  --stroke-default:rgba(0,0,0,0.0578); --stroke-divider:rgba(0,0,0,0.0803); --stroke-card:rgba(0,0,0,0.0578); --ctl-bottom:rgba(0,0,0,0.16);
+  --accent:#5B5FC7; --accent-light:#7579D8; --accent-dark:#4145A0; --accent-soft:rgba(91,95,199,0.08); --accent-soft-2:rgba(91,95,199,0.16);
+  --success:#107C10; --success-soft:rgba(16,124,16,0.10); --warning:#C29C00; --warning-soft:rgba(194,156,0,0.14); --danger:#C42B1C;
+  --shadow-card:0 2px 4px rgba(0,0,0,0.02), 0 1px 2px rgba(0,0,0,0.03); --shadow-flyout:0 8px 16px rgba(0,0,0,0.14);
+  --brand-indigo:#5B5FC7; --brand-violet:#8B5CF6; --brand-coral:#F97362; --brand-amber:#F5A524;
+  --page-bg:#E4E4EA; --smoke:rgba(0,0,0,0.3);
+}
+body.dark {
+  color-scheme:dark;
+  --mica-base:#202020; --layer-default:rgba(43,43,43,0.7); --layer-card:#2C2C2C; --layer-subtle:rgba(255,255,255,0.03);
+  --layer-secondary:rgba(255,255,255,0.0418); --layer-tertiary:rgba(255,255,255,0.0605);
+  --text-primary:#FFFFFF; --text-secondary:#D0D0D0; --text-tertiary:#A0A0A0;
+  --stroke-default:rgba(255,255,255,0.0837); --stroke-divider:rgba(255,255,255,0.0837); --stroke-card:rgba(255,255,255,0.0578); --ctl-bottom:rgba(255,255,255,0.22);
+  --accent:#818CF8; --accent-light:#A5B0FF; --accent-dark:#6066D8; --accent-soft:rgba(129,140,248,0.12); --accent-soft-2:rgba(129,140,248,0.24);
+  --success:#6CCB5F; --success-soft:rgba(108,203,95,0.12); --warning:#FCE100; --warning-soft:rgba(252,225,0,0.14); --danger:#FF6B5E;
+  --shadow-card:0 2px 4px rgba(0,0,0,0.18), 0 1px 2px rgba(0,0,0,0.22); --shadow-flyout:0 8px 16px rgba(0,0,0,0.4);
+  --brand-indigo:#818CF8; --brand-violet:#A78BFA; --brand-coral:#FB8A7A; --brand-amber:#FBBF24;
+  --page-bg:#121214; --smoke:rgba(0,0,0,0.55);
+}
+* { box-sizing:border-box; } html,body { margin:0; }
+body { background:var(--page-bg); color:var(--text-primary); font-family:'Segoe UI Variable Text','Segoe UI',system-ui,sans-serif; font-size:14px; }
+button { font:inherit; color:inherit; }
+.ic { font-family:'Segoe Fluent Icons','Segoe MDL2 Assets'; font-size:16px; line-height:1; font-style:normal; }
+.ic.s { font-size:12px; }
+.hidden { display:none !important; }
+.mock-bar { position:sticky; top:0; z-index:100; display:flex; gap:16px; align-items:center; flex-wrap:wrap; padding:7px 20px; background:#2B2B33; color:#EEE; font-size:12px; }
+.mock-bar .grp { display:flex; gap:4px; align-items:center; }
+.mock-bar button { background:#44444F; color:#EEE; border:1px solid #5A5A66; border-radius:4px; padding:3px 9px; cursor:pointer; font-size:12px; }
+.mock-bar button.on { background:#5B5FC7; border-color:#7579D8; }
+.mock-bar .note { margin-left:auto; color:#AAB; }
+.stage-wrap { padding:16px 20px 32px; display:flex; justify-content:center; }
+.win-box { position:relative; flex:none; }
+.window { position:absolute; left:0; top:0; transform-origin:0 0; background:var(--mica-base); border-radius:8px; border:1px solid var(--stroke-default);
+  box-shadow:0 16px 48px rgba(0,0,0,0.22); overflow:hidden; display:grid; grid-template-columns:232px 1fr; grid-template-rows:36px 1fr 30px; }
+.titlebar { grid-column:1/-1; display:flex; align-items:center; gap:10px; padding-left:14px; font-size:12px; color:var(--text-secondary); }
+.titlebar .tile { width:16px; height:16px; border-radius:4px; background:linear-gradient(135deg,#6366F1,#4145A0); }
+.titlebar .wc { margin-left:auto; display:flex; height:100%; } .titlebar .wc span { width:46px; display:grid; place-items:center; font-family:'Segoe Fluent Icons'; font-size:10px; color:var(--text-primary); }
+.nav { padding:2px 8px 10px; display:flex; flex-direction:column; gap:2px; }
+.wbs { font-family:'Segoe UI Variable Display','Segoe UI',sans-serif; font-size:22px; padding:2px 12px 10px;
+  background:linear-gradient(100deg,var(--brand-indigo),var(--brand-violet) 45%,var(--brand-coral) 75%,var(--brand-amber)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.lib-switch { margin:0 2px 8px; padding:8px 10px; border-radius:6px; background:var(--layer-card); border:1px solid var(--stroke-card); box-shadow:var(--shadow-card); display:flex; gap:10px; align-items:center; }
+.lib-switch b { display:block; font-weight:600; } .lib-switch small { display:block; color:var(--text-tertiary); font-size:11px; }
+.nav-item { display:flex; align-items:center; gap:12px; padding:9px 12px; border-radius:4px; position:relative; white-space:nowrap; }
+.nav-item.active { background:var(--layer-secondary); }
+.nav-item.active::before { content:''; position:absolute; left:0; top:10px; bottom:10px; width:3px; border-radius:2px; background:var(--accent); }
+.nav .spacer { flex:1; }
+.content { position:relative; min-width:0; min-height:0; background:var(--layer-default); border-top-left-radius:8px; border-left:1px solid var(--stroke-default); border-top:1px solid var(--stroke-default); overflow:auto; }
+.statusbar { grid-column:1/-1; display:flex; align-items:center; gap:18px; padding:0 14px; font-size:12px; color:var(--text-secondary); border-top:1px solid var(--stroke-divider); background:var(--mica-base); }
+.statusbar .r { margin-left:auto; display:flex; gap:10px; align-items:center; }
+.btn-acc { background:var(--accent); color:var(--text-on-accent); border:1px solid transparent; border-radius:4px; padding:5px 14px; font-size:13px; cursor:pointer; display:inline-flex; gap:6px; align-items:center; white-space:nowrap; }
+body.dark .btn-acc { color:#111; } .btn-acc:hover { background:var(--accent-light); }
+.btn-std { background:var(--layer-card); border:1px solid var(--stroke-divider); border-bottom-color:var(--ctl-bottom); border-radius:4px; padding:5px 12px; font-size:13px; cursor:pointer; display:inline-flex; gap:6px; align-items:center; white-space:nowrap; }
+.btn-std:hover { background:var(--layer-subtle); }
+.btn-std.danger { color:var(--danger); }
+.phead { padding:18px 24px 6px; } .phead h1 { font-size:28px; font-weight:600; margin:0; }
+.tabs { display:flex; gap:4px; padding:4px 24px 10px; border-bottom:1px solid var(--stroke-divider); flex-wrap:wrap; }
+.tabs span { padding:6px 12px; border-radius:4px; color:var(--text-secondary); }
+.tabs span.on { color:var(--text-primary); font-weight:600; box-shadow:inset 0 -3px 0 var(--accent); }
+.body { padding:14px 24px 24px; display:grid; gap:12px; max-width:960px; }
+.card { background:var(--layer-card); border:1px solid var(--stroke-card); border-radius:8px; box-shadow:var(--shadow-card); padding:14px 16px; }
+.card h2 { font-size:15px; margin:0 0 4px; display:flex; gap:10px; align-items:center; }
+.muted { color:var(--text-secondary); font-size:12px; line-height:1.5; }
+.opt { display:grid; grid-template-columns:1fr auto; gap:12px; align-items:center; padding:10px 0; border-top:1px solid var(--stroke-divider); }
+.opt:first-of-type { border-top:0; }
+.opt b { font-weight:600; font-size:13px; display:block; }
+.sw { width:40px; height:20px; border-radius:10px; border:1px solid var(--text-secondary); position:relative; flex:none; cursor:pointer; display:inline-block; }
+.sw::after { content:''; position:absolute; top:4px; left:4px; width:10px; height:10px; border-radius:50%; background:var(--text-secondary); transition:left .12s; }
+.sw.on { background:var(--accent); border-color:var(--accent); } .sw.on::after { left:24px; background:#fff; }
+.chk { width:16px; height:16px; border-radius:3px; border:1px solid var(--text-secondary); display:inline-grid; place-items:center; flex:none; font-family:'Segoe Fluent Icons'; font-size:10px; color:transparent; cursor:pointer; }
+.chk.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+.app { border:1px solid var(--stroke-card); border-radius:8px; background:var(--layer-card); box-shadow:var(--shadow-card); overflow:hidden; }
+.app-h { display:grid; grid-template-columns:48px 1fr auto; gap:14px; align-items:center; padding:14px 16px; cursor:pointer; }
+.app-ico { width:48px; height:48px; border-radius:10px; display:grid; place-items:center; color:#fff; font-size:22px; }
+.app-h .n { font-weight:600; font-size:15px; display:flex; gap:8px; align-items:center; }
+.app-h .d { font-size:12px; color:var(--text-secondary); margin-top:3px; }
+.state { font-size:11px; font-weight:700; border-radius:9px; padding:2px 8px; display:inline-flex; gap:5px; align-items:center; }
+.state::before { content:''; width:7px; height:7px; border-radius:50%; background:currentColor; }
+.st-run { background:var(--success-soft); color:var(--success); }
+.st-bg { background:var(--accent-soft-2); color:var(--accent-dark); } body.dark .st-bg { color:var(--accent-light); }
+.st-off { background:var(--layer-tertiary); color:var(--text-secondary); }
+.st-new { background:var(--warning-soft); color:#8A6D00; } body.dark .st-new { color:var(--warning); }
+.app-b { border-top:1px solid var(--stroke-divider); padding:12px 16px 14px; display:grid; grid-template-columns:1fr 1fr; gap:14px 24px; background:var(--layer-subtle); }
+.app-b h3 { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--text-tertiary); margin:0 0 6px; font-weight:600; }
+.perm { display:flex; gap:8px; align-items:flex-start; font-size:13px; padding:3px 0; }
+.perm small { display:block; color:var(--text-secondary); font-size:11px; }
+.kv { display:grid; grid-template-columns:150px 1fr; gap:4px 10px; font-size:12px; }
+.kv span:nth-child(odd) { color:var(--text-secondary); }
+.app-f { grid-column:1/-1; display:flex; gap:8px; justify-content:flex-end; padding-top:4px; }
+.empty { border:1px dashed var(--stroke-divider); border-radius:8px; padding:14px 16px; display:flex; gap:12px; align-items:center; color:var(--text-secondary); font-size:13px; }
+/* --- Mockup 17: Personen-Kacheln, Titelbild, Kontextmenü --- */
+.content { display:grid; grid-template-rows:auto auto 1fr; }
+.legend { padding:4px 24px 0; font-size:12px; color:var(--text-secondary); max-width:1000px; }
+/* Personen-Kacheln */
+.ptiles { display:flex; flex-wrap:wrap; gap:10px; padding:12px 24px 24px; align-content:flex-start; }
+.pt { width:156px; padding:10px 8px 12px; border-radius:8px; background:var(--layer-card); border:1px solid var(--stroke-card); box-shadow:var(--shadow-card); display:flex; flex-direction:column; align-items:center; gap:6px; position:relative; cursor:pointer; }
+.pt:hover { background:var(--layer-subtle); }
+.pt .av { width:112px; height:112px; border-radius:50%; position:relative; }
+.pt .auto { position:absolute; right:2px; bottom:2px; width:24px; height:24px; border-radius:50%; background:var(--layer-card); border:1px solid var(--stroke-card); display:grid; place-items:center; color:var(--accent); font-size:12px; }
+.pt .nm { font-weight:600; font-size:13px; text-align:center; line-height:1.25; max-width:140px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; min-height:32px; }
+.pt .rel { font-size:11px; color:var(--text-tertiary); margin-top:-4px; min-height:14px; }
+.pt .chips { display:flex; gap:4px; flex-wrap:wrap; justify-content:center; }
+.c { display:inline-flex; align-items:center; gap:3px; height:20px; padding:0 7px; border-radius:10px; font-size:11px; font-weight:600; }
+.c .ic { font-size:11px; }
+.c-ok { background:var(--success-soft); color:var(--success); }
+.c-sug { background:var(--warning-soft); color:#8A6D00; } body.dark .c-sug { color:var(--warning); }
+.c-none { background:var(--layer-tertiary); color:var(--text-tertiary); }
+.pt .tip { position:absolute; top:100%; left:0; margin-top:4px; z-index:30; width:240px; background:var(--layer-card); border:1px solid var(--stroke-card); border-radius:6px; box-shadow:var(--shadow-flyout); padding:8px 10px; font-size:12px; line-height:1.55; display:none; }
+body.dark .pt .tip { background:#2B2B2B; }
+.pt:hover .tip, .pt.showtip .tip { display:block; }
+.old { margin:0 24px; padding:8px 12px; border:1px dashed var(--stroke-divider); border-radius:6px; font-size:12px; color:var(--text-secondary); display:flex; gap:12px; align-items:center; }
+.old .pt { width:130px; padding:6px; box-shadow:none; }
+/* Galerie + Kontextmenü */
+.gal { display:grid; grid-template-columns:repeat(6,1fr); gap:8px; padding:10px 24px 24px; align-content:start; }
+.tile { aspect-ratio:1; border-radius:4px; position:relative; }
+.tile.sel { outline:3px solid var(--accent); outline-offset:-3px; }
+.menu { position:absolute; z-index:40; min-width:262px; background:var(--layer-card); border:1px solid var(--stroke-card); border-radius:8px; box-shadow:var(--shadow-flyout); padding:4px; font-size:13px; }
+body.dark .menu { background:#2B2B2B; }
+.mi { display:grid; grid-template-columns:22px 1fr auto 14px; gap:8px; align-items:center; padding:6px 8px; border-radius:4px; cursor:default; white-space:nowrap; position:relative; }
+.mi:hover, .mi.hot { background:var(--layer-secondary); }
+.mi .ic { font-size:14px; color:var(--text-secondary); }
+.mi .k { font-size:11px; color:var(--text-tertiary); }
+.mi .sub { font-family:'Segoe Fluent Icons'; font-size:10px; color:var(--text-tertiary); }
+.mi.dis { color:var(--text-tertiary); }
+.mi .new { font-size:9px; font-weight:700; color:var(--accent); border:1px solid var(--accent); border-radius:6px; padding:0 4px; margin-left:6px; }
+.mi .mnu { font-size:9px; font-weight:700; color:var(--success); border:1px solid var(--success); border-radius:6px; padding:0 4px; margin-left:6px; }
+.sep { height:1px; background:var(--stroke-divider); margin:4px 6px; }
+.mh { font-size:11px; color:var(--text-tertiary); padding:6px 10px 2px; text-transform:uppercase; letter-spacing:.04em; }
+.chk { font-family:'Segoe Fluent Icons'; font-size:12px; color:var(--accent); }
+.dot { width:9px; height:9px; border-radius:50%; display:inline-block; }
+.legendbox { position:absolute; right:24px; top:96px; width:300px; font-size:12px; line-height:1.55; color:var(--text-secondary); }
+.legendbox b { color:var(--text-primary); }
+/* Personen-Detail Titelbild */
+.pd { padding:12px 24px; display:grid; grid-template-columns:auto 1fr; gap:22px; align-items:start; max-width:980px; }
+.pd .big { width:150px; height:150px; border-radius:50%; position:relative; }
+.pd h2 { margin:0 0 4px; font-size:24px; }
+.faces { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+.face { width:84px; height:84px; border-radius:6px; position:relative; }
+.face.cov { outline:3px solid var(--accent); outline-offset:2px; }
+.face .tag { position:absolute; left:4px; bottom:4px; font-size:10px; font-weight:700; color:#fff; background:rgba(0,0,0,.55); border-radius:4px; padding:0 4px; }
+.seg { display:inline-flex; border:1px solid var(--stroke-divider); border-radius:6px; overflow:hidden; }
+.seg span { padding:5px 12px; font-size:12px; cursor:pointer; }
+.seg span.on { background:var(--accent); color:#fff; } body.dark .seg span.on { color:#111; }
+</style>
+</head>
+<body>
+<div class="mock-bar">
+  <span><b>Mockup 17 · Personen, Titelbild, Rechtsklick-Menü · Entwurf</b></span>
+  <span class="grp">Design: <button id="mbLight">Hell</button><button id="mbDark" class="on">Dunkel</button></span>
+  <span class="grp">Ansicht: <button data-v="persons" class="on">Personen-Kacheln</button><button data-v="menu">Rechtsklick Foto</button><button data-v="cover">Titelbild-Untermenü</button><button data-v="detail">Person: Titelbild</button></span>
+  <span class="note">Namen erfunden</span>
+</div>
+
+<div class="stage-wrap"><div class="win-box" id="winBox">
+<div class="window" id="win">
+  <div class="titlebar"><span class="tile" style="aspect-ratio:auto"></span> Lumora<span class="wc"><span>&#xE921;</span><span>&#xE922;</span><span>&#xE8BB;</span></span></div>
+  <nav class="nav">
+    <div class="wbs">lumora</div>
+    <div class="lib-switch"><span class="ic">&#xE8F1;</span><div><b>Familienfotos</b><small>Bibliothek wechseln</small></div></div>
+    <div class="nav-item" id="navGal"><span class="ic">&#xE91B;</span>Galerie</div>
+    <div class="nav-item"><span class="ic">&#xE8B7;</span>Ordner</div>
+    <div class="nav-item"><span class="ic">&#xE8F1;</span>Alben</div>
+    <div class="nav-item"><span class="ic">&#xE786;</span>Storys</div>
+    <div class="nav-item" id="navPer"><span class="ic">&#xE716;</span>Personen</div>
+    <div class="nav-item"><span class="ic">&#xE707;</span>Orte</div>
+    <div class="spacer"></div>
+    <div class="nav-item"><span class="ic">&#xE713;</span>Einstellungen</div>
+  </nav>
+  <main class="content" id="content"></main>
+  <div class="statusbar"><span><span class="ic s">&#xE8F1;</span> Familienfotos</span><span>5 212 Fotos und Videos</span></div>
+</div>
+</div></div>
+
+<script>
+const $=(s)=>document.querySelector(s), $$=(s)=>[...document.querySelectorAll(s)];
+const ph=['#9EC9E8,#3F7FB2','#F7D99A,#C78F2B','#C8E0B5,#5E8B47','#E6B8C8,#A0567A','#D8D3EC,#6E64A8','#F3B9A8,#B4553F','#BFD9DA,#3E8287'];
+const P=[
+ ['Anna Berger','Schwester',55,0,0],['Lukas Hofer','',32,8,1],['Paul Steiner','',2,0,1],['Maria Huber-Steinbacher','Cousine',231,316,1],
+ ['Thomas Wagner','',332,0,0],['Lea Moser','',1,26,1],['Sophie','Cousine',159,349,1],['Maximilian Gruber','Neffe',2,58,1],
+ ['Julia Pichler','',28,5,1],['Emma Leitner','',1,40,1],['Katharina Bauer','Tante',0,12,1]];
+const fmt=n=>n.toLocaleString('de-AT');
+function chips(ok,sug){
+  let h='';
+  h+= ok? `<span class="c c-ok" title="${fmt(ok)} Fotos bestätigt zugeordnet"><span class="ic">&#xE73E;</span>${fmt(ok)}</span>` : '<span class="c c-none" title="noch kein Foto bestätigt">0 Fotos</span>';
+  if(sug) h+=`<span class="c c-sug" title="${fmt(sug)} Vorschläge warten auf Bestätigung"><span class="ic">&#xE9CE;</span>${fmt(sug)}</span>`;
+  return h;
+}
+function ptile(p,i){
+  const [n,rel,ok,sug,auto]=p;
+  return `<div class="pt ${i===3?'showtip':''}"><div class="av" style="background:linear-gradient(160deg,${ph[i%7]})">${auto?'<span class="auto ic" title="Titelbild automatisch gewählt">&#xE945;</span>':''}</div>
+   <div class="nm">${n}</div><div class="rel">${rel}</div><div class="chips">${chips(ok,sug)}</div>
+   <div class="tip"><b>${n}</b>${rel?' · '+rel:''}<br><span class="c c-ok"><span class="ic">&#xE73E;</span>${fmt(ok)}</span> bestätigt zugeordnet<br>${sug?`<span class="c c-sug"><span class="ic">&#xE9CE;</span>${fmt(sug)}</span> Vorschläge – Klick öffnet „Vorschläge“<br>`:''}Titelbild: ${auto?'automatisch (beste Aufnahme)':'von dir gewählt'}</div></div>`;
+}
+const M=(ic,t,k='',sub=false,extra='')=>`<div class="mi ${extra}"><span class="ic">${ic}</span><span>${t}</span><span class="k">${k}</span><span class="sub">${sub?'&#xE76C;':''}</span></div>`;
+const NEW='<span class="new">NEU</span>', MNU='<span class="mnu">NEU IM MENÜ</span>';
+function mainMenu(hot){
+  return `<div class="menu" style="left:300px;top:150px">
+   ${M('&#xE8A7;','Öffnen','Enter')}${M('&#xE768;','Diashow ab hier')}
+   <div class="sep"></div>
+   ${M('&#xE734;','Bewerten '+MNU,'1–5, F',true)}
+   ${M('&#xE8EC;','Tags','T',true)}
+   ${M('&#xE8A9;','Kategorien','',true)}
+   ${M('&#xE716;','Personen '+NEW,'',true)}
+   ${M('&#xE8F1;','Alben','',true)}
+   ${M('&#xE786;','Story','',true)}
+   ${M('&#xEB9F;','Als Titelbild für '+NEW,'',true,hot==='cover'?'hot':'')}
+   <div class="sep"></div>
+   ${M('&#xE70F;','Bearbeiten','',true)}
+   ${M('&#xE721;','Suchen '+NEW,'',true)}
+   <div class="sep"></div>
+   ${M('&#xE8B7;','Datei','',true)}
+   ${M('&#xE74D;','In den Papierkorb '+MNU,'Entf')}
+   <div class="sep"></div>
+   ${M('&#xE946;','Eigenschaften '+NEW,'Alt+Enter')}
+  </div>`;
+}
+function sub(left,top,html){ return `<div class="menu" style="left:${left}px;top:${top}px">${html}</div>`; }
+const V={
+ persons:()=>`<div class="phead"><h1>Personen</h1></div>
+   <div class="legend">Kachel wird höher statt Text abzuschneiden: Name bis zwei Zeilen, darunter die Beziehung, darunter <b>Chips</b>:
+     <span class="c c-ok"><span class="ic">&#xE73E;</span>231</span> bestätigt zugeordnet ·
+     <span class="c c-sug"><span class="ic">&#xE9CE;</span>316</span> Vorschläge (Klick auf den Chip öffnet direkt „Vorschläge“).
+     Kleines <span class="ic" style="color:var(--accent)">&#xE945;</span> am Bild = Titelbild automatisch gewählt.</div>
+   <div class="ptiles">${P.map(ptile).join('')}</div>
+   <div class="old"><b>Bisher:</b> eine Textzeile „Cousine · 231 Fotos · 316 Vorschläge“, unten abgeschnitten.</div>`,
+ menu:()=>`<div class="phead"><h1>Galerie</h1></div>
+   <div class="legend">Rechtsklick auf ein Foto (oder eine Auswahl): oben das Häufige, dann Zuordnen (Untermenüs), dann Bearbeiten/Suchen, unten Datei und Löschen.
+     <span class="new" style="font-size:9px;font-weight:700;color:var(--accent);border:1px solid var(--accent);border-radius:6px;padding:0 4px">NEU</span> = neue Funktion,
+     <span style="font-size:9px;font-weight:700;color:var(--success);border:1px solid var(--success);border-radius:6px;padding:0 4px">NEU IM MENÜ</span> = gibt es schon (Taste/Leiste), jetzt auch hier. Was du nicht brauchst, streichen wir.</div>
+   <div class="gal">${Array.from({length:18},(_,i)=>`<span class="tile ${i===7?'sel':''}" style="background:linear-gradient(160deg,${ph[i%7]})"></span>`).join('')}</div>
+   ${mainMenu()}
+   ${sub(566,186,`${M('','Datum setzen…')}${M('','Ort setzen…')}${M('&#xE7AD;','Nach links drehen '+NEW,'Strg+L')}${M('&#xE7AD;','Nach rechts drehen '+NEW,'Strg+R')}<div class="sep"></div>${M('&#xE790;','Foto verbessern… (Welle 8)','','','dis')}`).replace('top:186px','top:432px')}
+   <div class="legendbox"><b>Untermenüs (Vorschlag)</b><br>
+     <b>Bewerten:</b> ★1–★5, Keine Sterne, Favorit an/aus<br>
+     <b>Tags:</b> Liste mit Häkchen (Farbpunkt), Neuer Tag…, Tags verwalten…<br>
+     <b>Kategorien:</b> je Gruppe ein Untermenü, Kategorien verwalten…<br>
+     <b>Personen:</b> Gesichter in diesem Foto (Name ✓ / „Unbekannt – zuordnen…“), Gesichter anzeigen<br>
+     <b>Alben:</b> Zu Album hinzufügen…, Aus Album entfernen, Hier verknüpfen…, Verknüpfung entfernen<br>
+     <b>Story:</b> wie bisher (Story aus Auswahl, zu Story hinzufügen)<br>
+     <b>Bearbeiten:</b> Datum setzen…, Ort setzen…, Drehen, später Foto verbessern<br>
+     <b>Suchen:</b> Ähnliche Fotos, Gleicher Tag, Gleicher Ort, Doppelte zeigen, Gleiche Person(en)<br>
+     <b>Datei:</b> Kopieren nach…, Verschieben nach…, Umbenennen…, Im Explorer anzeigen, Pfad kopieren, Mit Standard-App öffnen, Exportieren (verkleinert)…<br>
+     <b>Archiv-Dateien:</b> „Inhalt anzeigen / Entpacken… / In die Bibliothek…“ stehen dann ganz oben.</div>`,
+ cover:()=>`<div class="phead"><h1>Galerie</h1></div>
+   <div class="legend">„Als Titelbild für“ zeigt nur, was zu DIESEM Foto passt: die erkannten Personen darin, die Alben und Storys, in denen es liegt, und seinen Ordner. Häkchen = ist schon das Titelbild. Gibt es überall: Galerie, Lightbox, Alben, Storys, Personen-Fotos.</div>
+   <div class="gal">${Array.from({length:18},(_,i)=>`<span class="tile ${i===7?'sel':''}" style="background:linear-gradient(160deg,${ph[i%7]})"></span>`).join('')}</div>
+   ${mainMenu('cover')}
+   ${sub(566,396,`<div class="mh">Personen im Foto</div>${M('&#xE77B;','Anna Berger')}${M('&#xE77B;','Lukas Hofer','<span class="chk">&#xE73E;</span>')}
+     <div class="mh">Alben</div>${M('&#xE8F1;','Urlaub 2024')}
+     <div class="mh">Storys</div>${M('&#xE786;','Sommer in den Bergen')}
+     <div class="mh">Ordner</div>${M('&#xE8B7;','Urlaub Dolomiten')}
+     <div class="sep"></div>${M('&#xE945;','Wieder automatisch wählen lassen…')}`)}
+   <div class="legendbox" style="top:470px"><b>Automatisch (wenn du nichts wählst):</b><br>
+     <b>Person:</b> bestes Gesicht – scharf, groß, frontal, Augen offen, gute Belichtung (Gesichts-Güte + Foto-Güte, ADR-0057).<br>
+     <b>Album/Story:</b> Foto mit der höchsten Foto-Güte, bevorzugt mit Personen.<br>
+     <b>Ordner:</b> wie Album; im Ordnerbaum als kleines Bild beim Darüberfahren.<br>
+     Deine Wahl gewinnt immer und wird nie automatisch ersetzt.</div>`,
+ detail:()=>`<div class="phead"><h1>Personen</h1></div>
+   <div class="pd"><div class="big" style="background:linear-gradient(160deg,${ph[3]})"><span class="auto ic" style="position:absolute;right:6px;bottom:6px;width:30px;height:30px;border-radius:50%;background:var(--layer-card);border:1px solid var(--stroke-card);display:grid;place-items:center;color:var(--accent)">&#xE945;</span></div>
+   <div><h2>Maria Huber-Steinbacher</h2><div class="muted">Cousine</div>
+   <div style="margin:10px 0" class="chips"><span class="c c-ok"><span class="ic">&#xE73E;</span>231 bestätigt</span> <span class="c c-sug"><span class="ic">&#xE9CE;</span>316 Vorschläge</span></div>
+   <div style="display:flex;gap:10px;align-items:center"><span class="muted">Titelbild:</span><span class="seg"><span class="on">Automatisch</span><span>Selbst gewählt</span></span>
+     <span class="muted">automatisch gewählt: bestes von 231 Gesichtern</span></div>
+   <div class="faces">${Array.from({length:9},(_,i)=>`<span class="face ${i===2?'cov':''}" style="background:linear-gradient(160deg,${ph[(i+3)%7]})">${i===2?'<span class="tag">Titelbild</span>':''}</span>`).join('')}</div>
+   <div class="muted" style="margin-top:8px">Rechtsklick auf ein Gesicht oder Foto → „Als Titelbild für ▸ Maria Huber-Steinbacher“. „Automatisch“ wählt wieder selbst.</div></div></div>`};
+function view(v){
+  $$('.mock-bar [data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
+  $('#content').innerHTML=V[v]();
+  $('#navPer').classList.toggle('active',v==='persons'||v==='detail'); $('#navGal').classList.toggle('active',v==='menu'||v==='cover');
+}
+document.addEventListener('click',e=>{ const v=e.target.closest('[data-v]'); if(v) view(v.dataset.v); });
+function fit(){ const w=1280,h=800,win=$('#win'); win.style.width=w+'px'; win.style.height=h+'px'; const s=Math.min(1,(document.documentElement.clientWidth-40)/w);
+  win.style.transform=`scale(${s})`; $('#winBox').style.width=w*s+'px'; $('#winBox').style.height=h*s+'px'; }
+function theme(d){ document.body.classList.toggle('dark',d); $('#mbLight').classList.toggle('on',!d); $('#mbDark').classList.toggle('on',d); }
+$('#mbLight').onclick=()=>theme(false); $('#mbDark').onclick=()=>theme(true);
+window.addEventListener('resize',fit); fit(); theme(true); view('persons');
+</script>
+</body>
+</html>
