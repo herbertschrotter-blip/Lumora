@@ -64,6 +64,10 @@ public partial class App : Application, ICatalogHostSwitcher
     private readonly CatalogSessionManager _sessions;
     private IHost _host;
     private Serilog.Core.Logger? _hiddenLogger;
+    private Lumora.AppConnect.AppConnectHost? _appConnect;
+
+    /// <summary>Teilnahme an der App-Verbindung aus dem Einsprung (ADR-0073); null = Tests ohne <see cref="Program"/>.</summary>
+    internal static AppConnectStart? AppConnectStart { get; set; }
 
     public App()
     {
@@ -208,10 +212,19 @@ public partial class App : Application, ICatalogHostSwitcher
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        // Ein weiterer Lumora-Start meldet sich über die Pipe (ADR-0073): Fenster nach vorn, im selben Prozess
+        AppConnectStart?.Single?.Listen(action =>
+        {
+            if (action == Lumora.AppConnect.SingleInstance.ShowWindowAction)
+            {
+                Dispatcher.BeginInvoke(BringMainWindowToFront);
+            }
+        });
         try
         {
             await StartSessionAsync(prepare: null, firstStart: true);
             CleanUpOldDatabaseLocation();
+            await StartAppConnectAsync();
         }
         catch (SessionStartException startEx)
         {
@@ -226,6 +239,61 @@ public partial class App : Application, ICatalogHostSwitcher
             ShowFatal($"Lumora konnte nicht gestartet werden:\n{ex.Message}\n\nDetails stehen im Protokoll.");
             Shutdown(1);
         }
+    }
+
+    /// <summary>
+    /// App-Verbindung (ADR-0073, Vertrag 1.1): Schnittstelle auf 127.0.0.1 starten und danach die Anmeldedatei schreiben —
+    /// nicht bei einem Start mit <c>_hidden</c>. Ein Fehler hier hält Lumora nicht auf.
+    /// </summary>
+    private async Task StartAppConnectAsync()
+    {
+        if (AppConnectStart is not { Participation: not Lumora.AppConnect.AppConnectParticipation.Off } start)
+        {
+            return;
+        }
+
+        var factory = new SerilogLoggerFactory(Log.Logger);
+        var testRoot = start.Participation == Lumora.AppConnect.AppConnectParticipation.Isolated ? _paths.AppDataRoot : null;
+        var host = new Lumora.AppConnect.AppConnectHost(
+            new Lumora.AppConnect.AppConnectServer(
+                new Lumora.AppConnect.AppConnectIdentity(Lumora.Settings.Info.AppInfo.Version),
+                Lumora.AppConnect.NoPeers.Instance,
+                () => "window",
+                factory.CreateLogger("Lumora.AppConnect")),
+            new Lumora.AppConnect.RegistrationFiles(Lumora.AppConnect.RegistrationFiles.ResolveFolder(testRoot)),
+            Lumora.Settings.Info.AppInfo.Version,
+            Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "Lumora.exe"),
+            factory.CreateLogger("Lumora.AppConnect"));
+        try
+        {
+            await host.StartAsync().ConfigureAwait(true);
+            _appConnect = host;
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "App-Verbindung: Schnittstelle konnte nicht gestartet werden");
+            await host.DisposeAsync().ConfigureAwait(true);
+        }
+    }
+
+    /// <summary>Ein weiterer Lumora-Start bittet um das Fenster (Abschnitt 9): wiederherstellen und nach vorn holen.</summary>
+    private void BringMainWindowToFront()
+    {
+        if (MainWindow is not { } window)
+        {
+            return;
+        }
+
+        if (window.WindowState == WindowState.Minimized)
+        {
+            window.WindowState = WindowState.Normal;
+        }
+
+        window.Show();
+        window.Activate();
+        window.Topmost = true; // kurz nach oben, falls Windows das Aktivieren verweigert
+        window.Topmost = false;
+        window.Focus();
     }
 
     /// <summary>Start nicht möglich (Speicherort, DB) — Meldung für den Benutzer, App wird beendet.</summary>
@@ -584,6 +652,7 @@ public partial class App : Application, ICatalogHostSwitcher
         Log.Information("Lumora wird beendet (ExitCode {Code})", e.ApplicationExitCode);
         var wasHidden = _sessions.IsHiddenSessionActive;
         _sessions.PrepareExit();
+        StopAppConnect();
         try
         {
             // IDisposable-Singletons (GalleryPageSource, ThumbnailService, LightboxService → LibVlcHost …)
@@ -611,6 +680,27 @@ public partial class App : Application, ICatalogHostSwitcher
         }
 
         base.OnExit(e);
+    }
+
+    /// <summary>Anmeldedatei auf „beendet“, Schnittstelle zu, Mutex frei (ADR-0073) — synchron mit Zeitgrenze.</summary>
+    private void StopAppConnect()
+    {
+        try
+        {
+            if (_appConnect is { } host)
+            {
+                _appConnect = null;
+                Task.Run(async () => await host.DisposeAsync()).Wait(TimeSpan.FromSeconds(3));
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "App-Verbindung: Beenden nicht sauber");
+        }
+        finally
+        {
+            AppConnectStart?.Single?.Dispose();
+        }
     }
 
     /// <summary>Ergebnis des Umzugs aus <c>%LocalAppData%\PhotoViewerV3</c> ins Protokoll (ADR-0056).</summary>

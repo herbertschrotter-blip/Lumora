@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- App-Verbindung (ADR-0073): lokale Schnittstelle nach dem Vertrag im Repo herbertschrotter-blip/app-verbindung.
+       Kein WPF; Kestrel aus dem ASP.NET-Core-Framework, weil HttpListener für 127.0.0.1 Administratorrechte bräuchte. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Lumora.Services\Lumora.Services.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Lumora.Tests" />
+  </ItemGroup>
+
+</Project>

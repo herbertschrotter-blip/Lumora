@@ -1241,6 +1241,19 @@ selbst einhängen) und von denen Lumora im Alltag **nichts zeigt** (ADR-0049).
   (oben); Prefetch, eingehängte Laufwerke und Ordneransichten des Explorers lassen sich nicht abschalten (mit BitLocker
   auf C: liegen sie verschlüsselt). Ein VeraCrypt-Volume, das „als Wechselmedium“ eingehängt ist, wird nicht gefunden.
 
+### Verbundene Apps (App-Verbindung, im Aufbau seit 0.5.5, ADR-0073)
+
+Lumora setzt den Vertrag **App-Verbindung 1.1** um (Repo `herbertschrotter-blip/app-verbindung`) — zuerst für das
+Gipfelbuch (Touren, Spuren, Gipfel; Fotos nur als Verweis). Die Verbindung läuft nur auf diesem PC über `127.0.0.1`.
+
+- **Eine Lumora je Benutzer:** Ein zweiter Start (Verknüpfung, EXE, portable Version) holt das Fenster der laufenden
+  Lumora nach vorn und beendet sich. Ausnahme: Ein Start mit `_hidden` läuft wie bisher für sich und nimmt an der
+  App-Verbindung gar nicht teil.
+- **Anmeldedatei** `%LocalAppData%\AppVerbindung\apps\lumora.json`: Wegweiser für andere Apps (Port, Version, Rechte),
+  ohne Geheimnis. Beim Beenden steht dort `running: false`.
+- **Stand 0.5.5:** Die Schnittstelle beantwortet nur `GET /av/v1/info`. Koppeln, der Reiter „Verbundene Apps“
+  (Mockup 11), Fotos für das Gipfelbuch und Touren in Lumora folgen in den nächsten Stufen.
+
 ## Datenablage
 
 Alles liegt unter `%LocalAppData%\Lumora` (Fotos und Videos bleiben an Ort und Stelle; der Ordnername bleibt

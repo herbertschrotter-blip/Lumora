@@ -43,6 +43,7 @@
     <ProjectReference Include="..\Lumora.Domain\Lumora.Domain.csproj" />
     <ProjectReference Include="..\Lumora.Data\Lumora.Data.csproj" />
     <ProjectReference Include="..\Lumora.Services\Lumora.Services.csproj" />
+    <ProjectReference Include="..\Lumora.AppConnect\Lumora.AppConnect.csproj" />
   </ItemGroup>
 
   <ItemGroup>

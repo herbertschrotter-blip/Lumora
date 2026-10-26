@@ -3,6 +3,22 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.5] — 2026-10-26
+
+### Added — App-Verbindung Stufe 1: Anmeldedatei, eine Lumora je Benutzer, Schnittstelle auf 127.0.0.1
+- Lumora setzt den Vertrag **App-Verbindung 1.1** um (Repo `herbertschrotter-blip/app-verbindung`, ADR-0073); Stufe 1 von 7:
+  - **Anmeldedatei** `%LocalAppData%\AppVerbindung\apps\lumora.json` (atomar geschrieben, ohne Geheimnis): erst wenn die
+    Schnittstelle Anfragen annimmt, mit Port und Modus; beim Beenden `running: false`, `port: null`.
+  - **Eine Lumora je Benutzer:** Ein zweiter Start (normal oder portabel) holt das Fenster der laufenden Lumora nach vorn
+    und beendet sich (Mutex `Local\AppVerbindung.lumora`, Pipe `AppVerbindung.lumora`, Nachricht `showWindow`).
+  - **Schnittstelle** nur auf `127.0.0.1` (neues Projekt `Lumora.AppConnect`, Kestrel): Anfragen mit `Origin` → 403, falscher
+    `Host` → 403, keine CORS-Kopfzeilen, mehr als 50 Anfragen/s → 429, andere Hauptversion → 426, Fehler als
+    `{ error, message }`. Bisher nur `GET /av/v1/info`; alles andere braucht eine Kopplung (Stufe 2) und endet mit 401.
+  - Start mit **`_hidden`** nimmt nicht teil (kein Mutex, keine Anmeldedatei, keine Schnittstelle — Herbert, Frage 1a).
+    Testläufe mit `LUMORA_APPDATA` schreiben die Anmeldedatei unter die Testwurzel und nehmen keinen Mutex.
+- PLAN.md verweist auf Vertrag 1.1 statt auf den Entwurf 0.1; Plan der 7 Stufen und Antworten auf die offenen Fragen in
+  ADR-0073. (refs #5)
+
 ## [0.5.4] — 2026-10-25
 
 ### Added — „Container öffnen…“ hängt eine BitLocker-VHDX ein (ohne VeraCrypt)
