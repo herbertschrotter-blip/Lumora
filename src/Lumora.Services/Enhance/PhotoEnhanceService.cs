@@ -381,8 +381,18 @@ public sealed class PhotoEnhanceService : IPhotoEnhanceService, IDisposable
                 notes.Add("Sehr großes Foto — vor dem Hochskalieren verkleinert (höchstens 64 Megapixel).");
             }
 
+            var beforeUpscale = image;
             image = await RunEngineAsync(EnhanceTool.Upscale, new EnhanceStepInput(image, Factor: factor), settings.UseGpu, ct).ConfigureAwait(false);
             applied.Add(EnhanceTool.Upscale);
+
+            // Natürlichkeit (0.5.6): etwas Original zurück und feine Körnung gegen die glatte „Plastikhaut“ des Modells
+            var naturalness = options.Naturalness ?? settings.Naturalness;
+            var grain = options.Grain ?? settings.Grain;
+            image = EnhanceImageOps.Naturalize(image, beforeUpscale, naturalness, grain, info.Id);
+            if (naturalness > 0.001 || grain > 0.001)
+            {
+                notes.Add(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"Natürlichkeit {Math.Round(naturalness * 100):0} %, Körnung {Math.Round(grain * 100):0} %."));
+            }
         }
 
         if (applied.Count == 0)

@@ -76,6 +76,7 @@ public sealed partial class EnhancePanelViewModel : ObservableObject, IEnhanceBr
     public static readonly IReadOnlyList<string> CropPresets = ["Original", "Quadrat", "4:3", "3:2", "16:9"];
 
     private readonly IPhotoEnhanceService _service;
+    private readonly IEnhanceSettingsStore? _settingsStore;
     private readonly IModelPackageManager? _models;
     private readonly IDialogService? _dialogs;
     private readonly ILogger _logger;
@@ -87,9 +88,10 @@ public sealed partial class EnhancePanelViewModel : ObservableObject, IEnhanceBr
     /// <summary>Optionen wurden während der Berechnung geändert: das Ergebnis passt nicht mehr und wird verworfen.</summary>
     private bool _staleDuringRender;
 
-    public EnhancePanelViewModel(IPhotoEnhanceService service, IModelPackageManager? models = null, IDialogService? dialogs = null, ILogger<EnhancePanelViewModel>? logger = null)
+    public EnhancePanelViewModel(IPhotoEnhanceService service, IModelPackageManager? models = null, IDialogService? dialogs = null, ILogger<EnhancePanelViewModel>? logger = null, IEnhanceSettingsStore? settingsStore = null)
     {
         _service = service;
+        _settingsStore = settingsStore;
         _models = models;
         _dialogs = dialogs;
         _logger = logger ?? (ILogger)NullLogger.Instance;
@@ -164,6 +166,15 @@ public sealed partial class EnhancePanelViewModel : ObservableObject, IEnhanceBr
     // Optionen
     [ObservableProperty] private int _upscaleFactor = 2;
 
+    /// <summary>Natürlichkeit beim Hochskalieren 0…0,8 (Anteil Original); gemerkt in Einstellungen › Verbessern.</summary>
+    [ObservableProperty] private double _naturalness = EnhanceSettings.DefaultNaturalness;
+
+    /// <summary>Körnung beim Hochskalieren 0…1; gemerkt in Einstellungen › Verbessern.</summary>
+    [ObservableProperty] private double _grain = EnhanceSettings.DefaultGrain;
+
+    /// <summary>Gelesene Einstellungen (zum Merken geänderter Regler).</summary>
+    private EnhanceSettings? _loadedSettings;
+
     [ObservableProperty] private double _faceStrength = 0.8;
 
     /// <summary>Pinselgröße als Radius relativ zur Bildbreite.</summary>
@@ -209,6 +220,13 @@ public sealed partial class EnhancePanelViewModel : ObservableObject, IEnhanceBr
 
     partial void OnFaceStrengthChanged(double value) => Stale();
 
+    partial void OnNaturalnessChanged(double value) => Stale();
+
+    partial void OnGrainChanged(double value) => Stale();
+
+    /// <summary>Regler „Natürlichkeit“ sichtbar: beim Hochskalieren und bei „Automatisch“ (kann hochskalieren).</summary>
+    public bool ShowNaturalness => Tool(EnhanceTool.Upscale).IsSelected || Tool(EnhanceTool.Auto).IsSelected;
+
     partial void OnScratchesChanged(bool value) => Stale();
 
     partial void OnRotationChanged(int value) => Stale();
@@ -227,6 +245,7 @@ public sealed partial class EnhancePanelViewModel : ObservableObject, IEnhanceBr
         IsOpen = open;
         if (open)
         {
+            await LoadNaturalnessAsync().ConfigureAwait(true);
             await RefreshAsync().ConfigureAwait(true);
         }
         else
@@ -267,6 +286,47 @@ public sealed partial class EnhancePanelViewModel : ObservableObject, IEnhanceBr
             {
                 _logger.LogDebug(ex, "Foto verbessern: Dateiname nicht ermittelt");
             }
+        }
+    }
+
+    /// <summary>Natürlichkeit und Körnung aus Einstellungen › Verbessern (einmal je Leiste).</summary>
+    private async Task LoadNaturalnessAsync()
+    {
+        if (_settingsStore is null || _loadedSettings is not null)
+        {
+            return;
+        }
+
+        try
+        {
+            _loadedSettings = await _settingsStore.LoadAsync().ConfigureAwait(true);
+            Naturalness = _loadedSettings.Naturalness;
+            Grain = _loadedSettings.Grain;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Foto verbessern: Natürlichkeit nicht gelesen");
+        }
+    }
+
+    /// <summary>Geänderte Regler merken (beim Berechnen), damit die nächste Leiste und der Stapel sie übernehmen.</summary>
+    private async Task SaveNaturalnessAsync()
+    {
+        if (_settingsStore is null || _loadedSettings is not { } loaded
+            || (Math.Abs(loaded.Naturalness - Naturalness) < 0.005 && Math.Abs(loaded.Grain - Grain) < 0.005))
+        {
+            return;
+        }
+
+        try
+        {
+            var current = await _settingsStore.LoadAsync().ConfigureAwait(true);
+            _loadedSettings = current with { Naturalness = Naturalness, Grain = Grain };
+            await _settingsStore.SaveAsync(_loadedSettings).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Foto verbessern: Natürlichkeit nicht gemerkt");
         }
     }
 
@@ -330,6 +390,7 @@ public sealed partial class EnhancePanelViewModel : ObservableObject, IEnhanceBr
         Stale();
         OnPropertyChanged(nameof(IsBrushMode));
         OnPropertyChanged(nameof(ShowsOverlay));
+        OnPropertyChanged(nameof(ShowNaturalness));
     }
 
     [RelayCommand]
@@ -466,6 +527,8 @@ public sealed partial class EnhancePanelViewModel : ObservableObject, IEnhanceBr
             Auto = Tool(EnhanceTool.Auto).IsSelected,
             Upscale = Tool(EnhanceTool.Upscale).IsSelected,
             UpscaleFactor = UpscaleFactor,
+            Naturalness = Naturalness,
+            Grain = Grain,
             Faces = Tool(EnhanceTool.Faces).IsSelected,
             FaceStrength = FaceStrength,
             Colorize = Tool(EnhanceTool.Colorize).IsSelected,
@@ -501,6 +564,11 @@ public sealed partial class EnhancePanelViewModel : ObservableObject, IEnhanceBr
         {
             ShowMessage(Tool(EnhanceTool.Erase).IsSelected ? "Erst Störendes mit dem Pinsel markieren oder „Kratzer automatisch“ wählen." : "Bitte ein Werkzeug wählen.", error: true);
             return;
+        }
+
+        if (ShowNaturalness)
+        {
+            _ = SaveNaturalnessAsync();
         }
 
         _renderCts?.Cancel();
@@ -682,7 +750,7 @@ public sealed partial class EnhancePanelViewModel : ObservableObject, IEnhanceBr
 }
 
 /// <summary>Erzeugt je Lightbox-Fenster eine Leiste (das Fenster besitzt und entsorgt sie).</summary>
-public sealed class EnhancePanelFactory(IPhotoEnhanceService service, IModelPackageManager? models = null, IDialogService? dialogs = null, ILogger<EnhancePanelViewModel>? logger = null)
+public sealed class EnhancePanelFactory(IPhotoEnhanceService service, IModelPackageManager? models = null, IDialogService? dialogs = null, ILogger<EnhancePanelViewModel>? logger = null, IEnhanceSettingsStore? settingsStore = null)
 {
-    public EnhancePanelViewModel Create() => new(service, models, dialogs, logger);
+    public EnhancePanelViewModel Create() => new(service, models, dialogs, logger, settingsStore);
 }

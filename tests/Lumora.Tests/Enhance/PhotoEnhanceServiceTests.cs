@@ -26,6 +26,7 @@ public sealed class PhotoEnhanceServiceTests
         var before = Hash(original);
 
         var preview = await w.Service.RenderAsync(id, new EnhanceOptions { Upscale = true, UpscaleFactor = 2, Brightness = 0.2 });
+        preview.Notes.Should().Contain("Natürlichkeit 35 %, Körnung 20 %.", "ohne Angabe gelten die Einstellungen (0.5.6)");
 
         preview.Width.Should().Be(FakeEnhanceCodec.DefaultWidth * 2);
         preview.AppliedTools.Should().Equal(EnhanceTool.Adjust, EnhanceTool.Upscale);

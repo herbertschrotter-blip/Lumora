@@ -152,6 +152,18 @@
                         </StackPanel>
                     </StackPanel>
 
+                    <!-- Natürlichkeit beim Hochskalieren (0.5.6): Original zurückmischen und feine Körnung gegen „Plastikhaut“ -->
+                    <StackPanel Visibility="{Binding ShowNaturalness, Converter={StaticResource BoolToVis}}" Margin="0,4,0,6">
+                        <TextBlock Style="{StaticResource EnhanceLabel}" Text="{Binding Naturalness, StringFormat='Natürlichkeit {0:P0}'}"
+                                   ToolTip="Mischt etwas vom Original zurück — Haut und Strukturen wirken weniger glatt und künstlich" />
+                        <Slider Style="{StaticResource LightboxSlider}" Minimum="0" Maximum="0.8" Value="{Binding Naturalness}"
+                                AutomationProperties.Name="Natürlichkeit" />
+                        <TextBlock Style="{StaticResource EnhanceLabel}" Text="{Binding Grain, StringFormat='Körnung {0:P0}'}"
+                                   ToolTip="Feines Korn vor allem in mittleren Helligkeiten (Haut), kaum in Tiefen und Lichtern" />
+                        <Slider Style="{StaticResource LightboxSlider}" Minimum="0" Maximum="1" Value="{Binding Grain}"
+                                AutomationProperties.Name="Körnung" />
+                    </StackPanel>
+
                     <!-- Optionen: Gesichter -->
                     <StackPanel Visibility="{Binding Tools[2].IsSelected, Converter={StaticResource BoolToVis}}" Margin="0,4,0,6">
                         <TextBlock Style="{StaticResource EnhanceLabel}" Text="{Binding FaceStrength, StringFormat='Stärke {0:P0}'}" />

@@ -78,6 +78,15 @@ public sealed record EnhanceOptions
     /// <summary>2 oder 4.</summary>
     public int UpscaleFactor { get; init; } = 2;
 
+    /// <summary>
+    /// Natürlichkeit beim Hochskalieren 0…1 (0.5.6): Anteil des vergrößerten Originals im Ergebnis — gegen die glatte,
+    /// künstliche Haut des Modells. null = Wert aus Einstellungen › Verbessern.
+    /// </summary>
+    public double? Naturalness { get; init; }
+
+    /// <summary>Körnung beim Hochskalieren 0…1 (feines Helligkeitsrauschen, vor allem in Mitteltönen); null = Einstellung.</summary>
+    public double? Grain { get; init; }
+
     public bool Faces { get; init; }
 
     /// <summary>Stärke 0…1 (Mischung restauriert ↔ Original).</summary>
@@ -212,8 +221,15 @@ public sealed record EnhanceSettings(
     bool CopyMetadata = true,
     bool CopyRatingAndTags = true,
     bool ShowBestVariant = false,
-    bool UseGpu = true)
+    bool UseGpu = true,
+    double Naturalness = EnhanceSettings.DefaultNaturalness,
+    double Grain = EnhanceSettings.DefaultGrain)
 {
+    /// <summary>Natürlichkeit beim Hochskalieren, bis Herbert anders wählt (0.5.6: Haut wirkte „zu glatt und künstlich“).</summary>
+    public const double DefaultNaturalness = 0.35;
+
+    public const double DefaultGrain = 0.2;
+
     public const string DefaultPattern = "{name}_verbessert";
     public const string DefaultSubfolder = "verbessert";
 

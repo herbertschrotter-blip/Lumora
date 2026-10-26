@@ -66,6 +66,54 @@ public sealed class EnhanceUiTests : IDisposable
     });
 
     [Fact]
+    public Task Natuerlichkeit_kommt_aus_den_Einstellungen_und_wird_beim_Berechnen_gemerkt() => OnUiAsync(async () =>
+    {
+        // 0.5.6: Herbert fand die Haut nach dem Hochskalieren „zu glatt und künstlich“
+        var store = new SeededSettingsStore { Current = EnhanceSettings.Default with { Naturalness = 0.5, Grain = 0.1 } };
+        var service = new FakeEnhanceService(_root);
+        using var vm = new EnhancePanelViewModel(service, settingsStore: store);
+        await vm.SetOpenAsync(true);
+        await vm.SetFileAsync(42, isImage: true);
+
+        (vm.Naturalness, vm.Grain).Should().Be((0.5, 0.1));
+        vm.ShowNaturalness.Should().BeTrue("„Automatisch“ kann hochskalieren");
+        vm.ToggleToolCommand.Execute(vm.Tool(EnhanceTool.Faces));
+        vm.ShowNaturalness.Should().BeFalse("nur Gesichter: kein Hochskalieren");
+        vm.ToggleToolCommand.Execute(vm.Tool(EnhanceTool.Upscale));
+        vm.ShowNaturalness.Should().BeTrue();
+
+        vm.Naturalness = 0.6;
+        vm.Grain = 0.3;
+        vm.BuildOptions().Should().Match<EnhanceOptions>(o => o.Naturalness == 0.6 && o.Grain == 0.3);
+        await vm.CalculateCommand.ExecuteAsync(null);
+
+        service.Rendered.Last().Naturalness.Should().Be(0.6);
+        for (var i = 0; i < 50 && store.Saved.Count == 0; i++)
+        {
+            await Task.Delay(20);
+        }
+
+        store.Saved.Should().ContainSingle().Which.Should().Match<EnhanceSettings>(s => s.Naturalness == 0.6 && s.Grain == 0.3);
+        store.Current.Location.Should().Be(EnhanceSettings.Default.Location, "die übrigen Einstellungen bleiben");
+    });
+
+    private sealed class SeededSettingsStore : IEnhanceSettingsStore
+    {
+        public EnhanceSettings Current { get; set; } = EnhanceSettings.Default;
+
+        public List<EnhanceSettings> Saved { get; } = [];
+
+        public Task<EnhanceSettings> LoadAsync(CancellationToken ct = default) => Task.FromResult(Current);
+
+        public Task SaveAsync(EnhanceSettings settings, CancellationToken ct = default)
+        {
+            Saved.Add(settings);
+            Current = settings;
+            return Task.CompletedTask;
+        }
+    }
+
+    [Fact]
     public Task Automatisch_und_Modell_Werkzeuge_schliessen_sich_aus_Zuschneiden_geht_immer_dazu() => OnUiAsync(async () =>
     {
         using var vm = new EnhancePanelViewModel(new FakeEnhanceService(_root));

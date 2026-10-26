@@ -217,6 +217,54 @@ public sealed class EnhanceBuildingBlocksTests
         message!.Settings.ShowBestVariant.Should().BeTrue();
         await store.SaveAsync(changed with { SubfolderName = "..\\weg", FileNamePattern = "  " });
         (await store.LoadAsync()).Should().Match<EnhanceSettings>(s => s.SubfolderName == "weg" && s.FileNamePattern == EnhanceSettings.DefaultPattern);
+
+        // 0.5.6: Natürlichkeit und Körnung gemerkt (invariant, begrenzt auf 0…1)
+        EnhanceSettings.Default.Naturalness.Should().Be(0.35);
+        EnhanceSettings.Default.Grain.Should().Be(0.2);
+        await store.SaveAsync(changed with { Naturalness = 0.5, Grain = 0 });
+        (await store.LoadAsync()).Should().Match<EnhanceSettings>(s => s.Naturalness == 0.5 && s.Grain == 0);
+        await store.SaveAsync(changed with { Naturalness = 3, Grain = -1 });
+        (await store.LoadAsync()).Should().Match<EnhanceSettings>(s => s.Naturalness == 1 && s.Grain == 0);
+    }
+
+    [Fact]
+    public void Natuerlichkeit_mischt_das_vergroesserte_Original_zurueck()
+    {
+        var before = EnhanceImage.Blank(2, 2); // schwarz
+        var enhanced = EnhanceImage.Blank(4, 4);
+        Array.Fill(enhanced.Pixels, (byte)200);
+
+        EnhanceImageOps.Naturalize(enhanced, before, 0, 0).Should().BeSameAs(enhanced, "ohne Natürlichkeit und Körnung unverändert");
+        EnhanceImageOps.Naturalize(enhanced, before, 0.5, 0).Pixels.Should().OnlyContain(v => v == 100, "halb Modell, halb Original");
+        EnhanceImageOps.Naturalize(enhanced, before, 1, 0).Pixels.Should().OnlyContain(v => v == 0, "ganz Original");
+        EnhanceImageOps.Naturalize(enhanced, before, double.NaN, 0).Should().BeSameAs(enhanced);
+        enhanced.Pixels.Should().OnlyContain(v => v == 200, "das Modell-Ergebnis selbst bleibt unangetastet");
+    }
+
+    [Fact]
+    public void Koernung_nur_Helligkeit_vor_allem_in_Mitteltoenen_und_reproduzierbar()
+    {
+        var mid = EnhanceImage.Blank(64, 64);
+        Array.Fill(mid.Pixels, (byte)128);
+
+        var grained = EnhanceImageOps.Naturalize(mid, mid, 0, 1, seed: 7);
+        grained.Pixels.Should().NotBeEquivalentTo(mid.Pixels, "Körnung sichtbar");
+        for (var i = 0; i < grained.Pixels.Length; i += 3)
+        {
+            grained.Pixels[i].Should().Be(grained.Pixels[i + 1]);
+            grained.Pixels[i + 1].Should().Be(grained.Pixels[i + 2], "nur Helligkeit, keine Farbflecken");
+        }
+
+        grained.Pixels.Max(v => Math.Abs(v - 128)).Should().BeLessThanOrEqualTo((int)EnhanceImageOps.MaxGrainLevels + 1);
+        grained.Pixels.Average(v => (double)v).Should().BeApproximately(128, 1, "Rauschen ohne Aufhellen oder Abdunkeln");
+        EnhanceImageOps.Naturalize(mid, mid, 0, 1, seed: 7).Pixels.Should().Equal(grained.Pixels, "gleiche Vorschau, gleiche Datei");
+        EnhanceImageOps.Naturalize(mid, mid, 0, 1, seed: 8).Pixels.Should().NotEqual(grained.Pixels);
+
+        var black = EnhanceImage.Blank(16, 16);
+        EnhanceImageOps.Naturalize(black, black, 0, 1).Pixels.Should().OnlyContain(v => v == 0, "kein Korn in tiefem Schwarz");
+        var white = EnhanceImage.Blank(16, 16);
+        Array.Fill(white.Pixels, (byte)255);
+        EnhanceImageOps.Naturalize(white, white, 0, 1).Pixels.Should().OnlyContain(v => v == 255, "kein Korn im reinen Weiß");
     }
 
     [Fact]

@@ -19,7 +19,7 @@ public interface IEnhanceSettingsStore
 /// <summary>
 /// Settings-Tabelle des Katalogs (je Sitzung, also auch in der versteckten Bibliothek getrennt): <c>enhance.location</c>,
 /// <c>enhance.subfolder</c>, <c>enhance.pattern</c>, <c>enhance.copyMetadata</c>, <c>enhance.copyRatingTags</c>,
-/// <c>enhance.showBest</c>, <c>enhance.useGpu</c>.
+/// <c>enhance.showBest</c>, <c>enhance.useGpu</c>, <c>enhance.naturalness</c>, <c>enhance.grain</c> (0…1, invariant).
 /// </summary>
 public sealed class EnhanceSettingsStore(ILibraryContextFactory factory, IMessenger? messenger = null) : IEnhanceSettingsStore
 {
@@ -30,8 +30,10 @@ public sealed class EnhanceSettingsStore(ILibraryContextFactory factory, IMessen
     public const string CopyRatingTagsKey = "enhance.copyRatingTags";
     public const string ShowBestKey = "enhance.showBest";
     public const string UseGpuKey = "enhance.useGpu";
+    public const string NaturalnessKey = "enhance.naturalness";
+    public const string GrainKey = "enhance.grain";
 
-    private static readonly string[] Keys = [LocationKey, SubfolderKey, PatternKey, CopyMetadataKey, CopyRatingTagsKey, ShowBestKey, UseGpuKey];
+    private static readonly string[] Keys = [LocationKey, SubfolderKey, PatternKey, CopyMetadataKey, CopyRatingTagsKey, ShowBestKey, UseGpuKey, NaturalnessKey, GrainKey];
 
     private readonly IMessenger _messenger = messenger ?? WeakReferenceMessenger.Default;
 
@@ -50,7 +52,9 @@ public sealed class EnhanceSettingsStore(ILibraryContextFactory factory, IMessen
             ReadBool(rows, CopyMetadataKey, d.CopyMetadata),
             ReadBool(rows, CopyRatingTagsKey, d.CopyRatingAndTags),
             ReadBool(rows, ShowBestKey, d.ShowBestVariant),
-            ReadBool(rows, UseGpuKey, d.UseGpu));
+            ReadBool(rows, UseGpuKey, d.UseGpu),
+            ReadShare(rows, NaturalnessKey, d.Naturalness),
+            ReadShare(rows, GrainKey, d.Grain));
     }
 
     public async Task SaveAsync(EnhanceSettings settings, CancellationToken ct = default)
@@ -65,6 +69,8 @@ public sealed class EnhanceSettingsStore(ILibraryContextFactory factory, IMessen
             await UpsertAsync(ctx, CopyRatingTagsKey, settings.CopyRatingAndTags ? "true" : "false", ct).ConfigureAwait(false);
             await UpsertAsync(ctx, ShowBestKey, settings.ShowBestVariant ? "true" : "false", ct).ConfigureAwait(false);
             await UpsertAsync(ctx, UseGpuKey, settings.UseGpu ? "true" : "false", ct).ConfigureAwait(false);
+            await UpsertAsync(ctx, NaturalnessKey, Share(settings.Naturalness), ct).ConfigureAwait(false);
+            await UpsertAsync(ctx, GrainKey, Share(settings.Grain), ct).ConfigureAwait(false);
             await ctx.SaveChangesAsync(ct).ConfigureAwait(false);
         }
 
@@ -76,6 +82,17 @@ public sealed class EnhanceSettingsStore(ILibraryContextFactory factory, IMessen
 
     private static bool ReadBool(Dictionary<string, string?> rows, string key, bool fallback)
         => rows.TryGetValue(key, out var text) && bool.TryParse(text, out var value) ? value : fallback;
+
+    /// <summary>Anteil 0…1 (invariant); ungültig oder fehlend → <paramref name="fallback"/>.</summary>
+    private static double ReadShare(Dictionary<string, string?> rows, string key, double fallback)
+        => rows.TryGetValue(key, out var text)
+           && double.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var value)
+           && double.IsFinite(value)
+            ? Math.Clamp(value, 0, 1)
+            : fallback;
+
+    private static string Share(double value)
+        => Math.Clamp(double.IsFinite(value) ? value : 0, 0, 1).ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
 
     private static async Task UpsertAsync(Data.LibraryContext ctx, string key, string value, CancellationToken ct)
     {

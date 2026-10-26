@@ -102,3 +102,21 @@ Entfernen ohne eigenen Code. Feste Commits und Prüfsummen verhindern, dass eine
   `src/Lumora.Wpf/Lightbox/LightboxViewModel.Enhance.cs`, `src/Lumora.Wpf/Gallery/ViewModels/GalleryViewModel.Enhance.cs`,
   Rauchtest `Shell/Smoke/SmokeScenario.Enhance.cs`
 - Modell-Quellen: Hugging Face `facefusion/models-3.0.0` (Commit 728b965…), `Carve/LaMa-ONNX` (Commit c3c0c9e…)
+
+## Nachtrag 0.5.6 — Natürlichkeit und Körnung beim Hochskalieren (Herbert, 2026-10-26)
+
+**Befund:** Gesichter gelingen gut (GFPGAN), Haut und Körper wirken nach dem Hochskalieren mit Real-ESRGAN x4plus „zu glatt
+und künstlich“ — das allgemeine Modell hält Poren und feine Struktur für Rauschen.
+
+**Entscheidung:**
+- Nach dem Hochskalieren mischt `EnhanceImageOps.Naturalize` das bilinear vergrößerte Bild vor dem Modell zurück
+  (**Natürlichkeit**, Anteil 0…1, Regler bis 80 %) und legt wahlweise eine **Körnung** darüber: gleiche Abweichung für R,
+  G und B (nur Helligkeit), gewichtet mit `4·l·(1−l)` (am stärksten in Mitteltönen, null in reinem Schwarz/Weiß), höchstens
+  ±12 Stufen. Das Rauschen hängt nur von Position und FileId ab — dieselbe Vorschau ergibt dieselbe Datei.
+- Gilt für „Hochskalieren“ und für „Automatisch“, wenn es hochskaliert; nicht für Gesichter (dort gibt es die Stärke).
+- `EnhanceOptions.Naturalness`/`Grain` (null = Einstellung), `EnhanceSettings.Naturalness = 0,35`, `Grain = 0,2`
+  (Settings `enhance.naturalness`, `enhance.grain`, invariant, begrenzt auf 0…1). Die Leiste liest sie beim Öffnen und
+  merkt geänderte Regler beim Berechnen; der Stapel nimmt die Einstellung.
+
+**Offen:** Ein zweites Hochskalier-Modell mit erhaltener Struktur (`realesr-general-x4v3`) — die Quelle für eine
+ladbare ONNX-Datei mit festem Commit und Prüfsumme ist noch zu entscheiden (keine offizielle ONNX-Fassung bei facefusion).

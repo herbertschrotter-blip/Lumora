@@ -3,6 +3,16 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.6] — 2026-10-26
+
+### Added — Foto verbessern: Natürlichkeit und Körnung beim Hochskalieren
+- Herbert: Haut wirkt nach dem Hochskalieren „zu glatt und künstlich“. Neu in der Leiste „Verbessern“ (bei Hochskalieren und
+  „Automatisch“): **Natürlichkeit** mischt einen Anteil des Originals zurück (Standard 35 %, bis 80 %), **Körnung** legt
+  feines Korn darüber (Standard 20 %) — nur Helligkeit, vor allem in den Mitteltönen, reproduzierbar je Foto.
+- Beide Werte stehen in Einstellungen › Verbessern (`enhance.naturalness`, `enhance.grain`); die Leiste merkt geänderte
+  Regler beim Berechnen, „mehrere Fotos verbessern“ nimmt sie mit. Die Vorschau nennt die Werte. ADR-0071 Nachtrag 0.5.6.
+- **Offen:** zweites Modell `realesr-general-x4v3` (Quelle der ONNX-Datei noch zu entscheiden).
+
 ## [0.5.5] — 2026-10-26
 
 ### Added — App-Verbindung Stufe 1: Anmeldedatei, eine Lumora je Benutzer, Schnittstelle auf 127.0.0.1

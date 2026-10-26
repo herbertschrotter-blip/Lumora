@@ -480,6 +480,10 @@ kommt in den Papierkorb).
   **Vorschau berechnen**. Auf dem Bild zeigt ein Regler Vorher (links) und Nachher (rechts); ziehen oder klicken verschiebt
   ihn. **Als neue Datei speichern** legt die Fassung an, **Verwerfen** löscht die Vorschau. Andere Optionen oder Blättern
   verwerfen eine Vorschau ebenfalls.
+- **Natürlichkeit** (seit 0.5.6, beim Hochskalieren und bei „Automatisch“): Das Modell bügelt Haut und feine Strukturen
+  gern glatt. **Natürlichkeit** mischt einen Anteil des Originals zurück (Standard 35 %, bis 80 %), **Körnung** legt feines
+  Korn darüber — nur in der Helligkeit, vor allem in den Mitteltönen, kaum in Tiefen und Lichtern. Beide Werte merkt sich
+  Lumora beim Berechnen (Einstellungen › Verbessern) und nimmt sie auch für mehrere Fotos.
 - **Mehrere Fotos:** in der Galerie auswählen, Rechtsklick „Bearbeiten ▸ n Fotos verbessern…“: Werkzeuge wählen, die
   Zeitschätzung lesen, **Verbessern**. Der Lauf erscheint unter den Aktivitäten (Fortschritt, Abbrechen); bereits fertige
   werden gespeichert, „Rückgängig“ am Vorgang nimmt alle Fassungen zurück. Die Grafikkarte wechselt sich mit Gesichts- und

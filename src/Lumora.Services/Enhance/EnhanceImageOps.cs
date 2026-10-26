@@ -114,6 +114,78 @@ public static class EnhanceImageOps
         return new EnhanceImage(d, src.Width, src.Height);
     }
 
+    /// <summary>Stärkste Körnung in Helligkeitsstufen (bei <c>grain = 1</c> und mittlerer Helligkeit).</summary>
+    public const double MaxGrainLevels = 12;
+
+    /// <summary>
+    /// Natürlichkeit nach dem Hochskalieren (0.5.6): mischt das Modell-Ergebnis mit dem bilinear vergrößerten
+    /// <paramref name="before"/> (Anteil <paramref name="naturalness"/>) und legt eine feine Körnung darüber — gleich für R, G
+    /// und B (nur Helligkeit), am stärksten in den Mitteltönen, wo Haut liegt, kaum in Tiefen und Lichtern. Die Körnung hängt
+    /// nur von Position und <paramref name="seed"/> ab: dieselbe Vorschau ergibt dieselbe Datei.
+    /// </summary>
+    public static EnhanceImage Naturalize(EnhanceImage enhanced, EnhanceImage before, double naturalness, double grain, int seed = 0)
+    {
+        naturalness = double.IsFinite(naturalness) ? Math.Clamp(naturalness, 0, 1) : 0;
+        grain = double.IsFinite(grain) ? Math.Clamp(grain, 0, 1) : 0;
+        if (naturalness <= 0.001 && grain <= 0.001)
+        {
+            return enhanced;
+        }
+
+        var basis = naturalness > 0.001 ? Resize(before, enhanced.Width, enhanced.Height) : null;
+        var dst = new byte[enhanced.Pixels.Length];
+        var width = enhanced.Width;
+        var src = enhanced.Pixels;
+        var amplitude = grain * MaxGrainLevels;
+        Parallel.For(0, enhanced.Height, y =>
+        {
+            for (var x = 0; x < width; x++)
+            {
+                var i = ((y * width) + x) * 3;
+                double r = src[i], g = src[i + 1], b = src[i + 2];
+                if (basis is not null)
+                {
+                    r += (basis.Pixels[i] - r) * naturalness;
+                    g += (basis.Pixels[i + 1] - g) * naturalness;
+                    b += (basis.Pixels[i + 2] - b) * naturalness;
+                }
+
+                if (amplitude > 0)
+                {
+                    var luma = ((0.299 * r) + (0.587 * g) + (0.114 * b)) / 255.0;
+                    var delta = Noise(x, y, seed) * amplitude * 4 * luma * (1 - luma);
+                    r += delta;
+                    g += delta;
+                    b += delta;
+                }
+
+                dst[i] = ClampByte(r);
+                dst[i + 1] = ClampByte(g);
+                dst[i + 2] = ClampByte(b);
+            }
+        });
+        return new EnhanceImage(dst, enhanced.Width, enhanced.Height);
+    }
+
+    /// <summary>Rauschwert −1…1 je Pixel (Summe zweier gleichverteilter Werte → glockenförmig, Mittelwert 0).</summary>
+    internal static double Noise(int x, int y, int seed)
+    {
+        static uint Hash(uint v)
+        {
+            v ^= v >> 16;
+            v *= 0x7FEB352D;
+            v ^= v >> 15;
+            v *= 0x846CA68B;
+            v ^= v >> 16;
+            return v;
+        }
+
+        var h = Hash(unchecked((uint)x * 0x9E3779B1u ^ (uint)y * 0x85EBCA77u ^ (uint)seed * 0xC2B2AE3Du));
+        var a = (h & 0xFFFF) / 65535.0;
+        var b = (h >> 16) / 65535.0;
+        return a + b - 1;
+    }
+
     /// <summary>
     /// Skaliert auf <paramref name="width"/> × <paramref name="height"/>: verkleinern mit Flächenmittel (kein Flimmern),
     /// vergrößern bilinear.
