@@ -1,0 +1,65 @@
+<dialogs:AppFluentWindow x:Class="Lumora.AppConnect.PairingDialogWindow"
+                 xmlns:dialogs="clr-namespace:Lumora.Shell.Dialogs"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Title="Neue App koppeln"
+                 Width="520"
+                 SizeToContent="Height"
+                 ResizeMode="NoResize"
+                 ShowInTaskbar="True"
+                 WindowStartupLocation="CenterScreen"
+                 WindowBackdropType="Mica"
+                 ExtendsContentIntoTitleBar="True"
+                 KeyDown="OnKeyDown">
+
+    <!-- Kopplungsdialog der App-Verbindung (ADR-0073, Vertrag 1.1 Abschnitt 5, Mockup 11 „Neue App koppeln“): Code vergleichen,
+         Rechte je Zeile an/aus, „Verbinden“ / „Ablehnen“. Eigenes Fenster (keine Wpf.Ui MessageBox); schließt sich, wenn die
+         Anfrage nach 5 Minuten abläuft. -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar Grid.Row="0" Title="Neue App koppeln" ShowMaximize="False" ShowMinimize="False" />
+
+        <StackPanel Grid.Row="1" Margin="24,4,24,16">
+            <StackPanel Orientation="Horizontal">
+                <Border Width="40" Height="40" CornerRadius="8" Margin="0,0,12,0" Background="{DynamicResource AccentFillColorDefaultBrush}">
+                    <ui:SymbolIcon Symbol="PlugConnected24" FontSize="20" Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <TextBlock x:Name="HeadText" VerticalAlignment="Center" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap" MaxWidth="400" />
+            </StackPanel>
+            <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" FontSize="13" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                       x:Name="CheckText" />
+            <Border Margin="0,12,0,0" HorizontalAlignment="Left" Padding="12,6" CornerRadius="6"
+                    Background="{DynamicResource SubtleFillColorSecondaryBrush}">
+                <TextBlock x:Name="CodeText" FontFamily="Cascadia Mono, Consolas" FontSize="20" FontWeight="SemiBold"
+                           Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" AutomationProperties.Name="Code" />
+            </Border>
+            <ItemsControl x:Name="PermissionList" Margin="0,12,0,0" Focusable="False">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <CheckBox Margin="0,4,0,0" Content="{Binding Text}" IsChecked="{Binding IsChecked}"
+                                  AutomationProperties.Name="{Binding Text}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                       Text="Lumora gibt Fotos nur als Verweis, nie als Kopie, und nie aus versteckten Bibliotheken. Welche Bibliotheken die App sieht, legen Sie später unter Einstellungen › Verbundene Apps fest; dort lässt sich alles ändern oder trennen." />
+        </StackPanel>
+
+        <Border Grid.Row="2" Padding="24,12"
+                Background="{DynamicResource LayerFillColorDefaultBrush}"
+                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                BorderThickness="0,1,0,0">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <ui:Button MinWidth="110" Margin="0,0,8,0" Content="Ablehnen" Click="OnRejectClick" AutomationProperties.Name="Ablehnen" />
+                <ui:Button MinWidth="110" Appearance="Primary" Content="Verbinden" Click="OnAcceptClick" AutomationProperties.Name="Verbinden" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</dialogs:AppFluentWindow>

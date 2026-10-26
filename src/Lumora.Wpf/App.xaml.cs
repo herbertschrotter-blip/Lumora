@@ -69,6 +69,12 @@ public partial class App : Application, ICatalogHostSwitcher
     /// <summary>Teilnahme an der App-Verbindung aus dem Einsprung (ADR-0073); null = Tests ohne <see cref="Program"/>.</summary>
     internal static AppConnectStart? AppConnectStart { get; set; }
 
+    /// <summary>Gekoppelte Apps (ADR-0073, Stufe 2); null ohne App-Verbindung (Start mit <c>_hidden</c>).</summary>
+    internal Lumora.AppConnect.ConnectionStore? AppConnections { get; private set; }
+
+    /// <summary>Kopplungsdialog (Rauchtest greift auf das offene Fenster zu).</summary>
+    internal Lumora.AppConnect.WindowPairingPrompt? PairingPrompt { get; private set; }
+
     public App()
     {
         // Produktiv %LocalAppData%\Lumora; per LUMORA_APPDATA umlenkbar (Rauchtests mit frischer DB).
@@ -253,13 +259,21 @@ public partial class App : Application, ICatalogHostSwitcher
         }
 
         var factory = new SerilogLoggerFactory(Log.Logger);
+        var logger = factory.CreateLogger("Lumora.AppConnect");
         var testRoot = start.Participation == Lumora.AppConnect.AppConnectParticipation.Isolated ? _paths.AppDataRoot : null;
+        // Kopplungen (Stufe 2): Geheimnis nur DPAPI-verschlüsselt unter <App-Wurzel>ppconnect, Dialog nach Mockup 11
+        AppConnections = new Lumora.AppConnect.ConnectionStore(
+            Path.Combine(_paths.AppDataRoot, "appconnect", "connections.json"), new Lumora.AppConnect.DpapiSecretProtector());
+        PairingPrompt = new Lumora.AppConnect.WindowPairingPrompt(Dispatcher, () => MainWindow);
+        var leases = new Lumora.AppConnect.LeaseRegistry();
         var host = new Lumora.AppConnect.AppConnectHost(
             new Lumora.AppConnect.AppConnectServer(
                 new Lumora.AppConnect.AppConnectIdentity(Lumora.Settings.Info.AppInfo.Version),
-                Lumora.AppConnect.NoPeers.Instance,
+                AppConnections,
                 () => "window",
-                factory.CreateLogger("Lumora.AppConnect")),
+                logger,
+                pairing: new Lumora.AppConnect.PairingCoordinator(AppConnections, PairingPrompt, logger: logger, onPaired: leases.ReleaseAll),
+                leases: leases),
             new Lumora.AppConnect.RegistrationFiles(Lumora.AppConnect.RegistrationFiles.ResolveFolder(testRoot)),
             Lumora.Settings.Info.AppInfo.Version,
             Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "Lumora.exe"),

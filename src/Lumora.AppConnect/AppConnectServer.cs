@@ -17,8 +17,8 @@ public sealed record AppConnectIdentity(string AppVersion);
 
 /// <summary>
 /// Lokale Schnittstelle nach Vertrag „App-Verbindung“ 1.1 (ADR-0073): HTTP nur auf <c>127.0.0.1</c>, Basispfad
-/// <c>/av/v1</c>, Schutz gegen Browser-Angriffe (Abschnitt 3), Fehler nach Abschnitt 11. Stufe 1 beantwortet nur
-/// <c>GET /info</c>; alles andere braucht eine Kopplung (Stufe 2) und endet bis dahin mit 401 <c>not_paired</c>.
+/// <c>/av/v1</c>, Schutz gegen Browser-Angriffe (Abschnitt 3), Fehler nach Abschnitt 11, <c>GET /info</c> (Stufe 1),
+/// Kopplung als Anbieter und Halte-Zusagen (Abschnitte 5 und 7, Stufe 2). Ohne Koordinator gibt es keine Kopplung.
 /// </summary>
 public sealed partial class AppConnectServer : IAsyncDisposable
 {
@@ -29,6 +29,8 @@ public sealed partial class AppConnectServer : IAsyncDisposable
 
     private readonly AppConnectIdentity _identity;
     private readonly IAppConnectPeers _peers;
+    private readonly PairingCoordinator? _pairing;
+    private readonly LeaseRegistry _leases;
     private readonly Func<string> _mode;
     private readonly Func<long> _second;
     private readonly ILogger _logger;
@@ -39,10 +41,13 @@ public sealed partial class AppConnectServer : IAsyncDisposable
 
     /// <param name="mode">Aktueller Modus für <c>GET /info</c> (<c>window</c> | <c>background</c>).</param>
     /// <param name="second">Laufende Sekunde für die Anfragegrenze (Tests geben eine eigene Uhr).</param>
-    public AppConnectServer(AppConnectIdentity identity, IAppConnectPeers peers, Func<string> mode, ILogger? logger = null, Func<long>? second = null)
+    public AppConnectServer(AppConnectIdentity identity, IAppConnectPeers peers, Func<string> mode, ILogger? logger = null, Func<long>? second = null,
+        PairingCoordinator? pairing = null, LeaseRegistry? leases = null)
     {
         _identity = identity;
         _peers = peers;
+        _pairing = pairing;
+        _leases = leases ?? new LeaseRegistry();
         _mode = mode;
         _logger = logger ?? NullLogger.Instance;
         _second = second ?? (() => Environment.TickCount64 / 1000);
@@ -190,8 +195,104 @@ public sealed partial class AppConnectServer : IAsyncDisposable
 
     private void MapEndpoints(WebApplication app)
     {
-        app.MapGet(AppConnectContract.BasePath + "/info", Info);
+        var b = AppConnectContract.BasePath;
+        app.MapGet(b + "/info", Info);
+        app.MapPost(b + "/pairing", (Delegate)BeginPairingAsync);
+        app.MapGet(b + "/pairing/{id}", PairingStatus);
+        app.MapDelete(b + "/pairing", Unpair);
+        app.MapPost(b + "/lease", (Delegate)CreateLeaseAsync);
+        app.MapPut(b + "/lease/{id}", (Delegate)ExtendLeaseAsync);
+        app.MapDelete(b + "/lease/{id}", ReleaseLease);
         app.MapFallback(() => Error(StatusCodes.Status404NotFound, ErrorCodes.NotFound, "Unbekannter Pfad."));
+    }
+
+    private string? Peer(HttpContext ctx) => ctx.Items[PeerKey] as string;
+
+    private async Task<IResult> BeginPairingAsync(HttpContext ctx)
+    {
+        string? pairingId = null;
+        if (_pairing is null)
+        {
+            return Error(StatusCodes.Status404NotFound, ErrorCodes.NotFound, "Kopplung ist hier nicht möglich.");
+        }
+
+        var request = await ReadBodyAsync<PairingRequest>(ctx).ConfigureAwait(false);
+        var result = request is null ? PairingBeginResult.Invalid : _pairing.Begin(request, out pairingId);
+        if (result == PairingBeginResult.Invalid)
+        {
+            return Error(StatusCodes.Status400BadRequest, ErrorCodes.BadRequest, "Kopplungsanfrage unvollständig oder ungültig.");
+        }
+
+        if (result == PairingBeginResult.Busy)
+        {
+            ctx.Response.Headers.RetryAfter = "5";
+            return Error(StatusCodes.Status429TooManyRequests, ErrorCodes.TooManyRequests, "Es läuft schon eine Kopplungsanfrage.");
+        }
+
+        return Results.Json(new PairingCreatedResponse(pairingId!), AppConnectContract.Json, statusCode: StatusCodes.Status202Accepted);
+    }
+
+    private IResult PairingStatus(HttpContext ctx, string id)
+    {
+        var appId = ctx.Request.Headers[AppConnectContract.AppHeader].ToString();
+        return _pairing?.Status(id, appId) is { } status
+            ? Results.Json(status, AppConnectContract.Json)
+            : Error(StatusCodes.Status404NotFound, ErrorCodes.NotFound, "Kopplungsanfrage unbekannt.");
+    }
+
+    private IResult Unpair(HttpContext ctx)
+    {
+        var peer = Peer(ctx)!;
+        _peers.Remove(peer);
+        _leases.ReleaseAll(peer);
+        _logger.LogInformation("App-Verbindung: {AppId} hat die Kopplung getrennt", peer);
+        return Results.NoContent();
+    }
+
+    private async Task<IResult> CreateLeaseAsync(HttpContext ctx)
+    {
+        var body = await ReadBodyAsync<LeaseRequest>(ctx).ConfigureAwait(false);
+        return body?.Seconds is int seconds && LeaseRegistry.IsValidDuration(seconds)
+            ? Results.Json(_leases.Create(Peer(ctx)!, seconds), AppConnectContract.Json)
+            : Error(StatusCodes.Status400BadRequest, ErrorCodes.BadRequest, "seconds muss zwischen 60 und 900 liegen.");
+    }
+
+    private async Task<IResult> ExtendLeaseAsync(HttpContext ctx, string id)
+    {
+        // Rumpf wahlweise (Abschnitt 7): ohne Rumpf gilt die bisherige Dauer
+        int? seconds = null;
+        if (ctx.Request.ContentLength is > 0 || ctx.Request.Headers.TransferEncoding.Count > 0)
+        {
+            var body = await ReadBodyAsync<LeaseRequest>(ctx).ConfigureAwait(false);
+            if (body is null || (body.Seconds is int s && !LeaseRegistry.IsValidDuration(s)))
+            {
+                return Error(StatusCodes.Status400BadRequest, ErrorCodes.BadRequest, "seconds muss zwischen 60 und 900 liegen.");
+            }
+
+            seconds = body.Seconds;
+        }
+
+        return _leases.Extend(Peer(ctx)!, id, seconds) is { } lease
+            ? Results.Json(lease, AppConnectContract.Json)
+            : Error(StatusCodes.Status404NotFound, ErrorCodes.NotFound, "Halte-Zusage unbekannt oder abgelaufen.");
+    }
+
+    private IResult ReleaseLease(HttpContext ctx, string id)
+        => _leases.Release(Peer(ctx)!, id)
+            ? Results.NoContent()
+            : Error(StatusCodes.Status404NotFound, ErrorCodes.NotFound, "Halte-Zusage unbekannt.");
+
+    private static async Task<T?> ReadBodyAsync<T>(HttpContext ctx)
+        where T : class
+    {
+        try
+        {
+            return await JsonSerializer.DeserializeAsync<T>(ctx.Request.Body, AppConnectContract.Json, ctx.RequestAborted).ConfigureAwait(false);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     private IResult Info(HttpContext ctx)

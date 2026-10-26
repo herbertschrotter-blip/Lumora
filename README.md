@@ -1259,8 +1259,13 @@ Gipfelbuch (Touren, Spuren, Gipfel; Fotos nur als Verweis). Die Verbindung läuf
   App-Verbindung gar nicht teil.
 - **Anmeldedatei** `%LocalAppData%\AppVerbindung\apps\lumora.json`: Wegweiser für andere Apps (Port, Version, Rechte),
   ohne Geheimnis. Beim Beenden steht dort `running: false`.
-- **Stand 0.5.5:** Die Schnittstelle beantwortet nur `GET /av/v1/info`. Koppeln, der Reiter „Verbundene Apps“
-  (Mockup 11), Fotos für das Gipfelbuch und Touren in Lumora folgen in den nächsten Stufen.
+- **Koppeln** (seit 0.5.8): Fragt eine andere App (z. B. das Gipfelbuch unter Einstellungen › Verbundene Apps) eine
+  Verbindung an, erscheint in Lumora **„<App> möchte sich verbinden“** mit einem sechsstelligen Code — derselbe muss in der
+  anderen App stehen. Je Zeile an/aus: Fotos suchen/Vorschaubilder/Originale öffnen, Personen sehen (Standard aus), Touren,
+  GPS-Spuren und Gipfel an Lumora geben, Hintergrundstart (Standard aus). **Verbinden** oder **Ablehnen**; nach 5 Minuten
+  verfällt die Anfrage. Das gemeinsame Geheimnis liegt nur verschlüsselt (Windows-DPAPI) unter `Lumora\appconnect`.
+- **Noch offen:** Reiter „Verbundene Apps“ (Mockup 11), Fotos für das Gipfelbuch und Touren in Lumora folgen in den nächsten
+  Stufen; bis dahin trennt nur die andere App.
 
 ## Datenablage
 

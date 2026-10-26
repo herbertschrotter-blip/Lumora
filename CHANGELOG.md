@@ -3,6 +3,18 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.8] — 2026-10-27
+
+### Added — App-Verbindung Stufe 2: Kopplung als Anbieter mit Bestätigungsdialog
+- Andere Apps (z. B. das Gipfelbuch) können sich jetzt mit Lumora koppeln (Vertrag 1.1 Abschnitt 5): `POST /av/v1/pairing`
+  öffnet den Dialog **„<App> möchte sich verbinden“** nach Mockup 11 mit Code und Zeilen (Fotos an, Personen aus, Touren/
+  Spuren/Gipfel an, Hintergrundstart aus). **Verbinden** liefert über `GET /pairing/{id}` ein gemeinsames Geheimnis und die
+  gewählten Rechte; nur die anfragende App sieht den Status, nach 5 Minuten `expired`, höchstens eine offene Anfrage (429).
+  `DELETE /pairing` trennt (danach 401); `GET /info` nennt mit Geheimnis die erlaubten Rechte.
+- **Halte-Zusagen** `POST/PUT/DELETE /av/v1/lease` (60…900 s) — verwaltet, wirken ab dem Hintergrundmodus (Stufe 6).
+- Kopplungen in `<App-Wurzel>\appconnect\connections.json`, Geheimnis nur mit Windows-DPAPI verschlüsselt; neues Paket
+  `System.Security.Cryptography.ProtectedData`. ADR-0073 Nachtrag 0.5.8; Rauchtest koppelt eine Test-App. (refs #5)
+
 ## [0.5.7] — 2026-10-26
 
 ### Added — Foto verbessern: Hochskalier-Modell „Natürlich“ (Real-ESRGAN general x4v3)

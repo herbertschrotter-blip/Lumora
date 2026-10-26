@@ -1,6 +1,6 @@
 # ADR-0073: App-Verbindung — Lumora setzt den Vertrag „App-Verbindung“ 1.1 um
 
-- **Status:** Accepted (Stufe 1 in 0.5.5; weitere Stufen ergänzen diesen ADR)
+- **Status:** Accepted (Stufe 1 in 0.5.5, Stufe 2 in 0.5.8; weitere Stufen ergänzen diesen ADR)
 - **Datum:** 2026-10-26
 - **Entscheider:** Herbert Schrotter (Vertrag, Stufenplan, Antworten auf die offenen Fragen am 2026-10-26), Claude (Umsetzung
   und Detailentscheidungen ohne Rückfrage, siehe unten)
@@ -22,7 +22,7 @@ Lumora setzt **App-Verbindung Version 1.1** um, in sieben Stufen (Plan vom 2026-
 | Stufe | Version | Inhalt (Abschnitte des Vertrags) |
 |---|---|---|
 | 1 | 0.5.5 | Anmeldedatei (4), eine Instanz je Benutzer (9), Schnittstelle mit Schutzregeln (3), Fehler (11), `GET /info` (7) |
-| 2 | geplant | Kopplung als Anbieter mit Bestätigungsdialog, Halte-Zusagen (5, 7) |
+| 2 | 0.5.8 | Kopplung als Anbieter mit Bestätigungsdialog, Halte-Zusagen (5, 7) |
 | 3 | geplant | Abfrager: Apps finden, Kopplung anfragen, Geheimnis mit DPAPI, Trennen (4, 5) |
 | 4 | geplant | Reiter „Verbundene Apps“ nach Mockup 11 |
 | 5 | geplant | Foto-Endpunkte als Anbieter (8.1) |
@@ -81,3 +81,23 @@ Lumora-eigene Entscheidungen (keine Vertragsänderung):
   AppConnectHost), `src/Lumora.Wpf/Program.cs`, `src/Lumora.Wpf/App.xaml.cs` (StartAppConnectAsync, StopAppConnect)
 - Tests: `tests/Lumora.Tests/AppConnect/AppConnectServerTests.cs`, `AppConnectHostTests.cs`
 - Issue: herbertschrotter-blip/Lumora#5
+
+## Nachtrag 0.5.8 — Stufe 2: Kopplung als Anbieter
+
+- **Ablauf nach Vertrag 1.1 Abschnitt 5:** `POST /pairing` prüft die Anfrage (App-Kennung `[a-z][a-z0-9-]{1,31}`, nicht
+  `lumora`, Code sechsstellig, Anzeigename) und öffnet den Dialog; höchstens eine offene Anfrage (sonst 429 mit
+  `Retry-After: 5`). `GET /pairing/{id}` nur für die App aus `X-AV-App` (sonst 404), nach 5 Minuten `expired` ohne
+  Geheimnis, nach weiteren 5 Minuten 404. Bei „Verbinden“: 32 Zufallsbytes Base64url, nur angefragte bzw. angebotene
+  Rechte. `DELETE /pairing` → 204, danach 401. Halte-Zusagen `POST/PUT/DELETE /lease` (60…900 s, ohne Rumpf bisherige
+  Dauer, fremd/abgelaufen 404) — wirken erst mit dem Hintergrundmodus (Stufe 6).
+- **Dialog (Mockup 11 „Neue App koppeln“):** „<App> möchte sich verbinden“, Code „482 913“, Zeilen statt einzelner
+  Rechte — Fotos (suchen/Vorschau/Original, an), Personen (aus), Touren/Spuren/Gipfel (an), Hintergrundstart (aus;
+  „gegenseitig“, wenn beide Seiten ihn wollen). Unbekannte Rechte zählen nicht. Nicht modal, einmal nach vorn geholt,
+  schließt sich beim Ablauf. Hinweis: Bibliotheken legt Herbert erst in „Verbundene Apps“ fest (Frage 2: keine).
+- **Speicher:** `<App-Wurzel>\appconnect\connections.json` (nicht im Katalog — unabhängig von Katalog-Sitzungen,
+  portabel im Ordner `Daten`), Geheimnis mit DPAPI (Benutzerbereich, eigene Entropie), atomar geschrieben; nicht
+  entschlüsselbar (anderer Benutzer/PC) → Kopplung gilt als getrennt. Prüfung in konstanter Zeit. Neues Paket
+  `System.Security.Cryptography.ProtectedData` 9.0.0.
+- **Code:** `PairingModels.cs` (Rümpfe, `PairingPermissions`), `PairingCoordinator`, `ConnectionStore`, `LeaseRegistry`;
+  Wpf: `AppConnect/PairingDialogWindow`, `WindowPairingPrompt`. Tests: `PairingTests.cs`, `PairingDialogTests.cs`,
+  Rauchtest-Schritt „App-Verbindung“ (Kopplung einer Test-App, Dialog hell/dunkel).

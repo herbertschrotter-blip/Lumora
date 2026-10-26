@@ -171,5 +171,7 @@ public sealed class AppConnectServerTests : IAsyncLifetime
         public bool Verify(string appId, string secret) => Paired.TryGetValue(appId, out var p) && p.Secret == secret;
 
         public IReadOnlyList<string> GrantedTo(string appId) => Paired.TryGetValue(appId, out var p) ? p.Rights : [];
+
+        public bool Remove(string appId) => Paired.Remove(appId);
     }
 }

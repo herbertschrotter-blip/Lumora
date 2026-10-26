@@ -1,17 +1,24 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Text.Json;
 using System.Threading.Tasks;
+using System.Windows;
+using Wpf.Ui.Appearance;
 using Lumora.AppConnect;
+using Lumora.Settings;
 
 namespace Lumora.Shell.Smoke;
 
 /// <summary>
-/// Rauchtest-Schritt „App-Verbindung“ (ADR-0073, Stufe 1): Lumora hat sich unter der Rauchtest-Wurzel angemeldet
+/// Rauchtest-Schritt „App-Verbindung“ (ADR-0073). Stufe 1: Lumora hat sich unter der Rauchtest-Wurzel angemeldet
 /// (<c>AppVerbindung\apps\lumora.json</c>, laufend, mit Port, ohne Geheimnis), die Schnittstelle auf 127.0.0.1 beantwortet
-/// <c>GET /av/v1/info</c> und weist eine Anfrage mit <c>Origin</c> ab. Der echte Ordner unter <c>%LocalAppData%</c> bleibt
-/// unberührt.
+/// <c>GET /av/v1/info</c> und weist eine Anfrage mit <c>Origin</c> ab. Stufe 2: eine Test-App koppelt per HTTP, der Dialog
+/// (Mockup 11) zeigt Code und Rechte (hell/dunkel), „Verbinden“ → Geheimnis abgeholt, <c>/info</c> mit Rechten, Trennen.
+/// Der echte Ordner unter <c>%LocalAppData%</c> bleibt unberührt.
 /// </summary>
 internal sealed partial class SmokeScenario
 {
@@ -49,5 +56,75 @@ internal sealed partial class SmokeScenario
         var error = JsonDocument.Parse(await refused.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
         Check((int)refused.StatusCode == 403 && error.GetProperty("error").GetString() == ErrorCodes.ForbiddenOrigin,
             "Anfrage mit Origin → 403 forbidden_origin");
+
+        await PairingAsync(http).ConfigureAwait(true);
+    }
+
+    /// <summary>Stufe 2: Kopplung als Anbieter mit Dialog (Mockup 11), Geheimnis, Rechte, Trennen.</summary>
+    private async Task PairingAsync(HttpClient http)
+    {
+        var app = (App)Application.Current;
+        using var begin = await http.PostAsJsonAsync("/av/v1/pairing", new
+        {
+            appId = "rauchtest",
+            displayName = "Rauchtest-App",
+            code = "246810",
+            requestedRights = new[] { Rights.PhotosSearch, Rights.PhotosThumbnail, Rights.PhotosOriginal, Rights.BackgroundStart },
+            offeredRights = new[] { Rights.ToursRead, Rights.TracksRead, Rights.SummitsRead },
+        }).ConfigureAwait(true);
+        var pairingId = JsonDocument.Parse(await begin.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement.GetProperty("pairingId").GetString();
+        await WaitUntilAsync(() => app.PairingPrompt?.Current is { IsVisible: true }, ShortWait, "Kopplungsdialog offen").ConfigureAwait(true);
+        var dialog = app.PairingPrompt!.Current!;
+        Check((int)begin.StatusCode == 202
+              && dialog.Choices.Select(c => (c.Permission.Key, c.IsChecked)).SequenceEqual([("photos", true), ("tours", true), ("background", false)])
+              && PairingDialogWindow.FormatCode("246810") == "246 810",
+            $"Dialog „Rauchtest-App möchte sich verbinden“: Code 246 810, Zeilen {string.Join(", ", dialog.Choices.Select(c => c.Text))}");
+        await _theme.SetModeAsync(AppThemeMode.Light).ConfigureAwait(true);
+        await WaitUntilAsync(() => ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Light, ShortWait, "Theme Hell").ConfigureAwait(true);
+        await SnapshotAsync("76-kopplung-hell", dialog).ConfigureAwait(true);
+        await _theme.SetModeAsync(AppThemeMode.Dark).ConfigureAwait(true);
+        await WaitUntilAsync(() => ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark, ShortWait, "Theme Dunkel").ConfigureAwait(true);
+        await SnapshotAsync("77-kopplung-dunkel", dialog).ConfigureAwait(true);
+        await _theme.SetModeAsync(AppThemeMode.Light).ConfigureAwait(true);
+        dialog.Accept();
+
+        JsonElement status = default;
+        for (var i = 0; i < 40; i++)
+        {
+            using var poll = new HttpRequestMessage(HttpMethod.Get, $"/av/v1/pairing/{pairingId}");
+            poll.Headers.Add(AppConnectContract.AppHeader, "rauchtest");
+            using var polled = await http.SendAsync(poll).ConfigureAwait(true);
+            status = JsonDocument.Parse(await polled.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
+            if (status.GetProperty("status").GetString() == "accepted")
+            {
+                break;
+            }
+
+            await Task.Delay(100).ConfigureAwait(true);
+        }
+
+        var secret = status.TryGetProperty("secret", out var s) ? s.GetString() : null;
+        Check(secret is { Length: 43 } && app.AppConnections?.Find("rauchtest") is { } connection
+              && connection.GrantedToPeer.SequenceEqual([Rights.PhotosSearch, Rights.PhotosThumbnail, Rights.PhotosOriginal]),
+            "Verbinden → Geheimnis abgeholt, gekoppelt ohne Hintergrundstart");
+        var stored = File.ReadAllText(Path.Combine(_paths.AppDataRoot, "appconnect", "connections.json"));
+        Check(!stored.Contains(secret!, StringComparison.Ordinal), "connections.json ohne Geheimnis im Klartext (DPAPI)");
+
+        using var granted = Authorized(HttpMethod.Get, "/av/v1/info", secret!);
+        using var grantedResponse = await http.SendAsync(granted).ConfigureAwait(true);
+        var grantedJson = JsonDocument.Parse(await grantedResponse.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
+        Check(grantedJson.TryGetProperty("grantedToYou", out var g) && g.GetArrayLength() == 3, "GET /info mit Geheimnis nennt die erlaubten Rechte");
+
+        using var unpair = Authorized(HttpMethod.Delete, "/av/v1/pairing", secret!);
+        using var unpaired = await http.SendAsync(unpair).ConfigureAwait(true);
+        Check((int)unpaired.StatusCode == 204 && app.AppConnections!.Find("rauchtest") is null, "Trennen → 204, Kopplung weg");
+    }
+
+    private static HttpRequestMessage Authorized(HttpMethod method, string path, string secret)
+    {
+        var request = new HttpRequestMessage(method, path);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", secret);
+        request.Headers.Add(AppConnectContract.AppHeader, "rauchtest");
+        return request;
     }
 }

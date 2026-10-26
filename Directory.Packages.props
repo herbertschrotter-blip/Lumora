@@ -14,6 +14,9 @@
     <!-- Storage-Profile-Detection (Spike #6); seit 0.4.26 auch Services: VHDX-Datenträger einrichten (ADR-0061, Nachtrag) -->
     <PackageVersion Include="System.Management" Version="9.0.0" />
 
+    <!-- App-Verbindung (ADR-0073): Geheimnis der Kopplung mit Windows-DPAPI (Benutzerbereich) -->
+    <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="9.0.0" />
+
     <!-- Transitive Security-Pins (NU1902/NU1903), greifen dank CentralPackageTransitivePinningEnabled=true:
          System.Security.Cryptography.Xml/Pkcs (GHSA-37gx-xxp4-5rgx u. a. in 9.0.0, GHSA-23rf-6693-g89p u. a. in 10.0.7)
          und SQLitePCLRaw 2.1.11 (GHSA-2m69-gcr7-jv3q). Stand 2026-10-19: jeweils neueste 10.0.x bzw. 2.1.x. -->
