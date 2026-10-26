@@ -118,5 +118,22 @@ und künstlich“ — das allgemeine Modell hält Poren und feine Struktur für 
   (Settings `enhance.naturalness`, `enhance.grain`, invariant, begrenzt auf 0…1). Die Leiste liest sie beim Öffnen und
   merkt geänderte Regler beim Berechnen; der Stapel nimmt die Einstellung.
 
-**Offen:** Ein zweites Hochskalier-Modell mit erhaltener Struktur (`realesr-general-x4v3`) — die Quelle für eine
-ladbare ONNX-Datei mit festem Commit und Prüfsumme ist noch zu entscheiden (keine offizielle ONNX-Fassung bei facefusion).
+**Offen (erledigt in 0.5.7, siehe unten):** zweites Hochskalier-Modell `realesr-general-x4v3`.
+
+## Nachtrag 0.5.7 — Zweites Hochskalier-Modell „Natürlich“ (Herbert, 2026-10-26)
+
+**Quelle (Herberts Wahl):** Für `realesr-general-x4v3` gibt es keine ONNX-Fassung bei facefusion; die offizielle
+Qualcomm-Fassung liegt nur als ZIP auf Amazon S3 ohne veröffentlichte Prüfsumme und mit fester Eingabe 128 × 128. Herbert
+hat die **Community-Fassung** `CoderViking/realesr-general-x4v3-onnx` gewählt: fester Commit `c6a9717…` (2026-07-16),
+`realesr-general-x4v3.onnx`, 4 866 417 Bytes, SHA-256 `1940a93e…f112`, BSD-3, beliebige Bildgröße (opset 17), das
+Umwandlungsskript aus den offiziellen Gewichten liegt dort bei. Die Prüfsumme hält die Datei fest; der Hochlader ist neu
+(Restrisiko bewusst in Kauf genommen, ONNX ohne eigenen Code).
+
+**Entscheidung:**
+- Keine eigene Karte: „Hochskalieren“ bekommt die Wahl **Scharf** (x4plus) | **Natürlich** (general x4v3); intern die
+  Engine `EnhanceTool.UpscaleNatural` mit eigenem Eintrag `enhance.upscale-natural` in Modelle & Daten. Das Ergebnis
+  zählt weiter als `upscale` (Fassungen, Werkzeugliste).
+- `EnhanceOptions.UpscaleModel` (null = Einstellung `enhance.upscaleModel`, Standard `Sharp`); explizit gewählt und
+  nicht geladen → `EnhanceModelMissingException` wie bei jedem Modell. „Automatisch“ nimmt das gewählte Modell und
+  weicht mit Hinweis auf das andere aus, wenn nur dieses geladen ist.
+- „Natürlichkeit“ und „Körnung“ (0.5.6) wirken bei beiden Modellen.

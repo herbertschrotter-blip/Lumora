@@ -22,6 +22,22 @@ public enum EnhanceTool
 
     /// <summary>Zuschneiden, Drehen, Licht (Helligkeit/Kontrast) — ohne Modell.</summary>
     Adjust = 5,
+
+    /// <summary>
+    /// Zweites Hochskalier-Modell (Real-ESRGAN general x4v3, 0.5.7) — keine eigene Karte in der Leiste: gewählt über
+    /// <see cref="EnhanceOptions.UpscaleModel"/>; das Ergebnis zählt als „Hochskalieren“.
+    /// </summary>
+    UpscaleNatural = 6,
+}
+
+/// <summary>Welches Modell beim Hochskalieren rechnet (0.5.7).</summary>
+public enum EnhanceUpscaleModel
+{
+    /// <summary>Real-ESRGAN x4plus: kräftig geschärft, glättet Haut und feine Struktur.</summary>
+    Sharp = 0,
+
+    /// <summary>Real-ESRGAN general x4v3: kleiner, erhält Hautstruktur und Korn besser.</summary>
+    Natural = 1,
 }
 
 /// <summary>Ein Bild als RGB24-Puffer (3 Bytes je Pixel, Zeile für Zeile ohne Auffüllung, EXIF-Ausrichtung angewandt).</summary>
@@ -87,6 +103,12 @@ public sealed record EnhanceOptions
     /// <summary>Körnung beim Hochskalieren 0…1 (feines Helligkeitsrauschen, vor allem in Mitteltönen); null = Einstellung.</summary>
     public double? Grain { get; init; }
 
+    /// <summary>Modell beim Hochskalieren (0.5.7); null = Einstellung.</summary>
+    public EnhanceUpscaleModel? UpscaleModel { get; init; }
+
+    /// <summary>Engine, die das Hochskalieren rechnet (<see cref="EnhanceTool.Upscale"/> bzw. <see cref="EnhanceTool.UpscaleNatural"/>).</summary>
+    public EnhanceTool UpscaleEngine => UpscaleModel == EnhanceUpscaleModel.Natural ? EnhanceTool.UpscaleNatural : EnhanceTool.Upscale;
+
     public bool Faces { get; init; }
 
     /// <summary>Stärke 0…1 (Mischung restauriert ↔ Original).</summary>
@@ -143,7 +165,7 @@ public sealed record EnhanceOptions
 
         if (Upscale)
         {
-            yield return EnhanceTool.Upscale;
+            yield return UpscaleEngine;
         }
     }
 }
@@ -223,7 +245,8 @@ public sealed record EnhanceSettings(
     bool ShowBestVariant = false,
     bool UseGpu = true,
     double Naturalness = EnhanceSettings.DefaultNaturalness,
-    double Grain = EnhanceSettings.DefaultGrain)
+    double Grain = EnhanceSettings.DefaultGrain,
+    EnhanceUpscaleModel UpscaleModel = EnhanceUpscaleModel.Sharp)
 {
     /// <summary>Natürlichkeit beim Hochskalieren, bis Herbert anders wählt (0.5.6: Haut wirkte „zu glatt und künstlich“).</summary>
     public const double DefaultNaturalness = 0.35;
@@ -261,6 +284,7 @@ public static class EnhanceTexts
     {
         EnhanceTool.Auto => "Automatisch",
         EnhanceTool.Upscale => "Hochskalieren",
+        EnhanceTool.UpscaleNatural => "Hochskalieren (natürlich)",
         EnhanceTool.Faces => "Gesichter",
         EnhanceTool.Colorize => "Einfärben",
         EnhanceTool.Erase => "Entfernen",
@@ -271,7 +295,7 @@ public static class EnhanceTexts
     /// <summary>Kurzkennung für <c>PhotoVariants.Tools</c>.</summary>
     public static string Key(EnhanceTool tool) => tool switch
     {
-        EnhanceTool.Upscale => "upscale",
+        EnhanceTool.Upscale or EnhanceTool.UpscaleNatural => "upscale",
         EnhanceTool.Faces => "faces",
         EnhanceTool.Colorize => "colorize",
         EnhanceTool.Erase => "erase",

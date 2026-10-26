@@ -185,6 +185,46 @@ public sealed class PhotoEnhanceServiceTests
     }
 
     [Fact]
+    public async Task Modell_Natuerlich_rechnet_mit_general_x4v3_und_verlangt_dessen_Modell()
+    {
+        // 0.5.7: zweites Hochskalier-Modell; das Ergebnis zählt als „Hochskalieren“
+        await using var w = await EnhanceWorld.CreateAsync(["Garten.jpg"], ready: [EnhanceTool.Upscale, EnhanceTool.UpscaleNatural]);
+        var id = await w.IdAsync("Garten.jpg");
+
+        var preview = await w.Service.RenderAsync(id, new EnhanceOptions { Upscale = true, UpscaleModel = EnhanceUpscaleModel.Natural });
+
+        w.Engines.Created.Should().Equal(EnhanceTool.UpscaleNatural);
+        preview.AppliedTools.Should().Equal(EnhanceTool.Upscale);
+        preview.ToolsKey.Should().Be("upscale");
+        preview.Width.Should().Be(FakeEnhanceCodec.DefaultWidth * 2);
+        preview.Notes.Should().Contain("Modell „Natürlich“ (Real-ESRGAN general x4v3).");
+        (await w.Service.GetToolStatusAsync()).Select(s => s.Tool).Should().Contain(EnhanceTool.UpscaleNatural);
+
+        // ohne Angabe gilt die Einstellung
+        await w.Settings.SaveAsync(EnhanceSettings.Default with { UpscaleModel = EnhanceUpscaleModel.Natural });
+        await w.Service.RenderAsync(id, new EnhanceOptions { Upscale = true });
+        w.Engines.Processed.Should().OnlyContain(t => t == EnhanceTool.UpscaleNatural);
+    }
+
+    [Fact]
+    public async Task Modell_Natuerlich_fehlt_nur_Automatisch_weicht_auf_Scharf_aus()
+    {
+        await using var w = await EnhanceWorld.CreateAsync(["Garten.jpg"], ready: [EnhanceTool.Upscale]);
+        var id = await w.IdAsync("Garten.jpg");
+
+        var explicitNatural = () => w.Service.RenderAsync(id, new EnhanceOptions { Upscale = true, UpscaleModel = EnhanceUpscaleModel.Natural });
+        (await explicitNatural.Should().ThrowAsync<EnhanceModelMissingException>()).Which.Tool.Should().Be(EnhanceTool.UpscaleNatural);
+        w.Engines.Created.Should().BeEmpty();
+        (await w.Service.GetToolStatusAsync()).Single(s => s.Tool == EnhanceTool.UpscaleNatural)
+            .Should().Match<EnhanceToolStatus>(s => !s.Ready && s.CanDownload && s.ModelId == EnhanceModelCatalog.UpscaleNaturalId);
+
+        // „Automatisch“ bei einem kleinen Bild: rechnet mit dem geladenen Modell und sagt es
+        var preview = await w.Service.RenderAsync(id, new EnhanceOptions { Auto = true, UpscaleModel = EnhanceUpscaleModel.Natural });
+        w.Engines.Created.Should().Equal(EnhanceTool.Upscale);
+        preview.Notes.Should().Contain(n => n.Contains("Modell fehlt — Hochskalieren verwendet", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task Gesichter_ohne_Gesichtserkennung_gelten_als_nicht_bereit()
     {
         await using var w = await EnhanceWorld.CreateAsync(["P.jpg"], ready: [EnhanceTool.Faces], faces: new FakeFaceLocator { IsAvailable = false });

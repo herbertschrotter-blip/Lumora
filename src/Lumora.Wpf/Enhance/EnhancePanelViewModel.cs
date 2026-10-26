@@ -105,6 +105,7 @@ public sealed partial class EnhancePanelViewModel : ObservableObject, IEnhanceBr
             new(this, EnhanceTool.Adjust, "Zuschneiden, drehen, Licht", "Helligkeit, Kontrast, Drehen, Zuschnitt", SymbolRegular.Crop24),
         ];
         Tools[0].IsSelected = true;
+        NaturalModel = new(this, EnhanceTool.UpscaleNatural, "Natürlich", "Real-ESRGAN general x4v3", SymbolRegular.ArrowExpand24);
         if (_models is not null)
         {
             _models.PackageChanged += OnPackageChanged;
@@ -172,6 +173,16 @@ public sealed partial class EnhancePanelViewModel : ObservableObject, IEnhanceBr
     /// <summary>Körnung beim Hochskalieren 0…1; gemerkt in Einstellungen › Verbessern.</summary>
     [ObservableProperty] private double _grain = EnhanceSettings.DefaultGrain;
 
+    /// <summary>Modell beim Hochskalieren (0.5.7): Scharf (x4plus) oder Natürlich (general x4v3); gemerkt in Einstellungen › Verbessern.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsNaturalModel))]
+    private EnhanceUpscaleModel _upscaleModel = EnhanceUpscaleModel.Sharp;
+
+    public bool IsNaturalModel => UpscaleModel == EnhanceUpscaleModel.Natural;
+
+    /// <summary>Zustand des zweiten Hochskalier-Modells („bereit“, „Modell fehlt“, „Laden…“) — keine eigene Karte.</summary>
+    public EnhanceToolItem NaturalModel { get; }
+
     /// <summary>Gelesene Einstellungen (zum Merken geänderter Regler).</summary>
     private EnhanceSettings? _loadedSettings;
 
@@ -223,6 +234,11 @@ public sealed partial class EnhancePanelViewModel : ObservableObject, IEnhanceBr
     partial void OnNaturalnessChanged(double value) => Stale();
 
     partial void OnGrainChanged(double value) => Stale();
+
+    partial void OnUpscaleModelChanged(EnhanceUpscaleModel value) => Stale();
+
+    [RelayCommand]
+    private void SetUpscaleModel(string? model) => UpscaleModel = model == "natural" ? EnhanceUpscaleModel.Natural : EnhanceUpscaleModel.Sharp;
 
     /// <summary>Regler „Natürlichkeit“ sichtbar: beim Hochskalieren und bei „Automatisch“ (kann hochskalieren).</summary>
     public bool ShowNaturalness => Tool(EnhanceTool.Upscale).IsSelected || Tool(EnhanceTool.Auto).IsSelected;
@@ -302,6 +318,7 @@ public sealed partial class EnhancePanelViewModel : ObservableObject, IEnhanceBr
             _loadedSettings = await _settingsStore.LoadAsync().ConfigureAwait(true);
             Naturalness = _loadedSettings.Naturalness;
             Grain = _loadedSettings.Grain;
+            UpscaleModel = _loadedSettings.UpscaleModel;
         }
         catch (Exception ex)
         {
@@ -313,7 +330,7 @@ public sealed partial class EnhancePanelViewModel : ObservableObject, IEnhanceBr
     private async Task SaveNaturalnessAsync()
     {
         if (_settingsStore is null || _loadedSettings is not { } loaded
-            || (Math.Abs(loaded.Naturalness - Naturalness) < 0.005 && Math.Abs(loaded.Grain - Grain) < 0.005))
+            || (Math.Abs(loaded.Naturalness - Naturalness) < 0.005 && Math.Abs(loaded.Grain - Grain) < 0.005 && loaded.UpscaleModel == UpscaleModel))
         {
             return;
         }
@@ -321,7 +338,7 @@ public sealed partial class EnhancePanelViewModel : ObservableObject, IEnhanceBr
         try
         {
             var current = await _settingsStore.LoadAsync().ConfigureAwait(true);
-            _loadedSettings = current with { Naturalness = Naturalness, Grain = Grain };
+            _loadedSettings = current with { Naturalness = Naturalness, Grain = Grain, UpscaleModel = UpscaleModel };
             await _settingsStore.SaveAsync(_loadedSettings).ConfigureAwait(true);
         }
         catch (Exception ex)
@@ -338,7 +355,8 @@ public sealed partial class EnhancePanelViewModel : ObservableObject, IEnhanceBr
             var status = await _service.GetToolStatusAsync().ConfigureAwait(true);
             foreach (var s in status)
             {
-                var item = Tool(s.Tool);
+                // Das zweite Hochskalier-Modell hat keine eigene Karte (0.5.7)
+                var item = s.Tool == EnhanceTool.UpscaleNatural ? NaturalModel : Tool(s.Tool);
                 item.IsReady = s.Ready;
                 item.StateText = s.StateText;
                 var needsFaces = s.StateText == "braucht Gesichtserkennung";
@@ -529,6 +547,7 @@ public sealed partial class EnhancePanelViewModel : ObservableObject, IEnhanceBr
             UpscaleFactor = UpscaleFactor,
             Naturalness = Naturalness,
             Grain = Grain,
+            UpscaleModel = UpscaleModel,
             Faces = Tool(EnhanceTool.Faces).IsSelected,
             FaceStrength = FaceStrength,
             Colorize = Tool(EnhanceTool.Colorize).IsSelected,

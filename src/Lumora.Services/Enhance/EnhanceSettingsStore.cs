@@ -19,7 +19,8 @@ public interface IEnhanceSettingsStore
 /// <summary>
 /// Settings-Tabelle des Katalogs (je Sitzung, also auch in der versteckten Bibliothek getrennt): <c>enhance.location</c>,
 /// <c>enhance.subfolder</c>, <c>enhance.pattern</c>, <c>enhance.copyMetadata</c>, <c>enhance.copyRatingTags</c>,
-/// <c>enhance.showBest</c>, <c>enhance.useGpu</c>, <c>enhance.naturalness</c>, <c>enhance.grain</c> (0…1, invariant).
+/// <c>enhance.showBest</c>, <c>enhance.useGpu</c>, <c>enhance.naturalness</c>, <c>enhance.grain</c> (0…1, invariant),
+/// <c>enhance.upscaleModel</c> (<c>Sharp</c> | <c>Natural</c>).
 /// </summary>
 public sealed class EnhanceSettingsStore(ILibraryContextFactory factory, IMessenger? messenger = null) : IEnhanceSettingsStore
 {
@@ -32,8 +33,9 @@ public sealed class EnhanceSettingsStore(ILibraryContextFactory factory, IMessen
     public const string UseGpuKey = "enhance.useGpu";
     public const string NaturalnessKey = "enhance.naturalness";
     public const string GrainKey = "enhance.grain";
+    public const string UpscaleModelKey = "enhance.upscaleModel";
 
-    private static readonly string[] Keys = [LocationKey, SubfolderKey, PatternKey, CopyMetadataKey, CopyRatingTagsKey, ShowBestKey, UseGpuKey, NaturalnessKey, GrainKey];
+    private static readonly string[] Keys = [LocationKey, SubfolderKey, PatternKey, CopyMetadataKey, CopyRatingTagsKey, ShowBestKey, UseGpuKey, NaturalnessKey, GrainKey, UpscaleModelKey];
 
     private readonly IMessenger _messenger = messenger ?? WeakReferenceMessenger.Default;
 
@@ -54,7 +56,8 @@ public sealed class EnhanceSettingsStore(ILibraryContextFactory factory, IMessen
             ReadBool(rows, ShowBestKey, d.ShowBestVariant),
             ReadBool(rows, UseGpuKey, d.UseGpu),
             ReadShare(rows, NaturalnessKey, d.Naturalness),
-            ReadShare(rows, GrainKey, d.Grain));
+            ReadShare(rows, GrainKey, d.Grain),
+            rows.TryGetValue(UpscaleModelKey, out var model) && Enum.TryParse<EnhanceUpscaleModel>(model, out var upscaleModel) && Enum.IsDefined(upscaleModel) ? upscaleModel : d.UpscaleModel);
     }
 
     public async Task SaveAsync(EnhanceSettings settings, CancellationToken ct = default)
@@ -71,6 +74,7 @@ public sealed class EnhanceSettingsStore(ILibraryContextFactory factory, IMessen
             await UpsertAsync(ctx, UseGpuKey, settings.UseGpu ? "true" : "false", ct).ConfigureAwait(false);
             await UpsertAsync(ctx, NaturalnessKey, Share(settings.Naturalness), ct).ConfigureAwait(false);
             await UpsertAsync(ctx, GrainKey, Share(settings.Grain), ct).ConfigureAwait(false);
+            await UpsertAsync(ctx, UpscaleModelKey, settings.UpscaleModel.ToString(), ct).ConfigureAwait(false);
             await ctx.SaveChangesAsync(ct).ConfigureAwait(false);
         }
 

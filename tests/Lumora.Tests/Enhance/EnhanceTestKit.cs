@@ -146,7 +146,7 @@ public sealed class FakeEngineFactory : IEnhanceEngineFactory
             var src = input.Image;
             switch (tool)
             {
-                case EnhanceTool.Upscale:
+                case EnhanceTool.Upscale or EnhanceTool.UpscaleNatural:
                     var f = input.Factor;
                     var dst = EnhanceImage.Blank(src.Width * f, src.Height * f);
                     for (var y = 0; y < dst.Height; y++)

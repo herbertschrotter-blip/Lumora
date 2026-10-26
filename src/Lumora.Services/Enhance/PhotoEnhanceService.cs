@@ -129,7 +129,7 @@ public sealed class PhotoEnhanceService : IPhotoEnhanceService, IDisposable
     {
         var list = new List<EnhanceToolStatus>();
         var ready = new HashSet<EnhanceTool>();
-        foreach (var tool in new[] { EnhanceTool.Upscale, EnhanceTool.Faces, EnhanceTool.Colorize, EnhanceTool.Erase })
+        foreach (var tool in new[] { EnhanceTool.Upscale, EnhanceTool.UpscaleNatural, EnhanceTool.Faces, EnhanceTool.Colorize, EnhanceTool.Erase })
         {
             var state = await _models.GetStateAsync(tool, ct).ConfigureAwait(false);
             var name = EnhanceModelCatalog.DefinitionOf(tool)?.Name;
@@ -154,6 +154,7 @@ public sealed class PhotoEnhanceService : IPhotoEnhanceService, IDisposable
             list.Add(new EnhanceToolStatus(tool, id, ok, state is EnhanceModelState.NotInstalled or EnhanceModelState.Broken, text, name));
         }
 
+        // Die Karte „Hochskalieren“ ist bereit, wenn eines der beiden Modelle geladen ist
         var auto = ready.Count > 0 ? "bereit" : "Modelle fehlen";
         list.Insert(0, new EnhanceToolStatus(EnhanceTool.Auto, null, true, false, auto, null));
         list.Add(new EnhanceToolStatus(EnhanceTool.Adjust, null, true, false, "bereit", null));
@@ -165,6 +166,10 @@ public sealed class PhotoEnhanceService : IPhotoEnhanceService, IDisposable
             .Where(s => s.Ready && s.ModelId is not null)
             .Select(s => s.Tool)
             .ToHashSet();
+
+    /// <summary>Ohne Angabe gilt das Hochskalier-Modell aus Einstellungen › Verbessern (0.5.7).</summary>
+    private static EnhanceOptions WithStoredModel(EnhanceOptions options, EnhanceSettings settings)
+        => options.UpscaleModel is null ? options with { UpscaleModel = settings.UpscaleModel } : options;
 
     private static void RequireModels(EnhanceOptions options, IReadOnlyList<EnhanceToolStatus> status)
     {
@@ -195,8 +200,9 @@ public sealed class PhotoEnhanceService : IPhotoEnhanceService, IDisposable
         }
 
         var status = await GetToolStatusAsync(ct).ConfigureAwait(false);
-        RequireModels(options, status);
         var settings = await _settings.LoadAsync(ct).ConfigureAwait(false);
+        options = WithStoredModel(options, settings);
+        RequireModels(options, status);
         var info = await LoadInfoAsync(fileId, ct).ConfigureAwait(false);
         var ready = status.Where(s => s.Ready && s.ModelId is not null).Select(s => s.Tool).ToHashSet();
         return await Task.Run(() => RenderCoreAsync(info, options, settings, ready, progress, ct), ct).ConfigureAwait(false);
@@ -382,8 +388,24 @@ public sealed class PhotoEnhanceService : IPhotoEnhanceService, IDisposable
             }
 
             var beforeUpscale = image;
-            image = await RunEngineAsync(EnhanceTool.Upscale, new EnhanceStepInput(image, Factor: factor), settings.UseGpu, ct).ConfigureAwait(false);
+            // Gewähltes Modell (0.5.7); „Automatisch“ weicht auf das andere aus, wenn nur dieses geladen ist
+            var engine = options.UpscaleEngine;
+            if (!ready.Contains(engine))
+            {
+                var other = engine == EnhanceTool.UpscaleNatural ? EnhanceTool.Upscale : EnhanceTool.UpscaleNatural;
+                if (ready.Contains(other))
+                {
+                    notes.Add($"{EnhanceTexts.Name(engine)}: Modell fehlt — {EnhanceTexts.Name(other)} verwendet.");
+                    engine = other;
+                }
+            }
+
+            image = await RunEngineAsync(engine, new EnhanceStepInput(image, Factor: factor), settings.UseGpu, ct).ConfigureAwait(false);
             applied.Add(EnhanceTool.Upscale);
+            if (engine == EnhanceTool.UpscaleNatural)
+            {
+                notes.Add("Modell „Natürlich“ (Real-ESRGAN general x4v3).");
+            }
 
             // Natürlichkeit (0.5.6): etwas Original zurück und feine Körnung gegen die glatte „Plastikhaut“ des Modells
             var naturalness = options.Naturalness ?? settings.Naturalness;
@@ -576,8 +598,9 @@ public sealed class PhotoEnhanceService : IPhotoEnhanceService, IDisposable
     public async Task<EnhanceEstimate> EstimateAsync(IReadOnlyList<int> fileIds, EnhanceOptions options, CancellationToken ct = default)
     {
         var status = await GetToolStatusAsync(ct).ConfigureAwait(false);
-        var missing = options.RequiredModelTools().Where(t => !status.First(s => s.Tool == t).Ready).ToList();
         var settings = await _settings.LoadAsync(ct).ConfigureAwait(false);
+        options = WithStoredModel(options, settings);
+        var missing = options.RequiredModelTools().Where(t => !status.First(s => s.Tool == t).Ready).ToList();
         var rows = (await LoadInfosAsync(fileIds, ct).ConfigureAwait(false)).Where(r => r.IsPhoto).ToList();
         var gpu = settings.UseGpu;
         double seconds = 0;
@@ -636,9 +659,10 @@ public sealed class PhotoEnhanceService : IPhotoEnhanceService, IDisposable
         }
 
         var status = await GetToolStatusAsync(ct).ConfigureAwait(false);
+        var settings = await _settings.LoadAsync(ct).ConfigureAwait(false);
+        options = WithStoredModel(options, settings);
         RequireModels(options, status); // Modell fehlt → kein Lauf, nichts geschrieben
         var ready = status.Where(s => s.Ready && s.ModelId is not null).Select(s => s.Tool).ToHashSet();
-        var settings = await _settings.LoadAsync(ct).ConfigureAwait(false);
         var ids = fileIds.Distinct().ToList();
         var rows = (await LoadInfosAsync(ids, ct).ConfigureAwait(false)).ToDictionary(r => r.Id);
 

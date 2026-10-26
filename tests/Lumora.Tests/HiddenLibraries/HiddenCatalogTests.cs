@@ -98,7 +98,8 @@ public sealed class HiddenCatalogTests : IDisposable
             var packages = provider.GetRequiredService<Lumora.Services.ModelPackages.IModelPackageManager>().Packages;
             packages.Select(p => p.Definition.Id).Should().Equal(
                 Lumora.Services.ModelPackages.ModelPackageCatalog.FacesId, Lumora.Services.ModelPackages.ModelPackageCatalog.MotifsId,
-                Lumora.Services.Enhance.EnhanceModelCatalog.UpscaleId, Lumora.Services.Enhance.EnhanceModelCatalog.FacesId, // ADR-0071
+                Lumora.Services.Enhance.EnhanceModelCatalog.UpscaleId, Lumora.Services.Enhance.EnhanceModelCatalog.UpscaleNaturalId, // ADR-0071, 0.5.7
+                Lumora.Services.Enhance.EnhanceModelCatalog.FacesId,
                 Lumora.Services.Enhance.EnhanceModelCatalog.ColorizeId, Lumora.Services.Enhance.EnhanceModelCatalog.InpaintId,
                 Lumora.Services.ModelPackages.ModelPackageCatalog.GeoNamesId, Lumora.Services.ModelPackages.ModelPackageCatalog.MapTilesId,
                 Lumora.Services.ModelPackages.ModelPackageCatalog.AssistantId);

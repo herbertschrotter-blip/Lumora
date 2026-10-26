@@ -223,6 +223,8 @@ public sealed class EnhanceBuildingBlocksTests
         EnhanceSettings.Default.Grain.Should().Be(0.2);
         await store.SaveAsync(changed with { Naturalness = 0.5, Grain = 0 });
         (await store.LoadAsync()).Should().Match<EnhanceSettings>(s => s.Naturalness == 0.5 && s.Grain == 0);
+        await store.SaveAsync(changed with { UpscaleModel = EnhanceUpscaleModel.Natural });
+        (await store.LoadAsync()).UpscaleModel.Should().Be(EnhanceUpscaleModel.Natural, "0.5.7: Modell beim Hochskalieren gemerkt");
         await store.SaveAsync(changed with { Naturalness = 3, Grain = -1 });
         (await store.LoadAsync()).Should().Match<EnhanceSettings>(s => s.Naturalness == 1 && s.Grain == 0);
     }
@@ -271,7 +273,7 @@ public sealed class EnhanceBuildingBlocksTests
     public void Modell_Register_mit_festen_Commits_Groessen_Pruefsummen_und_freien_Lizenzen()
     {
         EnhanceModelCatalog.All.Select(e => e.Definition.Id).Should().Equal(
-            EnhanceModelCatalog.UpscaleId, EnhanceModelCatalog.FacesId, EnhanceModelCatalog.ColorizeId, EnhanceModelCatalog.InpaintId);
+            EnhanceModelCatalog.UpscaleId, EnhanceModelCatalog.UpscaleNaturalId, EnhanceModelCatalog.FacesId, EnhanceModelCatalog.ColorizeId, EnhanceModelCatalog.InpaintId);
         foreach (var (definition, baseUri) in EnhanceModelCatalog.All)
         {
             baseUri.Scheme.Should().Be("https");
@@ -280,7 +282,8 @@ public sealed class EnhanceBuildingBlocksTests
             definition.LicenseRestricted.Should().BeFalse("CodeFormer (nur nicht-kommerziell) ist bewusst nicht dabei");
             definition.FileList.Should().ContainSingle();
             definition.FileList[0].Sha256.Should().MatchRegex("^[0-9a-f]{64}$");
-            definition.DownloadSize.Should().Be(definition.InstalledSize).And.BeGreaterThan(50_000_000);
+            // general x4v3 (0.5.7) ist klein (≈ 5 MB, SRVGGNetCompact); die übrigen über 50 MB
+            definition.DownloadSize.Should().Be(definition.InstalledSize).And.BeGreaterThan(definition.Id == EnhanceModelCatalog.UpscaleNaturalId ? 4_000_000 : 50_000_000);
             definition.Origin.Website!.Host.Should().Be("github.com");
         }
     }
@@ -305,7 +308,7 @@ public sealed class EnhanceBuildingBlocksTests
             var manager = provider.GetRequiredService<IModelPackageManager>();
             var access = new EnhanceModelAccess(manager);
 
-            manager.Packages.Select(p => p.Definition.Id).Should().HaveCount(4);
+            manager.Packages.Select(p => p.Definition.Id).Should().HaveCount(5, "seit 0.5.7 mit „Hochskalieren (natürlich)“");
             (await access.GetStateAsync(EnhanceTool.Upscale, default)).Should().Be(EnhanceModelState.NotInstalled);
             (await access.GetStateAsync(EnhanceTool.Adjust, default)).Should().Be(EnhanceModelState.Ready, "Zuschneiden/Licht braucht kein Modell");
             access.GetModelPath(EnhanceTool.Erase).Should().Be(Path.Combine(root, "enhance-inpaint", EnhanceModelCatalog.InpaintFile));

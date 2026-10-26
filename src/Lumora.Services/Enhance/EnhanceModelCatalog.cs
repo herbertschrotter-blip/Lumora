@@ -15,6 +15,7 @@ namespace Lumora.Services.Enhance;
 public static class EnhanceModelCatalog
 {
     public const string UpscaleId = "enhance.upscale";
+    public const string UpscaleNaturalId = "enhance.upscale-natural";
     public const string FacesId = "enhance.faces";
     public const string ColorizeId = "enhance.colorize";
     public const string InpaintId = "enhance.inpaint";
@@ -22,10 +23,18 @@ public static class EnhanceModelCatalog
     /// <summary>ONNX-Fassungen von facefusion (Hugging Face), fester Commit vom 2024-11-07.</summary>
     public static readonly Uri FaceFusionBase = new("https://huggingface.co/facefusion/models-3.0.0/resolve/728b9659bd9691bf32cbf7f61af478d94b7ba81e/");
 
+    /// <summary>
+    /// Real-ESRGAN general x4v3 als ONNX (Hugging Face „CoderViking“, fester Commit vom 2026-07-16; Umwandlungsskript aus den
+    /// offiziellen Gewichten liegt dort bei). Eine Community-Fassung — Herbert hat sie am 2026-10-26 als Quelle gewählt; die
+    /// Prüfsumme hält die Datei fest.
+    /// </summary>
+    public static readonly Uri GeneralX4v3Base = new("https://huggingface.co/CoderViking/realesr-general-x4v3-onnx/resolve/c6a971706797c7502945a2b4c4274fce4900d4ab/");
+
     /// <summary>LaMa als ONNX (Carve, Hugging Face), fester Commit vom 2024-05-15.</summary>
     public static readonly Uri LamaBase = new("https://huggingface.co/Carve/LaMa-ONNX/resolve/c3c0c9e468934d62e79c329e35d82dd09ff8c444/");
 
     public const string UpscaleFile = "real_esrgan_x4.onnx";
+    public const string UpscaleNaturalFile = "realesr-general-x4v3.onnx";
     public const string FacesFile = "gfpgan_1.4.onnx";
     public const string ColorizeFile = "deoldify_artistic.onnx";
     public const string InpaintFile = "lama_fp32.onnx";
@@ -43,6 +52,20 @@ public static class EnhanceModelCatalog
         FolderName: "enhance-upscale",
         Files: [new(UpscaleFile, 69_539_503, "afa7fa42eed0315a3d7b2a54e79e4e44a672d3c0889c2828c4f84c9ab91edb0b")],
         Note: "Eine ONNX-Datei (Real-ESRGAN x4plus); 2× rechnet 4× und verkleinert danach.");
+
+    public static ModelPackageDefinition UpscaleNatural { get; } = new(
+        UpscaleNaturalId,
+        "Hochskalieren (natürlich)",
+        "Real-ESRGAN general x4v3",
+        "Fotos 2× oder 4× vergrößern und dabei Haut und feine Struktur erhalten („Foto verbessern“, Modell „Natürlich“).",
+        ModelPackageGroup.Model,
+        "general x4v3 (ONNX 2026-07)",
+        new ModelPackageOrigin("Xintao Wang (Real-ESRGAN) · ONNX-Fassung der Community (CoderViking)", new Uri("https://github.com/xinntao/Real-ESRGAN")),
+        "BSD-3-Clause (auch kommerziell nutzbar)",
+        DownloadSize: 4_866_417,
+        FolderName: "enhance-upscale-natural",
+        Files: [new(UpscaleNaturalFile, 4_866_417, "1940a93ee08283a0a7286183186357b1688fe9fa8ede74604b424586aaddf112")],
+        Note: "Eine kleine ONNX-Datei (SRVGGNetCompact, beliebige Bildgröße). Community-Umwandlung der offiziellen Gewichte; die Prüfsumme hält die Datei fest.");
 
     public static ModelPackageDefinition Faces { get; } = new(
         FacesId,
@@ -90,6 +113,7 @@ public static class EnhanceModelCatalog
     public static IReadOnlyList<(ModelPackageDefinition Definition, Uri BaseUri)> All { get; } =
     [
         (Upscale, FaceFusionBase),
+        (UpscaleNatural, GeneralX4v3Base),
         (Faces, FaceFusionBase),
         (Colorize, FaceFusionBase),
         (Inpaint, LamaBase),
@@ -99,6 +123,7 @@ public static class EnhanceModelCatalog
     public static string? ModelIdOf(EnhanceTool tool) => tool switch
     {
         EnhanceTool.Upscale => UpscaleId,
+        EnhanceTool.UpscaleNatural => UpscaleNaturalId,
         EnhanceTool.Faces => FacesId,
         EnhanceTool.Colorize => ColorizeId,
         EnhanceTool.Erase => InpaintId,
@@ -109,6 +134,7 @@ public static class EnhanceModelCatalog
     public static string? FileOf(EnhanceTool tool) => tool switch
     {
         EnhanceTool.Upscale => UpscaleFile,
+        EnhanceTool.UpscaleNatural => UpscaleNaturalFile,
         EnhanceTool.Faces => FacesFile,
         EnhanceTool.Colorize => ColorizeFile,
         EnhanceTool.Erase => InpaintFile,
@@ -118,6 +144,7 @@ public static class EnhanceModelCatalog
     public static ModelPackageDefinition? DefinitionOf(EnhanceTool tool) => tool switch
     {
         EnhanceTool.Upscale => Upscale,
+        EnhanceTool.UpscaleNatural => UpscaleNatural,
         EnhanceTool.Faces => Faces,
         EnhanceTool.Colorize => Colorize,
         EnhanceTool.Erase => Inpaint,

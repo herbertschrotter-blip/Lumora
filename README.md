@@ -484,6 +484,9 @@ kommt in den Papierkorb).
   gern glatt. **Natürlichkeit** mischt einen Anteil des Originals zurück (Standard 35 %, bis 80 %), **Körnung** legt feines
   Korn darüber — nur in der Helligkeit, vor allem in den Mitteltönen, kaum in Tiefen und Lichtern. Beide Werte merkt sich
   Lumora beim Berechnen (Einstellungen › Verbessern) und nimmt sie auch für mehrere Fotos.
+- **Modell beim Hochskalieren** (seit 0.5.7): **Scharf** (Real-ESRGAN x4plus, kräftig geschärft) oder **Natürlich**
+  (Real-ESRGAN general x4v3, erhält Hautstruktur und Korn; ≈ 5 MB, „Modell ‚Natürlich' laden…“ direkt in der Leiste). Die
+  Wahl merkt sich Lumora; „Automatisch“ nimmt das gewählte Modell und weicht auf das andere aus, wenn nur dieses geladen ist.
 - **Mehrere Fotos:** in der Galerie auswählen, Rechtsklick „Bearbeiten ▸ n Fotos verbessern…“: Werkzeuge wählen, die
   Zeitschätzung lesen, **Verbessern**. Der Lauf erscheint unter den Aktivitäten (Fortschritt, Abbrechen); bereits fertige
   werden gespeichert, „Rückgängig“ am Vorgang nimmt alle Fassungen zurück. Die Grafikkarte wechselt sich mit Gesichts- und
@@ -494,7 +497,8 @@ kommt in den Papierkorb).
 - **Einstellungen › Verbessern:** Modelle mit Quelle, Größe, Lizenz und Zustand; Speicherort (neben dem Original oder in
   einem Unterordner), Dateiname-Muster (`{name}` = Name des Originals), Aufnahmedatum/Ort übernehmen (EXIF bei JPEG und
   Katalog), Sterne/Favorit/Tags übernehmen, beste Fassung zeigen, Grafikkarte.
-- **Modelle** (je Download nach Bestätigung, SHA-256 geprüft): Real-ESRGAN x4plus (BSD-3, ≈ 70 MB), GFPGAN v1.4
+- **Modelle** (je Download nach Bestätigung, SHA-256 geprüft): Real-ESRGAN x4plus (BSD-3, ≈ 70 MB), Real-ESRGAN general
+  x4v3 (BSD-3, ≈ 5 MB, ONNX-Umwandlung der Community, fester Commit), GFPGAN v1.4
   (Apache-2.0, ≈ 340 MB; braucht zum Finden der Gesichter die Gesichtserkennung), DeOldify artistic (MIT, ≈ 255 MB),
   LaMa (Apache-2.0, ≈ 210 MB). In einer versteckten Bibliothek bleiben Zwischenstände und Ergebnisse im Container.
 

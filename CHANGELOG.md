@@ -3,6 +3,17 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.7] — 2026-10-26
+
+### Added — Foto verbessern: Hochskalier-Modell „Natürlich“ (Real-ESRGAN general x4v3)
+- „Hochskalieren“ hat jetzt die Wahl **Scharf** (Real-ESRGAN x4plus) oder **Natürlich** (Real-ESRGAN general x4v3, erhält
+  Hautstruktur und Korn besser). Das Modell (≈ 5 MB, BSD-3) lädt „Modell ‚Natürlich‘ laden…“ in der Leiste bzw.
+  Einstellungen › Modelle & Daten nach Bestätigung — Community-Umwandlung `CoderViking/realesr-general-x4v3-onnx`, fester
+  Commit und SHA-256 (Herberts Wahl der Quelle). Die Wahl wird gemerkt (`enhance.upscaleModel`); „Automatisch“ weicht auf
+  das andere Modell aus, wenn nur dieses geladen ist. Einstellungen › Verbessern zeigt das Modell mit Zustand.
+- **Technik:** `EnhanceTool.UpscaleNatural` (Engine ohne eigene Karte), `EnhanceUpscaleModel`, `EnhanceOptions.UpscaleModel`,
+  Katalogeintrag `enhance.upscale-natural`; ADR-0071 Nachtrag 0.5.7.
+
 ## [0.5.6] — 2026-10-26
 
 ### Added — Foto verbessern: Natürlichkeit und Körnung beim Hochskalieren

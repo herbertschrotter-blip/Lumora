@@ -72,7 +72,8 @@ internal sealed partial class SmokeScenario
         var models = vm.ModelItems.Select(i => i.Id).ToList();
         Check(models.SequenceEqual([
                 ModelPackageCatalog.FacesId, ModelPackageCatalog.MotifsId,
-                Services.Enhance.EnhanceModelCatalog.UpscaleId, Services.Enhance.EnhanceModelCatalog.FacesId, // „Foto verbessern“ (ADR-0071)
+                Services.Enhance.EnhanceModelCatalog.UpscaleId, Services.Enhance.EnhanceModelCatalog.UpscaleNaturalId, // „Foto verbessern“ (ADR-0071)
+                Services.Enhance.EnhanceModelCatalog.FacesId,
                 Services.Enhance.EnhanceModelCatalog.ColorizeId, Services.Enhance.EnhanceModelCatalog.InpaintId,
                 SmokeModelPackages.Id]),
             $"Modelle: {string.Join(", ", models)}");

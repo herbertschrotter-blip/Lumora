@@ -84,7 +84,10 @@ public sealed class EnhanceUiTests : IDisposable
 
         vm.Naturalness = 0.6;
         vm.Grain = 0.3;
-        vm.BuildOptions().Should().Match<EnhanceOptions>(o => o.Naturalness == 0.6 && o.Grain == 0.3);
+        vm.SetUpscaleModelCommand.Execute("natural");
+        vm.IsNaturalModel.Should().BeTrue();
+        vm.NaturalModel.StateText.Should().NotBeNullOrEmpty("Zustand des zweiten Modells aus der Statusabfrage");
+        vm.BuildOptions().Should().Match<EnhanceOptions>(o => o.Naturalness == 0.6 && o.Grain == 0.3 && o.UpscaleModel == EnhanceUpscaleModel.Natural);
         await vm.CalculateCommand.ExecuteAsync(null);
 
         service.Rendered.Last().Naturalness.Should().Be(0.6);
@@ -93,7 +96,7 @@ public sealed class EnhanceUiTests : IDisposable
             await Task.Delay(20);
         }
 
-        store.Saved.Should().ContainSingle().Which.Should().Match<EnhanceSettings>(s => s.Naturalness == 0.6 && s.Grain == 0.3);
+        store.Saved.Should().ContainSingle().Which.Should().Match<EnhanceSettings>(s => s.Naturalness == 0.6 && s.Grain == 0.3 && s.UpscaleModel == EnhanceUpscaleModel.Natural);
         store.Current.Location.Should().Be(EnhanceSettings.Default.Location, "die übrigen Einstellungen bleiben");
     });
 
@@ -427,7 +430,7 @@ public sealed class EnhanceUiTests : IDisposable
         using var vm = new EnhanceSettingsViewModel(store, manager, new ScriptedDialogs(), sections);
         await vm.RefreshAsync();
 
-        vm.Models.Select(m => m.ModelName).Should().Equal("Real-ESRGAN x4plus", "GFPGAN v1.4", "DeOldify (artistic)", "LaMa (big-lama)");
+        vm.Models.Select(m => m.ModelName).Should().Equal("Real-ESRGAN x4plus", "Real-ESRGAN general x4v3", "GFPGAN v1.4", "DeOldify (artistic)", "LaMa (big-lama)");
         vm.Models.Should().OnlyContain(m => m.StateText == "nicht geladen" && m.CanLoad && m.SizeText.StartsWith("≈ ", StringComparison.Ordinal));
         vm.FileNameExample.Should().Be("Foto_verbessert.jpg");
 

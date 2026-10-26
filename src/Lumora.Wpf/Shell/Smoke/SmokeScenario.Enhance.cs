@@ -181,7 +181,8 @@ internal sealed partial class SmokeScenario
         // (8) Einstellungen › Verbessern (hell)
         await OpenSettingsSectionAsync(NavigationTags.SettingsEnhance, "Reiter „Verbessern“").ConfigureAwait(true);
         await WaitUntilAsync(() => _enhanceSettings.IsLoaded && _enhanceSettings.Models.All(m => m.StateText != "…"), ShortWait, "Einstellungen › Verbessern geladen").ConfigureAwait(true);
-        Check(_enhanceSettings.Models.Count == 4 && _enhanceSettings.Models.All(m => m.CanLoad || m.IsReady), $"Modelle: {string.Join(", ", _enhanceSettings.Models.Select(m => m.ModelName + " " + m.StateText))}");
+        Check(_enhanceSettings.Models.Count == 5 && // seit 0.5.7 mit „Hochskalieren (natürlich)“
+_enhanceSettings.Models.All(m => m.CanLoad || m.IsReady), $"Modelle: {string.Join(", ", _enhanceSettings.Models.Select(m => m.ModelName + " " + m.StateText))}");
         await _theme.SetModeAsync(AppThemeMode.Light).ConfigureAwait(true);
         await WaitUntilAsync(() => ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Light, ShortWait, "Theme Hell").ConfigureAwait(true);
         await SnapshotAsync("31-verbessern-hell").ConfigureAwait(true);
