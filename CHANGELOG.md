@@ -3,6 +3,24 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.10] — 2026-10-27
+
+### Added — Hintergrund-Planer: Reihenfolge, Datei nur einmal lesen, Pause für alle, bessere Restzeit
+- Die Dateidienste (Aufnahmedatum, Orte nachtragen, Orte prüfen, Doppelte, Foto-Güte) lesen nicht mehr gleichzeitig: eine
+  **Datei-Spur** geht Stapel um Stapel an die wichtigste wartende Aufgabe (Datum/Orte/Genauigkeit abwechselnd, dann Doppelte,
+  dann Foto-Güte); die Liste zeigt „wartet — zuerst Aufnahmedatum“. Gesichter, Motive und Storys rechnen weiter daneben.
+- **Beim Einlesen, beim Katalog-Umzug und bei „Alle pausieren“ ruhen alle** Hintergrund-Aufgaben — jetzt auch Gesichter, die
+  bisher weiterliefen — und gehen danach von selbst weiter.
+- **Datei nur einmal lesen:** Datum, Koordinate und GPS-Angaben kommen aus einem Lesedurchgang (gemerkt für 4096 Dateien,
+  solange Größe und Änderungszeit gleich sind).
+- **Lesen passend zum Laufwerk:** auf einer SSD mehrere Dateien gleichzeitig (Hälfte der Kerne, 2–6), im Netz 2, auf einer
+  Festplatte eine nach der anderen (Laufwerksart nur lesend aus der Storage-Verwaltung von Windows). Prüfsummen ebenso;
+  Bild-Fingerabdrücke und Foto-Güte bleiben einzeln mit niedriger Priorität.
+- **Aktivitäten:** jede Hintergrund-Aufgabe hat **Pause/Fortsetzen** (auch während sie wartet), im Kopf der Liste
+  **„Alle pausieren“ / „Alle fortsetzen“**; Einlesen und Vorschaubilder laufen davon unabhängig.
+- **Restzeit** aus der gleitenden Geschwindigkeit der letzten Messungen; Warten und Pause zählen nicht mehr mit.
+- ADR-0074; Tests für Planer, Lesedurchgang, Restzeit, Pause in der Anzeige und Aufnahmedatum mit Planer.
+
 ## [0.5.9] — 2026-10-27
 
 ### Added — App-Verbindung Stufe 3: Lumora als Abfrager

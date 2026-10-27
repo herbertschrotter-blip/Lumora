@@ -15,10 +15,11 @@ public interface ICaptureDateReader
 
 /// <summary>
 /// Rangfolge (ADR-0046): EXIF <c>DateTimeOriginal</c> bzw. Video-Container (<see cref="MediaDateReader"/>) vor dem
-/// Dateinamen (<see cref="FileNameDateParser"/>). Archive und andere Formate liefern nur den Dateinamen.
+/// Dateinamen (<see cref="FileNameDateParser"/>). Archive und andere Formate liefern nur den Dateinamen. Mit
+/// <see cref="IFileMetadataProbe"/> teilt es sich den Lesedurchgang mit Orten und Genauigkeit (ADR-0074).
 /// </summary>
-public sealed class CaptureDateReader : ICaptureDateReader
+public sealed class CaptureDateReader(IFileMetadataProbe? probe = null) : ICaptureDateReader
 {
     public CaptureDateValue? Read(string path)
-        => MediaDateReader.Read(path) ?? FileNameDateParser.Parse(Path.GetFileName(path));
+        => (probe is null ? MediaDateReader.Read(path) : probe.Read(path).MediaDate) ?? FileNameDateParser.Parse(Path.GetFileName(path));
 }

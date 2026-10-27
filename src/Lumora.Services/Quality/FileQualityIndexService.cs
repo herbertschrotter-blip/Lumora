@@ -48,6 +48,7 @@ public sealed partial class FileQualityIndexService : IFileQualityIndexService, 
     private readonly ILibraryScope? _scope;
     private readonly IQualityAesthetics? _aesthetics;
     private readonly IScanGate? _scanGate;
+    private readonly Background.IBackgroundPlanner? _planner;
     private readonly ILogger<FileQualityIndexService> _logger;
     private readonly IMessenger _messenger;
     private readonly SemaphoreSlim _writeLock = new(1, 1);
@@ -74,8 +75,10 @@ public sealed partial class FileQualityIndexService : IFileQualityIndexService, 
         ILibraryScope? scope = null,
         IQualityAesthetics? aesthetics = null,
         IScanGate? scanGate = null,
-        IMessenger? messenger = null)
+        IMessenger? messenger = null,
+        Background.IBackgroundPlanner? planner = null)
     {
+        _planner = planner;
         _factory = factory;
         _logger = logger;
         _imageLoader = imageLoader;
@@ -319,6 +322,10 @@ public sealed partial class FileQualityIndexService : IFileQualityIndexService, 
     }
 
     /// <summary>Scan oder Datei-Batch belegt eine Bibliothek des Stapels → später noch einmal.</summary>
+    /// <summary>Datei-Spur des Hintergrund-Planers für einen Stapel (ADR-0074); ohne Planer null.</summary>
+    private async ValueTask<IDisposable?> TurnAsync(CancellationToken token)
+        => _planner is null ? null : await _planner.AcquireAsync(Background.BackgroundJob.Quality, token).ConfigureAwait(false);
+
     private bool AnyBusy(IEnumerable<int> libraryIds) => _scanGate is { } gate && libraryIds.Distinct().Any(gate.IsBusy);
 
     /// <summary>

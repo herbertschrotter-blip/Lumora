@@ -40,6 +40,7 @@ public sealed partial class GeoLocationService : IGeoTagService, IGeoTagUndoServ
     private readonly IReverseGeocoder _geocoder;
     private readonly ILogger<GeoLocationService> _logger;
     private readonly IScanGate? _scanGate;
+    private readonly Background.IBackgroundPlanner? _planner;
     private readonly IOwnChangeRegistry? _ownChanges;
     private readonly IRecycleBin? _recycleBin;
     private readonly IMessenger _messenger;
@@ -59,8 +60,10 @@ public sealed partial class GeoLocationService : IGeoTagService, IGeoTagUndoServ
         IScanGate? scanGate = null,
         IOwnChangeRegistry? ownChanges = null,
         IRecycleBin? recycleBin = null,
-        IMessenger? messenger = null)
+        IMessenger? messenger = null,
+        Background.IBackgroundPlanner? planner = null)
     {
+        _planner = planner;
         _factory = factory;
         _reader = reader;
         _geocoder = geocoder;

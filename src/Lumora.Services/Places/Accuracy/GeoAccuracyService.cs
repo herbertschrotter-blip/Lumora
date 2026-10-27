@@ -58,6 +58,7 @@ public sealed class GeoAccuracyService : IGeoAccuracyService, IDisposable
     private readonly IScanGate? _scanGate;
     private readonly IMessenger _messenger;
     private readonly Func<string, GpsExifDetails?> _readDetails;
+    private readonly Background.IBackgroundPlanner? _planner;
     private readonly SemaphoreSlim _runSignal = new(0, 1);
     private readonly SemaphoreSlim _passLock = new(1, 1);
     private readonly CancellationTokenSource _stop = new();
@@ -67,19 +68,23 @@ public sealed class GeoAccuracyService : IGeoAccuracyService, IDisposable
     private GeoAccuracyStatus _status = GeoAccuracyStatus.Idle;
     private DateTime _lastStatusUtc;
 
-    /// <param name="readDetails">Optional (Tests); produktiv <see cref="ExifGpsDetailsReader.Read(string)"/>.</param>
+    /// <param name="readDetails">Optional (Tests); produktiv der gemeinsame Lesedurchgang (<paramref name="probe"/>,
+    /// ADR-0074) bzw. <see cref="ExifGpsDetailsReader.Read(string)"/>.</param>
     public GeoAccuracyService(
         ILibraryContextFactory factory,
         ILogger<GeoAccuracyService> logger,
         IScanGate? scanGate = null,
         IMessenger? messenger = null,
-        Func<string, GpsExifDetails?>? readDetails = null)
+        Func<string, GpsExifDetails?>? readDetails = null,
+        IFileMetadataProbe? probe = null,
+        Background.IBackgroundPlanner? planner = null)
     {
         _factory = factory;
         _logger = logger;
         _scanGate = scanGate;
         _messenger = messenger ?? WeakReferenceMessenger.Default;
-        _readDetails = readDetails ?? ExifGpsDetailsReader.Read;
+        _readDetails = readDetails ?? (probe is null ? ExifGpsDetailsReader.Read : path => probe.Read(path).GpsDetails);
+        _planner = planner;
     }
 
     /// <summary>Wartezeit vom Start bis zum ersten Durchgang (Orte und Aufnahmedatum gehen vor).</summary>
@@ -202,22 +207,24 @@ public sealed class GeoAccuracyService : IGeoAccuracyService, IDisposable
                 {
                     token.ThrowIfCancellationRequested();
                     await WaitWhileSuspendedAsync(token).ConfigureAwait(false);
+                    // Hintergrund-Planer (ADR-0074): Datei-Spur für einen Stapel
+                    using var turn = _planner is null ? null : await _planner.AcquireAsync(Background.BackgroundJob.GeoAccuracy, token).ConfigureAwait(false);
                     var batch = await Task.Run(() => LoadPending(cursor, BatchSize), token).ConfigureAwait(false);
                     if (batch.Count == 0)
                     {
                         break;
                     }
 
-                    if (_scanGate is { } gate && batch.Select(r => r.LibraryId).Distinct().Any(gate.IsBusy))
+                    if (_planner is null && _scanGate is { } gate && batch.Select(r => r.LibraryId).Distinct().Any(gate.IsBusy))
                     {
                         await Task.Delay(BusyDelay, token).ConfigureAwait(false);
                         continue;
                     }
 
                     var results = new List<Result>(batch.Count);
+                    var readable = new List<Pending>(batch.Count);
                     foreach (var row in batch)
                     {
-                        token.ThrowIfCancellationRequested();
                         if (row.MediaType != 0)
                         {
                             results.Add(new Result(row.FileId, row.LibraryId, row.ModifiedAt, GeoAccuracy.Unknown, GeoAccuracyReason.None, null));
@@ -230,8 +237,14 @@ public sealed class GeoAccuracyService : IGeoAccuracyService, IDisposable
                             continue;
                         }
 
-                        results.Add(Evaluate(row));
+                        readable.Add(row);
                     }
+
+                    var evaluated = new Result[readable.Count];
+                    var parallelism = readable.Count == 0 ? 1 : _planner?.ReadParallelism(readable[0].Path) ?? 1;
+                    Parallel.For(0, readable.Count, new ParallelOptions { MaxDegreeOfParallelism = parallelism, CancellationToken = token },
+                        i => evaluated[i] = Evaluate(readable[i]));
+                    results.AddRange(evaluated);
 
                     cursor = batch[^1].FileId;
                     if (results.Count > 0)

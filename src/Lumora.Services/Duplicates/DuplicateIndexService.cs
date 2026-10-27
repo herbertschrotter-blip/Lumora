@@ -39,6 +39,7 @@ public sealed partial class DuplicateIndexService : IDuplicateIndexService, IDis
     private readonly ILibraryContextFactory _factory;
     private readonly IFaceImageLoader? _imageLoader;
     private readonly IScanGate? _scanGate;
+    private readonly Background.IBackgroundPlanner? _planner;
     private readonly ILogger<DuplicateIndexService> _logger;
     private readonly IMessenger _messenger;
     private readonly SemaphoreSlim _writeLock = new(1, 1);
@@ -59,8 +60,10 @@ public sealed partial class DuplicateIndexService : IDuplicateIndexService, IDis
         ILogger<DuplicateIndexService> logger,
         IFaceImageLoader? imageLoader = null,
         IScanGate? scanGate = null,
-        IMessenger? messenger = null)
+        IMessenger? messenger = null,
+        Background.IBackgroundPlanner? planner = null)
     {
+        _planner = planner;
         _factory = factory;
         _logger = logger;
         _imageLoader = imageLoader;
@@ -249,7 +252,12 @@ public sealed partial class DuplicateIndexService : IDuplicateIndexService, IDis
     }
 
     /// <summary>Scan oder Datei-Batch belegt eine Bibliothek des Stapels → später noch einmal.</summary>
-    private bool AnyBusy(IEnumerable<int> libraryIds) => _scanGate is { } gate && libraryIds.Distinct().Any(gate.IsBusy);
+    /// <summary>Datei-Spur des Hintergrund-Planers für einen Stapel (ADR-0074); ohne Planer null.</summary>
+    private async ValueTask<IDisposable?> TurnAsync(CancellationToken token)
+        => _planner is null ? null : await _planner.AcquireAsync(Background.BackgroundJob.Duplicates, token).ConfigureAwait(false);
+
+    /// <summary>Alte Abfrage ohne Planer (Tests); mit Planer wartet <see cref="TurnAsync"/> schon auf das Einlesen.</summary>
+    private bool AnyBusy(IEnumerable<int> libraryIds) => _planner is null && _scanGate is { } gate && libraryIds.Distinct().Any(gate.IsBusy);
 
     /// <summary>Wurzeln, die gerade nicht erreichbar sind — ihre Dateien werden ohne Dateizugriff übersprungen.</summary>
     private async Task<IReadOnlyList<string>> LoadOfflineRootsAsync(CancellationToken token)

@@ -88,9 +88,11 @@ public sealed partial class ActivityStatusViewModel : ObservableObject, IDisposa
         IDialogService? dialogs = null,
         IActivityNavigator? navigator = null,
         ILogger<ActivityStatusViewModel>? logger = null,
-        Func<DateTime>? utcNow = null)
+        Func<DateTime>? utcNow = null,
+        Lumora.Services.Background.IBackgroundPlanner? planner = null)
     {
         _center = center;
+        _planner = planner;
         _dialogs = dialogs;
         _navigator = navigator;
         _logger = logger ?? (ILogger)NullLogger.Instance;
@@ -104,7 +106,38 @@ public sealed partial class ActivityStatusViewModel : ObservableObject, IDisposa
         StopTimer(_ageTimer);
         _center.Changed += OnCenterChanged;
         _center.Finished += OnCenterFinished;
+        if (_planner is not null)
+        {
+            _isAllPaused = _planner.AllPaused;
+            _planner.Changed += () => dispatcher.BeginInvoke(() => IsAllPaused = _planner.AllPaused, DispatcherPriority.Background);
+        }
+
         Refresh();
+    }
+
+    private readonly Lumora.Services.Background.IBackgroundPlanner? _planner;
+
+    /// <summary>„Alle pausieren“ im Kopf der Liste (ADR-0074): hält alle Hintergrund-Aufgaben an, nicht das Einlesen.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AllPausedLabel))]
+    private bool _isAllPaused;
+
+    public bool CanPauseAll => _planner is not null;
+
+    public string AllPausedLabel => IsAllPaused ? "Alle fortsetzen" : "Alle pausieren";
+
+    [RelayCommand]
+    private void ToggleAllPaused()
+    {
+        if (_planner is null)
+        {
+            return;
+        }
+
+        var paused = !_planner.AllPaused;
+        _logger.LogInformation("Aktivitäten: alle Hintergrund-Aufgaben {State}", paused ? "pausiert" : "fortgesetzt");
+        _planner.SetAllPaused(paused);
+        IsAllPaused = paused;
     }
 
     public ObservableCollection<ActivityItemViewModel> Running { get; } = new();

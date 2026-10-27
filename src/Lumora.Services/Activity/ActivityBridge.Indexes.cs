@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.Messaging;
+using Lumora.Services.Background;
 using Lumora.Services.Duplicates;
 using Lumora.Services.Faces.Indexing;
 using Lumora.Services.Messaging;
@@ -18,6 +19,9 @@ namespace Lumora.Services.Activity;
 /// angestoßenen Einlesen der GPS-Spuren — ohne Eintrag unter „Zuletzt fertig“. Ein Zustand „wartet“ der Quelle (z. B.
 /// „wartet auf den Katalog“) wird zu „Wartet“ mit diesem Grund. Gesichter und Motive teilen sich die Grafikkarte Foto um
 /// Foto (<c>IGpuGate</c>, ADR-0052) — keiner wartet dabei auf den anderen; die zweite Zeile nennt das.
+/// Seit 0.5.10 (ADR-0074) kommen Pause und Wartegründe der Dateidienste vom Hintergrund-Planer: jede Aufgabe lässt sich
+/// einzeln pausieren, „wartet auf das Einlesen“ bzw. „alle pausiert“ stehen als Wartegrund, das kurze Warten auf die
+/// Reihe nur in der zweiten Zeile (es gehört zur normalen Arbeit und zählt für die Restzeit mit).
 /// </summary>
 public sealed partial class ActivityBridge
 {
@@ -36,19 +40,25 @@ public sealed partial class ActivityBridge
     private volatile bool _facesOnGpu;
     private volatile bool _motifsOnGpu;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _lastIndexErrors = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, SimpleIndexStatus> _simple = new();
+    private readonly IBackgroundPlanner? _planner;
+
+    /// <summary>Letzter Stand eines einfachen Index (zum Neuzeichnen, wenn der Planer Pause oder Wartegrund ändert).</summary>
+    private sealed record SimpleIndexStatus(
+        ActivityKind Kind, string Title, BackgroundJob Job, bool IsRunning, int Done, int Total, string? Message, string? Detail, Action? Cancel = null);
 
     private void StartIndexes()
     {
         _messenger.Register<ActivityBridge, FaceIndexStatusMessage>(this, static (r, m) => r.OnFaces(m.Status));
         _messenger.Register<ActivityBridge, MotifIndexStatusMessage>(this, static (r, m) => r.OnMotifs(m.Status));
-        _messenger.Register<ActivityBridge, DuplicateIndexStatusMessage>(this, static (r, m) => r.OnSimpleIndex(
-            "duplicates", ActivityKind.Duplicates, "Doppelte suchen", m.Status.IsRunning, m.Status.Done, m.Status.Total, m.Status.Message, m.Status.Phase));
-        _messenger.Register<ActivityBridge, CaptureDateBackfillStatusMessage>(this, static (r, m) => r.OnSimpleIndex(
-            "capture-dates", ActivityKind.CaptureDates, "Aufnahmedatum nachtragen", m.Status.IsRunning, m.Status.Done, m.Status.Total, m.Status.Message, "aus EXIF, Video, Dateiname"));
-        _messenger.Register<ActivityBridge, GeoBackfillStatusMessage>(this, static (r, m) => r.OnSimpleIndex(
-            "geo-backfill", ActivityKind.Places, "Orte nachtragen", m.Status.IsRunning, m.Status.Done, m.Status.Total, m.Status.Message, "aus EXIF, XMP, Video"));
-        _messenger.Register<ActivityBridge, GeoAccuracyStatusMessage>(this, static (r, m) => r.OnSimpleIndex(
-            "geo-accuracy", ActivityKind.Places, "Orte prüfen", m.Status.IsRunning, m.Status.Done, m.Status.Total, m.Status.Message, "Genauigkeit der Koordinaten"));
+        _messenger.Register<ActivityBridge, DuplicateIndexStatusMessage>(this, static (r, m) => r.OnSimpleIndex("duplicates", new(
+            ActivityKind.Duplicates, "Doppelte suchen", BackgroundJob.Duplicates, m.Status.IsRunning, m.Status.Done, m.Status.Total, m.Status.Message, m.Status.Phase)));
+        _messenger.Register<ActivityBridge, CaptureDateBackfillStatusMessage>(this, static (r, m) => r.OnSimpleIndex("capture-dates", new(
+            ActivityKind.CaptureDates, "Aufnahmedatum nachtragen", BackgroundJob.CaptureDates, m.Status.IsRunning, m.Status.Done, m.Status.Total, m.Status.Message, "aus EXIF, Video, Dateiname")));
+        _messenger.Register<ActivityBridge, GeoBackfillStatusMessage>(this, static (r, m) => r.OnSimpleIndex("geo-backfill", new(
+            ActivityKind.Places, "Orte nachtragen", BackgroundJob.GeoLocations, m.Status.IsRunning, m.Status.Done, m.Status.Total, m.Status.Message, "aus EXIF, XMP, Video")));
+        _messenger.Register<ActivityBridge, GeoAccuracyStatusMessage>(this, static (r, m) => r.OnSimpleIndex("geo-accuracy", new(
+            ActivityKind.Places, "Orte prüfen", BackgroundJob.GeoAccuracy, m.Status.IsRunning, m.Status.Done, m.Status.Total, m.Status.Message, "Genauigkeit der Koordinaten")));
         _messenger.Register<ActivityBridge, FileQualityIndexStatusMessage>(this, static (r, m) => r.OnQuality(m.Status));
         _messenger.Register<ActivityBridge, StoryIndexStatusMessage>(this, static (r, m) => r.OnStories(m.Status));
         _messenger.Register<ActivityBridge, GpsTrackImportStatusMessage>(this, static (r, m) => r.OnGpsTracks(m.Status));
@@ -56,6 +66,11 @@ public sealed partial class ActivityBridge
         if (_thumbnails is not null)
         {
             _thumbnailTimer = _time.CreateTimer(_ => PollThumbnails(), null, ThumbnailPollInterval, ThumbnailPollInterval);
+        }
+
+        if (_planner is not null)
+        {
+            _planner.Changed += OnPlannerChanged;
         }
 
         // Schon laufende Indizes (Bridge startet vor den Diensten — nur zur Sicherheit)
@@ -74,7 +89,34 @@ public sealed partial class ActivityBridge
     {
         _thumbnailTimer?.Dispose();
         _thumbnailTimer = null;
+        if (_planner is not null)
+        {
+            _planner.Changed -= OnPlannerChanged;
+        }
     }
+
+    /// <summary>Pause, „alle pausiert“ oder ein Wartegrund hat sich geändert: alle Indizes neu zeichnen.</summary>
+    internal void OnPlannerChanged()
+    {
+        foreach (var key in _simple.Keys)
+        {
+            RenderSimple(key);
+        }
+
+        if (_faces is not null)
+        {
+            OnFaces(_faces.Status);
+        }
+
+        if (_motifs is not null)
+        {
+            OnMotifs(_motifs.Status);
+        }
+    }
+
+    /// <summary>Wartegrund des Planers, der den ganzen Index anhält (Einlesen, Katalog-Umzug, alle pausiert); sonst null.</summary>
+    private string? GlobalWait(BackgroundJob job)
+        => _planner?.GetState(job) is { Wait: BackgroundWait.Scan or BackgroundWait.CatalogMove or BackgroundWait.AllPaused, Reason: { } reason } ? reason : null;
 
     /// <summary>Warteschlange der Vorschaubilder: Fortschritt = höchster Stand seit Beginn minus Rest.</summary>
     internal void PollThumbnails()
@@ -92,52 +134,82 @@ public sealed partial class ActivityBridge
             .Report(_thumbnailPeak - pending, _thumbnailPeak, $"{pending:N0} in Warteschlange");
     }
 
-    private void OnSimpleIndex(string key, ActivityKind kind, string title, bool isRunning, int done, int total, string? message, string? detail)
+    private void OnSimpleIndex(string key, SimpleIndexStatus status)
     {
-        if (isRunning)
+        _simple[key] = status;
+        RenderSimple(key);
+    }
+
+    /// <summary>
+    /// Einfacher Index aus dem letzten Stand der Quelle und dem Planer: pausiert (auch ohne offene Arbeit, damit
+    /// „Fortsetzen“ erreichbar bleibt), wartet (Einlesen, Katalog-Umzug, alle pausiert), läuft (Warten auf die Reihe in
+    /// der zweiten Zeile) oder fertig.
+    /// </summary>
+    private void RenderSimple(string key)
+    {
+        if (!_simple.TryGetValue(key, out var s))
         {
-            _center.Start(new ActivityStartInfo(kind, title, KeepInRecent: false, Key: key)).Report(done, total, detail is { Length: > 0 } ? $"im Hintergrund · {detail}" : "im Hintergrund");
+            return;
         }
-        else if (!string.IsNullOrWhiteSpace(message))
+
+        var paused = _planner?.IsPaused(s.Job) == true;
+        if (!s.IsRunning && !paused)
         {
-            _center.Start(new ActivityStartInfo(kind, title, KeepInRecent: false, Key: key)).Wait(message);
+            if (!string.IsNullOrWhiteSpace(s.Message))
+            {
+                StartSimple(key, s).Wait(s.Message);
+            }
+            else
+            {
+                _center.Find(key)?.Dismiss();
+            }
+
+            return;
+        }
+
+        var handle = StartSimple(key, s);
+        var detail = s.Detail is { Length: > 0 } ? $"im Hintergrund · {s.Detail}" : "im Hintergrund";
+        if (_planner?.GetState(s.Job) is { Wait: BackgroundWait.Turn, Reason: { } turn })
+        {
+            detail = $"im Hintergrund · {turn}";
+        }
+
+        handle.Report(s.Done, s.Total, detail);
+        if (paused)
+        {
+            handle.SetPaused(true);
+        }
+        else if (GlobalWait(s.Job) is { } reason)
+        {
+            handle.Wait(reason);
         }
         else
         {
-            _center.Find(key)?.Dismiss();
+            handle.SetPaused(false);
         }
+    }
+
+    private IActivityHandle StartSimple(string key, SimpleIndexStatus s)
+    {
+        var planner = _planner;
+        var job = s.Job;
+        return _center.Start(new ActivityStartInfo(s.Kind, s.Title, KeepInRecent: false, Key: key, Cancel: s.Cancel,
+            Pause: planner is null ? null : () => planner.SetPaused(job, true),
+            Resume: planner is null ? null : () => planner.SetPaused(job, false)));
     }
 
     private void OnQuality(FileQualityIndexStatus status)
     {
-        const string key = "quality";
-        if (status.IsRunning)
-        {
-            var quality = _quality;
-            _center.Start(new ActivityStartInfo(ActivityKind.Quality, "Foto-Güte bewerten", KeepInRecent: false, Key: key, Cancel: quality is null ? null : quality.CancelPass))
-                .Report(status.Done, status.Total, status.Phase == FileQualityIndexStatus.AestheticPhase ? "im Hintergrund · Bildwirkung" : "im Hintergrund · Schärfe und Belichtung");
-            return;
-        }
-
-        OnSimpleIndex(key, ActivityKind.Quality, "Foto-Güte bewerten", false, 0, 0, status.Message, null);
+        var quality = _quality;
+        OnSimpleIndex("quality", new(ActivityKind.Quality, "Foto-Güte bewerten", BackgroundJob.Quality, status.IsRunning, status.Done, status.Total,
+            status.IsRunning ? null : status.Message,
+            status.Phase == FileQualityIndexStatus.AestheticPhase ? "Bildwirkung" : "Schärfe und Belichtung",
+            quality is null ? null : quality.CancelPass));
     }
 
     private void OnStories(StoryIndexStatus status)
-    {
-        const string key = "stories";
-        if (status.IsRunning)
-        {
-            _center.Start(new ActivityStartInfo(ActivityKind.Stories, "Storys berechnen", KeepInRecent: false, Key: key)).Report(0, 0, "im Hintergrund");
-        }
-        else if (!string.IsNullOrWhiteSpace(status.Text) && status.Text != StoryIndexStatus.Idle.Text)
-        {
-            _center.Start(new ActivityStartInfo(ActivityKind.Stories, "Storys berechnen", KeepInRecent: false, Key: key)).Wait(status.Text);
-        }
-        else
-        {
-            _center.Find(key)?.Dismiss();
-        }
-    }
+        => OnSimpleIndex("stories", new(ActivityKind.Stories, "Storys berechnen", BackgroundJob.Stories, status.IsRunning, 0, 0,
+            !string.IsNullOrWhiteSpace(status.Text) && status.Text != StoryIndexStatus.Idle.Text ? status.Text : null, null));
 
     /// <summary>Einlesen der GPS-Spuren (vom Benutzer bzw. der erkannten Uhr angestoßen): Ergebnis unter „Zuletzt fertig“.</summary>
     private void OnGpsTracks(GpsTrackImportStatus status)
@@ -167,21 +239,28 @@ public sealed partial class ActivityBridge
     {
         _facesOnGpu = status.IsActive && string.Equals(status.ExecutionProvider, "DirectML", StringComparison.Ordinal);
         var faces = _faces;
+        var phase = status.State switch
+        {
+            FaceIndexState.Running => IndexPhase.Running,
+            FaceIndexState.Paused => IndexPhase.Paused,
+            FaceIndexState.Waiting => IndexPhase.Waiting,
+            FaceIndexState.Error => IndexPhase.Error,
+            _ => IndexPhase.Off,
+        };
+        var message = status.Message;
+        if (phase == IndexPhase.Running && GlobalWait(BackgroundJob.Faces) is { } reason)
+        {
+            (phase, message) = (IndexPhase.Waiting, reason);
+        }
+
         OnGpuIndex(
             FacesKey,
             ActivityKind.Faces,
             "Gesichter erkennen",
-            status.State switch
-            {
-                FaceIndexState.Running => IndexPhase.Running,
-                FaceIndexState.Paused => IndexPhase.Paused,
-                FaceIndexState.Waiting => IndexPhase.Waiting,
-                FaceIndexState.Error => IndexPhase.Error,
-                _ => IndexPhase.Off,
-            },
+            phase,
             status.Done,
             status.Total,
-            status.Message,
+            message,
             GpuDetail(status.ExecutionProvider, _motifsOnGpu ? "Motive" : null),
             faces is null ? null : () => { faces.CancelRun(); faces.Resume(); },
             faces is null ? null : faces.Pause,
@@ -192,21 +271,28 @@ public sealed partial class ActivityBridge
     {
         _motifsOnGpu = status.IsActive && string.Equals(status.ExecutionProvider, "DirectML", StringComparison.Ordinal);
         var motifs = _motifs;
+        var phase = status.State switch
+        {
+            MotifIndexState.Running => IndexPhase.Running,
+            MotifIndexState.Paused => IndexPhase.Paused,
+            MotifIndexState.Waiting => IndexPhase.Waiting,
+            MotifIndexState.Error => IndexPhase.Error,
+            _ => IndexPhase.Off,
+        };
+        var message = status.Message;
+        if (phase == IndexPhase.Running && GlobalWait(BackgroundJob.Motifs) is { } reason)
+        {
+            (phase, message) = (IndexPhase.Waiting, reason);
+        }
+
         OnGpuIndex(
             MotifsKey,
             ActivityKind.Motifs,
             "Motive erkennen",
-            status.State switch
-            {
-                MotifIndexState.Running => IndexPhase.Running,
-                MotifIndexState.Paused => IndexPhase.Paused,
-                MotifIndexState.Waiting => IndexPhase.Waiting,
-                MotifIndexState.Error => IndexPhase.Error,
-                _ => IndexPhase.Off,
-            },
+            phase,
             status.Done,
             status.Total,
-            status.Message,
+            message,
             GpuDetail(status.ExecutionProvider, _facesOnGpu ? "Gesichter" : null),
             motifs is null ? null : () => { motifs.CancelRun(); motifs.Resume(); },
             motifs is null ? null : motifs.Pause,

@@ -41,8 +41,10 @@ public sealed partial class ActivityBridge : IDisposable
         Quality.IFileQualityIndexService? quality = null,
         Places.Tracks.IGpsTrackImportService? gpsTracks = null,
         TimeProvider? time = null,
-        ILogger<ActivityBridge>? logger = null)
+        ILogger<ActivityBridge>? logger = null,
+        Background.IBackgroundPlanner? planner = null)
     {
+        _planner = planner;
         _center = center;
         _messenger = messenger ?? WeakReferenceMessenger.Default;
         _scanGate = scanGate;

@@ -59,6 +59,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<FtsIndexer>();
         services.TryAddSingleton<FolderEnumerator>();
         services.TryAddSingleton<IScanGate, ScanGate>(); // nie zwei Scans derselben Bibliothek, nie Scan neben Datei-Batch
+        Background.BackgroundServiceCollectionExtensions.AddBackgroundPlanner(services); // Hintergrund-Planer (ADR-0074)
         services.TryAddSingleton<IOwnChangeRegistry>(_ => new OwnChangeRegistry()); // eigene Schreibvorgänge für die Ordnerüberwachung
         services.TryAddSingleton<IScanService, ScanService>();
         // Ausschlüsse beim Einlesen: allgemeine Liste + je Bibliothek, Entfernen mit Rückgängig (Services/Scanning/Exclusions, ADR-0066)

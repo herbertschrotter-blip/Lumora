@@ -39,6 +39,7 @@ public sealed partial class DuplicateIndexService
         {
             token.ThrowIfCancellationRequested();
             await WaitWhileSuspendedAsync(token).ConfigureAwait(false);
+            using var turn = await TurnAsync(token).ConfigureAwait(false);
             var batch = await Task.Run(() => LoadContentBatch(reader, cursor, ContentBatchSize), token).ConfigureAwait(false);
             if (batch.Count == 0)
             {
@@ -51,32 +52,38 @@ public sealed partial class DuplicateIndexService
                 continue; // denselben Stapel später noch einmal
             }
 
-            var results = new List<ContentResult>(batch.Count);
-            await Task.Run(
-                () =>
+            var readable = new List<ContentRow>(batch.Count);
+            foreach (var row in batch)
+            {
+                if (IsUnderAny(row.Path, offlineRoots) || !ThumbnailService.IsLocallyAvailable(row.Path))
                 {
-                    foreach (var row in batch)
-                    {
-                        token.ThrowIfCancellationRequested();
-                        if (IsUnderAny(row.Path, offlineRoots) || !ThumbnailService.IsLocallyAvailable(row.Path))
-                        {
-                            skipped++; // fehlt oder nur online: in einer späteren Sitzung
-                            continue;
-                        }
+                    skipped++; // fehlt oder nur online: in einer späteren Sitzung
+                    continue;
+                }
 
-                        try
-                        {
-                            results.Add(new ContentResult(row, ContentHasher.Compute(row.Path, token)));
-                        }
-                        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-                        {
-                            failed++;
-                            _logger.LogDebug(ex, "Doppelte: Prüfsumme für FileId {FileId} nicht lesbar", row.FileId);
-                            results.Add(new ContentResult(row, null));
-                        }
+                readable.Add(row);
+            }
+
+            // Prüfsummen parallel nur auf SSD bzw. Netz (Planer, ADR-0074); Festplatte liest eine Datei nach der anderen
+            var hashed = new ContentResult[readable.Count];
+            var parallelism = readable.Count == 0 ? 1 : _planner?.ReadParallelism(readable[0].Path) ?? 1;
+            await Task.Run(
+                () => Parallel.For(0, readable.Count, new ParallelOptions { MaxDegreeOfParallelism = parallelism, CancellationToken = token }, i =>
+                {
+                    var row = readable[i];
+                    try
+                    {
+                        hashed[i] = new ContentResult(row, ContentHasher.Compute(row.Path, token));
                     }
-                },
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                    {
+                        Interlocked.Increment(ref failed);
+                        _logger.LogDebug(ex, "Doppelte: Prüfsumme für FileId {FileId} nicht lesbar", row.FileId);
+                        hashed[i] = new ContentResult(row, null);
+                    }
+                }),
                 token).ConfigureAwait(false);
+            var results = hashed.ToList();
 
             cursor = batch[^1].FileId;
             if (results.Count > 0)

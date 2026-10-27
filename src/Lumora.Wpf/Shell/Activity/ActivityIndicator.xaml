@@ -265,6 +265,7 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <ui:SymbolIcon Grid.Column="0" Symbol="History24" FontSize="16" Margin="0,0,8,0" VerticalAlignment="Center"
                                        Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
@@ -272,7 +273,14 @@
                                    Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                         <TextBlock Grid.Column="2" Text="{Binding HeaderSummary}" FontSize="12" VerticalAlignment="Center" Margin="8,0"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                        <ui:Button Grid.Column="3" Style="{StaticResource RowIconButton}" Icon="{ui:SymbolIcon Dismiss16}" VerticalAlignment="Center"
+                        <!-- Hintergrund-Planer (ADR-0074): alle Hintergrund-Aufgaben anhalten bzw. fortsetzen -->
+                        <ui:Button Grid.Column="3" Style="{StaticResource RowLinkButton}" VerticalAlignment="Center"
+                                   Content="{Binding AllPausedLabel}" Command="{Binding ToggleAllPausedCommand}"
+                                   ToolTip="Hält Datum, Orte, Doppelte, Foto-Güte, Gesichter, Motive und Storys an — Einlesen und Vorschaubilder laufen weiter"
+                                   AutomationProperties.AutomationId="ActivityPauseAll"
+                                   AutomationProperties.Name="{Binding AllPausedLabel}"
+                                   Visibility="{Binding CanPauseAll, Converter={StaticResource BoolToVis}}" />
+                        <ui:Button Grid.Column="4" Style="{StaticResource RowIconButton}" Icon="{ui:SymbolIcon Dismiss16}" VerticalAlignment="Center"
                                    ToolTip="Schließen (Esc)" AutomationProperties.Name="Aktivitäten schließen" Command="{Binding CloseFlyoutCommand}" />
                     </Grid>
                     <ScrollViewer MaxHeight="460" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">

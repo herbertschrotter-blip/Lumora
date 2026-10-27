@@ -167,22 +167,24 @@ public sealed partial class GeoLocationService
             {
                 token.ThrowIfCancellationRequested();
                 await WaitWhileSuspendedAsync(token).ConfigureAwait(false);
+                // Hintergrund-Planer (ADR-0074): Datei-Spur für einen Stapel
+                using var turn = _planner is null ? null : await _planner.AcquireAsync(Background.BackgroundJob.GeoLocations, token).ConfigureAwait(false);
                 var batch = await Task.Run(() => LoadPending(cursor, BackfillBatchSize), token).ConfigureAwait(false);
                 if (batch.Count == 0)
                 {
                     break;
                 }
 
-                if (_scanGate is { } gate && batch.Select(r => r.LibraryId).Distinct().Any(gate.IsBusy))
+                if (_planner is null && _scanGate is { } gate && batch.Select(r => r.LibraryId).Distinct().Any(gate.IsBusy))
                 {
                     await Task.Delay(BusyDelay, token).ConfigureAwait(false);
                     continue; // denselben Stapel später noch einmal
                 }
 
                 var results = new List<ReadResult>(batch.Count);
+                var readable = new List<PendingRow>(batch.Count);
                 foreach (var row in batch)
                 {
-                    token.ThrowIfCancellationRequested();
                     if (row.MediaType == 2)
                     {
                         results.Add(new ReadResult(row.FileId, row.LibraryId, row.ModifiedAt, null, null)); // Archive: kein Ort
@@ -195,7 +197,18 @@ public sealed partial class GeoLocationService
                         continue;
                     }
 
-                    var value = _reader.Read(row.Path);
+                    readable.Add(row);
+                }
+
+                // Lesen parallel je nach Laufwerk (Planer), Ortsnamen danach der Reihe nach
+                var values = new GeoReading?[readable.Count];
+                var parallelism = readable.Count == 0 ? 1 : _planner?.ReadParallelism(readable[0].Path) ?? 1;
+                Parallel.For(0, readable.Count, new ParallelOptions { MaxDegreeOfParallelism = parallelism, CancellationToken = token },
+                    i => values[i] = _reader.Read(readable[i].Path));
+                for (var i = 0; i < readable.Count; i++)
+                {
+                    var row = readable[i];
+                    var value = values[i];
                     var placeId = value is { } v ? _geocoder.Nearest(v.Coordinate.Latitude, v.Coordinate.Longitude)?.PlaceId : null;
                     results.Add(new ReadResult(row.FileId, row.LibraryId, row.ModifiedAt, value, placeId));
                 }

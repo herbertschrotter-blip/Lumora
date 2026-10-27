@@ -48,6 +48,7 @@ public sealed partial class DuplicateIndexService
         {
             token.ThrowIfCancellationRequested();
             await WaitWhileSuspendedAsync(token).ConfigureAwait(false);
+            using var turn = await TurnAsync(token).ConfigureAwait(false);
             var batch = await Task.Run(() => LoadImageBatch(reader, cursor, ImageBatchSize), token).ConfigureAwait(false);
             if (batch.Count == 0)
             {

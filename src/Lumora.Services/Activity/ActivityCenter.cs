@@ -21,6 +21,12 @@ public sealed class ActivityCenter : IActivityCenter, IDisposable
     /// <summary>Restzeit erst schätzen, wenn so lange Fortschritt gemeldet wurde.</summary>
     public static readonly TimeSpan EstimateAfter = TimeSpan.FromSeconds(3);
 
+    /// <summary>Kürzester Abstand für eine Geschwindigkeits-Messung (häufige Meldungen werden zusammengefasst).</summary>
+    public static readonly TimeSpan RateSample = TimeSpan.FromMilliseconds(500);
+
+    /// <summary>Gewicht der jüngsten Messung in der gleitenden Geschwindigkeit (ADR-0074).</summary>
+    public const double RateWeight = 0.3;
+
     private readonly object _sync = new();
     private readonly TimeProvider _time;
     private readonly ILogger _logger;
@@ -369,7 +375,9 @@ public sealed class ActivityCenter : IActivityCenter, IDisposable
         private string? _waitReason;
         private Action? _waitCancel;
         private DateTime? _progressSinceUtc;
-        private int _progressSinceDone;
+        private DateTime? _rateLastUtc;
+        private int _rateLastDone;
+        private double? _rate; // Dateien je Sekunde, gleitend; Warten und Pause zählen nicht mit
 
         public long Id { get; } = id;
 
@@ -417,10 +425,24 @@ public sealed class ActivityCenter : IActivityCenter, IDisposable
                 }
 
                 var now = owner.UtcNow;
-                if (total != _total || done < _done || _progressSinceUtc is null)
+                var restart = total != _total || done < _done || _progressSinceUtc is null;
+                if (restart)
                 {
                     _progressSinceUtc = now; // neue Menge bzw. Neustart: Schätzung neu beginnen
-                    _progressSinceDone = done;
+                    _rate = null;
+                }
+
+                if (restart || _rateLastUtc is null)
+                {
+                    _rateLastUtc = now; // nach Warten/Pause: die Uhr läuft erst ab jetzt wieder
+                    _rateLastDone = done;
+                }
+                else if (done > _rateLastDone && now - _rateLastUtc.Value >= RateSample)
+                {
+                    var sample = (done - _rateLastDone) / (now - _rateLastUtc.Value).TotalSeconds;
+                    _rate = _rate is { } r ? (RateWeight * sample) + ((1 - RateWeight) * r) : sample;
+                    _rateLastUtc = now;
+                    _rateLastDone = done;
                 }
 
                 _done = Math.Max(0, done);
@@ -463,6 +485,7 @@ public sealed class ActivityCenter : IActivityCenter, IDisposable
                 State = ActivityState.Waiting;
                 _waitReason = reason;
                 _waitCancel = cancel;
+                _rateLastUtc = null; // Wartezeit nicht als Arbeitszeit messen
             }
 
             owner.RequestNotify();
@@ -500,7 +523,7 @@ public sealed class ActivityCenter : IActivityCenter, IDisposable
                 {
                     _waitReason = null;
                     _waitCancel = null;
-                    _progressSinceUtc = null; // nach der Pause neu schätzen
+                    _rateLastUtc = null; // Pause nicht als Arbeitszeit messen; die Geschwindigkeit bleibt
                 }
             }
 
@@ -525,17 +548,14 @@ public sealed class ActivityCenter : IActivityCenter, IDisposable
         public ActivitySnapshot Snapshot(DateTime now)
         {
             TimeSpan? remaining = null;
-            if (State == ActivityState.Running && _total > 0 && _done < _total && _progressSinceUtc is { } since && _done > _progressSinceDone)
+            if (State == ActivityState.Running && _total > 0 && _done < _total && _progressSinceUtc is { } since && _rate is > 0 and var rate
+                && now - since >= EstimateAfter)
             {
-                var elapsed = now - since;
-                if (elapsed >= EstimateAfter)
-                {
-                    remaining = TimeSpan.FromTicks((long)(elapsed.Ticks / (double)(_done - _progressSinceDone) * (_total - _done)));
-                }
+                remaining = TimeSpan.FromSeconds((_total - _done) / rate);
             }
 
             var canCancel = IsActiveUnsafe && CancelAction is not null;
-            var canPause = IsActiveUnsafe && Info.Pause is not null && Info.Resume is not null && State != ActivityState.Waiting;
+            var canPause = IsActiveUnsafe && Info.Pause is not null && Info.Resume is not null; // auch beim Warten (ADR-0074)
             return new ActivitySnapshot(
                 Id,
                 Info.Kind,

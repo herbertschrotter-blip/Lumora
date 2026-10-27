@@ -57,6 +57,7 @@ public sealed partial class CaptureDateService : ICaptureDateService, IDisposabl
     private readonly ILibraryContextFactory _factory;
     private readonly ICaptureDateReader _reader;
     private readonly IScanGate? _scanGate;
+    private readonly Background.IBackgroundPlanner? _planner;
     private readonly ILogger<CaptureDateService> _logger;
     private readonly IMessenger _messenger;
 
@@ -70,12 +71,14 @@ public sealed partial class CaptureDateService : ICaptureDateService, IDisposabl
         ICaptureDateReader reader,
         ILogger<CaptureDateService> logger,
         IScanGate? scanGate = null,
-        IMessenger? messenger = null)
+        IMessenger? messenger = null,
+        Background.IBackgroundPlanner? planner = null)
     {
         _factory = factory;
         _reader = reader;
         _logger = logger;
         _scanGate = scanGate;
+        _planner = planner;
         _messenger = messenger ?? WeakReferenceMessenger.Default;
     }
 

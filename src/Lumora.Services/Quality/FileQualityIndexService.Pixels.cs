@@ -69,13 +69,14 @@ public sealed partial class FileQualityIndexService
         {
             token.ThrowIfCancellationRequested();
             await WaitWhileSuspendedAsync(token).ConfigureAwait(false);
+            using var turn = await TurnAsync(token).ConfigureAwait(false);
             var batch = await Task.Run(() => LoadBatch(reader, scope, cursor, PixelBatchSize), token).ConfigureAwait(false);
             if (batch.Count == 0)
             {
                 break;
             }
 
-            if (AnyBusy(batch.Select(r => r.LibraryId)))
+            if (_planner is null && AnyBusy(batch.Select(r => r.LibraryId)))
             {
                 await Task.Delay(BusyDelay, token).ConfigureAwait(false);
                 continue;

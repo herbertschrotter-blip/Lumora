@@ -83,6 +83,7 @@ public sealed class MotifIndexService : IMotifIndexService, IDisposable
     private readonly MotifStore _store;
     private readonly IScanGate? _scanGate;
     private readonly IGpuGate? _gpuGate;
+    private readonly Background.IBackgroundPlanner? _planner;
     private readonly ILogger<MotifIndexService> _logger;
     private readonly IMessenger _messenger;
     private readonly MotifIndexOptions _options;
@@ -117,8 +118,10 @@ public sealed class MotifIndexService : IMotifIndexService, IDisposable
         IScanGate? scanGate = null,
         IGpuGate? gpuGate = null,
         IMessenger? messenger = null,
-        MotifIndexOptions? options = null)
+        MotifIndexOptions? options = null,
+        Background.IBackgroundPlanner? planner = null)
     {
+        _planner = planner;
         _libraries = libraries;
         _encoders = encoders;
         _loader = loader;
@@ -546,6 +549,12 @@ public sealed class MotifIndexService : IMotifIndexService, IDisposable
         {
             Publish(new MotifIndexStatus(MotifIndexState.Waiting, state.Done, state.Total, state.MsPerPhoto, state.Encoder.ExecutionProvider, "Wartet auf den Scan", state.LibraryId), force: true);
             await Task.Delay(_options.ScanBusyDelay, ct).ConfigureAwait(false);
+            state.ResetClock();
+        }
+
+        // Hintergrund-Planer (ADR-0074): Einlesen anderer Bibliotheken, Katalog-Umzug, „Alle pausieren“
+        if (await Background.BackgroundPlanner.WaitForPermissionAsync(_planner, Background.BackgroundJob.Motifs, ct).ConfigureAwait(false))
+        {
             state.ResetClock();
         }
     }

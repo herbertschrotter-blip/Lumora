@@ -48,6 +48,7 @@ public sealed class FaceIndexService : IFaceIndexService, IDisposable
     private readonly FaceIndexOptions _options;
     private readonly FaceIndexStore _store;
     private readonly Lumora.Services.Infrastructure.IGpuGate? _gpuGate;
+    private readonly Background.IBackgroundPlanner? _planner;
 
     private readonly Channel<bool> _wake = Channel.CreateBounded<bool>(new BoundedChannelOptions(1) { FullMode = BoundedChannelFullMode.DropWrite });
     private readonly CancellationTokenSource _stop = new();
@@ -76,9 +77,11 @@ public sealed class FaceIndexService : IFaceIndexService, IDisposable
         ILogger<FaceIndexService> logger,
         IMessenger? messenger = null,
         FaceIndexOptions? options = null,
-        Lumora.Services.Infrastructure.IGpuGate? gpuGate = null)
+        Lumora.Services.Infrastructure.IGpuGate? gpuGate = null,
+        Background.IBackgroundPlanner? planner = null)
     {
         _gpuGate = gpuGate; // gemeinsame GPU-Sperre mit der Motiv-Erkennung (ADR-0052)
+        _planner = planner; // ruht beim Einlesen, beim Katalog-Umzug und bei „Alle pausieren“ (ADR-0074)
         _libraries = libraries;
         _analyzers = analyzers;
         _loader = loader;
@@ -446,6 +449,11 @@ public sealed class FaceIndexService : IFaceIndexService, IDisposable
         {
             while (true)
             {
+                if (await Background.BackgroundPlanner.WaitForPermissionAsync(_planner, Background.BackgroundJob.Faces, ct).ConfigureAwait(false))
+                {
+                    state.ResetClock();
+                }
+
                 var candidates = await _store.ReadPendingAsync(libraryId, version, before, _options.ReadBatchSize, ct).ConfigureAwait(false);
                 if (candidates.Count == 0)
                 {

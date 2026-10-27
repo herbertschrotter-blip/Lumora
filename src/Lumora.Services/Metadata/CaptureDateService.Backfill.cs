@@ -173,31 +173,42 @@ public sealed partial class CaptureDateService
             {
                 token.ThrowIfCancellationRequested();
                 await WaitWhileSuspendedAsync(token).ConfigureAwait(false);
+                // Hintergrund-Planer (ADR-0074): die Datei-Spur für einen Stapel — wartet beim Einlesen, bei Pause und
+                // solange eine wichtigere Aufgabe Dateien liest
+                using var turn = _planner is null ? null : await _planner.AcquireAsync(Background.BackgroundJob.CaptureDates, token).ConfigureAwait(false);
                 var batch = await Task.Run(() => LoadPending(cursor, BackfillBatchSize), token).ConfigureAwait(false);
                 if (batch.Count == 0)
                 {
                     break;
                 }
 
-                if (_scanGate is { } gate && batch.Select(r => r.LibraryId).Distinct().Any(gate.IsBusy))
+                if (_planner is null && _scanGate is { } gate && batch.Select(r => r.LibraryId).Distinct().Any(gate.IsBusy))
                 {
                     await Task.Delay(BusyDelay, token).ConfigureAwait(false);
                     continue; // denselben Stapel später noch einmal
                 }
 
-                var results = new List<ReadResult>(batch.Count);
+                var readable = new List<PendingRow>(batch.Count);
                 foreach (var row in batch)
                 {
-                    token.ThrowIfCancellationRequested();
                     if (IsUnderAny(row.Path, offlineRoots) || !ThumbnailService.IsLocallyAvailable(row.Path))
                     {
                         skipped++; // fehlt oder nur online: in einer späteren Sitzung
                         continue;
                     }
 
-                    var value = _reader.Read(row.Path);
-                    results.Add(new ReadResult(row.FileId, row.LibraryId, row.ModifiedAt, value));
+                    readable.Add(row);
                 }
+
+                // Mehrere Dateien gleichzeitig nur auf SSD bzw. Netz (Planer); Festplatte liest eine nach der anderen
+                var read1 = new ReadResult[readable.Count];
+                var parallelism = readable.Count == 0 ? 1 : _planner?.ReadParallelism(readable[0].Path) ?? 1;
+                Parallel.For(0, readable.Count, new ParallelOptions { MaxDegreeOfParallelism = parallelism, CancellationToken = token }, i =>
+                {
+                    var row = readable[i];
+                    read1[i] = new ReadResult(row.FileId, row.LibraryId, row.ModifiedAt, _reader.Read(row.Path));
+                });
+                var results = read1.ToList();
 
                 cursor = batch[^1].FileId;
                 if (results.Count > 0)

@@ -41,6 +41,9 @@ public interface IScanGate
     /// <summary>true, solange ein Scan oder ein Datei-Batch die Bibliothek belegt (Momentaufnahme).</summary>
     bool IsBusy(int libraryId);
 
+    /// <summary>true, solange irgendeine Bibliothek belegt ist — der Hintergrund-Planer hält dann alles an (ADR-0074).</summary>
+    bool IsAnyBusy { get; }
+
     /// <summary>Alle Aufrufer, die gerade auf eine Sperre warten (Momentaufnahme, nach WaitId aufsteigend).</summary>
     IReadOnlyList<ScanGateWait> GetWaits();
 
@@ -130,6 +133,8 @@ public sealed class ScanGate : IScanGate
     }
 
     public bool IsBusy(int libraryId) => _gates.TryGetValue(libraryId, out var slot) && slot.Semaphore.CurrentCount == 0;
+
+    public bool IsAnyBusy => _gates.Values.Any(slot => slot.Semaphore.CurrentCount == 0);
 
     public IReadOnlyList<ScanGateWait> GetWaits() => _waits.Values.Select(w => w.Wait).OrderBy(w => w.WaitId).ToList();
 

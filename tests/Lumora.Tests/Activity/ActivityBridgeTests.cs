@@ -38,6 +38,40 @@ public sealed class ActivityBridgeTests : IDisposable
         return bridge;
     }
 
+    [Fact]
+    public async Task Planer_Pause_je_Aufgabe_Warten_auf_die_Reihe_und_Alle_pausieren()
+    {
+        using var planner = new Lumora.Services.Background.BackgroundPlanner(time: _time);
+        using var bridge = new ActivityBridge(_center, _messenger, time: _time, planner: planner);
+        bridge.Start();
+        _messenger.Send(new Lumora.Services.Messaging.CaptureDateBackfillStatusMessage(new Lumora.Services.Metadata.CaptureDateBackfillStatus(true, 200, 1000)));
+        _messenger.Send(new Lumora.Services.Messaging.GeoBackfillStatusMessage(new Lumora.Services.Places.GeoBackfillStatus(true, 0, 1000)));
+
+        // Aufnahmedatum hält die Datei-Spur, Orte warten auf die Reihe: läuft weiter, Grund in der zweiten Zeile
+        var lane = await planner.AcquireAsync(Lumora.Services.Background.BackgroundJob.CaptureDates, CancellationToken.None);
+        var places = planner.AcquireAsync(Lumora.Services.Background.BackgroundJob.GeoLocations, CancellationToken.None);
+        _center.GetOverview().Running.Single(r => r.Title == "Orte nachtragen").Detail.Should().Be("im Hintergrund · wartet — zuerst Aufnahmedatum");
+
+        // Pause über die Anzeige → Planer
+        var dates = _center.GetOverview().Running.Single(r => r.Title == "Aufnahmedatum nachtragen");
+        dates.CanPause.Should().BeTrue();
+        _center.SetPaused(dates.Id, true);
+        planner.IsPaused(Lumora.Services.Background.BackgroundJob.CaptureDates).Should().BeTrue();
+        _center.GetOverview().Running.Single(r => r.Id == dates.Id).State.Should().Be(ActivityState.Paused);
+
+        lane.Dispose();
+        (await places).Dispose();
+
+        // Alle pausieren: wartende Aufgabe zeigt den Grund
+        planner.SetAllPaused(true);
+        var again = planner.AcquireAsync(Lumora.Services.Background.BackgroundJob.GeoLocations, CancellationToken.None);
+        _center.GetOverview().Waiting.Single(r => r.Title == "Orte nachtragen").WaitReason.Should().Be("alle Hintergrund-Aufgaben pausiert");
+
+        planner.SetAllPaused(false);
+        (await again).Dispose();
+        _center.GetOverview().Running.Single(r => r.Title == "Orte nachtragen").State.Should().Be(ActivityState.Running);
+    }
+
     private static ScanResult Incremental(int added, int missing) => new(1, @"C:\Bib", 0, 0, 0, 0, TimeSpan.FromSeconds(2), TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero)
     {
         Mode = ScanMode.Incremental,

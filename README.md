@@ -1143,7 +1143,7 @@ automatische Aktualisierung und Änderungen, die auf den Katalog warten.
   („Verschieben: 120 von 340“) und kleinem Balken, dazu „+n“ für weitere. Ohne Vorgang kurz „Alles erledigt“, danach
   „Keine Aktivität“.
 - **Klick klappt die Liste auf** (Esc, Klick daneben oder Fensterwechsel schließt sie): **Läuft** (Titel mit Zahlen, Ziel nur
-  mit Ordnernamen, Balken, Restzeit, sobald schätzbar, **Pause/Fortsetzen** bei Gesichtern und Motiven, **Abbrechen** —
+  mit Ordnernamen, Balken, Restzeit, sobald schätzbar, **Pause/Fortsetzen** bei allen Hintergrund-Aufgaben, **Abbrechen** —
   bereits Erledigtes bleibt, Rückgängig ist möglich), **Wartet** (mit Grund, z. B. „wartet auf laufendes Einlesen derselben
   Bibliothek“, „wartet auf den Katalog“; wartende Datei-Vorgänge lassen sich abbrechen, bevor sie etwas ändern) und
   **Zuletzt fertig** (höchstens 10, Ergebnis und Zeitpunkt; **Rückgängig** wo es ein Rückgängig gibt — derselbe Weg wie die
@@ -1153,6 +1153,12 @@ automatische Aktualisierung und Änderungen, die auf den Katalog warten.
 - **Kurze Meldung** über der Statusleiste, wenn ein selbst gestarteter Vorgang fertig ist (z. B. „340 Dateien verschoben —
   nach „Urlaub 2024““ mit **Rückgängig**); Hintergrund-Indizes und Einlesen melden sich nicht.
 - Gesichter und Motive teilen sich die Grafikkarte Foto um Foto; die Liste zeigt dann „(abwechselnd mit „Gesichter““).
+- **Hintergrund-Planer (seit 0.5.10, ADR-0074):** Aufnahmedatum, Orte, Genauigkeit, Doppelte und Foto-Güte lesen nicht
+  gleichzeitig, sondern Stapel um Stapel nach Wichtigkeit (zweite Zeile z. B. „wartet — zuerst Aufnahmedatum“); jede
+  Datei wird für Datum, Ort und Genauigkeit nur einmal gelesen, auf einer SSD mehrere zugleich, auf einer Festplatte eine
+  nach der anderen. Während des Einlesens ruhen alle Hintergrund-Aufgaben. Jede hat **Pause/Fortsetzen**; im Kopf der
+  Liste hält **Alle pausieren** alles an (Einlesen und Vorschaubilder laufen weiter) — die Pause gilt bis
+  **Alle fortsetzen** bzw. bis zum nächsten Start. Die Restzeit folgt der jüngsten Geschwindigkeit; Warten zählt nicht mit.
   Das manuelle Entpacken im Entpacken-Dialog, „Neu aufbauen“ und „Speicherort ändern“ zeigen ihren Fortschritt weiter in
   ihren Dialogen bzw. auf der Bibliotheksseite.
 

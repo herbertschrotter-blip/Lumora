@@ -264,6 +264,44 @@ public sealed class CaptureDateServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Mit_Hintergrund_Planer_parallel_gelesen_und_pausierbar()
+    {
+        for (var i = 0; i < 12; i++)
+        {
+            WriteJpeg($"p/exif{i:00}.jpg", "2024:07:12 15:30:12");
+        }
+
+        WriteJpeg("p/IMG_20230102_030405.jpg", null);
+        await _fx.ScanAsync(_library.Id);
+        using var planner = new Lumora.Services.Background.BackgroundPlanner(storage: new SsdStorage());
+        var probe = new FileMetadataProbe();
+        using var service = new CaptureDateService(_fx.ContextFactory, new CaptureDateReader(probe), NullLogger<CaptureDateService>.Instance,
+            null, _fx.Messenger, planner) { StartDelay = Timeout.InfiniteTimeSpan };
+
+        planner.SetPaused(Lumora.Services.Background.BackgroundJob.CaptureDates, true);
+        var pass = service.RunBackfillPassAsync();
+        await Task.Delay(200);
+        pass.IsCompleted.Should().BeFalse("pausiert");
+        planner.SetPaused(Lumora.Services.Background.BackgroundJob.CaptureDates, false);
+        await pass;
+
+        for (var i = 0; i < 12; i++)
+        {
+            (await FileAsync($"exif{i:00}.jpg")).CapturedAtSource.Should().Be(CaptureDateSource.Exif);
+        }
+
+        (await FileAsync("IMG_20230102_030405.jpg")).CapturedAtSource.Should().Be(CaptureDateSource.FileName);
+        probe.Reads.Should().Be(13, "jede Datei genau einmal");
+        new GeoLocationReader(probe).Read(Path.Combine(_fx.LibraryRoot, "p", "exif00.jpg"));
+        probe.Reads.Should().Be(13, "Orte nutzen den gemerkten Dateikopf");
+    }
+
+    private sealed class SsdStorage : Lumora.Services.Background.IStorageKindProbe
+    {
+        public Lumora.Services.Background.StorageKind GetKind(string path) => Lumora.Services.Background.StorageKind.Ssd;
+    }
+
+    [Fact]
     public async Task Neu_aufbauen_behaelt_manuelle_Daten_und_liest_die_uebrigen_neu()
     {
         WriteJpeg("h/manuell.jpg", "2024:07:12 15:30:12");

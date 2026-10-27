@@ -61,6 +61,7 @@ public sealed partial class StoryIndexService : IStoryIndexService, IDisposable
     private readonly ILogger<StoryIndexService> _logger;
     private readonly IHighlightSelector _selector;
     private readonly IScanGate? _scanGate;
+    private readonly Background.IBackgroundPlanner? _planner;
     private readonly IMessenger _messenger;
     private readonly StoryClock _clock;
     private readonly StoryHomeCache? _homes;
@@ -89,8 +90,10 @@ public sealed partial class StoryIndexService : IStoryIndexService, IDisposable
         IScanGate? scanGate = null,
         IMessenger? messenger = null,
         StoryClock? clock = null,
-        StoryHomeCache? homes = null)
+        StoryHomeCache? homes = null,
+        Background.IBackgroundPlanner? planner = null)
     {
+        _planner = planner;
         _homes = homes;
         _factory = factory;
         _logger = logger;
@@ -429,7 +432,8 @@ public sealed partial class StoryIndexService : IStoryIndexService, IDisposable
     }
 
     private bool IsBusy(int groupId, Dictionary<int, int> libraryGroups)
-        => _scanGate is { } gate && libraryGroups.Where(kv => kv.Value == groupId).Any(kv => gate.IsBusy(kv.Key));
+        => _planner?.CanRun(Background.BackgroundJob.Stories) == false // pausiert, Einlesen, Katalog-Umzug (ADR-0074)
+            || (_scanGate is { } gate && libraryGroups.Where(kv => kv.Value == groupId).Any(kv => gate.IsBusy(kv.Key)));
 
     public async Task<StoryIndexReport> RunAllAsync(CancellationToken ct = default)
     {

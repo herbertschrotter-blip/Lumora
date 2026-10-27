@@ -240,10 +240,67 @@ public sealed class ActivityCenterTests
         move.Report(10, 100);
         center.GetOverview().Running.Single().Remaining.Should().BeNull("noch zu früh");
 
-        time.Advance(TimeSpan.FromSeconds(3)); // 4 s für 20 Dateien → 80 Dateien ≈ 16 s
-        move.Report(20, 100);
-        center.GetOverview().Running.Single().Remaining.Should().BeCloseTo(TimeSpan.FromSeconds(16), TimeSpan.FromMilliseconds(10));
-        center.GetOverview().Running.Single().Fraction.Should().BeApproximately(0.2, 0.0001);
+        time.Advance(TimeSpan.FromSeconds(3)); // gleichmäßig 10 Dateien/s → 60 Dateien = 6 s
+        move.Report(40, 100);
+        center.GetOverview().Running.Single().Remaining.Should().BeCloseTo(TimeSpan.FromSeconds(6), TimeSpan.FromMilliseconds(10));
+        center.GetOverview().Running.Single().Fraction.Should().BeApproximately(0.4, 0.0001);
+    }
+
+    [Fact]
+    public void Restzeit_zaehlt_Warten_und_Pause_nicht_mit()
+    {
+        var (center, time) = Create();
+        var dates = center.Start(new ActivityStartInfo(ActivityKind.CaptureDates, "Aufnahmedatum", Key: "capture-dates"));
+        dates.Report(0, 100);
+        time.Advance(TimeSpan.FromSeconds(2));
+        dates.Report(20, 100); // 10 Dateien/s
+
+        dates.Wait("wartet auf das Einlesen");
+        time.Advance(TimeSpan.FromMinutes(1));
+        dates.Report(20, 100);
+        dates.SetPaused(true);
+        time.Advance(TimeSpan.FromMinutes(5));
+        dates.SetPaused(false);
+        dates.Report(20, 100);
+        time.Advance(TimeSpan.FromSeconds(2));
+        dates.Report(40, 100);
+
+        center.GetOverview().Running.Single().Remaining.Should().BeCloseTo(TimeSpan.FromSeconds(6), TimeSpan.FromMilliseconds(10), "60 Dateien bei 10 Dateien/s");
+    }
+
+    [Fact]
+    public void Restzeit_folgt_der_juengsten_Geschwindigkeit()
+    {
+        var (center, time) = Create();
+        var hashes = center.Start(new ActivityStartInfo(ActivityKind.Duplicates, "Doppelte", Key: "duplicates"));
+        hashes.Report(0, 100);
+        var done = 0;
+        for (var i = 0; i < 5; i++)
+        {
+            time.Advance(TimeSpan.FromSeconds(1));
+            hashes.Report(done += 10, 100); // schnell: 10/s
+        }
+
+        for (var i = 0; i < 10; i++)
+        {
+            time.Advance(TimeSpan.FromSeconds(1));
+            hashes.Report(done += 2, 100); // langsam: 2/s (z. B. große Videos)
+        }
+
+        // Mittel seit Beginn wäre 70/15 s → 6,4 s; die gleitende Geschwindigkeit liegt nahe 2/s → 30 Dateien ≈ 13–14 s
+        hashes.Report(done, 100);
+        center.GetOverview().Running.Single().Remaining!.Value.TotalSeconds.Should().BeInRange(12, 16);
+    }
+
+    [Fact]
+    public void Pause_bleibt_auch_beim_Warten_erreichbar()
+    {
+        var (center, _) = Create();
+        var dates = center.Start(new ActivityStartInfo(ActivityKind.CaptureDates, "Aufnahmedatum", Key: "capture-dates", Pause: () => { }, Resume: () => { }));
+
+        dates.Wait("wartet auf das Einlesen");
+
+        center.GetOverview().Waiting.Single().CanPause.Should().BeTrue();
     }
 
     [Fact]
