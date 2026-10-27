@@ -457,6 +457,8 @@ public partial class App : Application, ICatalogHostSwitcher
 
         // Doppelte (ADR-0053): Prüfsummen und Bild-Fingerabdrücke im Hintergrund nach jedem Scan und einmalig für bestehende Kataloge
         _host.Services.GetRequiredService<Lumora.Services.Duplicates.IDuplicateIndexService>().Start();
+        // Prüfsummen aller Fotos und Videos im Leerlauf (ADR-0073): für die App-Verbindung (by-checksum) und das Wiederfinden
+        _host.Services.GetRequiredService<Lumora.Services.Duplicates.IChecksumBackfillService>().Start();
 
         // Foto-Güte (ADR-0057): Schärfe, Belichtung und Bildwirkung im Hintergrund — Grundlage für Highlights der Storys
         _host.Services.GetRequiredService<Lumora.Services.Quality.IFileQualityIndexService>().Start();

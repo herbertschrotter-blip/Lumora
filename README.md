@@ -1299,8 +1299,9 @@ Gipfelbuch (Touren, Spuren, Gipfel; Fotos nur als Verweis). Die Verbindung läuf
   sehen darf — neu verbundene Apps sehen keine. Die App kann dann nach Zeitraum und Gebiet suchen, Vorschaubilder holen und
   das Original öffnen (nur mit den Rechten links). Personen-Namen nur mit „Personen auf den Fotos sehen“. Versteckte
   Bibliotheken sind nie dabei.
-- **Noch offen:** Prüfsummen für alle Fotos im Leerlauf, Hintergrundstart mit Schaltern und Symbol im Infobereich (Stufe 6),
-  Touren in Lumora (Stufe 7).
+- **Prüfsummen** (seit 0.5.18): Lumora rechnet im Leerlauf für jedes Foto und Video die SHA-256 nach (Aktivitäts-Anzeige
+  „Prüfsummen berechnen“, pausierbar) — danach findet eine App jedes Foto über die Prüfsumme wieder.
+- **Noch offen:** Hintergrundstart mit Schaltern und Symbol im Infobereich (Stufe 6), Touren in Lumora (Stufe 7).
 
 ## Datenablage
 

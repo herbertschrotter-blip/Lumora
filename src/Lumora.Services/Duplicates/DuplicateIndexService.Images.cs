@@ -120,7 +120,7 @@ public sealed partial class DuplicateIndexService
             return thumb;
         }
 
-        if (row.MediaType != 0 || IsUnderAny(row.Path, offlineRoots) || !ThumbnailService.IsLocallyAvailable(row.Path))
+        if (row.MediaType != 0 || ContentHashBatch.IsUnderAny(row.Path, offlineRoots) || !ThumbnailService.IsLocallyAvailable(row.Path))
         {
             return null;
         }

@@ -28,11 +28,13 @@ internal sealed partial class SmokeScenario
 
     private DuplicatesViewModel? _duplicatesPage;
     private IDuplicateIndexService? _duplicateIndex;
+    private IChecksumBackfillService? _checksumBackfill;
 
     private void InitDuplicates(IServiceProvider services)
     {
         _duplicatesPage = services.GetService<DuplicatesViewModel>();
         _duplicateIndex = services.GetService<IDuplicateIndexService>();
+        _checksumBackfill = services.GetService<IChecksumBackfillService>(); // Schritt „App-Verbindung“: Prüfsummen im Leerlauf
     }
 
     private async Task DuplicatesAsync()

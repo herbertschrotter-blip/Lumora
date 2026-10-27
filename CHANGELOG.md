@@ -3,6 +3,22 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.18] — 2026-10-27
+
+### Added — Prüfsummen für alle Fotos und Videos im Leerlauf
+- Lumora rechnet jetzt für **jedes** Foto und Video die SHA-256 nach, nicht mehr nur für Dateien gleicher Größe („Doppelte“).
+  Damit findet eine verbundene App jedes Foto über die Prüfsumme wieder (`/photos/by-checksum`, Wiederfinden nach „Neu
+  aufbauen“, Vertrag Abschnitt 10), und `checksum` steht bei jedem Treffer (Herbert, ADR-0073 Frage 3).
+- **Leerlauf** = niedrigster Vorrang im Hintergrund-Planer (neue Aufgabe „Prüfsummen“): erst wenn Aufnahmedatum, Orte,
+  Doppelte und Foto-Güte nichts mehr lesen wollen. Ruht beim Einlesen, beim Katalog-Umzug, bei Pause und solange du auf
+  Lightbox, Galerie oder „Foto verbessern“ wartest. Erst Fotos, dann Videos; Stapel höchstens 100 Dateien bzw. 256 MB,
+  damit auch große Videos die Reihe bald wieder freigeben. Auf SSD mehrere Dateien gleichzeitig, auf Festplatte eine.
+- Aktivitäts-Anzeige: eigener Eintrag „Prüfsummen berechnen“ mit Fortschritt, Restzeit und Pause. Keine Cloud-Platzhalter
+  (kein Download), keine Dateien nicht erreichbarer Wurzeln; nicht lesbare Dateien werden je Dateiversion gemerkt.
+- Lesen und Schreiben der Prüfsumme teilen sich Doppelten-Index und Leerlauf (`ContentHashBatch`); kein Schema-Wechsel.
+- ADR-0073 Nachtrag 0.5.18, ADR-0074 Vorrang 3. Tests: `ChecksumBackfillTests`, Planer-Vorrang, Aktivitäts-Eintrag;
+  Rauchtest-Schritt „App-Verbindung“: nach dem Durchgang hat jeder Treffer `checksum`, by-checksum findet das Foto. (refs #5)
+
 ## [0.5.17] — 2026-10-27
 
 ### Added — Galerie-Ansicht „Ordner“: Unterordner als Zeilen (Mockup 21)

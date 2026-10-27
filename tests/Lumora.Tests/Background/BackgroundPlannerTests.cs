@@ -40,6 +40,25 @@ public sealed class BackgroundPlannerTests : IDisposable
     }
 
     [Fact]
+    public async Task Pruefsummen_im_Leerlauf_kommen_erst_nach_allen_anderen_Dateidiensten()
+    {
+        var quality = await _planner.AcquireAsync(BackgroundJob.Quality, CancellationToken.None);
+        var checksums = _planner.AcquireAsync(BackgroundJob.Checksums, CancellationToken.None);
+        var duplicates = _planner.AcquireAsync(BackgroundJob.Duplicates, CancellationToken.None);
+
+        _planner.UsesFileLane(BackgroundJob.Checksums).Should().BeTrue();
+        _planner.GetState(BackgroundJob.Checksums).Reason.Should().Be("wartet — zuerst Foto-Güte");
+        quality.Dispose();
+
+        duplicates.IsCompleted.Should().BeTrue("Doppelte vor den Prüfsummen, obwohl später angefragt");
+        checksums.IsCompleted.Should().BeFalse();
+        _planner.GetState(BackgroundJob.Checksums).Reason.Should().Be("wartet — zuerst Doppelte");
+        (await duplicates).Dispose();
+        checksums.IsCompleted.Should().BeTrue();
+        (await checksums).Dispose();
+    }
+
+    [Fact]
     public async Task Gleicher_Vorrang_wechselt_sich_Stapel_um_Stapel_ab()
     {
         var dates = await _planner.AcquireAsync(BackgroundJob.CaptureDates, CancellationToken.None);

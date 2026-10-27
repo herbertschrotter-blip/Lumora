@@ -158,6 +158,12 @@ gemeinsamen Thread-Pool.
 Dateidienste am Stapelende) und laufen danach weiter; ohne Grafikkarte erkennen Gesichter und Motive etwas langsamer.
 Offen: die Gesichter-Vorschläge rechnen nach jedem Start komplett neu.
 
+## Nachtrag 0.5.18 — Prüfsummen im Leerlauf
+
+Neue Aufgabe der Datei-Spur `BackgroundJob.Checksums` („Prüfsummen“) mit **Vorrang 3**, nach Foto-Güte: SHA-256 aller Fotos
+und Videos für die App-Verbindung (ADR-0073 Nachtrag 0.5.18). Sie liest nur, wenn keine andere Dateiaufgabe wartet, und
+nimmt höchstens 256 MB je Stapel.
+
 ## Alternativen
 
 - **Gemeinsamer Arbeitsplan mit einer Warteschlange je Datei** (ein Leser, der alle Dienste füttert) → verworfen. Großer

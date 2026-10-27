@@ -182,6 +182,23 @@ internal sealed partial class SmokeScenario
         Check(originalResponse.IsSuccessStatusCode && originalJson.GetProperty("available").GetBoolean()
               && File.Exists(originalJson.GetProperty("path").GetString()),
             "Original: Pfad vorhanden, available = true");
+
+        // Prüfsummen im Leerlauf (ADR-0073 Frage 3): danach hat jedes Foto eine checksum und by-checksum findet es wieder
+        Check(_checksumBackfill is not null, "Prüfsummen im Leerlauf registriert");
+        var report = await _checksumBackfill!.RunPassAsync().ConfigureAwait(true);
+        using var hashed = Authorized(HttpMethod.Get, search, secret);
+        using var hashedResponse = await http.SendAsync(hashed).ConfigureAwait(true);
+        var hashedItems = JsonDocument.Parse(await hashedResponse.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement.GetProperty("items");
+        var withChecksum = hashedItems.EnumerateArray().Count(i => i.TryGetProperty("checksum", out var c) && c.GetString()!.StartsWith("sha256:", StringComparison.Ordinal));
+        Check(hashedResponse.IsSuccessStatusCode && withChecksum == hashedItems.GetArrayLength(),
+            $"Prüfsummen im Leerlauf: {report.Hashed} berechnet, {withChecksum} von {hashedItems.GetArrayLength()} Treffern mit checksum");
+
+        var checksum = hashedItems.EnumerateArray().First(i => i.GetProperty("id").GetString() == id).GetProperty("checksum").GetString();
+        using var byChecksum = Authorized(HttpMethod.Get, $"/av/v1/photos/by-checksum/{checksum}", secret);
+        using var byChecksumResponse = await http.SendAsync(byChecksum).ConfigureAwait(true);
+        var byChecksumItems = JsonDocument.Parse(await byChecksumResponse.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement.GetProperty("items");
+        Check(byChecksumResponse.IsSuccessStatusCode && byChecksumItems.EnumerateArray().Any(i => i.GetProperty("id").GetString() == id),
+            $"by-checksum findet das Foto wieder ({byChecksumItems.GetArrayLength()} Treffer)");
     }
 
     private static HttpRequestMessage Authorized(HttpMethod method, string path, string secret)

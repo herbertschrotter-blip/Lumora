@@ -173,8 +173,7 @@ Lumora-eigene Entscheidungen (keine Vertragsänderung):
   `takenLocal` (Wanduhrzeit in der Zeitzone des PCs, ADR-0046). Ort nur mit beiden Koordinaten, `geoAccuracy`/`geoSource`
   aus ADR-0062; `width`/`height` 0, solange unbekannt. Fehlende Dateien bleiben Katalog-Einträge (`available: false`).
 - **Prüfsumme:** `checksum` nur, wo Lumora den SHA-256 schon kennt (bisher aus „Doppelte“, gültig für Größe und
-  Änderungszeit der Datei); sonst fehlt das Feld. **Offen:** fehlende Prüfsummen im Leerlauf nachrechnen (Herbert, Frage 3)
-  — eigener Schritt mit dem Hintergrund-Planer (ADR-0074).
+  Änderungszeit der Datei); sonst fehlt das Feld. Fehlende Prüfsummen rechnet seit 0.5.18 der Leerlauf nach (Nachtrag unten).
 - **Personen:** nur mit `photos.people`, nur bestätigte Gesichter, ausgeblendete Personen nie.
 - **Vorschaubilder:** aus dem Vorschaubild-Cache (fehlt es, wird es wie für die Galerie erzeugt, höchstens 10 s, sonst
   503 `busy` mit `Retry-After: 10`), mit dem WIC-Renderer auf längste Seite ≤ `size` verkleinert; 512/1024 bei Fotos aus
@@ -187,3 +186,30 @@ Lumora-eigene Entscheidungen (keine Vertragsänderung):
   400er, Rechte, Bibliotheksgrenze, Prüfsumme, Personen, Vorschaubild mit ETag/304/busy, Original); `ConnectedAppsTests`
   (Bibliotheken anhaken); Rauchtest-Schritt „App-Verbindung“ fragt mit der Test-App echte Fotos, ein echtes Vorschaubild
   und das Original ab.
+
+## Nachtrag 0.5.18 — Prüfsummen im Leerlauf (Herbert, Frage 3)
+
+**Anlass:** Herbert: „Bau zuerst die fehlenden SHA-256-Prüfsummen im Leerlauf (für by-checksum und das Wiederfinden).“ Bis
+0.5.17 kannte Lumora die Prüfsumme nur für Dateien, die der Doppelten-Index gelesen hatte — nur Dateien gleicher Größe
+(ADR-0053). Ein Foto mit einmaliger Größe hatte kein `checksum` und war über `by-checksum` nicht auffindbar.
+
+**Entscheidung:**
+- `IChecksumBackfillService` (`Services/Duplicates`, Singleton, Start in `App.xaml.cs` 60 s nach dem Start, danach nach jedem
+  Einlesen und bei neuen Dateien): SHA-256 für alle Dateien mit `MediaType` Foto oder Video, `Missing = 0`, deren
+  Prüfsumme fehlt oder für eine andere Dateiversion gilt. Erst Fotos, dann Videos, je nach FileId.
+- **„Leerlauf“ = niedrigster Vorrang der Datei-Spur** (`BackgroundJob.Checksums`, Vorrang 3 nach Foto-Güte, ADR-0074): es
+  liest nur, wenn kein wichtigerer Dateidienst wartet, und ruht wie alle bei Einlesen, Katalog-Umzug, Pause und Vorrang
+  für die Arbeit des Benutzers. Kein eigenes Erkennen von Benutzer-Untätigkeit — der Planer gibt die Reihe ohnehin nach
+  jedem Stapel ab.
+- **Stapel** höchstens 100 Dateien und 256 MB (eine Datei immer): große Videos halten die Spur nicht minutenlang.
+- Gleiche Regeln wie der Doppelten-Index (gemeinsamer Teil `ContentHashBatch`): Prüfsumme nur für die gelesene Dateiversion,
+  keine Cloud-Platzhalter, keine Dateien nicht erreichbarer Wurzeln, Lesefehler je Dateiversion gemerkt, Lesen parallel nur
+  auf SSD/Netz. Kein Schema-Wechsel (`FileFingerprints.ContentHash`).
+- Aktivitäts-Anzeige: eigener Eintrag „Prüfsummen berechnen“ (pausierbar), Protokoll nur mit Anzahlen.
+
+**Folgen:** Der erste Durchgang liest jede Datei einmal ganz (bei großen Videobeständen Stunden, im Hintergrund). Nach
+„Neu aufbauen“ fallen die Prüfsummen mit den Fingerabdrücken weg und entstehen im Leerlauf neu (ADR-0053, offener Punkt
+„Fingerabdrücke über Neu aufbauen mitnehmen“). Für eine App, die gerade jetzt wiederfinden will, fehlt bis dahin `checksum`.
+- **Tests:** `ChecksumBackfillTests` (alle Fotos und Videos auch mit einmaliger Größe, geänderte und fehlende Dateien,
+  kleine Stapel, Lesefehler, Pause im Planer), `BackgroundPlannerTests` (Vorrang nach Foto-Güte), `ActivityBridgeTests`;
+  Rauchtest „App-Verbindung“: jeder Treffer mit `checksum`, `by-checksum` findet das Foto.

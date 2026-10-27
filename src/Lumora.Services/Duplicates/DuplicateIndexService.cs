@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using CommunityToolkit.Mvvm.Messaging;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Lumora.Services.Database;
 using Lumora.Services.Faces;
@@ -184,7 +183,7 @@ public sealed partial class DuplicateIndexService : IDuplicateIndexService, IDis
         {
             await WaitWhileSuspendedAsync(token).ConfigureAwait(false);
             var sw = Stopwatch.StartNew();
-            var offlineRoots = await LoadOfflineRootsAsync(token).ConfigureAwait(false);
+            var offlineRoots = await ContentHashBatch.LoadOfflineRootsAsync(_factory, token).ConfigureAwait(false);
             var touched = new HashSet<int>();
             var content = await RunContentPhaseAsync(offlineRoots, touched, token).ConfigureAwait(false);
             var images = await RunImagePhaseAsync(offlineRoots, touched, token).ConfigureAwait(false);
@@ -258,30 +257,6 @@ public sealed partial class DuplicateIndexService : IDuplicateIndexService, IDis
 
     /// <summary>Alte Abfrage ohne Planer (Tests); mit Planer wartet <see cref="TurnAsync"/> schon auf das Einlesen.</summary>
     private bool AnyBusy(IEnumerable<int> libraryIds) => _planner is null && _scanGate is { } gate && libraryIds.Distinct().Any(gate.IsBusy);
-
-    /// <summary>Wurzeln, die gerade nicht erreichbar sind — ihre Dateien werden ohne Dateizugriff übersprungen.</summary>
-    private async Task<IReadOnlyList<string>> LoadOfflineRootsAsync(CancellationToken token)
-    {
-        List<string> roots;
-        await using (var ctx = _factory.Create())
-        {
-            roots = await ctx.LibraryRoots.AsNoTracking().Select(r => r.Path).ToListAsync(token).ConfigureAwait(false);
-        }
-
-        var offline = new List<string>();
-        foreach (var root in roots.Distinct(StringComparer.OrdinalIgnoreCase))
-        {
-            if (!await RootAvailabilityProbe.IsAvailableAsync(root, token).ConfigureAwait(false))
-            {
-                offline.Add(Path.TrimEndingDirectorySeparator(root) + Path.DirectorySeparatorChar);
-            }
-        }
-
-        return offline;
-    }
-
-    private static bool IsUnderAny(string path, IReadOnlyList<string> roots)
-        => roots.Any(root => path.StartsWith(root, StringComparison.OrdinalIgnoreCase));
 
     private void PublishStatus(DuplicateIndexStatus status, bool force = false)
     {

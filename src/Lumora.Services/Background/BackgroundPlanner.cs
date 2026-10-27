@@ -17,6 +17,9 @@ public enum BackgroundJob
     Faces,
     Motifs,
     Stories,
+
+    /// <summary>SHA-256 aller Fotos und Videos im Leerlauf (App-Verbindung, Wiederfinden) — niedrigster Vorrang der Datei-Spur.</summary>
+    Checksums,
 }
 
 /// <summary>Warum eine Aufgabe gerade nicht arbeitet.</summary>
@@ -53,7 +56,7 @@ public sealed record BackgroundJobStateMessage(BackgroundJobState State);
 /// <summary>
 /// Hintergrund-Planer (ADR-0074): statt dass alle Dienste gleichzeitig dieselben Dateien lesen, vergibt er
 /// <b>eine Datei-Spur</b> nach Vorrang — erst die Metadaten (Aufnahmedatum, Orte, Genauigkeit; abwechselnd Stapel um Stapel
-/// über dieselben Dateien), dann Doppelte, dann Foto-Güte. Gesichter, Motive und Storys brauchen die Spur nicht (Grafikkarte
+/// über dieselben Dateien), dann Doppelte, dann Foto-Güte, zuletzt die Prüfsummen aller Dateien (Leerlauf). Gesichter, Motive und Storys brauchen die Spur nicht (Grafikkarte
 /// bzw. Katalog), halten aber wie alle beim Einlesen, beim Katalog-Umzug und bei Pause an. Seit 0.5.12 hat Arbeit, auf die
 /// der Benutzer wartet, Vorrang (<see cref="IForegroundWork"/>): braucht sie die Grafikkarte, warten Gesichter und Motive;
 /// braucht sie den Prozessor, warten alle.
@@ -103,6 +106,7 @@ public sealed class BackgroundPlanner : IBackgroundPlanner, IDisposable
         [BackgroundJob.GeoAccuracy] = 0,
         [BackgroundJob.Duplicates] = 1,
         [BackgroundJob.Quality] = 2,
+        [BackgroundJob.Checksums] = 3,
     };
 
     private readonly IScanGate? _scanGate;
@@ -470,6 +474,7 @@ public static class JobNames
         BackgroundJob.Faces => "Gesichter",
         BackgroundJob.Motifs => "Motive",
         BackgroundJob.Stories => "Storys",
+        BackgroundJob.Checksums => "Prüfsummen",
         _ => job.ToString(),
     };
 }

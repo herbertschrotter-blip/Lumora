@@ -186,6 +186,19 @@ public sealed class ActivityBridgeTests : IDisposable
     }
 
     [Fact]
+    public void Pruefsummen_im_Leerlauf_als_eigener_Eintrag()
+    {
+        using var bridge = StartBridge();
+        _messenger.Send(new ChecksumBackfillStatusMessage(new ChecksumBackfillStatus(true, 5, 50)));
+        var running = _center.GetOverview().Running.Single();
+        running.Title.Should().Be("Prüfsummen berechnen");
+        running.Detail.Should().Be("im Hintergrund · für Wiederfinden und verbundene Apps");
+
+        _messenger.Send(new ChecksumBackfillStatusMessage(ChecksumBackfillStatus.Idle));
+        _center.GetOverview().Running.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Wartende_Datei_Operation_ohne_Vorgang_wird_eigener_Eintrag_Abbrechen_ueber_die_Sperre()
     {
         var gate = new ScanGate(_messenger);

@@ -13,12 +13,7 @@ namespace Lumora.Services.Duplicates;
 /// </summary>
 public sealed partial class DuplicateIndexService
 {
-    private const string StaleContent =
-        "(h.FileId IS NULL OR h.ContentSize IS NOT f.Size OR h.ContentModifiedAt IS NOT f.ModifiedAtUtc)";
-
-    private readonly record struct ContentRow(int FileId, int LibraryId, string Path, long Size, long ModifiedAt);
-
-    private readonly record struct ContentResult(ContentRow Row, byte[]? Hash);
+    private const string StaleContent = ContentHashBatch.Stale;
 
     private readonly record struct PhaseReport(int Done, int Skipped, int Failed);
 
@@ -52,10 +47,10 @@ public sealed partial class DuplicateIndexService
                 continue; // denselben Stapel später noch einmal
             }
 
-            var readable = new List<ContentRow>(batch.Count);
+            var readable = new List<ContentHashRow>(batch.Count);
             foreach (var row in batch)
             {
-                if (IsUnderAny(row.Path, offlineRoots) || !ThumbnailService.IsLocallyAvailable(row.Path))
+                if (ContentHashBatch.IsUnderAny(row.Path, offlineRoots) || !ThumbnailService.IsLocallyAvailable(row.Path))
                 {
                     skipped++; // fehlt oder nur online: in einer späteren Sitzung
                     continue;
@@ -65,25 +60,10 @@ public sealed partial class DuplicateIndexService
             }
 
             // Prüfsummen parallel nur auf SSD bzw. Netz (Planer, ADR-0074); Festplatte liest eine Datei nach der anderen
-            var hashed = new ContentResult[readable.Count];
             var parallelism = readable.Count == 0 ? 1 : _planner?.ReadParallelism(readable[0].Path) ?? 1;
-            await Task.Run(
-                () => Parallel.For(0, readable.Count, new ParallelOptions { MaxDegreeOfParallelism = parallelism, CancellationToken = token }, i =>
-                {
-                    var row = readable[i];
-                    try
-                    {
-                        hashed[i] = new ContentResult(row, ContentHasher.Compute(row.Path, token));
-                    }
-                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-                    {
-                        Interlocked.Increment(ref failed);
-                        _logger.LogDebug(ex, "Doppelte: Prüfsumme für FileId {FileId} nicht lesbar", row.FileId);
-                        hashed[i] = new ContentResult(row, null);
-                    }
-                }),
-                token).ConfigureAwait(false);
-            var results = hashed.ToList();
+            var (results, batchFailed, batchSkipped) = await ContentHashBatch.HashAsync(readable, parallelism, _logger, "Doppelte", token).ConfigureAwait(false);
+            failed += batchFailed;
+            skipped += batchSkipped;
 
             cursor = batch[^1].FileId;
             if (results.Count > 0)
@@ -126,7 +106,7 @@ public sealed partial class DuplicateIndexService
         return Convert.ToInt32(count.ExecuteScalar(), CultureInfo.InvariantCulture);
     }
 
-    private static List<ContentRow> LoadContentBatch(SqliteConnection connection, int afterFileId, int take)
+    private static List<ContentHashRow> LoadContentBatch(SqliteConnection connection, int afterFileId, int take)
     {
         using var cmd = connection.CreateCommand();
         cmd.CommandText = $"""
@@ -141,64 +121,16 @@ public sealed partial class DuplicateIndexService
             """;
         cmd.Parameters.AddWithValue("$after", afterFileId);
         cmd.Parameters.AddWithValue("$take", take);
-        var rows = new List<ContentRow>(take);
-        using var reader = cmd.ExecuteReader();
-        while (reader.Read())
-        {
-            rows.Add(new ContentRow(
-                reader.GetInt32(0),
-                reader.GetInt32(1),
-                System.IO.Path.Combine(reader.GetString(2), reader.GetString(3)),
-                reader.GetInt64(4),
-                reader.GetInt64(5)));
-        }
-
-        return rows;
+        return ContentHashBatch.ReadRows(cmd, take);
     }
 
     /// <summary>Ein Stapel in einer Transaktion — nur für die gelesene Dateiversion; liefert die geschriebenen Zeilen.</summary>
-    private async Task<List<ContentResult>> WriteContentAsync(IReadOnlyList<ContentResult> results, CancellationToken token)
+    private async Task<List<ContentHashResult>> WriteContentAsync(IReadOnlyList<ContentHashResult> results, CancellationToken token)
     {
         await _writeLock.WaitAsync(token).ConfigureAwait(false);
         try
         {
-            return await Task.Run(
-                async () =>
-                {
-                    using var connection = _factory.OpenSqliteConnection();
-                    using var tx = await _factory.BusyRetry.BeginTransactionAsync(connection, token).ConfigureAwait(false);
-                    using var cmd = connection.CreateCommand();
-                    cmd.Transaction = tx;
-                    cmd.CommandText = """
-                        INSERT INTO FileFingerprints(FileId, ContentHash, ContentSize, ContentModifiedAt)
-                        SELECT $id, $hash, $size, $mod
-                        WHERE EXISTS (SELECT 1 FROM Files WHERE Id = $id AND Size = $size AND ModifiedAtUtc = $mod)
-                        ON CONFLICT(FileId) DO UPDATE SET
-                            ContentHash = excluded.ContentHash,
-                            ContentSize = excluded.ContentSize,
-                            ContentModifiedAt = excluded.ContentModifiedAt;
-                        """;
-                    var id = cmd.Parameters.Add("$id", SqliteType.Integer);
-                    var hash = cmd.Parameters.Add("$hash", SqliteType.Blob);
-                    var size = cmd.Parameters.Add("$size", SqliteType.Integer);
-                    var mod = cmd.Parameters.Add("$mod", SqliteType.Integer);
-                    var written = new List<ContentResult>(results.Count);
-                    foreach (var r in results)
-                    {
-                        id.Value = r.Row.FileId;
-                        hash.Value = (object?)r.Hash ?? DBNull.Value;
-                        size.Value = r.Row.Size;
-                        mod.Value = r.Row.ModifiedAt;
-                        if (cmd.ExecuteNonQuery() > 0)
-                        {
-                            written.Add(r);
-                        }
-                    }
-
-                    tx.Commit();
-                    return written;
-                },
-                token).ConfigureAwait(false);
+            return await ContentHashBatch.WriteAsync(_factory, results, token).ConfigureAwait(false);
         }
         finally
         {
