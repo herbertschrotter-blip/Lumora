@@ -1,10 +1,11 @@
-# ADR-0075: Companion-App — native Android-App, nur über WireGuard, gegenseitiges TLS
+# ADR-0075: Companion-App — native Android-App, unterwegs über WireGuard, gegenseitiges TLS
 
-- **Status:** Proposed (Entwurf 2026-10-27; ersetzt den früheren PWA-Entwurf gleicher Nummer, der nie im Repo lag;
-  ergänzt am selben Tag um „Platz schaffen am Handy“ und „Server-Modus als Windows-Dienst“, 0.5.22)
+- **Status:** Accepted (2026-10-27, offene Fragen 2–5 von Herbert beantwortet; Entwurf vom selben Tag, ersetzt den
+  früheren PWA-Entwurf gleicher Nummer, der nie im Repo lag; ergänzt um „Platz schaffen am Handy“ und „Server-Modus als
+  Windows-Dienst“, 0.5.22)
 - **Datum:** 2026-10-27
 - **Entscheider:** Herbert Schrotter (Vorgaben: richtige App statt Web-App, maximale Sicherheit, nur über WireGuard,
-  keine Webfreigabe), Claude (Konzept)
+  keine Webfreigabe; WireGuard-Pflicht im Heim-WLAN von Herbert am 2026-10-27 aufgehoben), Claude (Konzept)
 - **Bezogen auf:** [ADR-0049](0049-versteckte-bibliotheken.md) (versteckte Bibliotheken nie sichtbar),
   [ADR-0073](0073-app-verbindung.md) (App-Verbindung, eigener Vertrag — bleibt getrennt),
   [ADR-0074](0074-hintergrund-planer.md) (Hintergrund-Planer, `IForegroundWork`),
@@ -17,7 +18,9 @@ Herbert will seine Lumora-Bibliotheken auch am Handy ansehen und bewerten — un
 bleiben am PC; das Handy ist nur ein Fenster auf die laufende Lumora. Ein erster Entwurf sah eine Web-App (PWA) vor, die
 Lumora selbst ausliefert. Herbert hat sich dagegen entschieden: **richtige App**, **maximale Sicherheit**, Zugriff **nur
 über WireGuard**, das auf seinem Router (FritzBox) läuft, **keine Webfreigabe**. Fotos verlassen den PC nur Richtung
-Herberts eigener, gekoppelter Geräte; die versteckte Bibliothek erscheint nie in der App.
+Herberts eigener, gekoppelter Geräte; die versteckte Bibliothek erscheint nie in der App. Bei der Klärung der offenen
+Fragen hat Herbert die WireGuard-Vorgabe für zu Hause gelockert: Im eigenen Heim-WLAN darf die App auch ohne WireGuard
+direkt zugreifen (Entscheidung 2).
 
 Vorhandene Bausteine in Lumora: App-Verbindung mit Kestrel im eigenen Projekt (ADR-0073), Hintergrundbetrieb ohne Fenster
 mit Symbol im Infobereich (0.5.20), Hintergrund-Planer mit Vorrang für Vordergrund-Arbeit (ADR-0074), Vorschaubild-Cache je
@@ -27,9 +30,11 @@ FileId (400 px kurze Kante), SHA-256 für jede Datei (0.5.18), Personen, Alben, 
 
 1. **Native Android-App „Lumora“** in **Flutter** (eigenes Repo, z. B. `lumora-companion`), mit einem kleinen
    Kotlin-Teil für Schlüssel und TLS (siehe „Technikwahl“). iOS später aus demselben Code.
-2. **Netz:** nur über WireGuard, das **am Router endet**. Lumora lauscht auf seiner Heimnetz-Adresse, lässt **nur die
-   festen Adressen der gekoppelten WireGuard-Geräte** zu und verlangt **gegenseitiges TLS** (mTLS) mit einer eigenen
-   Lumora-Zertifizierungsstelle. Keine Portfreigabe für Lumora, keine öffentliche Domain, kein Cloud-Tunnel.
+2. **Netz:** unterwegs nur über WireGuard, das **am Router endet**; **zu Hause im Heim-WLAN auch direkt** ohne
+   WireGuard (Herbert 2026-10-27). Lumora lauscht auf seiner Heimnetz-Adresse, lässt **nur die festen Adressen der
+   gekoppelten Geräte** zu (je Gerät die WireGuard-Adresse und die feste WLAN-Adresse) und verlangt auf jedem Weg
+   **gegenseitiges TLS** (mTLS) mit einer eigenen Lumora-Zertifizierungsstelle. Keine Portfreigabe für Lumora, keine
+   öffentliche Domain, kein Cloud-Tunnel.
 3. **Am PC** ein neues WPF-freies Projekt `Lumora.Companion` (eigener Kestrel, `AddCompanion()`), **getrennt** von der
    App-Verbindung, plus Einstellungsseite „Mobilgeräte“. Server **standardmäßig aus**.
 4. **Funktionsumfang:** ansehen, suchen, bewerten, Storys ansehen, Fotos an Lumora teilen. Am PC **kein** Löschen,
@@ -41,6 +46,12 @@ FileId (400 px kurze Kante), SHA-256 für jede Datei (0.5.18), Personen, Alben, 
    „Lumora Server“ ohne Fenster mit Windows; der Dienst ist der einzige Schreiber, die PC-Oberfläche bleibt nutzbar und
    speichert über den Dienst. Eigene Stufe nach der App; bis dahin trägt der Hintergrundbetrieb aus 0.5.20. Lumora
    richtet den Dienst **nicht selbst** ein — Herbert führt ein mitgeliefertes Skript als Administrator aus.
+7. **Hochladen früh** (Herbert 2026-10-27): Hochladen/Teilen ist die erste Funktion nach der Kopplung (Stufe 3), noch
+   vor dem Ansehen.
+8. **Fingerabdruck je Bibliothek** (Herbert 2026-10-27): Je freigegebener Bibliothek wird am PC eingestellt, ob die App
+   den Fingerabdruck verlangt (Standard: an). Lumora erzwingt das selbst über ein zweites, biometrisch gesperrtes
+   Gerätezertifikat (siehe Sicherheit, Schicht 5).
+9. **Laptop später prüfen** (Herbert 2026-10-27): kein Laptop-Zugriff in den Stufen 0–8; als Idee ohne Zusage vermerkt.
 
 ## Zielbild und Funktionsumfang
 
@@ -57,7 +68,7 @@ FileId (400 px kurze Kante), SHA-256 für jede Datei (0.5.18), Personen, Alben, 
 | **Nie** | am PC löschen, verschieben, umbenennen, Katalog-Wartung; versteckte Bibliothek | — |
 
 Die App zeigt, was Lumora am PC gerade weiß; ohne Verbindung nur den verschlüsselten Zwischenspeicher (siehe Sicherheit),
-Bewertungen offline werden nicht gesammelt (Stufe 1–4: nur online, keine Konflikte).
+Bewertungen offline werden nicht gesammelt (Stufe 1–5: nur online, keine Konflikte).
 
 ## Technikwahl der App
 
@@ -77,15 +88,18 @@ Ehrlich: Mit Flutter wird der **sicherheitskritische Kern trotzdem in Kotlin** g
 Gewinn ist die gemeinsame Oberfläche (Zeitleiste, Lightbox, Suche, Storys) — dort liegt der meiste Aufwand. Wer iOS sicher
 nie will, fährt mit Kotlin/Compose schlanker und mit weniger Fremdcode; dann ist es die bessere Wahl.
 
-## Netz: WireGuard auf der FritzBox
+## Netz: WireGuard auf der FritzBox, zu Hause auch direkt
 
 ```
-Handy (WireGuard-App, getrennter Tunnel nur für „Lumora“)
-   │  WireGuard (UDP, verschlüsselt) über Mobilnetz/fremdes WLAN
-   ▼
-FritzBox (WireGuard endet hier, Gerät bekommt eine Heimnetz-Adresse, z. B. 192.0.2.201 — Beispieladresse)
-   │  Heimnetz
-   ▼
+unterwegs:                                            zu Hause:
+Handy (WireGuard-App, getrennter Tunnel               Handy im Heim-WLAN, WireGuard darf aus sein
+       nur für „Lumora“)                                 │  WLAN, feste Adresse z. B. 192.0.2.57
+   │  WireGuard (UDP) über Mobilnetz/fremdes WLAN        │  (Beispiel, in der FritzBox fest zugewiesen)
+   ▼                                                     │
+FritzBox (WireGuard endet hier, Gerät bekommt            │
+          Heimnetz-Adresse, z. B. 192.0.2.201)           │
+   │  Heimnetz                                           │
+   ▼                                                     ▼
 PC mit Lumora (lauscht z. B. auf 192.0.2.10:47820 — Beispiel), Windows-Firewall: nur Absender-Adressen der Geräte
 ```
 
@@ -106,6 +120,16 @@ PC mit Lumora (lauscht z. B. auf 192.0.2.10:47820 — Beispiel), Windows-Firewal
   durch den Tunnel, alle anderen Apps gehen normal ins Internet und sehen das Heimnetz nicht. Ohne WireGuard zeigt die App
   „WireGuard einschalten“ und öffnet auf Knopfdruck die WireGuard-App; optional schaltet sie den Tunnel selbst ein, wenn
   Herbert in der WireGuard-App „Fernsteuerung durch Apps“ erlaubt (Recht `CONTROL_TUNNELS`).
+- **Zu Hause direkt im Heim-WLAN** (Herbert 2026-10-27): Die App verbindet sich immer mit derselben PC-Adresse; ist das
+  Handy im Heim-WLAN, kommt die Verbindung auch ohne WireGuard an. Damit der Adressfilter eng bleibt, bekommt das Handy in
+  der FritzBox eine **feste WLAN-Adresse** („immer die gleiche IPv4-Adresse zuweisen“). Android nutzt je WLAN eine eigene,
+  aber gleichbleibende zufällige Geräte-Adresse (MAC); die feste Zuweisung hält, solange das so eingestellt bleibt —
+  **in Stufe 0 prüfen**. Lumora führt je Gerät beide Adressen (WireGuard, WLAN); die zweite übernimmt Herbert auf der
+  Seite „Mobilgeräte“ mit **„Adresse übernehmen“**: 5 Minuten lang nimmt Lumora einen Handshake mit **genau diesem
+  Gerätezertifikat** von einer neuen Heimnetz-Adresse an und speichert die Adresse (Windows-Hinweis wie bei neuer
+  Adresse). Ein ganzes Adressnetz wird nie freigegeben. mTLS, Pinning und Rechte gelten unverändert; im Heim-WLAN
+  schützen WLAN-Verschlüsselung und TLS 1.3 die Verbindung. Ist der PC nicht erreichbar, zeigt die App „Unterwegs:
+  WireGuard einschalten“.
 - **Alternative Tailscale** (WireGuard-basiert, mit Koordinationsdienst eines Anbieters): bequemer (kein Router nötig,
   eigene Adressen), aber ein fremder Dienst kennt die Geräte. Wird nur erwähnt, nicht gebaut; die App-Seite bliebe gleich.
 
@@ -113,13 +137,13 @@ PC mit Lumora (lauscht z. B. auf 192.0.2.10:47820 — Beispiel), Windows-Firewal
 
 | Schicht | Umsetzung |
 |---|---|
-| **1. Netz** | nur WireGuard, Adressfilter auf die Gerätelisten-Adressen, Windows-Firewall-Regel nur für diese Adressen und das Profil „Privat“ |
-| **2. Kopplung** | QR-Code am PC (einmaliges Kopplungs-Token 128 bit, 5 Minuten, Fingerabdruck des Lumora-Stammzertifikats, Adresse, Port). Das Handy erzeugt seinen Schlüssel, schickt eine Zertifikatsanfrage; **am PC erscheint „Gerät ‚Pixel 8‘ will sich koppeln“** mit einem 6-stelligen **Vergleichscode**, der auch am Handy steht (aus beiden Schlüsseln abgeleitet — schützt gegen ein abgefangenes QR-Foto). Erst nach „Zulassen“ stellt Lumora das Gerätezertifikat aus. Kopplung nur, solange „Gerät hinzufügen“ offen ist; nach 5 Fehlversuchen schließt das Fenster. |
-| **3. Geräteschlüssel** | im **Android Keystore**, hardwaregestützt (StrongBox, wenn vorhanden), **nicht exportierbar**, nur bei entsperrtem Gerät nutzbar (`setUnlockedDeviceRequired`). Ohne den Schlüssel nützt eine Kopie der App-Daten nichts. |
+| **1. Netz** | unterwegs nur WireGuard, zu Hause auch das Heim-WLAN; Adressfilter auf die Geräteadressen (je Gerät WireGuard- und feste WLAN-Adresse, nie ein ganzes Netz), Windows-Firewall-Regel nur für diese Adressen und das Profil „Privat“ |
+| **2. Kopplung** | QR-Code am PC (einmaliges Kopplungs-Token 128 bit, 5 Minuten, Fingerabdruck des Lumora-Stammzertifikats, Adresse, Port). Das Handy erzeugt seine beiden Schlüssel (Schicht 3), schickt je eine Zertifikatsanfrage; **am PC erscheint „Gerät ‚Pixel 8‘ will sich koppeln“** mit einem 6-stelligen **Vergleichscode**, der auch am Handy steht (aus beiden Schlüsseln abgeleitet — schützt gegen ein abgefangenes QR-Foto). Erst nach „Zulassen“ stellt Lumora das Gerätezertifikat aus. Kopplung nur, solange „Gerät hinzufügen“ offen ist; nach 5 Fehlversuchen schließt das Fenster. |
+| **3. Geräteschlüssel** | zwei Schlüssel im **Android Keystore**, hardwaregestützt (StrongBox, wenn vorhanden), **nicht exportierbar**: der **Grundschlüssel** ist nur bei entsperrtem Gerät nutzbar (`setUnlockedDeviceRequired`), der **Biometrie-Schlüssel** zusätzlich nur direkt nach Fingerabdruck oder Geräte-PIN (`setUserAuthenticationRequired`, starke Biometrie, kurze Gültigkeit). Lumora stellt für beide je ein Gerätezertifikat aus. Ohne die Schlüssel nützt eine Kopie der App-Daten nichts. |
 | **4. Gegenseitiges TLS** | eigene **Lumora-Zertifizierungsstelle** am PC: Stammschlüssel im Windows-Schlüsselspeicher des Benutzers (CNG, nicht exportierbar; TPM, wenn vorhanden), stellt das Server-Zertifikat (Adresse als SAN) und die Gerätezertifikate (1 Jahr, automatische Erneuerung) aus. Die App vertraut **nur** diesem Stamm (**Pinning** auf den öffentlichen Schlüssel aus dem QR-Code), nicht den System-Zertifikaten. **Keine öffentliche Domain, kein Let's Encrypt** — die Zertifikats-Transparenz-Protokolle würden den Namen öffentlich machen. Lumora prüft je Anfrage: Zertifikat von der eigenen Stelle, Gerät bekannt und nicht gesperrt, Absender-Adresse passt zum Gerät. |
-| **5. App-Sperre** | Fingerabdruck oder Geräte-PIN (`BiometricPrompt`, starke Biometrie) beim Öffnen und nach einer Pause (Standard 1 Minute im Hintergrund); keine Vorschau in „Zuletzt verwendet“ und keine Bildschirmfotos (`FLAG_SECURE`, abschaltbar). |
-| **6. Zwischenspeicher** | Vorschaubilder nur im app-eigenen Speicher, **verschlüsselt** (AES-GCM, Schlüssel im Keystore), Obergrenze (Standard 300 MB) und **Ablauf** (Standard 30 Tage); Originale nie dauerhaft; nichts in der Android-Galerie; keine Sicherung in Googles Cloud (`allowBackup=false`); keine Analyse- oder Absturz-Dienste Dritter. Beim Entkoppeln oder Sperren löscht die App alles. |
-| **7. Rechte je Gerät** | Bibliotheken einzeln freigeben (neues Gerät: keine), Rechte **ansehen** (Standard), **bewerten**, **hochladen** (mit Zielordner), **Originale laden**. Die versteckte Bibliothek kann nie gewählt werden. |
+| **5. App-Sperre je Bibliothek** | Am PC je freigegebener Bibliothek **„Fingerabdruck verlangen“** (Standard an, Herbert 2026-10-27). Für eine solche Bibliothek fragt die App Fingerabdruck oder Geräte-PIN (`BiometricPrompt`, starke Biometrie) beim Öffnen und nach einer Pause (Standard 1 Minute im Hintergrund). **Lumora erzwingt das selbst:** Anfragen zu einer geschützten Bibliothek beantwortet es nur auf Verbindungen mit dem **Biometrie-Zertifikat**; diese Verbindungen schließt die App beim Wechsel in den Hintergrund, Lumora nach 5 Minuten ohne Anfrage, TLS-Wiederaufnahme ist für sie aus. Bibliotheken ohne Fingerabdruck öffnen mit dem Grundschlüssel (Gerät entsperrt genügt). Ohne eingerichteten Fingerabdruck bzw. PIN am Handy bleiben geschützte Bibliotheken zu (Hinweis in der App). Keine Vorschau in „Zuletzt verwendet“ und keine Bildschirmfotos (`FLAG_SECURE`, abschaltbar). |
+| **6. Zwischenspeicher** | Vorschaubilder nur im app-eigenen Speicher, **verschlüsselt** (AES-GCM, Schlüssel im Keystore; für geschützte Bibliotheken ein eigener Schlüssel, der wie der Biometrie-Schlüssel nur nach Fingerabdruck nutzbar ist), Obergrenze (Standard 300 MB) und **Ablauf** (Standard 30 Tage); Originale nie dauerhaft; nichts in der Android-Galerie; keine Sicherung in Googles Cloud (`allowBackup=false`); keine Analyse- oder Absturz-Dienste Dritter. Beim Entkoppeln oder Sperren löscht die App alles. |
+| **7. Rechte je Gerät** | Bibliotheken einzeln freigeben (neues Gerät: keine), je Bibliothek „Fingerabdruck verlangen“ (siehe Schicht 5), Rechte **ansehen** (Standard), **bewerten**, **hochladen** (mit Zielordner), **Originale laden**. Die versteckte Bibliothek kann nie gewählt werden. |
 | **8. Server an/aus** | **standardmäßig aus**; einschalten dauerhaft (solange Lumora läuft) oder mit **Zeitlimit** (1 h, 4 h, heute). Sichtbar in Statusleiste und Infobereich („Mobilgeräte: an · 1 verbunden“). |
 | **9. Sperren / Entfernen** | am PC **ein Klick „Sperren“** je Gerät (wirkt sofort, auch auf laufende Verbindungen); „Entfernen“ widerruft das Zertifikat. Hinweis, dass die WireGuard-Verbindung in der FritzBox ebenfalls gelöscht werden sollte. |
 | **10. Protokoll und Hinweise** | Zugriffsprotokoll je Gerät (Zeit, Art, Anzahl — keine Dateinamen), 90 Tage; Windows-Hinweis bei **neuem Gerät** und bei Zugriff von **neuer Adresse**; Gerät „lange nicht gesehen“ (> 90 Tage) zum Entfernen vorschlagen. |
@@ -131,10 +155,11 @@ PC mit Lumora (lauscht z. B. auf 192.0.2.10:47820 — Beispiel), Windows-Firewal
 | Bedrohung | Was schützt | Was bleibt |
 |---|---|---|
 | **Handy verloren, gesperrt** | Bildschirmsperre, Keystore-Schlüssel nur entsperrt nutzbar, App-Sperre, verschlüsselter Zwischenspeicher | Am PC Gerät sperren und WireGuard-Verbindung in der FritzBox löschen — bis dahin ist der Schlüssel zwar nicht kopierbar, aber das Gerät existiert |
-| **Handy verloren, entsperrt** | App-Sperre nach Pause (1 Min.), Fingerabdruck beim Öffnen | Wer das Handy in der ersten Minute mit offener App hat, sieht, was offen ist; sofort am PC sperren |
+| **Handy verloren, entsperrt** | geschützte Bibliotheken: App-Sperre nach Pause (1 Min.), Fingerabdruck beim Öffnen, Lumora antwortet nur dem Biometrie-Zertifikat | Bibliotheken **ohne** „Fingerabdruck verlangen“ sieht, wer das entsperrte Handy hat (bewusst so gewählt); sofort am PC sperren |
+| **Zu Hause: fremdes Gerät im Heim-WLAN** | Adressfilter auf die feste WLAN-Adresse des Handys, mTLS; „Adresse übernehmen“ nur 5 Min. und nur für ein bekanntes Gerätezertifikat | wie „Angreifer im Heimnetz“ |
 | **Anderes WireGuard-Gerät gekapert** (z. B. Laptop mit WireGuard-Zugang) | Adressfilter (Adresse gehört keinem Gerät) und kein Gerätezertifikat → keine Antwort | Der Port ist im Heimnetz sichtbar; die TLS-Schicht von Kestrel ist Angriffsfläche (aktuell halten) |
 | **Angreifer im Heimnetz** (Besucher-Gerät, unsicheres Smart-Home-Gerät) | mTLS — eine gefälschte Absender-Adresse reicht nicht; Firewall-Regel nur für die Adressen; Gäste im Gast-WLAN der FritzBox sehen das Heimnetz nicht | Er kann den Dienst stören (Überlastung), aber nichts lesen |
-| **Abhören unterwegs** (fremdes WLAN, Mobilnetz) | WireGuard und darin TLS 1.3 mit Pinning | — |
+| **Abhören unterwegs** (fremdes WLAN, Mobilnetz) | WireGuard und darin TLS 1.3 mit Pinning; ein fremdes WLAN mit gleichem Adressbereich kann sich nicht als Lumora ausgeben (Pinning) | — |
 | **Abgefangener QR-Code beim Koppeln** | Token einmalig und 5 Min., Bestätigung am PC mit Vergleichscode | Wer Herbert dazu bringt, ein fremdes Gerät zuzulassen, ist drin — der Dialog nennt Gerätename und Adresse |
 | **Gefälschte App / gefälschtes Update** | Updates nur über Lumora am PC mit SHA-256, Android prüft die gleiche Signatur | Verlust des Signaturschlüssels = keine Updates mehr (Schlüssel sichern) |
 | **Handy mit Schadsoftware / gerootet** | Schlüssel nicht exportierbar | Was die App gerade zeigt, kann abgegriffen werden; nicht abwehrbar → Gerät sperren |
@@ -189,8 +214,9 @@ Fehlerformat angelehnt an das der App-Verbindung, aber eigene Definition. Hochla
 
 | Tabelle | Inhalt |
 |---|---|
-| `CompanionDevices` | Id, Name, Plattform, Zertifikats-Fingerabdruck (SHA-256), öffentlicher Schlüssel, feste Adresse, Rechte (Bewerten, Hochladen, Originale), Upload-Zielordner, Erstellt/Zuletzt gesehen, Gesperrt-seit, Fehlversuche |
-| `CompanionDeviceLibraries` | DeviceId, LibraryId (FK mit Kaskade) |
+| `CompanionDevices` | Id, Name, Plattform, Zertifikats-Fingerabdrücke (SHA-256) von Grund- und Biometrie-Zertifikat, öffentliche Schlüssel, Rechte (Bewerten, Hochladen, Originale), Upload-Zielordner, Erstellt/Zuletzt gesehen, Gesperrt-seit, Fehlversuche |
+| `CompanionDeviceAddresses` | DeviceId, Adresse, Art (`wireguard` / `wlan`), Übernommen-am (FK mit Kaskade) |
+| `CompanionDeviceLibraries` | DeviceId, LibraryId, RequireBiometric (Standard 1) (FK mit Kaskade) |
 | `CompanionAccessLog` | DeviceId, Zeit, Art, Anzahl, Adresse — keine Dateinamen, 90 Tage |
 
 Öffentliche Zertifikate der Lumora-Stelle und Server-Einstellungen (Adresse, Port, an/aus, Zeitlimit) in der
@@ -201,8 +227,8 @@ bekommt die Tabellen nicht befüllt (keine Geräte dort). PLAN Kap. 4 wird beim 
 
 - Karte **Companion-Server**: Schalter, Zeitlimit, Adresse/Port, Fingerabdruck des Stammzertifikats, Zustand der
   Windows-Firewall-Regel (nur geprüft).
-- Karte **Gekoppelte Geräte**: Name, Rechte, Bibliotheken, zuletzt gesehen, Adresse; „Rechte…“, **„Sperren“**,
-  „Entfernen“; Protokoll je Gerät.
+- Karte **Gekoppelte Geräte**: Name, Rechte, Bibliotheken (je Bibliothek „Fingerabdruck verlangen“), zuletzt gesehen,
+  Adressen (WireGuard, WLAN); „Rechte…“, „Adresse übernehmen“, **„Sperren“**, „Entfernen“; Protokoll je Gerät.
 - Karte **Gerät hinzufügen**: QR-Code mit Restzeit, Vergleichscode, Standard-Rechte für neue Geräte.
 - Bestätigungsdialog bei Kopplung (über `IDialogService`).
 
@@ -275,15 +301,16 @@ die PC-Oberfläche bleibt nutzbar, gespeichert wird nur im Dienst.
 
 | Stufe | Inhalt | Aufwand |
 |---|---|---|
-| 0 | Prüfung am echten Gerät: WireGuard-Adresse der FritzBox, getrennter Tunnel, Keystore-mTLS-Prototyp (Kotlin) | 1–2 PT |
+| 0 | Prüfung am echten Gerät: WireGuard-Adresse der FritzBox, feste WLAN-Adresse trotz zufälliger MAC, getrennter Tunnel, Keystore-mTLS-Prototyp (Kotlin) mit Grund- und Biometrie-Schlüssel | 1–2 PT |
 | 1 | **Server**: `Lumora.Companion`, Zertifizierungsstelle, Schema, Seite „Mobilgeräte“ (ohne Kopplung), `/info`, Tests mit echten Zertifikaten | 4–6 PT |
-| 2 | **Kopplung** beidseitig: QR, Vergleichscode, Bestätigung, Sperren/Entfernen, App-Gerüst mit Fingerabdruck-Sperre | 4–6 PT |
-| 3 | **Ansehen**: Zeitleiste, Alben/Ordner, Lightbox, Suche, Storys, verschlüsselter Zwischenspeicher | 10–15 PT |
-| 4 | **Bewerten**: Sterne, Favorit (später Tags) | 2–3 PT |
-| 5 | **Hochladen/Teilen**: Teilen-Ziel, fortsetzbare Übertragung, Prüfsumme, Eingangs-Ordner | 3–5 PT |
-| 6 | später: **Handy-Fotos in der gemeinsamen Zeitleiste** (entschieden, Abgleich über SHA-256, Marke „nur am Handy“) / **automatisches Sichern** (WorkManager, nur über WireGuard, nur im WLAN wählbar) / **Platz schaffen** (Originale am Handy nach Bestätigung löschen) | 7–11 PT |
+| 2 | **Kopplung** beidseitig: QR, Vergleichscode, Bestätigung, zwei Gerätezertifikate, „Adresse übernehmen“, Sperren/Entfernen, App-Gerüst mit Fingerabdruck-Sperre je Bibliothek | 5–7 PT |
+| 3 | **Hochladen/Teilen** (früh, Herbert 2026-10-27): Teilen-Ziel, fortsetzbare Übertragung, Prüfsumme, Eingangs-Ordner, Liste „gesendet“ in der App. Erster schreibender Weg — Tests für Prüfsumme, Größe, Dateityp, freien Platz und Abbruch sind Pflicht | 3–5 PT |
+| 4 | **Ansehen**: Zeitleiste, Alben/Ordner, Lightbox, Suche, Storys, verschlüsselter Zwischenspeicher | 10–15 PT |
+| 5 | **Bewerten**: Sterne, Favorit (später Tags) | 2–3 PT |
+| 6 | später: **Handy-Fotos in der gemeinsamen Zeitleiste** (entschieden, Abgleich über SHA-256, Marke „nur am Handy“) / **automatisches Sichern** (WorkManager, über WireGuard oder im Heim-WLAN, „nur im WLAN“ wählbar) / **Platz schaffen** (Originale am Handy nach Bestätigung löschen) | 7–11 PT |
 | 7 | später: **Server-Modus als Windows-Dienst** — Spike (WIC/DirectML in Sitzung 0, Konto, Laufwerke), `Lumora.Server`, Schreiben über Named Pipe, Einrichtungs-Skripte | 20–35 PT |
 | 8 | später: **iOS** (Plattform-Teile in Swift, Apple-Entwicklerkonto nötig) | 5–10 PT |
+| – | **Idee, ohne Zusage** (Herbert 2026-10-27: „später prüfen“): **Laptop** über eine Flutter-Desktop-App mit eigenem Gerätezertifikat (Schlüssel im Schlüsselspeicher des Laptops), gleicher Server, gleiche Regeln. Erst nach Stufe 8 bewerten | – |
 
 ## Verteilung ohne Play Store
 
@@ -303,7 +330,11 @@ die PC-Oberfläche bleibt nutzbar, gespeichert wird nur im Dienst.
 - Eine native App kann, was eine Web-App nicht kann: Schlüssel im Keystore, Pinning ohne installiertes Stammzertifikat,
   Fingerabdruck-Sperre, verschlüsselter Speicher, Teilen-Ziel, später Sichern im Hintergrund.
 - WireGuard am Router schließt das Internet aus, ohne dass Lumora selbst erreichbar wird; mTLS schützt zusätzlich gegen
-  alles, was schon im Heimnetz ist. Jede Schicht hält auch, wenn eine andere fällt (außer dem PC selbst).
+  alles, was schon im Heimnetz ist. Jede Schicht hält auch, wenn eine andere fällt (außer dem PC selbst). Deshalb kostet
+  der direkte Weg im Heim-WLAN wenig: Er nimmt nur die WireGuard-Schicht weg, und das nur dort, wo das Handy ohnehin im
+  Heimnetz ist.
+- Fingerabdruck je Bibliothek wird von Lumora erzwungen, nicht nur von der App: Ohne frischen Fingerabdruck ist der
+  Biometrie-Schlüssel im Keystore unbenutzbar, und ohne ihn liefert Lumora keine geschützte Bibliothek.
 - Eigener Server statt Erweiterung der App-Verbindung: anderer Zweck (Netz statt `127.0.0.1`), andere Prüfung (mTLS
   statt Geheimnis), und der Vertrag der App-Verbindung gehört nicht Lumora allein.
 
@@ -320,12 +351,19 @@ die PC-Oberfläche bleibt nutzbar, gespeichert wird nur im Dienst.
   hebt die Anmelde-Pflicht auf, ist aber der größte Umbau (Schreiben über Pipe) und braucht einmal Administratorrechte.
 - „Platz schaffen“ ist die einzige Funktion, die etwas löscht — am Handy, mit doppelter Prüfung und Android-Rückfrage.
   Ein Fehler in Lumoras Bestätigung wäre teuer; deshalb sind Tests mit fehlender, offline und geänderter Datei Pflicht.
-- Eigene Zertifizierungsstelle heißt eigene Pflege (Erneuern, Widerrufen) und eigene Tests.
+- Eigene Zertifizierungsstelle heißt eigene Pflege (Erneuern, Widerrufen) und eigene Tests; zwei Zertifikate je Gerät
+  verdoppeln Ausstellen, Erneuern und Widerruf.
+- Bibliotheken ohne „Fingerabdruck verlangen“ sind bei entsperrtem Handy offen; der Schalter steht deshalb standardmäßig
+  auf an.
+- Der direkte Weg im Heim-WLAN hängt an der festen WLAN-Adresse; ändert Android die zufällige MAC, kommt das Handy bis zu
+  „Adresse übernehmen“ zu Hause nur über WireGuard hinein.
+- Hochladen kommt vor dem Ansehen: Der erste Weg, der am PC schreibt, ist auch der erste, der gebaut wird.
 - Das portable Paket wächst nicht (Kestrel ist schon da), aber die Angriffsfläche am PC: ein lauschender Port im Heimnetz.
 
 ### Neutral
 - WireGuard-Verwaltung bleibt in der FritzBox; Lumora kennt nur die Adressen.
-- Laptop-Zugriff gibt es ohne Web-App nur über eine eigene Desktop-App (mit Flutter später möglich).
+- Laptop-Zugriff gibt es ohne Web-App nur über eine eigene Desktop-App (mit Flutter später möglich); als Idee ohne
+  Zusage im Stufenplan vermerkt.
 
 ## Alternativen
 
@@ -340,15 +378,19 @@ die PC-Oberfläche bleibt nutzbar, gespeichert wird nur im Dienst.
   Zertifikats-Protokollen → ausgeschlossen.
 - **Nur Adressfilter ohne mTLS:** im Heimnetz fälschbar → nicht ausreichend.
 
-## Offene Fragen an Herbert
+## Geklärte Fragen (Herbert, 2026-10-27)
 
-1. ~~Handy-Fotos in der App?~~ **Beantwortet (Herbert, 2026-10-27): ja, gemeinsame Zeitleiste** aus PC- und
-   Handy-Fotos (Stufe 6). Die App liest dafür die Handy-Galerie (Android-Recht „Fotos und Videos“), nichts davon geht
-   ohne Senden/Sichern an den PC.
-2. **Hochladen früh oder spät?** (Stufe 5 vor oder nach Bewerten/Storys, oder gleich mit automatischem Sichern zusammen)
-3. **Fingerabdruck immer** beim Öffnen — oder je Bibliothek (z. B. nur für bestimmte Bibliotheken)?
-4. **Laptop-Zugriff ganz weglassen?** (ohne Web-App bräuchte er eine eigene Desktop-App)
-5. **Zu Hause im WLAN ohne WireGuard?** Empfehlung: nein — WireGuard bleibt immer an, eine Regel für alle Wege.
+1. **Handy-Fotos in der App?** Ja, **gemeinsame Zeitleiste** aus PC- und Handy-Fotos (Stufe 6). Die App liest dafür die
+   Handy-Galerie (Android-Recht „Fotos und Videos“), nichts davon geht ohne Senden/Sichern an den PC.
+2. **Hochladen früh oder spät?** **Ganz früh** — Stufe 3, direkt nach der Kopplung und vor dem Ansehen (Entscheidung 7).
+3. **Fingerabdruck immer oder je Bibliothek?** **Je Bibliothek**, Standard an, von Lumora über das
+   Biometrie-Zertifikat erzwungen (Entscheidung 8, Schicht 5).
+4. **Laptop-Zugriff?** **Später prüfen** — Idee ohne Zusage nach Stufe 8 (Entscheidung 9).
+5. **Zu Hause im WLAN ohne WireGuard?** **Ja, direkt im Heim-WLAN** (Empfehlung war nein) — mit fester WLAN-Adresse je
+   Gerät und unverändertem mTLS (Entscheidung 2, Netz).
+
+Am echten Gerät bleibt in Stufe 0 zu prüfen: Absender-Adresse über WireGuard, feste WLAN-Adresse trotz zufälliger MAC,
+Keystore-mTLS mit beiden Schlüsseln.
 
 ## Referenzen
 

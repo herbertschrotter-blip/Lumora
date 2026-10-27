@@ -3,6 +3,25 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.26] — 2026-10-27
+
+### Docs — ADR-0075 angenommen: offene Fragen zur Companion-App geklärt
+Herbert hat die vier offenen Fragen beantwortet; ADR-0075 steht jetzt auf **Accepted**.
+- **Hochladen früh:** Teilen-Ziel und Hochladen sind Stufe 3, direkt nach der Kopplung und vor dem Ansehen. Als erster
+  schreibender Weg mit Pflicht-Tests (Prüfsumme, Größe, Dateityp, freier Platz, Abbruch).
+- **Fingerabdruck je Bibliothek:**
+  - Je freigegebener Bibliothek „Fingerabdruck verlangen“, Standard an.
+  - Lumora erzwingt das selbst: Das Handy hat zwei Keystore-Schlüssel mit je einem Gerätezertifikat. Geschützte
+    Bibliotheken gibt es nur über das Biometrie-Zertifikat, dessen Schlüssel erst nach Fingerabdruck oder PIN nutzbar ist.
+  - Schema: `CompanionDeviceLibraries.RequireBiometric`.
+- **Zu Hause direkt im Heim-WLAN** (Empfehlung war nein):
+  - Je Gerät gibt es eine zweite, feste WLAN-Adresse aus der FritzBox. Herbert übernimmt sie mit „Adresse übernehmen“:
+    5 Minuten lang, nur für das eigene Gerätezertifikat.
+  - Nie wird ein ganzes Netz freigegeben; mTLS gilt unverändert. Schema: neue Tabelle `CompanionDeviceAddresses`.
+- **Laptop:** später prüfen, als Idee ohne Zusage nach Stufe 8.
+- Stufe 0 prüft zusätzlich die feste WLAN-Adresse trotz zufälliger MAC und beide Schlüssel. ADR-Übersicht, PLAN
+  „Welle 7“ und der Kopf von Mockup 22 sind nachgezogen; die neuen Punkte sind noch nicht im Mockup.
+
 ## [0.5.25] — 2026-10-27
 
 ### Added — App-Verbindung Stufe 7 (Teil B): Galerie-Filter „Tour“ (Mockup 24)
