@@ -3,6 +3,23 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.27] — 2026-10-27
+
+### Docs — Mockup 22 ergänzt: Fingerabdruck je Bibliothek, Heim-WLAN, Hochladen früh (abgenommen)
+Die Antworten aus 0.5.26 stehen jetzt auch im Mockup; Herbert hat es am selben Tag abgenommen.
+- **Handy:**
+  - Bildschirm 3 „Fingerabdruck je Bibliothek“ ersetzt die allgemeine App-Sperre: Eine geschützte Bibliothek verlangt
+    den Fingerabdruck, eine offene lässt sich direkt öffnen.
+  - Koppeln nennt die zwei Geräteschlüssel. „Keine Verbindung“ prüft Heim-WLAN und WireGuard und bietet „Unterwegs:
+    WireGuard einschalten“ an.
+  - Neuer Bildschirm 11 „Gesendet“ zeigt die App in Stufe 3, die nur sendet. „Mehr“ zeigt den Weg „Heim-WLAN direkt“
+    und die Sperrzeit für geschützte Bibliotheken.
+- **PC, Seite „Mobilgeräte“:**
+  - Jedes Gerät zeigt seine WireGuard- und seine WLAN-Adresse und hat den Knopf „Adresse übernehmen“; beim Tablet läuft
+    die Übernahme gerade mit Restzeit.
+  - Das Protokoll hält die übernommene Adresse fest.
+  - Die Kopplungs-Rückfrage hat je Bibliothek die Spalten „Freigeben“ und „Fingerabdruck verlangen“.
+
 ## [0.5.26] — 2026-10-27
 
 ### Docs — ADR-0075 angenommen: offene Fragen zur Companion-App geklärt

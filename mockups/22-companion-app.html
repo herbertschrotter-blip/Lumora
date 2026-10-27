@@ -7,7 +7,7 @@
 <style>
 /* =====================================================================
    Mockup 22 · Companion-App: native Android-App „Lumora“ (Flutter) für die laufende Lumora am PC, nur über WireGuard
-   (FritzBox) und gegenseitiges TLS (ADR-0075, Vorschlag). Zwölf Handy-Bildschirme in Originalbreite (390 px): Kopplung,
+   (FritzBox), zu Hause auch direkt im Heim-WLAN, und gegenseitiges TLS (ADR-0075, Accepted). Dreizehn Handy-Bildschirme in Originalbreite (390 px): Kopplung,
    App-Sperre, Verbindungsstatus, Ansehen, Bewerten, Teilen, Gerät gesperrt — und am PC Einstellungen › Mobilgeräte mit
    Kopplungs-Rückfrage. Löst den früheren PWA-Entwurf gleicher Nummer ab (lag nie im Repo).
    Tokens 1:1 aus 08–21. Namen, Orte, Fotos erfunden; Adressen sind Beispieladressen (192.0.2.x). Hell/Dunkel über „dark“.
@@ -18,11 +18,11 @@
    der gemeinsamen Zeitleiste (entschieden, Stufe 6, Marke „nur am Handy“), Tags setzen am Handy, iOS; seit 0.5.22
    außerdem „Platz schaffen am Handy“ und der Dienst-Zustand des Windows-Dienstes (ADR-0075, Bildschirme folgen mit der
    jeweiligen Stufe).
-   Nachtrag 0.5.26 (ADR-0075 Accepted, Antworten von Herbert 2026-10-27), noch nicht im Mockup: Hochladen kommt früh
-   (Stufe 3, vor dem Ansehen); Fingerabdruck je Bibliothek („Fingerabdruck verlangen“ je Freigabe, Standard an — die
-   App-Sperre erscheint nur für solche Bibliotheken); zu Hause direkt im Heim-WLAN ohne WireGuard (je Gerät zweite,
-   feste WLAN-Adresse, Knopf „Adresse übernehmen“; „Keine Verbindung“ heißt dann „Unterwegs: WireGuard einschalten“);
-   Laptop nur als Idee ohne Zusage.
+   Nachtrag 0.5.26 (ADR-0075 Accepted, Antworten von Herbert 2026-10-27), seit 0.5.27 im Mockup, ABGENOMMEN von Herbert am 2026-10-27:
+   Fingerabdruck je Bibliothek (Bildschirm 3, „Mehr“, Spalte in der Kopplungs-Rückfrage, Geräteliste), zwei
+   Geräteschlüssel (Bildschirme 1–2), Heim-WLAN direkt mit zweiter, fester WLAN-Adresse und „Adresse übernehmen“
+   (Bildschirm 4, Geräteliste, Protokoll, Rückfrage), Hochladen früh (Bildschirm 11 „Gesendet“ = App in Stufe 3).
+   Laptop bleibt Idee ohne Zusage und kommt nicht ins Mockup.
    ===================================================================== */:root {
   --mica-base:#F3F3F3; --layer-default:rgba(255,255,255,0.7); --layer-card:#FFFFFF; --layer-subtle:rgba(0,0,0,0.026);
   --layer-secondary:rgba(0,0,0,0.04); --layer-tertiary:rgba(0,0,0,0.06);
@@ -321,17 +321,18 @@ body.dark .dlg { background:#2B2B2B; }
 </div>
 
 <div class="intro">
-  <b>Idee:</b> Eine richtige Android-App „Lumora“ zeigt die Bibliotheken der laufenden Lumora am PC. Erreichbar nur über
-  WireGuard (endet an der FritzBox), nur für Geräte, die am PC gekoppelt und bestätigt wurden, jede Anfrage mit
-  gegenseitigem TLS. Fotos bleiben am PC; die App zeigt, sucht, bewertet und schickt Fotos an Lumora — löscht und
+  <b>Idee:</b> Eine richtige Android-App „Lumora“ zeigt die Bibliotheken der laufenden Lumora am PC. Erreichbar unterwegs über
+  WireGuard (endet an der FritzBox), zu Hause auch direkt im Heim-WLAN, nur für Geräte, die am PC gekoppelt und bestätigt wurden, jede Anfrage mit
+  gegenseitigem TLS. Je Bibliothek legst du am PC fest, ob die App den Fingerabdruck verlangt. Als Erstes
+  kann die App Fotos an Lumora senden (Stufe 3), Ansehen und Bewerten folgen. Fotos bleiben am PC; die App zeigt, sucht, bewertet und schickt Fotos an Lumora — löscht und
   verschiebt nie, die versteckte Bibliothek erscheint nie. Namen und Fotos erfunden, Adressen sind Beispiele.
 </div>
 
 <div class="phones" id="phones"></div>
 
-<div class="intro"><b>Am PC: Einstellungen › Mobilgeräte</b> — Server an/aus mit Zeitlimit, Adresse, Firewall-Prüfung (Lumora ändert die Firewall nicht), gekoppelte Geräte mit Rechten, Sperren mit einem Klick, Gerät hinzufügen, Protokoll.</div>
+<div class="intro"><b>Am PC: Einstellungen › Mobilgeräte</b> — Server an/aus mit Zeitlimit, Adresse, Firewall-Prüfung (Lumora ändert die Firewall nicht), gekoppelte Geräte mit Rechten und zwei Adressen (WireGuard, Heim-WLAN) samt „Adresse übernehmen“, Sperren mit einem Klick, Gerät hinzufügen, Protokoll.</div>
 <div class="deskwrap"><div class="desk" id="desk"></div></div>
-<div class="intro"><b>Am PC: Rückfrage beim Koppeln</b> — erscheint, sobald das Handy den QR-Code gescannt hat. Ohne „Zulassen“ kein Zugang, auch nicht im WireGuard-Netz.</div>
+<div class="intro"><b>Am PC: Rückfrage beim Koppeln</b> — erscheint, sobald das Handy den QR-Code gescannt hat. Hier legst du je Bibliothek fest, ob die App den Fingerabdruck verlangt. Ohne „Zulassen“ kein Zugang, auch nicht im Heimnetz.</div>
 <div class="deskwrap"><div class="dlg" id="dlg"></div></div>
 
 <script>
@@ -346,34 +347,37 @@ const tiles=(n,o=0)=>Array.from({length:n},(_,i)=>`<span class="t ${(i+o)%11===5
 const conn=`<span class="conn">Arbeitszimmer-PC</span>`;
 
 const SCREENS=[
- ['Koppeln: QR-Code scannen', 'Erster Start. Am PC „Gerät hinzufügen“ zeigt einen QR-Code (Adresse, Port, Fingerabdruck des Lumora-Stammzertifikats, einmaliges Token für 5 Minuten). Die App erzeugt ihren Schlüssel im Android Keystore — hardwaregestützt, nicht exportierbar. WireGuard muss dafür schon an sein.',
-  `${sbar}<div class="pairwrap"><div class="logo">lumora</div><div style="font-size:15px;font-weight:600">Mit Lumora am PC koppeln</div>
+ ['Koppeln: QR-Code scannen', 'Erster Start. Am PC „Gerät hinzufügen“ zeigt einen QR-Code (Adresse, Port, Fingerabdruck des Lumora-Stammzertifikats, einmaliges Token für 5 Minuten). Die App erzeugt zwei Schlüssel im Android Keystore — hardwaregestützt, nicht exportierbar: einen Grundschlüssel und einen, der nur direkt nach Fingerabdruck oder PIN nutzbar ist (für geschützte Bibliotheken). Das Handy ist im Heim-WLAN oder hat WireGuard an.',
+  `${sb(false)}<div class="pairwrap"><div class="logo">lumora</div><div style="font-size:15px;font-weight:600">Mit Lumora am PC koppeln</div>
    <div class="cam"><div class="qr"></div></div>
    <div style="font-size:12px;color:var(--text-secondary)">Lumora › Einstellungen › Mobilgeräte › „Gerät hinzufügen“</div>
-   <div class="okline"><span class="ic">&#xE72E;</span><span>Der Schlüssel dieses Geräts bleibt im Sicherheitschip des Handys und kann nicht kopiert werden.</span></div>
-   <div class="okline"><span class="ic">&#xE705;</span><span>WireGuard ist an · nur Lumora läuft durch den Tunnel.</span></div></div>`],
- ['Koppeln: Code vergleichen', 'Nach dem Scan prüft die App das Zertifikat des PCs gegen den Fingerabdruck aus dem QR-Code und zeigt einen Vergleichscode. Am PC steht derselbe Code in der Rückfrage. Erst nach „Zulassen“ am PC stellt Lumora das Gerätezertifikat aus.',
+   <div class="okline"><span class="ic">&#xE72E;</span><span>Die beiden Schlüssel dieses Geräts bleiben im Sicherheitschip des Handys und können nicht kopiert werden.</span></div>
+   <div class="okline"><span class="ic">&#xE705;</span><span>Im Heim-WLAN · unterwegs nur über WireGuard.</span></div></div>`],
+ ['Koppeln: Code vergleichen', 'Nach dem Scan prüft die App das Zertifikat des PCs gegen den Fingerabdruck aus dem QR-Code und zeigt einen Vergleichscode. Am PC steht derselbe Code in der Rückfrage. Erst nach „Zulassen“ am PC stellt Lumora die beiden Gerätezertifikate aus.',
   `${sbar}<div class="lockwrap"><div class="fp">&#xE8EA;</div><div class="t">Steht am PC derselbe Code?</div>
    <div class="sascode">481 297</div>
    <div class="d">Lumora auf <b>Arbeitszimmer-PC</b> fragt jetzt, ob dieses Gerät („Pixel 8“) zugelassen wird. Stimmt der Code nicht, am PC <b>Ablehnen</b> drücken.</div>
    <div class="card2 chkrows"><div class="chkrow"><span class="ic ok">&#xE73E;</span>Zertifikat von Lumora geprüft<small>Fingerabdruck passt</small></div>
-   <div class="chkrow"><span class="ic ok">&#xE73E;</span>Geräteschlüssel erzeugt<small>Keystore · StrongBox</small></div>
+   <div class="chkrow"><span class="ic ok">&#xE73E;</span>2 Geräteschlüssel erzeugt<small>Grund + Fingerabdruck · StrongBox</small></div>
    <div class="chkrow"><span class="ic wt">&#xE823;</span>Wartet auf Bestätigung am PC …<small>noch 4:12</small></div></div>
    <span class="lnk">Abbrechen</span></div>`],
- ['App-Sperre', 'Beim Öffnen und nach 1 Minute im Hintergrund: Fingerabdruck oder Geräte-PIN (starke Biometrie). In „Zuletzt verwendet“ erscheint keine Vorschau, Bildschirmfotos sind gesperrt (abschaltbar).',
-  `${sb(false)}<div class="lockwrap"><div class="logo">lumora</div><div class="fp">&#xE928;</div><div class="t">Lumora ist gesperrt</div>
-   <div class="d">Zum Entsperren Fingerabdruck auflegen.</div><span class="lnk">Mit Geräte-PIN entsperren</span></div>`],
- ['Keine Verbindung', 'Ohne WireGuard oder wenn Lumora am PC nicht erreichbar ist, zeigt die App, woran es liegt. „WireGuard einschalten“ öffnet die WireGuard-App — oder schaltet den Tunnel selbst ein, wenn das in der WireGuard-App erlaubt ist. Mit dem Zwischenspeicher lassen sich zuletzt gesehene Fotos ansehen (nicht bewerten).',
+ ['Fingerabdruck je Bibliothek', 'Für Bibliotheken mit „Fingerabdruck verlangen“ (am PC je Freigabe, Standard an): beim Öffnen und nach 1 Minute im Hintergrund Fingerabdruck oder Geräte-PIN. Lumora liefert diese Bibliothek nur über das Zertifikat, dessen Schlüssel erst danach nutzbar ist. Bibliotheken ohne Fingerabdruck öffnen direkt (Gerät entsperrt genügt). Keine Vorschau in „Zuletzt verwendet“, Bildschirmfotos gesperrt (abschaltbar).',
+  `${sb(false)}<div class="lockwrap"><div class="logo">lumora</div><div class="fp">&#xE928;</div><div class="t">„Familienfotos“ ist geschützt</div>
+   <div class="d">Lumora am PC verlangt für diese Bibliothek den Fingerabdruck.</div><span class="lnk">Mit Geräte-PIN entsperren</span>
+   <div class="card2 chkrows" style="margin-top:6px"><div class="chkrow"><span class="ic wt">&#xE72E;</span>Familienfotos<small>Fingerabdruck</small></div>
+   <div class="chkrow"><span class="ic ok">&#xE73E;</span>Berge<small>offen</small></div></div>
+   <span class="btnghost" style="width:100%">Stattdessen „Berge“ öffnen</span></div>`],
+ ['Keine Verbindung', 'Zu Hause geht es im Heim-WLAN direkt. Unterwegs ohne WireGuard oder wenn Lumora am PC nicht erreichbar ist, zeigt die App, woran es liegt. „WireGuard einschalten“ öffnet die WireGuard-App — oder schaltet den Tunnel selbst ein, wenn das in der WireGuard-App erlaubt ist. Mit dem Zwischenspeicher lassen sich zuletzt gesehene Fotos ansehen (nicht bewerten).',
   `${sb(false)}<div class="lockwrap" style="justify-content:flex-start;padding-top:40px"><div class="fp warn">&#xE705;</div><div class="t">Keine Verbindung zu Lumora</div>
-   <div class="card2 chkrows"><div class="chkrow"><span class="ic no">&#xE711;</span>WireGuard<small>aus</small></div>
+   <div class="card2 chkrows"><div class="chkrow"><span class="ic no">&#xE711;</span>Heim-WLAN<small>nicht verbunden</small></div><div class="chkrow"><span class="ic no">&#xE711;</span>WireGuard<small>aus</small></div>
    <div class="chkrow"><span class="ic wt">&#xE9CE;</span>Lumora am PC<small>nicht prüfbar</small></div>
    <div class="chkrow"><span class="ic ok">&#xE73E;</span>Dieses Gerät<small>gekoppelt</small></div></div>
-   <span class="btnfull" style="width:100%"><span class="ic s">&#xE705;</span> WireGuard einschalten</span>
+   <span class="btnfull" style="width:100%"><span class="ic s">&#xE705;</span> Unterwegs: WireGuard einschalten</span>
    <span class="btnghost" style="width:100%">Zuletzt gesehene ansehen (offline)</span>
    <div class="d" style="font-size:11px">Andere Fälle: „Lumora am PC läuft nicht“ · „Mobilgeräte am PC ausgeschaltet“ · „Gerade nicht verfügbar“</div></div>`],
  ['Fotos (Zeitleiste)', 'Startseite: alle Fotos der freigegebenen Bibliotheken nach Aufnahmedatum, Monate als Überschrift, Monatsleiste zum Schnell-Scrollen, nachladen beim Scrollen. Oben der verbundene PC. Raster mit den 400-px-Vorschaubildern aus dem Cache am PC.',
   `${sbar}<div class="ahead"><h1>Fotos</h1>${conn}<span class="ib">&#xE71C;</span></div>
-   <div class="scroll"><div class="chips"><span class="chip on"><span class="ic s">&#xE8F1;</span>Familienfotos ▾</span><span class="chip">Favoriten</span><span class="chip">ab 4 ★</span><span class="chip">Videos</span></div>
+   <div class="scroll"><div class="chips"><span class="chip on"><span class="ic s">&#xE72E;</span>Familienfotos ▾</span><span class="chip">Favoriten</span><span class="chip">ab 4 ★</span><span class="chip">Videos</span></div>
    <div class="month">Oktober 2026 <small>214</small></div><div class="grid3">${tiles(16)}</div>
    <div class="month">September 2026 <small>389</small></div><div class="grid3">${tiles(16,5)}</div></div>${tabbar('Fotos')}`],
  ['Alben und Ordner', 'Alben, Ordner der Bibliothek (wie die Ansicht „Ordner“ am PC), Personen und Orte — nur ansehen. Ordner zeigen nur Namen, nie Pfade des PCs.',
@@ -399,22 +403,29 @@ const SCREENS=[
    <div class="sect">Erinnerungen</div><div class="mem">${['Vor 1 Jahr','Vor 3 Jahren','Sommer 2024','Anna'].map((m,i)=>`<span class="m" style="background:${g(i+1)}"><small>${m}</small></span>`).join('')}</div>
    <div class="sect">Storys</div>
    ${['Urlaub Dolomiten|Aug. 2026 · 212 Fotos','Geburtstag Paul|Mai 2026 · 64 Fotos'].map((s,i)=>{const [n,d]=s.split('|');return `<div class="story" style="background:${g(i*3+1)}"><div class="ov"><b>${n}</b><small>${d}</small></div></div>`}).join('')}</div>${tabbar('Storys')}`],
- ['An Lumora senden (Teilen)', 'In der Android-Galerie Fotos wählen › Teilen › Lumora (Recht „hochladen“). Ziel ist der Eingangs-Ordner, den der PC für dieses Gerät festlegt. Schon vorhandene (gleiche Prüfsumme) werden übersprungen, Übertragung setzt nach Abbruch fort. „Fertig“ erst, wenn Lumora jede Datei geprüft hat — am Handy wird nie etwas gelöscht.',
-  `${sbar}<div class="ahead"><h1>Fotos</h1></div><div class="scroll" style="opacity:.35"><div class="grid3">${tiles(24,3)}</div></div>
-   <div class="sheet"><div class="grab"></div><h4>3 Fotos an Lumora senden</h4><div style="font-size:12px;color:var(--text-secondary)">über WireGuard · an Arbeitszimmer-PC</div>
+ ['An Lumora senden (Teilen)', 'In der Android-Galerie Fotos wählen › Teilen › Lumora (Recht „hochladen“). Ziel ist der Eingangs-Ordner, den der PC für dieses Gerät festlegt. Schon vorhandene (gleiche Prüfsumme) werden übersprungen, Übertragung setzt nach Abbruch fort. „Fertig“ erst, wenn Lumora jede Datei geprüft hat — am Handy wird nie etwas gelöscht. Kommt als Erstes (Stufe 3), vor dem Ansehen.',
+  `${sb(false)}<div class="ahead"><h1>Fotos</h1></div><div class="scroll" style="opacity:.35"><div class="grid3">${tiles(24,3)}</div></div>
+   <div class="sheet"><div class="grab"></div><h4>3 Fotos an Lumora senden</h4><div style="font-size:12px;color:var(--text-secondary)">im Heim-WLAN · an Arbeitszimmer-PC</div>
    <div class="pick">${[1,4,6].map(i=>`<span style="background:${g(i)}"></span>`).join('')}</div>
    <div class="opt2"><span class="ic">&#xE8B7;</span><span class="sp">Ziel</span><small>Familienfotos › Vom Handy</small></div>
    <div class="opt2"><span class="ic">&#xE8C8;</span><span class="sp">Schon vorhandene überspringen</span><span class="sw on" style="width:36px;height:18px"></span></div>
    <div class="opt2"><span class="ic">&#xE896;</span><span class="sp">2 von 3 übertragen · 1 schon vorhanden</span></div><div class="bar"><i></i></div>
    <span class="btnfull">Senden</span></div>`],
+ ['Gesendet (App in Stufe 3)', 'Hochladen kommt früh: In der ersten Ausbaustufe kann die App nur senden. Die Startseite zeigt, was angekommen ist — „bestätigt“ heißt: Lumora hat die Prüfsumme geprüft und die Datei liegt im Eingangs-Ordner. Ansehen, Suche und Bewerten kommen mit späteren Updates.',
+  `${sb(false)}<div class="ahead"><h1>Gesendet</h1>${conn}</div><div class="scroll">
+   <span class="btnfull" style="width:100%;margin-bottom:6px"><span class="ic s">&#xE898;</span> Fotos an Lumora senden</span>
+   <div class="sect">Zuletzt</div>
+   ${[['heute 13:58','3 Fotos','2 bestätigt · 1 schon da','ok'],['heute 08:12','1 Video','überträgt · 64 %','wt'],['gestern 19:30','12 Fotos','12 bestätigt','ok']].map(([t,n,st,c],i)=>`<div class="frow"><span style="display:flex;gap:3px">${[0,1].map(k=>`<span style="width:28px;height:28px;border-radius:5px;background:${g(i*2+k)}"></span>`).join('')}</span><span><b style="font-weight:600">${n}</b><br><span style="font-size:11px;color:var(--text-tertiary)">${t}</span></span><small style="color:${c==='ok'?'var(--success)':'var(--text-tertiary)'}">${st}</small></div>`).join('')}
+   <div class="sect">Ziel</div><div class="frow"><span class="fic">&#xE8B7;</span>Familienfotos › Vom Handy<small>am PC festgelegt</small></div>
+   <div class="okline" style="margin-top:12px"><span class="ic">&#xE946;</span><span>Ansehen und Bewerten kommen mit dem nächsten Update der App.</span></div></div>`],
  ['Mehr: Verbindung und Gerät', 'Mit welchem Lumora das Handy verbunden ist, Rechte dieses Geräts (nur am PC änderbar), Sperre und Zwischenspeicher (verschlüsselt, mit Ablauf), App-Update über Lumora am PC, Entkoppeln.',
-  `${sbar}<div class="ahead"><h1>Mehr</h1></div><div class="scroll">
-   <div class="card2"><div class="kv2"><span>Lumora</span><span><span class="pill ok">verbunden</span></span><span>PC</span><span>Arbeitszimmer-PC</span><span>Weg</span><span>WireGuard · TLS mit Gerätezertifikat</span><span>Zertifikat</span><span>gültig bis Okt. 2027</span></div></div>
+  `${sb(false)}<div class="ahead"><h1>Mehr</h1></div><div class="scroll">
+   <div class="card2"><div class="kv2"><span>Lumora</span><span><span class="pill ok">verbunden</span></span><span>PC</span><span>Arbeitszimmer-PC</span><span>Weg</span><span>Heim-WLAN direkt · TLS mit Gerätezertifikat</span><span>Zertifikat</span><span>gültig bis Okt. 2027</span></div></div>
    <div class="sect">Dieses Gerät darf</div><div class="card2" style="padding:4px 14px">
-   ${['Ansehen|Familienfotos, Berge','Bewerten|ja','Originale laden|ja','An Lumora senden|ja'].map(r=>{const [a,b]=r.split('|');return `<div class="opt2" style="border-top:0"><span class="sp">${a}</span><small>${b}</small></div>`}).join('')}
+   ${['Ansehen|Familienfotos (Fingerabdruck), Berge','Bewerten|ja','Originale laden|ja','An Lumora senden|ja'].map(r=>{const [a,b]=r.split('|');return `<div class="opt2" style="border-top:0"><span class="sp">${a}</span><small>${b}</small></div>`}).join('')}
    <div style="font-size:11px;color:var(--text-tertiary);padding:4px 0 10px">Rechte ändern nur am PC.</div></div>
    <div class="sect">Sicherheit am Handy</div><div class="card2" style="padding:4px 14px">
-   <div class="opt2" style="border-top:0"><span class="sp">Sperren nach</span><small>1 Minute ▾</small></div>
+   <div class="opt2" style="border-top:0"><span class="sp">Geschützte Bibliotheken sperren nach</span><small>1 Minute ▾</small></div>
    <div class="opt2"><span class="sp">Bildschirmfotos verhindern</span><span class="sw on" style="width:36px;height:18px"></span></div>
    <div class="opt2"><span class="sp">Zwischenspeicher (verschlüsselt)</span><small>142 von 300 MB · 30 Tage · leeren</small></div></div>
    <div class="sect">App</div><div class="card2" style="padding:4px 14px">
@@ -431,40 +442,44 @@ $('#desk').innerHTML=`<div class="dh"><h1>Einstellungen</h1></div>
  <div class="tabs"><span>Allgemein</span><span>Darstellung</span><span>Bibliotheken</span><span>Verbundene Apps</span><span class="on">Mobilgeräte</span><span>Modelle &amp; Daten</span></div>
  <div class="body" style="max-width:none">
   <div class="card"><h2><span class="ic">&#xE8EA;</span>Mobilgeräte zulassen <span class="pill ok" style="margin-left:6px">an · noch 3:12 h</span><span style="margin-left:auto"><span class="sw on"></span></span></h2>
-   <div class="muted">Gekoppelte Handys sehen deine Fotos über die Lumora-App — nur über WireGuard, nur solange Lumora läuft, nie die versteckten Bibliotheken. Standard: aus.</div>
+   <div class="muted">Gekoppelte Handys sehen deine Fotos über die Lumora-App — unterwegs über WireGuard, zu Hause im Heim-WLAN, nur solange Lumora läuft, nie die versteckten Bibliotheken. Standard: aus.</div>
    <div class="opt"><div><b>Eingeschaltet</b><span class="muted">Danach schaltet Lumora die Verbindung selbst wieder aus.</span></div><span class="sel">für 4 Stunden ▾</span></div>
-   <div class="opt"><div><b>Adresse und Port</b><span class="muted">Heimnetz-Adresse dieses PCs. Verbindungen von anderen Adressen als denen der gekoppelten Geräte werden sofort geschlossen.</span></div><span class="sel">192.0.2.10 (Ethernet) ▾ &nbsp;:&nbsp; 47820</span></div>
+   <div class="opt"><div><b>Adresse und Port</b><span class="muted">Heimnetz-Adresse dieses PCs. Verbindungen von anderen Adressen als denen der gekoppelten Geräte (je Gerät WireGuard- und feste WLAN-Adresse) werden sofort geschlossen.</span></div><span class="sel">192.0.2.10 (Ethernet) ▾ &nbsp;:&nbsp; 47820</span></div>
    <div class="opt"><div><b>Lumora-Stammzertifikat</b><span class="muted">Von Lumora selbst ausgestellt, Schlüssel nicht exportierbar im Windows-Schlüsselspeicher. Die App vertraut nur diesem Zertifikat.</span></div><span class="sel" style="font-family:Consolas,monospace;font-size:12px">SHA-256 7F:3A:…:C2:91</span></div>
    <div class="opt"><div><b>Windows-Firewall</b><span class="muted">Lumora ändert die Firewall nicht. Regel: eingehend, TCP 47820, nur Profil „Privat“, Remote-Adressen = Geräte unten.</span></div><span style="display:flex;gap:8px;align-items:center"><span class="pill warn">Regel zu weit: alle Adressen</span><button class="btn-std">Anleitung…</button><button class="btn-std"><span class="ic s">&#xE72C;</span>Prüfen</button></span></div>
    <div class="opt"><div><b>Für Mobilgeräte im Hintergrund weiterlaufen</b><span class="muted">Fenster schließen beendet Lumora nicht, solange die Verbindung an ist — mit Symbol im Infobereich. Lumora richtet keinen Autostart ein.</span></div><span class="sw"></span></div>
   </div>
   <div class="two">
    <div class="card"><h2><span class="ic">&#xE8EA;</span>Gekoppelte Geräte</h2>
-    ${[['','&#xE8EA;','Pixel 8','192.0.2.201 · Ansehen, bewerten, Originale, senden · Familienfotos, Berge','zuletzt vor 3 Min.','<button class="btn-std">Rechte…</button><button class="btn-std danger"><span class="ic s">&#xE72E;</span>Sperren</button>'],
-       ['','&#xE8EA;','Tablet','192.0.2.202 · Nur ansehen · Familienfotos','seit 94 Tagen nicht da — entfernen?','<button class="btn-std">Rechte…</button><button class="btn-std danger"><span class="ic s">&#xE72E;</span>Sperren</button>'],
+    ${[['','&#xE8EA;','Pixel 8','WireGuard 192.0.2.201 · WLAN 192.0.2.57 · Ansehen, bewerten, Originale, senden · Familienfotos (Fingerabdruck), Berge','zuletzt vor 3 Min. im Heim-WLAN','<button class="btn-std">Rechte…</button><button class="btn-std">Adresse übernehmen</button><button class="btn-std danger"><span class="ic s">&#xE72E;</span>Sperren</button>'],
+       ['','&#xE8EA;','Tablet','WireGuard 192.0.2.202 · WLAN-Adresse fehlt · Nur ansehen · Familienfotos (Fingerabdruck)','<span class="pill warn">Adresse übernehmen läuft · noch 4:38</span> Tablet jetzt im Heim-WLAN öffnen — nur sein Zertifikat zählt.','<button class="btn-std">Abbrechen</button><button class="btn-std danger"><span class="ic s">&#xE72E;</span>Sperren</button>'],
        ['locked','&#xE72E;','Altes Handy','192.0.2.203 · gesperrt am 20. Okt. 2026','Auch in der FritzBox die WireGuard-Verbindung löschen.','<button class="btn-std">Entsperren</button><button class="btn-std danger">Entfernen</button>']].map(([c,ic,n,r,l,b])=>`<div class="devrow ${c}"><span class="devico">${ic}</span><div><b>${n}</b>${c?' <span class="pill bad">gesperrt</span>':''}<small>${r}</small><small style="color:var(--text-tertiary)">${l}</small></div><span style="display:flex;gap:6px">${b}</span></div>`).join('')}
    </div>
    <div class="card"><h2><span class="ic">&#xE710;</span>Gerät hinzufügen</h2>
     <div style="display:flex;gap:16px;align-items:center;margin-top:8px"><span class="qrbig"></span>
-     <div class="muted" style="font-size:12px">1. Lumora-App installieren, am Handy WireGuard einschalten.<br>2. In der App diesen Code scannen.<br>3. Hier den Vergleichscode prüfen und zulassen.<br><br>Code gilt noch <b>4:12</b> · nur einmal</div></div>
+     <div class="muted" style="font-size:12px">1. Lumora-App installieren, Handy ins Heim-WLAN (oder WireGuard einschalten).<br>2. In der App diesen Code scannen.<br>3. Hier den Vergleichscode prüfen und zulassen.<br><br>Code gilt noch <b>4:12</b> · nur einmal</div></div>
     <div class="opt" style="margin-top:10px"><div><b>Neues Gerät darf</b><span class="muted">Bibliotheken wählst du beim Zulassen; Standard: keine.</span></div><span class="sel">Nur ansehen ▾</span></div>
    </div>
   </div>
   <div class="card"><h2><span class="ic">&#xE81C;</span>Protokoll <span class="muted" style="margin-left:auto;font-weight:400">90 Tage · ohne Dateinamen</span></h2>
    <table class="tbl"><tr><th>Zeit</th><th>Gerät</th><th>Adresse</th><th>Was</th></tr>
     <tr><td>heute 14:02</td><td>Pixel 8</td><td>192.0.2.201</td><td>312 Vorschaubilder, 4 Bewertungen</td></tr>
-    <tr><td>heute 13:58</td><td>Pixel 8</td><td>192.0.2.201</td><td>3 Fotos gesendet (1 schon vorhanden)</td></tr>
-    <tr><td>gestern 22:41</td><td>—</td><td>192.0.2.57</td><td><span style="color:var(--danger)">12 abgelehnte Verbindungen · Adresse 1 Stunde ignoriert</span></td></tr></table>
+    <tr><td>heute 13:58</td><td>Pixel 8</td><td>192.0.2.57</td><td>3 Fotos gesendet (1 schon vorhanden)</td></tr>
+    <tr><td>heute 13:40</td><td>Pixel 8</td><td>192.0.2.57</td><td>WLAN-Adresse übernommen</td></tr>
+    <tr><td>gestern 22:41</td><td>—</td><td>192.0.2.88</td><td><span style="color:var(--danger)">12 abgelehnte Verbindungen · Adresse 1 Stunde ignoriert</span></td></tr></table>
   </div>
  </div>
  <div class="deskstat"><span>Familienfotos · 48 213 Fotos</span><span class="r"><span class="ic s">&#xE8EA;</span>Mobilgeräte: an · 1 verbunden</span></div>`;
 
 $('#dlg').innerHTML=`<div class="dt">Neues Gerät koppeln?</div>
  <div class="db"><div>„<b>Pixel 8</b>“ (Android) möchte sich mit Lumora verbinden.</div>
-  <div class="kv"><span>Adresse</span><span>192.0.2.201 (über WireGuard)</span><span>Vergleichscode</span><span><b style="font-size:16px;letter-spacing:.1em">481 297</b> — steht derselbe am Handy?</span></div>
+  <div class="kv"><span>Adresse</span><span>192.0.2.57 (Heim-WLAN) — die WireGuard-Adresse übernimmst du später mit „Adresse übernehmen“</span><span>Vergleichscode</span><span><b style="font-size:16px;letter-spacing:.1em">481 297</b> — steht derselbe am Handy?</span></div>
   <div class="opt" style="padding-top:6px"><div><b>Darf</b></div><span class="sel">Ansehen und bewerten ▾</span></div>
-  <div class="opt"><div><b>Bibliotheken</b></div><span class="sel"><span class="chk on">&#xE73E;</span>Familienfotos &nbsp; <span class="chk on">&#xE73E;</span>Berge &nbsp; <span class="chk">&#xE73E;</span>Arbeit</span></div>
-  <div class="muted">Versteckte Bibliotheken sind nie wählbar. Das Gerät erhält ein Zertifikat für ein Jahr; erneuert sich selbst, solange es nicht gesperrt ist.</div></div>
+  <div><b style="font-size:13px">Bibliotheken</b><table class="tbl"><tr><th>Bibliothek</th><th>Freigeben</th><th>Fingerabdruck verlangen</th></tr>
+   <tr><td>Familienfotos</td><td><span class="chk on">&#xE73E;</span></td><td><span class="chk on">&#xE73E;</span></td></tr>
+   <tr><td>Berge</td><td><span class="chk on">&#xE73E;</span></td><td><span class="chk">&#xE73E;</span></td></tr>
+   <tr><td>Arbeit</td><td><span class="chk">&#xE73E;</span></td><td><span class="chk on" style="opacity:.4">&#xE73E;</span></td></tr></table></div>
+  <div class="muted">Versteckte Bibliotheken sind nie wählbar. Ohne Fingerabdruck sieht die Bibliothek jeder, der das entsperrte Handy hat. Das Gerät erhält zwei Zertifikate für ein Jahr; erneuert sich selbst, solange es nicht gesperrt ist.</div></div>
  <div class="df"><button class="btn-std">Ablehnen</button><button class="btn-acc">Zulassen</button></div>`;
 function theme(d){ document.body.classList.toggle('dark',d); $('#mbLight').classList.toggle('on',!d); $('#mbDark').classList.toggle('on',d); }
 $('#mbLight').onclick=()=>theme(false); $('#mbDark').onclick=()=>theme(true); theme(true);
