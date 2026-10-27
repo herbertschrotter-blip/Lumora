@@ -199,7 +199,9 @@ public sealed partial class ModelPackageItemViewModel : ObservableObject
         ModelPackageCatalog.MapTilesId => SymbolRegular.Map24,
         ModelPackageCatalog.AssistantId => SymbolRegular.Chat24,
         Lumora.Services.Enhance.EnhanceModelCatalog.UpscaleId => SymbolRegular.ArrowExpand24, // Foto verbessern (ADR-0071)
-        Lumora.Services.Enhance.EnhanceModelCatalog.UpscaleNaturalId => SymbolRegular.ArrowExpand24,
+        Lumora.Services.Enhance.EnhanceModelCatalog.UpscaleNaturalId or Lumora.Services.Enhance.EnhanceModelCatalog.UpscaleClearId
+            or Lumora.Services.Enhance.EnhanceModelCatalog.UpscaleClearSoftId or Lumora.Services.Enhance.EnhanceModelCatalog.UpscalePhotoId
+            or Lumora.Services.Enhance.EnhanceModelCatalog.UpscaleSiaxId or Lumora.Services.Enhance.EnhanceModelCatalog.UpscaleSkinId => SymbolRegular.ArrowExpand24,
         Lumora.Services.Enhance.EnhanceModelCatalog.FacesId => SymbolRegular.PersonSquare24,
         Lumora.Services.Enhance.EnhanceModelCatalog.ColorizeId => SymbolRegular.Color24,
         Lumora.Services.Enhance.EnhanceModelCatalog.InpaintId => SymbolRegular.Eraser24,

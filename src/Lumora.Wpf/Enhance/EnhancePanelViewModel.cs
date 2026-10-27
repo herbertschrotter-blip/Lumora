@@ -65,6 +65,12 @@ public sealed partial class EnhanceToolItem : ObservableObject
 
     /// <summary>Eintrag in Modelle &amp; Daten, den „Laden…“ holt.</summary>
     public string? LoadId { get; set; }
+
+    /// <summary>Text des Knopfs „Modell … laden…“ (Hochskalier-Modelle, mit Größe).</summary>
+    public string LoadText { get; init; } = string.Empty;
+
+    /// <summary>Auswahl neu melden (ein Klick auf den schon gewählten Knopf hat ihn sonst optisch abgewählt).</summary>
+    public void NotifySelection() => OnPropertyChanged(nameof(IsSelected));
 }
 
 /// <summary>
@@ -105,7 +111,10 @@ public sealed partial class EnhancePanelViewModel : ObservableObject, IEnhanceBr
             new(this, EnhanceTool.Adjust, "Zuschneiden, drehen, Licht", "Helligkeit, Kontrast, Drehen, Zuschnitt", SymbolRegular.Crop24),
         ];
         Tools[0].IsSelected = true;
-        NaturalModel = new(this, EnhanceTool.UpscaleNatural, "Natürlich", "Real-ESRGAN general x4v3", SymbolRegular.ArrowExpand24);
+        UpscaleModels = EnhanceUpscaleModels.All
+            .Select(c => new EnhanceToolItem(this, c.Engine, c.Label, c.Hint, SymbolRegular.ArrowExpand24) { LoadText = LoadTextOf(c) })
+            .ToList();
+        UpscaleModels[0].IsSelected = true;
         if (_models is not null)
         {
             _models.PackageChanged += OnPackageChanged;
@@ -173,15 +182,28 @@ public sealed partial class EnhancePanelViewModel : ObservableObject, IEnhanceBr
     /// <summary>Körnung beim Hochskalieren 0…1; gemerkt in Einstellungen › Verbessern.</summary>
     [ObservableProperty] private double _grain = EnhanceSettings.DefaultGrain;
 
-    /// <summary>Modell beim Hochskalieren (0.5.7): Scharf (x4plus) oder Natürlich (general x4v3); gemerkt in Einstellungen › Verbessern.</summary>
+    /// <summary>Modell beim Hochskalieren (0.5.7/0.5.11, <see cref="EnhanceUpscaleModels"/>), je Foto wählbar; die letzte Wahl merkt sich Einstellungen › Verbessern.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsNaturalModel))]
+    [NotifyPropertyChangedFor(nameof(IsNaturalModel), nameof(ChosenUpscaleModel))]
     private EnhanceUpscaleModel _upscaleModel = EnhanceUpscaleModel.Sharp;
 
     public bool IsNaturalModel => UpscaleModel == EnhanceUpscaleModel.Natural;
 
-    /// <summary>Zustand des zweiten Hochskalier-Modells („bereit“, „Modell fehlt“, „Laden…“) — keine eigene Karte.</summary>
-    public EnhanceToolItem NaturalModel { get; }
+    /// <summary>Die Hochskalier-Modelle als Knöpfe (gewählt = <see cref="EnhanceToolItem.IsSelected"/>) mit Zustand und „Laden…“ — keine eigenen Karten.</summary>
+    public IReadOnlyList<EnhanceToolItem> UpscaleModels { get; }
+
+    /// <summary>Das gewählte Hochskalier-Modell (Zustand und „Laden…“ unter den Knöpfen).</summary>
+    public EnhanceToolItem ChosenUpscaleModel => UpscaleModels.First(m => m.Tool == EnhanceUpscaleModels.EngineOf(UpscaleModel));
+
+    /// <summary>Zustand des Modells „Natürlich“ (0.5.7).</summary>
+    public EnhanceToolItem NaturalModel => UpscaleModels.First(m => m.Tool == EnhanceTool.UpscaleNatural);
+
+    private static string LoadTextOf(EnhanceUpscaleChoice choice)
+    {
+        var size = EnhanceModelCatalog.DefinitionOf(choice.Engine)?.DownloadSize ?? 0;
+        var mb = Math.Max(1, (int)Math.Round(size / 1_000_000.0));
+        return $"Modell „{choice.Label}“ laden… (≈ {mb} MB)";
+    }
 
     /// <summary>Gelesene Einstellungen (zum Merken geänderter Regler).</summary>
     private EnhanceSettings? _loadedSettings;
@@ -235,10 +257,39 @@ public sealed partial class EnhancePanelViewModel : ObservableObject, IEnhanceBr
 
     partial void OnGrainChanged(double value) => Stale();
 
-    partial void OnUpscaleModelChanged(EnhanceUpscaleModel value) => Stale();
+    partial void OnUpscaleModelChanged(EnhanceUpscaleModel value)
+    {
+        var engine = EnhanceUpscaleModels.EngineOf(value);
+        foreach (var item in UpscaleModels)
+        {
+            item.IsSelected = item.Tool == engine;
+        }
 
+        Stale();
+    }
+
+    /// <summary>Modell wählen: Name der Wahl („sharp“, „natural“, „clear“ …) bzw. das Knopf-Element.</summary>
     [RelayCommand]
-    private void SetUpscaleModel(string? model) => UpscaleModel = model == "natural" ? EnhanceUpscaleModel.Natural : EnhanceUpscaleModel.Sharp;
+    private void SetUpscaleModel(object? model)
+    {
+        if (model is EnhanceToolItem item && EnhanceUpscaleModels.IsEngine(item.Tool))
+        {
+            UpscaleModel = EnhanceUpscaleModels.Of(item.Tool).Model;
+        }
+        else if (model is string name && Enum.TryParse<EnhanceUpscaleModel>(name, ignoreCase: true, out var parsed) && Enum.IsDefined(parsed))
+        {
+            UpscaleModel = parsed;
+        }
+        else
+        {
+            UpscaleModel = EnhanceUpscaleModel.Sharp;
+        }
+
+        foreach (var button in UpscaleModels)
+        {
+            button.NotifySelection();
+        }
+    }
 
     /// <summary>Regler „Natürlichkeit“ sichtbar: beim Hochskalieren und bei „Automatisch“ (kann hochskalieren).</summary>
     public bool ShowNaturalness => Tool(EnhanceTool.Upscale).IsSelected || Tool(EnhanceTool.Auto).IsSelected;
@@ -355,8 +406,8 @@ public sealed partial class EnhancePanelViewModel : ObservableObject, IEnhanceBr
             var status = await _service.GetToolStatusAsync().ConfigureAwait(true);
             foreach (var s in status)
             {
-                // Das zweite Hochskalier-Modell hat keine eigene Karte (0.5.7)
-                var item = s.Tool == EnhanceTool.UpscaleNatural ? NaturalModel : Tool(s.Tool);
+                // Weitere Hochskalier-Modelle haben keine eigene Karte (0.5.7/0.5.11)
+                var item = s.Tool != EnhanceTool.Upscale && EnhanceUpscaleModels.IsEngine(s.Tool) ? UpscaleModels.First(m => m.Tool == s.Tool) : Tool(s.Tool);
                 item.IsReady = s.Ready;
                 item.StateText = s.StateText;
                 var needsFaces = s.StateText == "braucht Gesichtserkennung";

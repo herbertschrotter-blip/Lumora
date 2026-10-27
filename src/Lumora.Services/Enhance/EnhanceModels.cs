@@ -28,6 +28,17 @@ public enum EnhanceTool
     /// <see cref="EnhanceOptions.UpscaleModel"/>; das Ergebnis zählt als „Hochskalieren“.
     /// </summary>
     UpscaleNatural = 6,
+
+    /// <summary>Weitere Hochskalier-Modelle (0.5.11, <see cref="EnhanceUpscaleModels"/>) — wie <see cref="UpscaleNatural"/> ohne eigene Karte.</summary>
+    UpscaleClear = 7,
+
+    UpscaleClearSoft = 8,
+
+    UpscalePhoto = 9,
+
+    UpscaleSiax = 10,
+
+    UpscaleSkin = 11,
 }
 
 /// <summary>Welches Modell beim Hochskalieren rechnet (0.5.7).</summary>
@@ -38,6 +49,21 @@ public enum EnhanceUpscaleModel
 
     /// <summary>Real-ESRGAN general x4v3: kleiner, erhält Hautstruktur und Korn besser.</summary>
     Natural = 1,
+
+    /// <summary>4x-ClearRealityV1 (0.5.11): weich und natürlich, Gesichter und Haare.</summary>
+    Clear = 2,
+
+    /// <summary>4x-ClearRealityV1 Soft: noch weicher.</summary>
+    ClearSoft = 3,
+
+    /// <summary>4xNomosWebPhoto_RealPLKSR: Handy-/Webfotos mit Rauschen und JPEG-Spuren.</summary>
+    Photo = 4,
+
+    /// <summary>4x_NMKD-Siax_200k: universell für saubere Fotos.</summary>
+    Siax = 5,
+
+    /// <summary>4x_foolhardy_Remacri: mehr Detail, weniger Glätten auf Haut (nur nicht-kommerziell).</summary>
+    Skin = 6,
 }
 
 /// <summary>Ein Bild als RGB24-Puffer (3 Bytes je Pixel, Zeile für Zeile ohne Auffüllung, EXIF-Ausrichtung angewandt).</summary>
@@ -106,8 +132,8 @@ public sealed record EnhanceOptions
     /// <summary>Modell beim Hochskalieren (0.5.7); null = Einstellung.</summary>
     public EnhanceUpscaleModel? UpscaleModel { get; init; }
 
-    /// <summary>Engine, die das Hochskalieren rechnet (<see cref="EnhanceTool.Upscale"/> bzw. <see cref="EnhanceTool.UpscaleNatural"/>).</summary>
-    public EnhanceTool UpscaleEngine => UpscaleModel == EnhanceUpscaleModel.Natural ? EnhanceTool.UpscaleNatural : EnhanceTool.Upscale;
+    /// <summary>Engine, die das Hochskalieren rechnet (<see cref="EnhanceUpscaleModels"/>; ohne Wahl „Scharf“).</summary>
+    public EnhanceTool UpscaleEngine => EnhanceUpscaleModels.EngineOf(UpscaleModel ?? EnhanceUpscaleModel.Sharp);
 
     public bool Faces { get; init; }
 
@@ -285,6 +311,8 @@ public static class EnhanceTexts
         EnhanceTool.Auto => "Automatisch",
         EnhanceTool.Upscale => "Hochskalieren",
         EnhanceTool.UpscaleNatural => "Hochskalieren (natürlich)",
+        EnhanceTool.UpscaleClear or EnhanceTool.UpscaleClearSoft or EnhanceTool.UpscalePhoto or EnhanceTool.UpscaleSiax or EnhanceTool.UpscaleSkin
+            => $"Hochskalieren ({EnhanceUpscaleModels.Of(tool).Label})",
         EnhanceTool.Faces => "Gesichter",
         EnhanceTool.Colorize => "Einfärben",
         EnhanceTool.Erase => "Entfernen",
@@ -295,7 +323,7 @@ public static class EnhanceTexts
     /// <summary>Kurzkennung für <c>PhotoVariants.Tools</c>.</summary>
     public static string Key(EnhanceTool tool) => tool switch
     {
-        EnhanceTool.Upscale or EnhanceTool.UpscaleNatural => "upscale",
+        _ when EnhanceUpscaleModels.IsEngine(tool) => "upscale",
         EnhanceTool.Faces => "faces",
         EnhanceTool.Colorize => "colorize",
         EnhanceTool.Erase => "erase",

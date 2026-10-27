@@ -98,6 +98,17 @@ public sealed class EnhanceUiTests : IDisposable
 
         store.Saved.Should().ContainSingle().Which.Should().Match<EnhanceSettings>(s => s.Naturalness == 0.6 && s.Grain == 0.3 && s.UpscaleModel == EnhanceUpscaleModel.Natural);
         store.Current.Location.Should().Be(EnhanceSettings.Default.Location, "die übrigen Einstellungen bleiben");
+
+        // 0.5.11: sieben Modelle als Knöpfe, genau einer gewählt, „Laden…“ mit Größe
+        vm.UpscaleModels.Select(m => m.Title).Should().Equal("Scharf", "Natürlich", "Klar", "Klar weich", "Foto", "Siax", "Haut");
+        vm.SetUpscaleModelCommand.Execute(vm.UpscaleModels.Single(m => m.Title == "Haut"));
+        vm.UpscaleModel.Should().Be(EnhanceUpscaleModel.Skin);
+        vm.ChosenUpscaleModel.Tool.Should().Be(EnhanceTool.UpscaleSkin);
+        vm.UpscaleModels.Where(m => m.IsSelected).Should().ContainSingle().Which.Title.Should().Be("Haut");
+        vm.ChosenUpscaleModel.LoadText.Should().Be("Modell „Haut“ laden… (≈ 72 MB)");
+        vm.BuildOptions().UpscaleEngine.Should().Be(EnhanceTool.UpscaleSkin);
+        vm.SetUpscaleModelCommand.Execute("clear");
+        vm.ChosenUpscaleModel.Title.Should().Be("Klar");
     });
 
     private sealed class SeededSettingsStore : IEnhanceSettingsStore
@@ -430,7 +441,8 @@ public sealed class EnhanceUiTests : IDisposable
         using var vm = new EnhanceSettingsViewModel(store, manager, new ScriptedDialogs(), sections);
         await vm.RefreshAsync();
 
-        vm.Models.Select(m => m.ModelName).Should().Equal("Real-ESRGAN x4plus", "Real-ESRGAN general x4v3", "GFPGAN v1.4", "DeOldify (artistic)", "LaMa (big-lama)");
+        vm.Models.Select(m => m.ModelName).Should().Equal("Real-ESRGAN x4plus", "Real-ESRGAN general x4v3",
+            "4x-ClearRealityV1", "4x-ClearRealityV1 Soft", "4xNomosWebPhoto RealPLKSR", "4x NMKD Siax 200k", "4x foolhardy Remacri", "GFPGAN v1.4", "DeOldify (artistic)", "LaMa (big-lama)");
         vm.Models.Should().OnlyContain(m => m.StateText == "nicht geladen" && m.CanLoad && m.SizeText.StartsWith("≈ ", StringComparison.Ordinal));
         vm.FileNameExample.Should().Be("Foto_verbessert.jpg");
 

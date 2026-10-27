@@ -62,7 +62,7 @@ public static class EnhanceAutoPlanner
         var edge = Math.Max(image.Width, image.Height);
         if (edge < SmallImageEdge)
         {
-            if (ready.Contains(EnhanceTool.Upscale) || ready.Contains(EnhanceTool.UpscaleNatural))
+            if (EnhanceUpscaleModels.Engines.Any(ready.Contains))
             {
                 options = options with { Upscale = true, UpscaleFactor = edge < TinyImageEdge ? 4 : 2 };
             }

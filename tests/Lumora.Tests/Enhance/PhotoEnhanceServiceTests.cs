@@ -207,6 +207,31 @@ public sealed class PhotoEnhanceServiceTests
     }
 
     [Fact]
+    public async Task Weitere_Modelle_je_Foto_waehlbar_und_Automatisch_weicht_auf_ein_geladenes_aus()
+    {
+        // 0.5.11: Klar, Klar weich, Foto, Siax, Haut — je eine eigene Modelldatei, Ergebnis zählt als „Hochskalieren“
+        await using var w = await EnhanceWorld.CreateAsync(["Garten.jpg"], ready: [EnhanceTool.UpscaleSkin, EnhanceTool.UpscaleClear]);
+        var id = await w.IdAsync("Garten.jpg");
+
+        var skin = await w.Service.RenderAsync(id, new EnhanceOptions { Upscale = true, UpscaleModel = EnhanceUpscaleModel.Skin });
+        var clear = await w.Service.RenderAsync(id, new EnhanceOptions { Upscale = true, UpscaleModel = EnhanceUpscaleModel.Clear });
+
+        w.Engines.Created.Should().Equal(EnhanceTool.UpscaleSkin, EnhanceTool.UpscaleClear);
+        skin.AppliedTools.Should().Equal(EnhanceTool.Upscale);
+        skin.ToolsKey.Should().Be("upscale");
+        skin.Notes.Should().Contain("Modell „Haut“ (4x foolhardy Remacri).");
+        clear.Notes.Should().Contain("Modell „Klar“ (4x-ClearRealityV1).");
+        var status = await w.Service.GetToolStatusAsync();
+        status.Select(s => s.Tool).Should().Contain(EnhanceUpscaleModels.Engines);
+        status.Single(s => s.Tool == EnhanceTool.UpscaleSiax).Should().Match<EnhanceToolStatus>(s => !s.Ready && s.ModelId == EnhanceModelCatalog.UpscaleSiaxId);
+
+        // gewählt „Scharf“, aber nur Klar/Haut geladen: Automatisch nimmt das erste geladene in Knopf-Reihenfolge
+        var auto = await w.Service.RenderAsync(id, new EnhanceOptions { Auto = true, UpscaleModel = EnhanceUpscaleModel.Sharp });
+        w.Engines.Processed.Last().Should().Be(EnhanceTool.UpscaleClear);
+        auto.Notes.Should().Contain(n => n.Contains("Modell fehlt — Hochskalieren (Klar) verwendet", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task Modell_Natuerlich_fehlt_nur_Automatisch_weicht_auf_Scharf_aus()
     {
         await using var w = await EnhanceWorld.CreateAsync(["Garten.jpg"], ready: [EnhanceTool.Upscale]);

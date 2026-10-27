@@ -73,6 +73,8 @@ internal sealed partial class SmokeScenario
         Check(models.SequenceEqual([
                 ModelPackageCatalog.FacesId, ModelPackageCatalog.MotifsId,
                 Services.Enhance.EnhanceModelCatalog.UpscaleId, Services.Enhance.EnhanceModelCatalog.UpscaleNaturalId, // „Foto verbessern“ (ADR-0071)
+                Services.Enhance.EnhanceModelCatalog.UpscaleClearId, Services.Enhance.EnhanceModelCatalog.UpscaleClearSoftId, Services.Enhance.EnhanceModelCatalog.UpscalePhotoId,
+                Services.Enhance.EnhanceModelCatalog.UpscaleSiaxId, Services.Enhance.EnhanceModelCatalog.UpscaleSkinId, // 0.5.11
                 Services.Enhance.EnhanceModelCatalog.FacesId,
                 Services.Enhance.EnhanceModelCatalog.ColorizeId, Services.Enhance.EnhanceModelCatalog.InpaintId,
                 SmokeModelPackages.Id]),

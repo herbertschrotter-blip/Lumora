@@ -137,3 +137,31 @@ Umwandlungsskript aus den offiziellen Gewichten liegt dort bei. Die Prüfsumme h
   nicht geladen → `EnhanceModelMissingException` wie bei jedem Modell. „Automatisch“ nimmt das gewählte Modell und
   weicht mit Hinweis auf das andere aus, wenn nur dieses geladen ist.
 - „Natürlichkeit“ und „Körnung“ (0.5.6) wirken bei beiden Modellen.
+
+## Nachtrag 0.5.11 — Fünf weitere Hochskalier-Modelle, je Foto wählbar (Herbert, 2026-10-27)
+
+**Anlass:** Herbert: Haut großflächig (Körper) wirkt auch mit „Natürlich“ nicht immer gut; er will je Bild festlegen, was
+am besten ist. Recherche (OpenModelDB, Hugging Face, GitHub-Releases; nur Metadaten) und Test-Download nach Freigabe in
+`werkzeuge\models\enhance-test` (nie ins Repo). Alle fünf Dateien laden auf der CPU, vergrößern genau 4× und tragen die
+erwartete Prüfsumme (Test `OnnxUpscaleModelTests`, nur mit `LUMORA_ENHANCE_MODELS`).
+
+| Knopf | Modell | Quelle (fester Stand) | Größe | Lizenz |
+|---|---|---|---|---|
+| Klar | 4x-ClearRealityV1 (SPAN) | Kim2091, offizielles fp32-ONNX, Commit `6bfd32e…` | 1,7 MB | Apache-2.0 (seit 2026-02-11) |
+| Klar weich | 4x-ClearRealityV1 Soft | wie oben, Unterordner `Soft_fp32` | 1,7 MB | Apache-2.0 |
+| Foto | 4xNomosWebPhoto RealPLKSR | Phhofm, offizielles fp32-ONNX im Release `4xNomosWebPhoto_RealPLKSR` | 29,8 MB | CC-BY-4.0 |
+| Siax | 4x NMKD Siax 200k (ESRGAN) | Community-ONNX yuvraj108c, Commit `4b81f91…` | 71,6 MB | WTFPL |
+| Haut | 4x foolhardy Remacri (ESRGAN) | Community-ONNX yuvraj108c, Commit `4b81f91…` | 71,6 MB | CC-BY-NC-SA-4.0 |
+
+**Entscheidung:**
+- `EnhanceUpscaleModels` führt die sieben Wahlmöglichkeiten (Modell, Engine, Knopf-Text, Hinweis) in Knopf-Reihenfolge; je
+  Modell eine Engine `EnhanceTool.Upscale…` mit eigenem Eintrag in Modelle & Daten (`enhance.upscale-clear`, `-clear-soft`,
+  `-photo`, `-siax`, `-skin`). Alle laufen über denselben `OnnxUpscaler` (RGB 0…1, Faktor aus der Ausgabe); das Ergebnis
+  zählt weiter als `upscale`.
+- Die Leiste zeigt die Modelle als Knöpfe (Umbruch), darunter Hinweis, Zustand und „Modell … laden… (≈ n MB)“ des gewählten.
+  Die letzte Wahl merkt sich `enhance.upscaleModel`; „Automatisch“ weicht auf das erste geladene in Knopf-Reihenfolge aus.
+- **Lizenz-Ausnahme:** Remacri ist nur nicht-kommerziell. Bisher blieben solche Modelle draußen (CodeFormer); Herbert hat
+  Remacri für die private Nutzung ausdrücklich gewählt. Der Eintrag ist als eingeschränkt markiert (`LicenseRestricted`),
+  der Download braucht wie jeder andere die Bestätigung mit Lizenz.
+- Community-Fassungen (Siax, Remacri) wie bei general x4v3: die Prüfsumme hält die Datei fest. Für Nomos WebPhoto nennt der
+  Urheber keine Prüfsumme; sie wurde aus der geladenen Datei gebildet.

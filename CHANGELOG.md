@@ -3,6 +3,18 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.11] — 2026-10-27
+
+### Added — Foto verbessern: fünf weitere Hochskalier-Modelle, je Foto wählbar
+- Beim Hochskalieren stehen jetzt sieben Modelle als Knöpfe zur Wahl: **Scharf**, **Natürlich** und neu **Klar**
+  (ClearReality, weich und natürlich, Gesichter und Haare), **Klar weich** (ClearReality Soft), **Foto** (Nomos WebPhoto,
+  Handy-/Webfotos mit Rauschen und JPEG-Spuren), **Siax** (universell) und **Haut** (Remacri, mehr Detail und weniger Glätten
+  auf Haut). Unter den Knöpfen stehen Hinweis, Zustand und „Modell … laden… (≈ n MB)“ des gewählten Modells.
+- Je Modell ein Eintrag in Einstellungen › Modelle & Daten bzw. › Verbessern mit festem Stand, Größe und SHA-256; geladen
+  wird erst nach Bestätigung. Remacri ist nur nicht-kommerziell (für die private Nutzung gewählt) und als eingeschränkt
+  markiert. „Automatisch“ weicht auf das erste geladene Modell aus.
+- ADR-0071 Nachtrag 0.5.11; Test mit den echten Modellen (nur mit `LUMORA_ENHANCE_MODELS`): Prüfsumme, Laden, 4× größer.
+
 ## [0.5.10] — 2026-10-27
 
 ### Added — Hintergrund-Planer: Reihenfolge, Datei nur einmal lesen, Pause für alle, bessere Restzeit

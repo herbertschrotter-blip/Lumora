@@ -273,19 +273,29 @@ public sealed class EnhanceBuildingBlocksTests
     public void Modell_Register_mit_festen_Commits_Groessen_Pruefsummen_und_freien_Lizenzen()
     {
         EnhanceModelCatalog.All.Select(e => e.Definition.Id).Should().Equal(
-            EnhanceModelCatalog.UpscaleId, EnhanceModelCatalog.UpscaleNaturalId, EnhanceModelCatalog.FacesId, EnhanceModelCatalog.ColorizeId, EnhanceModelCatalog.InpaintId);
+            EnhanceModelCatalog.UpscaleId, EnhanceModelCatalog.UpscaleNaturalId,
+            EnhanceModelCatalog.UpscaleClearId, EnhanceModelCatalog.UpscaleClearSoftId, EnhanceModelCatalog.UpscalePhotoId,
+            EnhanceModelCatalog.UpscaleSiaxId, EnhanceModelCatalog.UpscaleSkinId,
+            EnhanceModelCatalog.FacesId, EnhanceModelCatalog.ColorizeId, EnhanceModelCatalog.InpaintId);
         foreach (var (definition, baseUri) in EnhanceModelCatalog.All)
         {
             baseUri.Scheme.Should().Be("https");
-            Regex.IsMatch(baseUri.AbsoluteUri, "/resolve/[0-9a-f]{40}/$").Should().BeTrue("fester Commit statt main: " + baseUri);
+            // fester Stand statt main: Commit (Hugging Face) bzw. benanntes Release (GitHub)
+            (Regex.IsMatch(baseUri.AbsoluteUri, "/resolve/[0-9a-f]{40}/") || baseUri.AbsoluteUri.StartsWith("https://github.com/Phhofm/models/releases/download/", StringComparison.Ordinal))
+                .Should().BeTrue("fester Stand: " + baseUri);
+            baseUri.AbsoluteUri.Should().EndWith("/");
             definition.Group.Should().Be(ModelPackageGroup.Model);
-            definition.LicenseRestricted.Should().BeFalse("CodeFormer (nur nicht-kommerziell) ist bewusst nicht dabei");
+            // CodeFormer (nur nicht-kommerziell) bleibt draußen; einzig Remacri („Haut“) ist eingeschränkt und so markiert
+            definition.LicenseRestricted.Should().Be(definition.Id == EnhanceModelCatalog.UpscaleSkinId);
             definition.FileList.Should().ContainSingle();
             definition.FileList[0].Sha256.Should().MatchRegex("^[0-9a-f]{64}$");
-            // general x4v3 (0.5.7) ist klein (≈ 5 MB, SRVGGNetCompact); die übrigen über 50 MB
-            definition.DownloadSize.Should().Be(definition.InstalledSize).And.BeGreaterThan(definition.Id == EnhanceModelCatalog.UpscaleNaturalId ? 4_000_000 : 50_000_000);
-            definition.Origin.Website!.Host.Should().Be("github.com");
+            definition.DownloadSize.Should().Be(definition.InstalledSize).And.BeGreaterThan(1_000_000);
+            definition.Origin.Website!.Scheme.Should().Be("https");
         }
+
+        EnhanceModelCatalog.UpscaleSkin.License.Should().Contain("nicht-kommerziell");
+        EnhanceUpscaleModels.All.Select(c => EnhanceModelCatalog.DefinitionOf(c.Engine)).Should().OnlyContain(d => d != null, "jedes wählbare Modell hat einen Eintrag");
+        EnhanceUpscaleModels.All.Select(c => c.Model).Should().OnlyHaveUniqueItems().And.Equal(Enum.GetValues<EnhanceUpscaleModel>());
     }
 
     [Fact]
@@ -308,7 +318,7 @@ public sealed class EnhanceBuildingBlocksTests
             var manager = provider.GetRequiredService<IModelPackageManager>();
             var access = new EnhanceModelAccess(manager);
 
-            manager.Packages.Select(p => p.Definition.Id).Should().HaveCount(5, "seit 0.5.7 mit „Hochskalieren (natürlich)“");
+            manager.Packages.Select(p => p.Definition.Id).Should().HaveCount(10, "seit 0.5.11 mit sieben Hochskalier-Modellen");
             (await access.GetStateAsync(EnhanceTool.Upscale, default)).Should().Be(EnhanceModelState.NotInstalled);
             (await access.GetStateAsync(EnhanceTool.Adjust, default)).Should().Be(EnhanceModelState.Ready, "Zuschneiden/Licht braucht kein Modell");
             access.GetModelPath(EnhanceTool.Erase).Should().Be(Path.Combine(root, "enhance-inpaint", EnhanceModelCatalog.InpaintFile));

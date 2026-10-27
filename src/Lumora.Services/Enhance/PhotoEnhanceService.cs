@@ -129,7 +129,7 @@ public sealed class PhotoEnhanceService : IPhotoEnhanceService, IDisposable
     {
         var list = new List<EnhanceToolStatus>();
         var ready = new HashSet<EnhanceTool>();
-        foreach (var tool in new[] { EnhanceTool.Upscale, EnhanceTool.UpscaleNatural, EnhanceTool.Faces, EnhanceTool.Colorize, EnhanceTool.Erase })
+        foreach (var tool in EnhanceUpscaleModels.Engines.Concat([EnhanceTool.Faces, EnhanceTool.Colorize, EnhanceTool.Erase]))
         {
             var state = await _models.GetStateAsync(tool, ct).ConfigureAwait(false);
             var name = EnhanceModelCatalog.DefinitionOf(tool)?.Name;
@@ -388,23 +388,20 @@ public sealed class PhotoEnhanceService : IPhotoEnhanceService, IDisposable
             }
 
             var beforeUpscale = image;
-            // Gewähltes Modell (0.5.7); „Automatisch“ weicht auf das andere aus, wenn nur dieses geladen ist
+            // Gewähltes Modell (0.5.7/0.5.11); „Automatisch“ weicht auf ein geladenes aus (Reihenfolge der Knöpfe)
             var engine = options.UpscaleEngine;
-            if (!ready.Contains(engine))
+            if (!ready.Contains(engine) && EnhanceUpscaleModels.Engines.FirstOrDefault(ready.Contains) is var other && other != default)
             {
-                var other = engine == EnhanceTool.UpscaleNatural ? EnhanceTool.Upscale : EnhanceTool.UpscaleNatural;
-                if (ready.Contains(other))
-                {
-                    notes.Add($"{EnhanceTexts.Name(engine)}: Modell fehlt — {EnhanceTexts.Name(other)} verwendet.");
-                    engine = other;
-                }
+                notes.Add($"{EnhanceTexts.Name(engine)}: Modell fehlt — {EnhanceTexts.Name(other)} verwendet.");
+                engine = other;
             }
 
             image = await RunEngineAsync(engine, new EnhanceStepInput(image, Factor: factor), settings.UseGpu, ct).ConfigureAwait(false);
             applied.Add(EnhanceTool.Upscale);
-            if (engine == EnhanceTool.UpscaleNatural)
+            if (engine != EnhanceTool.Upscale)
             {
-                notes.Add("Modell „Natürlich“ (Real-ESRGAN general x4v3).");
+                var choice = EnhanceUpscaleModels.Of(engine);
+                notes.Add($"Modell „{choice.Label}“ ({EnhanceModelCatalog.DefinitionOf(engine)?.Name}).");
             }
 
             // Natürlichkeit (0.5.6): etwas Original zurück und feine Körnung gegen die glatte „Plastikhaut“ des Modells

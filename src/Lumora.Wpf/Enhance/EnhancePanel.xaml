@@ -150,27 +150,33 @@
                                           IsChecked="{Binding IsUpscale4, Mode=OneWay}"
                                           Command="{Binding SetUpscaleFactorCommand}" CommandParameter="4" AutomationProperties.Name="4-fach" />
                         </StackPanel>
-                        <!-- Modell (0.5.7): Scharf = x4plus, Natürlich = general x4v3 (erhält Hautstruktur) -->
+                        <!-- Modell (0.5.7/0.5.11): je Foto wählbar, Zustand und „Laden…“ des gewählten darunter -->
                         <TextBlock Style="{StaticResource EnhanceLabel}" Text="Modell" />
-                        <StackPanel Orientation="Horizontal">
-                            <ToggleButton Content="Scharf" MinWidth="72" Margin="0,0,6,0" Focusable="False"
-                                          ToolTip="Real-ESRGAN x4plus — kräftig geschärft, glättet Haut"
-                                          IsChecked="{Binding IsNaturalModel, Mode=OneWay, Converter={x:Static local:InverseBoolConverter.Instance}}"
-                                          Command="{Binding SetUpscaleModelCommand}" CommandParameter="sharp" AutomationProperties.Name="Modell Scharf" />
-                            <ToggleButton Content="Natürlich" MinWidth="72" Margin="0,0,8,0" Focusable="False"
-                                          ToolTip="Real-ESRGAN general x4v3 — erhält Hautstruktur und Korn"
-                                          IsChecked="{Binding IsNaturalModel, Mode=OneWay}"
-                                          Command="{Binding SetUpscaleModelCommand}" CommandParameter="natural" AutomationProperties.Name="Modell Natürlich" />
-                            <TextBlock VerticalAlignment="Center" FontSize="11" Text="{Binding NaturalModel.StateText}"
-                                       Foreground="{DynamicResource LightboxTextSecondaryBrush}"
-                                       Visibility="{Binding IsNaturalModel, Converter={StaticResource BoolToVis}}" />
-                        </StackPanel>
+                        <ItemsControl ItemsSource="{Binding UpscaleModels}" Focusable="False" AutomationProperties.Name="Modelle zum Hochskalieren">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type local:EnhanceToolItem}">
+                                    <ToggleButton Content="{Binding Title}" MinWidth="64" Margin="0,0,6,6" Focusable="False"
+                                                  ToolTip="{Binding Subtitle}"
+                                                  IsChecked="{Binding IsSelected, Mode=OneWay}"
+                                                  Command="{Binding Owner.SetUpscaleModelCommand}" CommandParameter="{Binding}"
+                                                  AutomationProperties.Name="{Binding Title, StringFormat='Modell {0}'}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource LightboxTextSecondaryBrush}">
+                            <Run Text="{Binding ChosenUpscaleModel.Subtitle, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding ChosenUpscaleModel.StateText, Mode=OneWay}" />
+                        </TextBlock>
                         <Button Style="{StaticResource EnhanceSmallButton}" Margin="0,6,0,0" HorizontalAlignment="Left"
-                                Command="{Binding LoadModelCommand}" CommandParameter="{Binding NaturalModel}"
-                                Visibility="{Binding NaturalModel.CanLoad, Converter={StaticResource BoolToVis}}"
-                                IsEnabled="{Binding NaturalModel.IsLoading, Converter={x:Static local:InverseBoolConverter.Instance}}"
-                                AutomationProperties.Name="Modell Natürlich laden">
-                            <TextBlock Text="Modell „Natürlich“ laden… (≈ 5 MB)" FontSize="11" Foreground="{DynamicResource LightboxTextBrush}" />
+                                Command="{Binding LoadModelCommand}" CommandParameter="{Binding ChosenUpscaleModel}"
+                                Visibility="{Binding ChosenUpscaleModel.CanLoad, Converter={StaticResource BoolToVis}}"
+                                IsEnabled="{Binding ChosenUpscaleModel.IsLoading, Converter={x:Static local:InverseBoolConverter.Instance}}"
+                                AutomationProperties.Name="{Binding ChosenUpscaleModel.LoadText}">
+                            <TextBlock Text="{Binding ChosenUpscaleModel.LoadText}" FontSize="11" Foreground="{DynamicResource LightboxTextBrush}" />
                         </Button>
                     </StackPanel>
 

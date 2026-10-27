@@ -81,6 +81,11 @@ public sealed partial class EnhanceSettingsViewModel : ObservableObject, IDispos
         [
             new(this, "Hochskalieren / schärfen", EnhanceModelCatalog.Upscale),
             new(this, "Hochskalieren (natürlich)", EnhanceModelCatalog.UpscaleNatural),
+            new(this, "Hochskalieren (Klar)", EnhanceModelCatalog.UpscaleClear),
+            new(this, "Hochskalieren (Klar weich)", EnhanceModelCatalog.UpscaleClearSoft),
+            new(this, "Hochskalieren (Foto)", EnhanceModelCatalog.UpscalePhoto),
+            new(this, "Hochskalieren (Siax)", EnhanceModelCatalog.UpscaleSiax),
+            new(this, "Hochskalieren (Haut)", EnhanceModelCatalog.UpscaleSkin),
             new(this, "Gesichter restaurieren", EnhanceModelCatalog.Faces),
             new(this, "Einfärben", EnhanceModelCatalog.Colorize),
             new(this, "Entfernen / Kratzer", EnhanceModelCatalog.Inpaint),

@@ -484,9 +484,21 @@ kommt in den Papierkorb).
   gern glatt. **Natürlichkeit** mischt einen Anteil des Originals zurück (Standard 35 %, bis 80 %), **Körnung** legt feines
   Korn darüber — nur in der Helligkeit, vor allem in den Mitteltönen, kaum in Tiefen und Lichtern. Beide Werte merkt sich
   Lumora beim Berechnen (Einstellungen › Verbessern) und nimmt sie auch für mehrere Fotos.
-- **Modell beim Hochskalieren** (seit 0.5.7): **Scharf** (Real-ESRGAN x4plus, kräftig geschärft) oder **Natürlich**
-  (Real-ESRGAN general x4v3, erhält Hautstruktur und Korn; ≈ 5 MB, „Modell ‚Natürlich' laden…“ direkt in der Leiste). Die
-  Wahl merkt sich Lumora; „Automatisch“ nimmt das gewählte Modell und weicht auf das andere aus, wenn nur dieses geladen ist.
+- **Modell beim Hochskalieren** (seit 0.5.7, sieben seit 0.5.11) — je Foto wählbar, am besten verschiedene ausprobieren
+  und die beste Fassung behalten:
+
+  | Knopf | Modell | gut für |
+  |---|---|---|
+  | **Scharf** | Real-ESRGAN x4plus | kräftig geschärft, glättet Haut |
+  | **Natürlich** | Real-ESRGAN general x4v3 | erhält Hautstruktur und Korn |
+  | **Klar** | ClearReality | weich und natürlich, Gesichter und Haare; klare Fotos ohne viel Korn |
+  | **Klar weich** | ClearReality Soft | noch weicher, möglichst wenig Artefakte |
+  | **Foto** | Nomos WebPhoto | Handy- und Webfotos mit Rauschen, Unschärfe, JPEG-Spuren |
+  | **Siax** | NMKD Siax | universell für saubere Fotos |
+  | **Haut** | Remacri | mehr Detail, weniger Glätten auf Haut (nur nicht-kommerziell) |
+
+  Unter den Knöpfen stehen Zustand und „Modell … laden… (≈ n MB)“ des gewählten Modells. Die letzte Wahl merkt sich
+  Lumora; „Automatisch“ nimmt das gewählte Modell und weicht sonst auf das erste geladene aus (mit Hinweis).
 - **Mehrere Fotos:** in der Galerie auswählen, Rechtsklick „Bearbeiten ▸ n Fotos verbessern…“: Werkzeuge wählen, die
   Zeitschätzung lesen, **Verbessern**. Der Lauf erscheint unter den Aktivitäten (Fortschritt, Abbrechen); bereits fertige
   werden gespeichert, „Rückgängig“ am Vorgang nimmt alle Fassungen zurück. Die Grafikkarte wechselt sich mit Gesichts- und
@@ -498,7 +510,9 @@ kommt in den Papierkorb).
   einem Unterordner), Dateiname-Muster (`{name}` = Name des Originals), Aufnahmedatum/Ort übernehmen (EXIF bei JPEG und
   Katalog), Sterne/Favorit/Tags übernehmen, beste Fassung zeigen, Grafikkarte.
 - **Modelle** (je Download nach Bestätigung, SHA-256 geprüft): Real-ESRGAN x4plus (BSD-3, ≈ 70 MB), Real-ESRGAN general
-  x4v3 (BSD-3, ≈ 5 MB, ONNX-Umwandlung der Community, fester Commit), GFPGAN v1.4
+  x4v3 (BSD-3, ≈ 5 MB, ONNX-Umwandlung der Community, fester Commit), ClearReality und ClearReality Soft (Apache-2.0, je
+  ≈ 2 MB), Nomos WebPhoto (CC-BY-4.0, ≈ 30 MB), Siax (WTFPL, ≈ 72 MB, Community-ONNX), Remacri (CC-BY-NC-SA-4.0, nur
+  nicht-kommerziell, ≈ 72 MB, Community-ONNX), GFPGAN v1.4
   (Apache-2.0, ≈ 340 MB; braucht zum Finden der Gesichter die Gesichtserkennung), DeOldify artistic (MIT, ≈ 255 MB),
   LaMa (Apache-2.0, ≈ 210 MB). In einer versteckten Bibliothek bleiben Zwischenstände und Ergebnisse im Container.
 

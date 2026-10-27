@@ -32,7 +32,7 @@ public sealed class OnnxEnhanceEngineFactory(ILogger<OnnxEnhanceEngineFactory>? 
         {
             return tool switch
             {
-                EnhanceTool.Upscale or EnhanceTool.UpscaleNatural => new OnnxUpscaler(session, provider), // beide x4, Werte 0…1
+                _ when EnhanceUpscaleModels.IsEngine(tool) => new OnnxUpscaler(session, provider), // alle x4, Werte 0…1
                 EnhanceTool.Faces => new OnnxFaceRestorer(session, provider),
                 EnhanceTool.Colorize => new OnnxColorizer(session, provider),
                 EnhanceTool.Erase => new OnnxInpainter(session, provider),
