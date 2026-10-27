@@ -1,7 +1,7 @@
 # ADR-0076: KI-Bearbeitung mit ComfyUI — nur in der versteckten Sitzung
 
 - **Status:** Accepted (Konzept und Mockup 23 abgenommen von Herbert am 2026-10-27; Leerlauf 10 min, Kleiderliste und
-  `<Name>_ki.jpg` wie vorgeschlagen; noch nicht gebaut)
+  `<Name>_ki.jpg` wie vorgeschlagen; Stufe 1 „Laufzeit“ gebaut in 0.5.30, siehe Nachtrag)
 - **Datum:** 2026-10-27
 - **Entscheider:** Herbert Schrotter (Anforderung: lokale KI-Bildbearbeitung, nur versteckt, alles im Container,
   ComfyUI-Oberfläche zusätzlich im eigenen Fenster), Claude (Entwurf, Grenzen der Bearbeitung, Umsetzungsvorschlag)
@@ -206,10 +206,71 @@ sexualisierten Bearbeitungen echter Personen** (Unterwäsche, Lingerie, Nackthei
 ## Offene Punkte (vor dem Bau)
 
 - ~~Herbert: Mockup 23 abnehmen, Leerlauf-Zeit, Liste Alltagskleidung, Dateiname~~ — erledigt 2026-10-27 (wie vorgeschlagen).
-- Flags (`--disable-api-nodes`, Erweiterungs-Erlaubnisliste, `--user-directory`) an ComfyUI 0.43.0 prüfen.
+- ~~Flags an ComfyUI 0.43.0 prüfen~~ — erledigt 2026-10-27, siehe Nachtrag Stufe 1.
 - Prüfmodell: Lizenz und Größe von NudeNet (Alternative: ein Apache-2.0-Klassifizierer) klären, Schwellen mit Testbildern
   ohne echte Personen festlegen.
 - Modellgrößen/Quellen frisch prüfen und einzeln zur Freigabe vorlegen.
+
+## Nachtrag 0.5.30 — Stufe 1 „Laufzeit“ gebaut (2026-10-27)
+
+- **Gebaut:** `Lumora.Services/AiEdit/` mit diesen Teilen:
+  - `AiEditLayout` — die Ordner unter `.lumora-ki`.
+  - `ComfyInstallation` — Erkennen, Version aus `comfyui_version.py`, geprüfte Liste `ComfyVersions.Verified` = {0.43.0}.
+  - `AiInstallManifest` — `ki-install.json`, Format `lumora-ki-install` v1.
+  - `ComfyRuntime`/`IComfyRuntime` — Starten, Bereitschaft über `/system_stats`, Beenden, Leerlauf.
+  - `ComfyProcessLauncher` — Start im Job-Objekt „beim Schließen beenden“.
+  - `AiEditSettingsStore` — Schlüssel `aiedit.idleMinutes` im versteckten Katalog.
+  - `AddAiEdit()` — die Registrierung.
+
+  Dazu im Wpf-Projekt der Reiter Einstellungen › KI-Bearbeitung (`AiEditSettingsViewModel`, `AiEditUi`). Er zeigt
+  Laufzeit, Probelauf Starten/Beenden, Leerlauf-Minuten, Platz im Container und die Liste aus `ki-install.json`. Alles
+  ist nur in `AddCatalogSession` der versteckten Sitzung registriert. Der Rauchtest prüft den Reiter dort und dass es in
+  der normalen Sitzung weder Dienst noch Reiter noch Einstellung gibt.
+- **Startoptionen an 0.43.0 geprüft** (`comfy/cli_args.py`, `main.py`). Zwei Abweichungen von Punkt 3:
+  - `--offline` statt `--disable-api-nodes`: Letzteres ist in 0.43.0 nur noch ein veralteter Alias. `--offline` sperrt
+    zusätzlich per Content-Security-Policy den Internetzugriff der Oberfläche.
+  - `--models-directory .lumora-ki\models` statt einer `extra_model_paths.yaml`: Die Option gibt es in 0.43.0, eine
+    erzeugte Datei entfällt.
+
+  Weitere Festlegungen:
+  - `--disable-all-custom-nodes` + `--whitelist-custom-nodes`: nur Namen aus `ki-install.json`, die auch in
+    `custom_nodes` liegen.
+  - `--previews-directory` liegt in `work\`.
+  - Manager und Assets bleiben aus: Sie liefen nur mit `--enable-manager` bzw. `--enable-assets`, und Lumora setzt
+    beides nicht.
+  - Arbeitsverzeichnis des Prozesses ist `work\`. ComfyUI schreibt sein Detail-Protokoll relativ dazu; Lumora löscht es
+    beim Beenden.
+  - Zusätzlich zu Punkt 3 werden `PYTHONPATH`, `PYTHONHOME` und `PYTHONSTARTUP` entfernt.
+- **Beenden:** Zwei Wege, beide vor dem Aushängen.
+  - `AiEditSessionHook.StopAsync` läuft im Sitzungs-Host beim Zusperren, Wechseln und Beenden. Beim Sitzungsstart liest
+    der Hook nichts: Hosted Services starten vor der Migration des Katalogs, ein früher Zugriff ließ im Rauchtest das
+    Öffnen einer neuen versteckten Bibliothek scheitern. Die Leerlauf-Zeit liest die Laufzeit erst beim Start von ComfyUI.
+  - Ein synchrones `Dispose` greift beim Abbau des Containers.
+
+  Dabei gilt:
+  - Ein laufender Start wird abgebrochen.
+  - Die Leerlauf-Prüfung läuft alle 30 s. `BeginWork()` hält ComfyUI während eines Auftrags am Leben (ab Stufe 3); bei
+    0 Minuten endet ComfyUI nur beim Zusperren.
+  - Endet der Prozess unerwartet, zeigt die Ansicht einen Fehler.
+  - Geleert werden `work\input|output|temp|previews` und `*.log`; `work\user` bleibt.
+
+  **Offen für Stufe 5:** Punkt 5a lässt nicht übernommene Ergebnisse in `work\output` liegen. Stufe 1 leert `output` aber
+  wie Punkt 4 — das ComfyUI-Fenster muss diese Ausnahme mitbringen.
+- **Grafikkarte:** gestartet wird nur, wenn `/system_stats` die erkannte Version und ein Gerät vom Typ `cuda` meldet
+  (Punkt 10). Der Kartenname erscheint ohne Torch-Zusätze.
+- **Protokoll:** Jede Ausgabezeile geht auf Debug-Stufe ins Protokoll der versteckten Sitzung, ohne Farbcodes. Pfade
+  werden zu `.lumora-ki\…` bzw. `<Pfad>` gekürzt. Scheitert ein Start, kommen die letzten 40 Zeilen als Warnung dazu.
+- **Am Zielrechner gemessen** (Probelauf über die Dienste, ohne Oberfläche):
+  - Bereit nach 47 s beim ersten Start, danach nach 26 s; Beenden in 0,1 s.
+  - ComfyUI-GGUF ist geladen (`UnetLoaderGGUF`), andere Erweiterungen werden übersprungen.
+  - Nach dem Lauf gibt es keine neue Datei außerhalb von `.lumora-ki` (geprüft: Temp, `.cache`, NVIDIA- und
+    Torch-Caches). Torch legt seinen Inductor-Cache unter `cache\tmp` an.
+  - Endet das startende Programm hart, beendet das Job-Objekt ComfyUI mit; es bleibt kein Python-Prozess zurück.
+- **Noch nicht gebaut:**
+  - Stufen 2–5: Grenzen, Vorlagen, ComfyUI-Fenster.
+  - `IForegroundWork` und `/free` — sie werden erst mit Aufträgen gebraucht (Stufe 3).
+  - Ein Download-Abschnitt in „Modelle & Daten“. Modelle legt weiterhin Claude nach Freigabe von Hand in den Container
+    (Punkt 11).
 
 ## Referenzen
 

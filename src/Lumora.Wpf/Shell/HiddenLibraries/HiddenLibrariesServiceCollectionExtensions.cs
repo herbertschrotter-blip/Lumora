@@ -24,6 +24,8 @@ public static class HiddenLibrariesServiceCollectionExtensions
             services.AddHiddenCatalog(paths, setup.NormalAppDataRoot);
             // Sicherheits-Check (ADR-0064): Prüfungen, Einstellungen, Reiter — nur in der versteckten Sitzung, sonst keine Spur
             SecurityCheck.SecurityCheckUi.AddSecurityCheckUi(services, setup.Sessions);
+            // KI-Bearbeitung mit ComfyUI (ADR-0076): Laufzeit, Einstellungen, Reiter — nur versteckt, alles im Container
+            Lumora.AiEdit.AiEditUi.AddAiEditUi(services, setup.Sessions);
         }
 
         services.TryAddSingleton<IHiddenLibraryDialogs, HiddenLibraryDialogs>();

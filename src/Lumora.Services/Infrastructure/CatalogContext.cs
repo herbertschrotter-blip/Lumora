@@ -70,16 +70,21 @@ public sealed class CatalogContext : ICatalogContext
 
 /// <summary>
 /// Der Katalogordner einer versteckten Bibliothek (<c>&lt;Bibliotheksordner&gt;\.lumora</c>, ADR-0049). Er liegt IN der
-/// Bibliothek und darf deshalb von keinem Scan, Sortierer, Flatten oder Zielbaum als Fotoordner behandelt werden.
+/// Bibliothek und darf deshalb von keinem Scan, Sortierer, Flatten oder Zielbaum als Fotoordner behandelt werden. Dasselbe
+/// gilt für den Ordner der KI-Bearbeitung <c>.lumora-ki</c> in der Container-Wurzel (ADR-0076: ComfyUI, Modelle, Arbeitsordner).
 /// </summary>
 public static class CatalogFolders
 {
     public const string HiddenCatalogFolderName = ".lumora";
 
-    /// <summary>true, wenn der letzte Pfadteil <c>.lumora</c> heißt (Groß/Klein egal).</summary>
+    /// <summary>Ordner der KI-Bearbeitung im Container (ADR-0076 Punkt 2).</summary>
+    public const string AiEditFolderName = ".lumora-ki";
+
+    /// <summary>true, wenn der letzte Pfadteil <c>.lumora</c> oder <c>.lumora-ki</c> heißt (Groß/Klein egal).</summary>
     public static bool IsCatalogFolder(string path)
     {
         var name = Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
-        return string.Equals(name, HiddenCatalogFolderName, StringComparison.OrdinalIgnoreCase);
+        return string.Equals(name, HiddenCatalogFolderName, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(name, AiEditFolderName, StringComparison.OrdinalIgnoreCase);
     }
 }

@@ -3,6 +3,31 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.30] — 2026-10-27
+
+### Added — KI-Bearbeitung Stufe 1: ComfyUI-Laufzeit, nur in der versteckten Sitzung (ADR-0076)
+- **Erkennen:** Lumora sucht ComfyUI im geöffneten Container unter `.lumora-ki`. Gestartet wird nur eine geprüfte
+  Version (0.43.0). Eine andere Version, eine fehlende Installation oder eine unlesbare `ki-install.json` meldet die
+  Ansicht mit einem Hinweis, ohne zu starten.
+- **Starten:** ohne Fenster, nur auf 127.0.0.1 mit zufälligem Port.
+  - Startoptionen: offline, kein Manager, nur die Erweiterungen aus `ki-install.json`.
+  - Modelle, Ein-/Ausgabe, Temp-, Benutzer- und Cache-Ordner liegen im Container.
+  - Der Prozess hängt in einem Job-Objekt: Endet Lumora (auch durch Absturz), endet ComfyUI mit.
+  - Bereit ist ComfyUI, sobald `/system_stats` die erwartete Version und eine CUDA-Grafikkarte meldet; sonst wird es
+    wieder beendet.
+- **Beenden:** beim Zusperren, beim Verlassen der versteckten Bibliothek, beim Beenden von Lumora und nach Leerlauf
+  (Standard 10 min, 0 = nie). Ablauf: Abbruch-Anfrage, Prozessbaum beenden, Arbeitsordner leeren — alles vor dem
+  Aushängen des Containers.
+- **Einstellungen › KI-Bearbeitung** (nur versteckt, hinter „Sicherheits-Check“): Laufzeit und Grafikkarte, Probelauf
+  Starten/Beenden, Leerlauf-Minuten, Platz im Container sowie die Liste der freigegebenen Modelle und Erweiterungen mit
+  Prüfung „geladen/fehlt“.
+- Scan, Flatten und Zielbaum überspringen `.lumora-ki` wie `.lumora`.
+- Die normale Sitzung hat weder Dienst noch Reiter noch Einstellung davon; der Rauchtest prüft beides.
+- Protokollzeilen von ComfyUI landen nur im Protokoll der versteckten Sitzung, ohne Pfade.
+- **Technik:** `Lumora.Services/AiEdit/` (`IComfyRuntime`, `ComfyInstallation`, `AiInstallManifest`, `AiEditLayout`,
+  `ComfyProcessLauncher`, `AiEditSettingsStore`, `AddAiEdit()`), Wpf `AiEdit/` und `SettingsAiEditSection`. 31 neue Tests
+  laufen mit Prozess- und HTTP-Attrappen.
+
 ## [0.5.29] — 2026-10-27
 
 ### Docs — Spike 18 geprüft: Netz der Companion-App grün

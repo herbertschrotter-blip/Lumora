@@ -40,7 +40,8 @@ public partial class SettingsPage : UserControl
         Backup.CatalogBackupSettingsViewModel? catalogBackup = null,
         ModelPackages.ModelPackagesViewModel? modelPackages = null,
         Lumora.Enhance.EnhanceSettingsViewModel? enhance = null,
-        Lumora.AppConnect.ConnectedAppsViewModel? connectedApps = null)
+        Lumora.AppConnect.ConnectedAppsViewModel? connectedApps = null,
+        Lumora.AiEdit.AiEditSettingsViewModel? aiEdit = null)
     {
         _sections = sections;
         InitializeComponent();
@@ -80,6 +81,7 @@ public partial class SettingsPage : UserControl
         library.SetFooter(footer);
         Shell.HiddenLibraries.HiddenLibrariesUi.AddSettingsTab(Tabs, hiddenLibraries); // nur mit „_hidden“ (ADR-0049)
         Shell.HiddenLibraries.SecurityCheck.SecurityCheckUi.AddSettingsTab(Tabs, securityCheck); // nur in der versteckten Sitzung (ADR-0064)
+        Lumora.AiEdit.AiEditUi.AddSettingsTab(Tabs, aiEdit); // nur in der versteckten Sitzung (ADR-0076)
 
         SelectTab(sections.SelectedSection);
         Tabs.SelectionChanged += OnTabsSelectionChanged;

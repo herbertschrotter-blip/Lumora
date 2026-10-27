@@ -99,6 +99,7 @@ internal sealed partial class SmokeScenario
             Check(Directory.EnumerateFiles(Path.Combine(catalog, "logs"), CatalogLoggers.HiddenFilePattern.Replace("-.log", "-*.log")).Any(), "Protokoll im Container");
             Check((new DirectoryInfo(catalog).Attributes & FileAttributes.Hidden) != 0, ".lumora ist versteckt");
             await SecurityCheckInHiddenSessionAsync(hidden).ConfigureAwait(true); // Sicherheits-Check mit Fake-Lesern (ADR-0064)
+            await AiEditInHiddenSessionAsync(hidden, Path.GetPathRoot(libraryFolder)!).ConfigureAwait(true); // KI-Bearbeitung: Reiter, nie gestartet (ADR-0076)
             await ExternalCopyInHiddenSessionAsync(hidden, gallery).ConfigureAwait(true); // kein Weg nach außen (ADR-0068)
 
             // (2) Untätigkeit → automatisch zugesperrt, Aushängen angestoßen (Standard seit 0.4.38 aus → hier bewusst an)
@@ -151,6 +152,7 @@ internal sealed partial class SmokeScenario
         Check(librariesAfter == librariesBefore && filesAfter == filesBefore, $"normale Bibliothek unverändert ({librariesAfter} Bibliothek(en), {filesAfter} Dateien)");
         _successor = next;
         await NoSecurityCheckInNormalSessionAsync(next, services).ConfigureAwait(true); // normal: kein Reiter (ADR-0064)
+        await NoAiEditInNormalSessionAsync(next, services).ConfigureAwait(true); // normal: keine KI-Bearbeitung (ADR-0076)
 
         // (7) Spurenprüfung: Name, Pfad und Dateinamen kommen im AppData-Testordner nirgends vor. Vorher den WAL des
         // normalen Katalogs zurückschreiben und gesperrte Dateien kurz erneut lesen: Direkt nach dem Sitzungswechsel
