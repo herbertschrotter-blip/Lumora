@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lumora — KI-Bearbeitung (Entwurf 23)</title>
+<style>
+/* =====================================================================
+   Mockup 23 · KI-Bearbeitung mit ComfyUI — NUR in der versteckten Sitzung (ADR-0076). Tokens 1:1 aus 08–14,
+   Komponenten wie Mockup 13 (Lightbox-Leiste). Keine neuen Farb-Tokens (Hinweis-Kästen nutzen die Lightbox-Werte aus 13;
+   Hautton der Platzhalter-Person ist nur Platzhalter-Grafik).
+   Lumora zeigt nie die ComfyUI-Oberfläche, nur diese Leiste mit festen Vorlagen: Hintergrund, Outfit (nur
+   Alltagskleidung aus einer Liste), Entfernen, Erweitern, Verbessern. Ergebnis = neue Fassung <Name>_ki.jpg,
+   gekennzeichnet „KI-bearbeitet“. Grenzen: Begriffsliste, Ergebnisprüfung (verwerfen), unter 21 kein Outfit.
+   Zusätzlich ComfyUI-Oberfläche im eigenen Fenster (WebView2, Browserdaten im Container, nur 127.0.0.1,
+   Downloads gesperrt) mit „Ergebnisse übernehmen“ (Prüfung + Kennzeichnung). Umschalter „Sitzung: Normal“ zeigt: dort gibt es keinen Knopf, keine Taste, keinen Reiter, keinen Menüpunkt.
+   Fotos und Personen sind Platzhalter. Hell/Dunkel über „dark“.
+   ABGENOMMEN von Herbert am 2026-10-27: Leiste „KI-Bearbeitung“ in der Lightbox (Taste K, Rechtsklick) mit Status der
+   Laufzeit, Vorlagen Hintergrund (Liste + kurzer Text), Outfit (nur Alltagskleidung aus der Liste), Entfernen (Pinsel),
+   Erweitern (Seitenverhältnis), Verbessern; Lauf mit Fortschritt und Pause des Hintergrunds; drei Varianten, Vergleich,
+   „Als Fassung speichern“ (<Name>_ki.jpg, Marke „KI-bearbeitet“); Grenzen-Hinweise (Begriff nicht gesendet, unter 21 kein
+   Outfit, Ergebnis verworfen); „Nicht eingerichtet“/„ungeprüfte Version“; ComfyUI-Fenster mit „Ergebnisse übernehmen“;
+   Einstellungen › KI-Bearbeitung (Laufzeit, Leerlauf 10 min, Modelle im Container, Grenzen, Speichern); normale Sitzung
+   ohne jeden Hinweis. Bewusst nicht: Qwen-Image-Edit, InstantID/IP-Adapter (später), Installer in Lumora (später).
+   ===================================================================== */
+:root {
+  --mica-base:#F3F3F3; --layer-default:rgba(255,255,255,0.7); --layer-card:#FFFFFF; --layer-subtle:rgba(0,0,0,0.026);
+  --layer-secondary:rgba(0,0,0,0.04); --layer-tertiary:rgba(0,0,0,0.06);
+  --text-primary:#1A1A1A; --text-secondary:#5C5C5C; --text-tertiary:#8B8B8B; --text-on-accent:#FFFFFF;
+  --stroke-default:rgba(0,0,0,0.0578); --stroke-divider:rgba(0,0,0,0.0803); --stroke-card:rgba(0,0,0,0.0578); --ctl-bottom:rgba(0,0,0,0.16);
+  --accent:#5B5FC7; --accent-light:#7579D8; --accent-dark:#4145A0; --accent-soft:rgba(91,95,199,0.08); --accent-soft-2:rgba(91,95,199,0.16);
+  --success:#107C10; --success-soft:rgba(16,124,16,0.10); --warning:#C29C00; --warning-soft:rgba(194,156,0,0.14); --danger:#C42B1C;
+  --shadow-card:0 2px 4px rgba(0,0,0,0.02), 0 1px 2px rgba(0,0,0,0.03); --shadow-flyout:0 8px 16px rgba(0,0,0,0.14);
+  --brand-indigo:#5B5FC7; --brand-violet:#8B5CF6; --brand-coral:#F97362; --brand-amber:#F5A524;
+  --page-bg:#E4E4EA; --smoke:rgba(0,0,0,0.3);
+}
+body.dark {
+  color-scheme:dark;
+  --mica-base:#202020; --layer-default:rgba(43,43,43,0.7); --layer-card:#2C2C2C; --layer-subtle:rgba(255,255,255,0.03);
+  --layer-secondary:rgba(255,255,255,0.0418); --layer-tertiary:rgba(255,255,255,0.0605);
+  --text-primary:#FFFFFF; --text-secondary:#D0D0D0; --text-tertiary:#A0A0A0;
+  --stroke-default:rgba(255,255,255,0.0837); --stroke-divider:rgba(255,255,255,0.0837); --stroke-card:rgba(255,255,255,0.0578); --ctl-bottom:rgba(255,255,255,0.22);
+  --accent:#818CF8; --accent-light:#A5B0FF; --accent-dark:#6066D8; --accent-soft:rgba(129,140,248,0.12); --accent-soft-2:rgba(129,140,248,0.24);
+  --success:#6CCB5F; --success-soft:rgba(108,203,95,0.12); --warning:#FCE100; --warning-soft:rgba(252,225,0,0.14); --danger:#FF6B5E;
+  --shadow-card:0 2px 4px rgba(0,0,0,0.18), 0 1px 2px rgba(0,0,0,0.22); --shadow-flyout:0 8px 16px rgba(0,0,0,0.4);
+  --brand-indigo:#818CF8; --brand-violet:#A78BFA; --brand-coral:#FB8A7A; --brand-amber:#FBBF24;
+  --page-bg:#121214; --smoke:rgba(0,0,0,0.55);
+}
+* { box-sizing:border-box; } html,body { margin:0; }
+body { background:var(--page-bg); color:var(--text-primary); font-family:'Segoe UI Variable Text','Segoe UI',system-ui,sans-serif; font-size:14px; }
+button { font:inherit; color:inherit; }
+.ic { font-family:'Segoe Fluent Icons','Segoe MDL2 Assets'; font-size:16px; line-height:1; font-style:normal; }
+.ic.s { font-size:12px; }
+.hidden { display:none !important; }
+.mock-bar { position:sticky; top:0; z-index:100; display:flex; gap:16px; align-items:center; flex-wrap:wrap; padding:7px 20px; background:#2B2B33; color:#EEE; font-size:12px; }
+.mock-bar .grp { display:flex; gap:4px; align-items:center; }
+.mock-bar button { background:#44444F; color:#EEE; border:1px solid #5A5A66; border-radius:4px; padding:3px 9px; cursor:pointer; font-size:12px; }
+.mock-bar button.on { background:#5B5FC7; border-color:#7579D8; }
+.mock-bar .note { margin-left:auto; color:#AAB; }
+.stage-wrap { padding:16px 20px 32px; display:flex; justify-content:center; }
+.win-box { position:relative; flex:none; }
+.window { position:absolute; left:0; top:0; transform-origin:0 0; background:var(--mica-base); border-radius:8px; border:1px solid var(--stroke-default);
+  box-shadow:0 16px 48px rgba(0,0,0,0.22); overflow:hidden; display:grid; grid-template-columns:232px 1fr; grid-template-rows:36px 1fr 30px; }
+.titlebar { grid-column:1/-1; display:flex; align-items:center; gap:10px; padding-left:14px; font-size:12px; color:var(--text-secondary); }
+.titlebar .tile { width:16px; height:16px; border-radius:4px; background:linear-gradient(135deg,#6366F1,#4145A0); }
+.titlebar .wc { margin-left:auto; display:flex; height:100%; } .titlebar .wc span { width:46px; display:grid; place-items:center; font-family:'Segoe Fluent Icons'; font-size:10px; color:var(--text-primary); }
+.nav { padding:2px 8px 10px; display:flex; flex-direction:column; gap:2px; }
+.wbs { font-family:'Segoe UI Variable Display','Segoe UI',sans-serif; font-size:22px; padding:2px 12px 10px;
+  background:linear-gradient(100deg,var(--brand-indigo),var(--brand-violet) 45%,var(--brand-coral) 75%,var(--brand-amber)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.lib-switch { margin:0 2px 8px; padding:8px 10px; border-radius:6px; background:var(--layer-card); border:1px solid var(--stroke-card); box-shadow:var(--shadow-card); display:flex; gap:10px; align-items:center; }
+.lib-switch b { display:block; font-weight:600; } .lib-switch small { display:block; color:var(--text-tertiary); font-size:11px; }
+.nav-item { display:flex; align-items:center; gap:12px; padding:9px 12px; border-radius:4px; position:relative; white-space:nowrap; }
+.nav-item.active { background:var(--layer-secondary); }
+.nav-item.active::before { content:''; position:absolute; left:0; top:10px; bottom:10px; width:3px; border-radius:2px; background:var(--accent); }
+.nav .spacer { flex:1; }
+.content { position:relative; min-width:0; min-height:0; background:var(--layer-default); border-top-left-radius:8px; border-left:1px solid var(--stroke-default); border-top:1px solid var(--stroke-default); overflow:auto; }
+.statusbar { grid-column:1/-1; display:flex; align-items:center; gap:18px; padding:0 14px; font-size:12px; color:var(--text-secondary); border-top:1px solid var(--stroke-divider); background:var(--mica-base); }
+.statusbar .r { margin-left:auto; }
+.btn-acc { background:var(--accent); color:var(--text-on-accent); border:1px solid transparent; border-radius:4px; padding:5px 14px; font-size:13px; cursor:pointer; display:inline-flex; gap:6px; align-items:center; white-space:nowrap; }
+body.dark .btn-acc { color:#111; } .btn-acc:hover { background:var(--accent-light); }
+.btn-std { background:var(--layer-card); border:1px solid var(--stroke-divider); border-bottom-color:var(--ctl-bottom); border-radius:4px; padding:5px 12px; font-size:13px; cursor:pointer; display:inline-flex; gap:6px; align-items:center; white-space:nowrap; }
+.btn-std:hover { background:var(--layer-subtle); }
+.muted { color:var(--text-secondary); font-size:12px; line-height:1.5; }
+.seg { display:inline-flex; background:var(--layer-secondary); border-radius:6px; padding:2px; gap:2px; flex-wrap:wrap; }
+.seg button { border:0; background:transparent; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:12px; }
+.seg button.on { background:var(--layer-card); box-shadow:0 1px 2px rgba(0,0,0,.12); color:var(--accent); font-weight:600; }
+body.dark .seg button.on { background:#3A3A3A; }
+.sw { width:36px; height:18px; border-radius:9px; border:1px solid var(--text-secondary); position:relative; flex:none; cursor:pointer; display:inline-block; }
+.sw::after { content:''; position:absolute; top:3px; left:3px; width:10px; height:10px; border-radius:50%; background:var(--text-secondary); }
+.sw.on { background:var(--accent); border-color:var(--accent); } .sw.on::after { left:21px; background:#fff; }
+.chk { width:16px; height:16px; border-radius:3px; border:1px solid var(--text-secondary); display:inline-grid; place-items:center; flex:none; font-family:'Segoe Fluent Icons'; font-size:10px; color:transparent; cursor:pointer; }
+.chk.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+.slider { height:4px; border-radius:2px; background:var(--layer-tertiary); position:relative; margin:10px 0 4px; }
+.slider i { position:absolute; left:0; top:0; bottom:0; border-radius:2px; background:var(--accent); }
+.slider b { position:absolute; top:-6px; width:16px; height:16px; border-radius:50%; background:var(--layer-card); border:4px solid var(--accent); margin-left:-8px; }
+.page { display:none; height:100%; } .page.on { display:block; }
+
+/* Lightbox mit Verbessern-Leiste */
+.lb { position:absolute; inset:0; background:#0F0F12; display:grid; grid-template-columns:1fr 340px; color:#EEE; z-index:5; }
+.lb .stage { position:relative; display:grid; grid-template-rows:44px 1fr 44px; min-width:0; }
+.lb .top { display:flex; align-items:center; gap:10px; padding:0 14px; font-size:13px; color:#CCC; }
+.lb .top .r { margin-left:auto; display:flex; gap:6px; }
+.lb .top .r span { padding:5px 10px; border-radius:4px; background:#26262C; font-size:12px; cursor:pointer; }
+.lb .top .r span.on { background:#5B5FC7; color:#fff; }
+.lb .bottom { display:flex; align-items:center; justify-content:center; gap:16px; font-size:12px; color:#AAA; }
+.pic { position:relative; margin:8px 24px; border-radius:4px; overflow:hidden; }
+.pic .layer { position:absolute; inset:0; background-size:cover; background-position:center; }
+.pic .before { filter:blur(2.2px) grayscale(.85) sepia(.35) contrast(.85); }
+.pic .after { clip-path:inset(0 0 0 50%); }
+.pic .split { position:absolute; top:0; bottom:0; left:50%; width:2px; background:#fff; box-shadow:0 0 6px rgba(0,0,0,.5); }
+.pic .split::after { content:'\E76B  \E76C'; font-family:'Segoe Fluent Icons'; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:38px; height:38px; border-radius:50%; background:#fff; color:#333; display:grid; place-items:center; font-size:10px; }
+.pic .lbl { position:absolute; top:10px; padding:3px 8px; border-radius:4px; background:rgba(0,0,0,.55); font-size:11px; }
+.mask { position:absolute; border-radius:40% 50% 45% 55%; background:rgba(249,115,98,.45); outline:2px dashed #F97362; }
+.brush { position:absolute; width:46px; height:46px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 1px rgba(0,0,0,.5); }
+.panel { background:#1E1E22; padding:14px 16px; display:flex; flex-direction:column; gap:10px; overflow:auto; font-size:13px; }
+.panel h3 { margin:0 0 2px; font-size:15px; display:flex; gap:8px; align-items:center; }
+.panel .muted { color:#AAA; }
+.tool { display:grid; grid-template-columns:28px 1fr auto; gap:10px; align-items:center; padding:9px 10px; border-radius:6px; background:#26262C; cursor:pointer; border:1px solid transparent; }
+.tool.on { border-color:#818CF8; background:#2C2C3A; }
+.tool .ic { color:#A5B0FF; }
+.tool b { display:block; font-weight:600; } .tool small { color:#AAA; font-size:11px; }
+.tool .st { font-size:10px; font-weight:700; border-radius:8px; padding:1px 7px; }
+.st-need { background:rgba(252,225,0,.14); color:#FCE100; } .st-ok { background:rgba(108,203,95,.14); color:#6CCB5F; }
+.sub { padding:4px 10px 10px 48px; display:grid; gap:8px; }
+.panel .seg { background:#26262C; } .panel .seg button { color:#DDD; } .panel .seg button.on { background:#3A3A44; color:#A5B0FF; }
+.panel .slider { background:#3A3A44; } .panel .slider b { background:#1E1E22; }
+.save { margin-top:auto; border-top:1px solid #333; padding-top:10px; display:grid; gap:8px; }
+.save .file { font-family:'Cascadia Mono',Consolas,monospace; font-size:12px; background:#26262C; border-radius:4px; padding:5px 8px; color:#DDD; }
+.panel .btn-acc { color:#111; background:#818CF8; justify-content:center; }
+.panel .btn-std { background:#26262C; border-color:#3A3A44; color:#EEE; justify-content:center; }
+.gpu { display:flex; gap:8px; align-items:center; font-size:12px; color:#AAA; }
+.bar { flex:1; height:4px; border-radius:2px; background:#3A3A44; overflow:hidden; } .bar i { display:block; height:100%; background:#818CF8; }
+
+/* Galerie + Stapel */
+.phead { display:flex; align-items:flex-end; gap:14px; padding:18px 24px 10px; }
+.phead h1 { font-size:28px; font-weight:600; margin:0; } .phead .sub2 { color:var(--text-secondary); font-size:13px; margin-top:4px; }
+.grid { display:grid; grid-template-columns:repeat(6,1fr); gap:6px; padding:0 24px; }
+.tile { aspect-ratio:1; border-radius:4px; position:relative; background-size:cover; }
+.tile.sel { outline:3px solid var(--accent); outline-offset:-3px; }
+.tile .pair { position:absolute; left:6px; bottom:6px; font-size:10px; font-weight:700; background:rgba(0,0,0,.6); color:#fff; border-radius:8px; padding:1px 7px; display:flex; gap:4px; align-items:center; }
+.smoke { position:absolute; inset:0; background:var(--smoke); z-index:40; display:grid; place-items:center; }
+.dlg { width:640px; max-width:calc(100% - 40px); background:var(--layer-card); border:1px solid var(--stroke-card); border-radius:8px; box-shadow:0 24px 48px rgba(0,0,0,.3); overflow:hidden; }
+body.dark .dlg { background:#2B2B2B; }
+.dlg .in { padding:20px 24px 14px; display:grid; gap:12px; }
+.dlg h2 { margin:0; font-size:20px; font-weight:600; }
+.dlg .ft { display:flex; gap:8px; justify-content:flex-end; padding:12px 24px; background:var(--layer-subtle); border-top:1px solid var(--stroke-divider); }
+.opt { display:flex; gap:10px; align-items:flex-start; font-size:13px; }
+.opt small { display:block; color:var(--text-secondary); font-size:11px; }
+.est { background:var(--accent-soft); border-radius:6px; padding:8px 12px; font-size:12px; color:var(--text-secondary); }
+
+/* Einstellungen */
+.tabs { display:flex; gap:4px; padding:0 24px 10px; border-bottom:1px solid var(--stroke-divider); flex-wrap:wrap; }
+.tabs span { padding:6px 12px; border-radius:4px; color:var(--text-secondary); }
+.tabs span.on { color:var(--text-primary); font-weight:600; box-shadow:inset 0 -3px 0 var(--accent); }
+.body { padding:14px 24px 24px; display:grid; gap:12px; max-width:980px; }
+.card { background:var(--layer-card); border:1px solid var(--stroke-card); border-radius:8px; box-shadow:var(--shadow-card); padding:14px 16px; }
+.card h2 { font-size:15px; margin:0 0 6px; display:flex; gap:10px; align-items:center; }
+table.models { width:100%; border-collapse:collapse; font-size:12px; }
+table.models th { text-align:left; color:var(--text-tertiary); font-weight:600; padding:6px 8px; border-bottom:1px solid var(--stroke-divider); }
+table.models td { padding:8px; border-bottom:1px solid var(--stroke-divider); vertical-align:middle; }
+table.models td b { font-size:13px; }
+.state { font-size:11px; font-weight:700; border-radius:9px; padding:2px 8px; white-space:nowrap; }
+.s-ok { background:var(--success-soft); color:var(--success); } .s-miss { background:var(--layer-tertiary); color:var(--text-secondary); }
+.row { display:grid; grid-template-columns:1fr auto; gap:12px; align-items:center; padding:10px 0; border-top:1px solid var(--stroke-divider); font-size:13px; }
+.row b { display:block; font-weight:600; }
+.field { display:inline-block; padding:5px 10px; border:1px solid var(--stroke-default); border-bottom-color:var(--ctl-bottom); border-radius:4px; background:var(--layer-card); font-size:13px; }
+/* Mockup 23 – Ergänzungen (nur Komponenten aus vorhandenen Tokens, keine neuen Farben) */
+.tool.off { opacity:.45; cursor:not-allowed; }
+.tool .st-off { background:rgba(255,255,255,.08); color:#AAA; }
+.chips { display:flex; flex-wrap:wrap; gap:6px; }
+.chip { padding:4px 10px; border-radius:12px; background:#26262C; border:1px solid #3A3A44; font-size:12px; cursor:pointer; color:#DDD; }
+.chip.on { border-color:#818CF8; background:#2C2C3A; color:#A5B0FF; font-weight:600; }
+.txt { background:#26262C; border:1px solid #3A3A44; border-bottom-color:#818CF8; border-radius:4px; padding:6px 8px; font-size:12px; color:#EEE; }
+.note-box { border-radius:6px; padding:8px 10px; font-size:12px; line-height:1.45; display:flex; gap:8px; align-items:flex-start; }
+.note-box.info { background:rgba(129,140,248,.12); color:#A5B0FF; }
+.note-box.warn { background:rgba(252,225,0,.10); color:#FCE100; }
+.note-box.stop { background:rgba(255,107,94,.12); color:#FF6B5E; }
+.runtime { display:flex; gap:8px; align-items:center; font-size:12px; color:#AAA; background:#26262C; border-radius:6px; padding:6px 10px; }
+.dot { width:8px; height:8px; border-radius:50%; background:#6CCB5F; flex:none; } .dot.wait { background:#FCE100; } .dot.off { background:#777; }
+.vars { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+.var { aspect-ratio:4/3; border-radius:4px; position:relative; cursor:pointer; border:2px solid transparent; overflow:hidden; }
+.var.on { border-color:#818CF8; }
+.var span { position:absolute; left:4px; bottom:3px; font-size:10px; background:rgba(0,0,0,.6); border-radius:6px; padding:0 5px; }
+.aibadge { position:absolute; right:10px; bottom:10px; padding:3px 8px; border-radius:10px; background:rgba(0,0,0,.6); font-size:11px; display:flex; gap:5px; align-items:center; }
+/* Platzhalter-Person (keine echten Fotos) */
+.person { position:absolute; left:50%; bottom:0; width:22%; height:80%; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; }
+.person .head { width:38%; aspect-ratio:1; border-radius:50%; background:#E7C3A4; flex:none; position:relative; z-index:1; }
+.person .body { width:100%; flex:1; margin-top:-3%; border-radius:42% 42% 6px 6px; background:var(--clo,#6F7F96); }
+.extend { position:absolute; inset:0 -14% 0 -14%; outline:2px dashed #818CF8; outline-offset:-2px; background:repeating-linear-gradient(45deg,rgba(129,140,248,.10) 0 10px,transparent 10px 20px); pointer-events:none; }
+.discard { position:absolute; inset:0; display:grid; place-items:center; background:#0F0F12; }
+.discard div { max-width:420px; text-align:center; color:#CCC; font-size:13px; line-height:1.5; }
+.discard .ic { font-size:32px; color:#FF6B5E; display:block; margin-bottom:8px; }
+.ctx { position:absolute; z-index:20; width:250px; background:#2B2B2B; border:1px solid #3A3A3A; border-radius:8px; box-shadow:0 8px 16px rgba(0,0,0,.4); padding:4px; font-size:13px; color:#EEE; }
+.ctx div { padding:7px 10px; border-radius:4px; display:flex; gap:10px; align-items:center; } .ctx div:hover { background:#3A3A3A; }
+.ctx hr { border:0; border-top:1px solid #3A3A3A; margin:4px 0; }
+.ctx small { margin-left:auto; color:#888; font-size:11px; }
+.limits li { margin:4px 0; }
+/* ComfyUI-Fenster (eigenes Lumora-Fenster mit WebView2) – Inhalt nur angedeutet */
+.cw { position:absolute; left:70px; top:40px; right:40px; bottom:30px; z-index:60; border-radius:8px; overflow:hidden; border:1px solid #3A3A3A; box-shadow:0 16px 48px rgba(0,0,0,.45); display:grid; grid-template-rows:32px 38px 1fr; background:#202020; color:#EEE; font-size:12px; }
+.cw .tb { display:flex; align-items:center; gap:10px; padding-left:12px; color:#D0D0D0; background:#202020; }
+.cw .tb .wc { margin-left:auto; display:flex; height:100%; } .cw .tb .wc span { width:42px; display:grid; place-items:center; font-family:'Segoe Fluent Icons'; font-size:10px; }
+.cw .lbar { display:flex; align-items:center; gap:10px; padding:0 10px; background:#2C2C2C; border-top:1px solid #3A3A3A; border-bottom:1px solid #3A3A3A; }
+.cw .lbar .r { margin-left:auto; display:flex; gap:8px; }
+.cw .lbar .btn-acc { color:#111; background:#818CF8; padding:4px 12px; } .cw .lbar .btn-std { background:#26262C; border-color:#3A3A44; color:#EEE; padding:4px 12px; }
+.cw .web { position:relative; display:grid; grid-template-columns:44px 1fr; background:#18181B; }
+.cw .side { background:#141417; display:flex; flex-direction:column; gap:14px; align-items:center; padding-top:12px; color:#888; }
+.cw .canvas { position:relative; background-color:#1C1C1F; background-image:radial-gradient(#2E2E33 1px,transparent 1px); background-size:18px 18px; overflow:hidden; }
+.cw .run { position:absolute; right:12px; top:10px; background:#3A7BD5; color:#fff; border-radius:6px; padding:5px 14px; font-weight:600; }
+.cw .wtabs { position:absolute; left:12px; top:10px; display:flex; gap:4px; } .cw .wtabs span { background:#26262C; border-radius:5px; padding:4px 10px; color:#BBB; } .cw .wtabs span.on { color:#fff; background:#33333A; }
+.nd { position:absolute; width:150px; background:#353535; border:1px solid #4A4A4A; border-radius:8px; box-shadow:0 4px 10px rgba(0,0,0,.4); font-size:11px; }
+.nd b { display:block; padding:5px 9px; border-radius:8px 8px 0 0; background:#2A2A2E; color:#DDD; font-weight:600; }
+.nd i { display:block; font-style:normal; padding:3px 9px; color:#AAA; } .nd .im { margin:4px 9px 8px; height:60px; border-radius:4px; position:relative; overflow:hidden; }
+.cw svg { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+.cw .imp { position:absolute; inset:0; background:rgba(0,0,0,.55); display:grid; place-items:center; z-index:5; }
+.cw .imp .dlg { width:600px; background:#2B2B2B; color:#EEE; border-color:#3A3A3A; }
+.cw .imp .muted { color:#AAA; } .cw .imp .ft { background:rgba(255,255,255,.03); border-color:#3A3A3A; }
+.cw .imp .btn-std { background:#26262C; border-color:#3A3A44; color:#EEE; } .cw .imp .btn-acc { color:#111; background:#818CF8; }
+.irow { display:grid; grid-template-columns:72px 1fr auto; gap:12px; align-items:center; padding:8px 0; border-top:1px solid #3A3A3A; }
+.irow .th { height:54px; border-radius:4px; position:relative; overflow:hidden; }
+.irow.bad .th { background:#0F0F12; display:grid; place-items:center; color:#FF6B5E; font-family:'Segoe Fluent Icons'; font-size:18px; }
+.irow b { display:block; } .irow small { color:#AAA; }
+</style>
+</head>
+<body>
+<div class="mock-bar">
+  <span><b>Mockup 23 · KI-Bearbeitung (nur versteckt) · Entwurf</b></span>
+  <span class="grp">Design: <button id="mbLight" class="on">Hell</button><button id="mbDark">Dunkel</button></span>
+  <span class="grp">Sitzung: <button id="sHidden" class="on">Versteckt</button><button id="sNormal">Normal</button></span>
+  <span class="grp">Ansicht: <button data-v="edit" class="on">Vorlage wählen</button><button data-v="run">Läuft</button><button data-v="result">Ergebnis</button><button data-v="mask">Entfernen / Erweitern</button><button data-v="blocked">Grenzen</button><button data-v="setup">Nicht eingerichtet</button><button data-v="comfy">ComfyUI-Fenster</button><button data-v="import">Übernehmen</button><button data-v="settings">Einstellungen</button></span>
+  <span class="note">Fotos/Personen sind Platzhalter · ADR-0076</span>
+</div>
+
+<div class="stage-wrap"><div class="win-box" id="winBox">
+<div class="window" id="win">
+  <div class="titlebar"><span class="tile"></span> Lumora<span class="wc"><span>&#xE921;</span><span>&#xE922;</span><span>&#xE8BB;</span></span></div>
+  <nav class="nav">
+    <div class="wbs">lumora</div>
+    <div class="lib-switch" id="libSw"><span class="ic">&#xE72E;</span><div><b>Privat</b><small>versteckte Bibliothek</small></div></div>
+    <div class="nav-item active" id="navGal"><span class="ic">&#xE91B;</span>Galerie</div>
+    <div class="nav-item"><span class="ic">&#xE8F1;</span>Alben</div>
+    <div class="nav-item"><span class="ic">&#xE786;</span>Storys</div>
+    <div class="nav-item"><span class="ic">&#xE716;</span>Personen</div>
+    <div class="nav-item"><span class="ic">&#xE707;</span>Orte</div>
+    <div class="nav-item"><span class="ic">&#xE8C8;</span>Doppelte</div>
+    <div class="spacer"></div>
+    <div class="nav-item" id="navSet"><span class="ic">&#xE713;</span>Einstellungen</div>
+  </nav>
+
+  <main class="content">
+    <!-- ===== Einstellungen › KI-Bearbeitung (nur versteckt) ===== -->
+    <section class="page" id="pSettings">
+      <div class="phead"><div><h1>Einstellungen</h1></div></div>
+      <div class="tabs" id="setTabs"><span>Allgemein</span><span>Darstellung</span><span>Storys</span><span>Verbessern</span><span>Versteckte Bibliothek</span><span>Sicherheits-Check</span><span class="on ki">KI-Bearbeitung</span></div>
+      <div class="body" id="setBody">
+        <section class="card">
+          <h2><span class="ic">&#xE945;</span>KI-Bearbeitung im Container</h2>
+          <div class="muted" style="margin-bottom:6px">Programm, Modelle, Zwischenstände und Caches liegen nur im geöffneten Container (Ordner <b>.lumora-ki</b>). Lumora startet die Bearbeitung nur auf diesem PC (127.0.0.1) und beendet sie beim Zusperren, beim Verlassen der versteckten Bibliothek und nach Leerlauf. Ist der Container zu, gibt es sie nicht.</div>
+          <div class="row"><div><b>Laufzeit</b><span class="muted">ComfyUI 0.43.0 (geprüfte Version) · CUDA 12.6 · Grafikkarte mit 11 GB</span></div><span class="state s-ok">läuft · seit 3 min</span></div>
+          <div class="row"><div><b>Nach Leerlauf beenden</b><span class="muted">gibt Grafikkarte und Speicher wieder frei</span></div><span class="field">nach 10 Minuten</span></div>
+          <div class="row"><div><b>Jetzt beenden</b><span class="muted">bricht einen laufenden Auftrag ab und leert die Arbeitsordner</span></div><button class="btn-std"><span class="ic s">&#xE71A;</span>Beenden</button></div>
+          <div class="row"><div><b>ComfyUI-Oberfläche anbieten</b><span class="muted">eigenes Fenster, Browserdaten im Container, nur dieser PC, Downloads gesperrt; dort gelten die Vorlagen-Grenzen nicht, geprüft wird beim Übernehmen</span></div><span class="sw on"></span></div>
+          <div class="row"><div><b>Platz im Container</b><span class="muted">Programm 6,1 GB · Modelle 19,8 GB · Arbeitsordner 0 MB</span></div><span class="field">frei: 41 GB</span></div>
+        </section>
+        <section class="card">
+          <h2><span class="ic">&#xE771;</span>Modelle und Erweiterungen (im Container)</h2>
+          <div class="muted" style="margin-bottom:8px">Jede Datei wird einzeln erst nach Ihrer Bestätigung geladen — direkt in den Container. Vorher sehen Sie Name, Quelle, Größe, Lizenz und Prüfsumme.</div>
+          <table class="models">
+            <tr><th>Für</th><th>Modell</th><th>Quelle</th><th>Größe</th><th>Lizenz</th><th></th></tr>
+            <tr><td><b>Hintergrund, Outfit</b></td><td>FLUX.1 Kontext [dev] · GGUF Q4</td><td>Hugging Face</td><td>≈ 6,8 GB</td><td>nicht-kommerziell</td><td><span class="state s-ok">geladen</span></td></tr>
+            <tr><td><b>Entfernen, Erweitern</b></td><td>FLUX.1 Fill [dev] · GGUF Q4</td><td>Hugging Face</td><td>≈ 6,8 GB</td><td>nicht-kommerziell</td><td><button class="btn-std">Laden…</button></td></tr>
+            <tr><td><b>Text-Encoder, VAE</b></td><td>T5-XXL (GGUF), CLIP-L, FLUX-VAE</td><td>Hugging Face</td><td>≈ 4,0 GB</td><td>Apache-2.0 / MIT</td><td><span class="state s-ok">geladen</span></td></tr>
+            <tr><td><b>Verbessern, schnelles Entfernen</b></td><td>SDXL-Fotomodell + Inpainting</td><td>Hugging Face</td><td>≈ 6,9 GB</td><td>OpenRAIL++</td><td><span class="state s-miss">nicht geladen</span></td></tr>
+            <tr><td><b>Erweiterung</b></td><td>ComfyUI-GGUF (fester Stand)</td><td>GitHub</td><td>&lt; 1 MB</td><td>Apache-2.0</td><td><span class="state s-ok">freigegeben</span></td></tr>
+            <tr><td><b>Ergebnisprüfung</b></td><td>Nacktheits-Erkennung (ONNX)</td><td>GitHub</td><td>≈ 12 MB</td><td>wird geprüft</td><td><span class="state s-ok">geladen</span></td></tr>
+          </table>
+          <div class="muted" style="margin-top:6px">Größen ungefähr — die genaue Zahl und die Prüfsumme zeigt der Bestätigungsdialog. Keine Updates, keine weiteren Erweiterungen, keine Online-Knoten.</div>
+        </section>
+        <section class="card">
+          <h2><span class="ic">&#xE8D7;</span>Grenzen der Bearbeitung</h2>
+          <ul class="muted limits" style="margin:0;padding-left:18px">
+            <li>Nur feste Vorlagen; Outfit nur aus einer Liste von Alltagskleidung.</li>
+            <li>Keine Unterwäsche, Bademode, Nacktheit oder „Ausziehen“ bei echten Personen — auch nicht hier.</li>
+            <li>Jedes Ergebnis wird vor dem Anzeigen geprüft; ist es freizügig und eine Person erkannt, wird es verworfen und nichts gespeichert.</li>
+            <li>Wirkt eine Person jünger als 21, gibt es für das Foto keine Kleidungsbearbeitung.</li>
+            <li>Im ComfyUI-Fenster sind freie Arbeitsabläufe möglich; jedes Ergebnis wird beim Übernehmen geprüft und gekennzeichnet.</li>
+            <li>Diese Prüfungen schützen vor Versehen, nicht vor dem Besitzer dieses PCs. Sie lassen sich nicht abschalten.</li>
+          </ul>
+        </section>
+        <section class="card">
+          <h2><span class="ic">&#xE74E;</span>Ergebnis speichern</h2>
+          <div class="row"><div><b>Dateiname</b><span class="muted">neue Datei neben dem Original, verknüpft als Fassung; Original bleibt unverändert</span></div><span class="field">&lt;Name&gt;_ki.jpg</span></div>
+          <div class="row"><div><b>Kennzeichnung „KI-bearbeitet“</b><span class="muted">in der Datei (IPTC/XMP) und im Katalog: Vorlage, Modell, Datum — immer an</span></div><span class="sw on" style="opacity:.5;cursor:not-allowed"></span></div>
+          <div class="row"><div><b>Sterne, Tags, Datum, Ort übernehmen</b><span class="muted">wie bei „Foto verbessern“</span></div><span class="sw on"></span></div>
+        </section>
+      </div>
+      <div class="body hidden" id="setNormal"><div class="card"><div class="muted">Normale Sitzung: kein Reiter „KI-Bearbeitung“, kein Modell in „Modelle &amp; Daten“, kein Eintrag im Protokoll.</div></div></div>
+    </section>
+
+    <!-- ===== Galerie (Hintergrund) ===== -->
+    <section class="page on" id="pGallery">
+      <div class="phead"><div><h1>Galerie</h1><div class="sub2">Privat · 312 Fotos</div></div></div>
+      <div class="grid" id="grid"></div>
+    </section>
+
+    <!-- ===== Lightbox mit KI-Bearbeitung ===== -->
+    <div class="lb" id="lb">
+      <div class="stage">
+        <div class="top"><span class="ic s">&#xE72B;</span> 2024-08-03 Seeufer.jpg · 4032 × 3024
+          <div class="r"><span id="tbEnh">Verbessern (E)</span><span class="on" id="tbKi">KI-Bearbeitung (K)</span><span id="tbCmp">Vergleich</span></div></div>
+        <div class="pic" id="pic">
+          <div class="layer before" id="before" style="filter:none"><div class="person" id="pBefore"><div class="head"></div><div class="body"></div></div></div>
+          <div class="layer after" id="after"></div>
+          <div class="split" id="split"></div>
+          <span class="lbl" style="left:10px" id="lblL">Original</span><span class="lbl" style="right:10px" id="lblR">Vorschau</span>
+          <div class="mask hidden" id="mask" style="left:12%;top:52%;width:14%;height:30%"></div>
+          <div class="brush hidden" id="brush" style="left:22%;top:66%"></div>
+          <div class="extend hidden" id="extend"></div>
+          <span class="aibadge hidden" id="aiBadge"><span class="ic s">&#xE945;</span>KI-bearbeitet</span>
+          <div class="discard hidden" id="discard"><div><span class="ic">&#xE8D7;</span><b>Ergebnis verworfen</b><br>Das Ergebnis hat die Prüfung nicht bestanden. Es wurde nicht angezeigt und nicht gespeichert; die Arbeitsdateien sind gelöscht.<br><span class="muted">Andere Auswahl oder andere Vorlage versuchen.</span></div></div>
+        </div>
+        <div class="bottom"><span>&#9664; vorheriges</span><span>14 / 312</span><span>nächstes &#9654;</span></div>
+        <div class="ctx hidden" id="ctx" style="left:40%;top:40%">
+          <div><span class="ic s">&#xE771;</span>Foto verbessern…<small>E</small></div>
+          <div id="ctxKi"><span class="ic s">&#xE945;</span>KI-Bearbeitung…<small>K</small></div>
+          <div id="ctxComfy" data-v="comfy"><span class="ic s">&#xE8A7;</span>In ComfyUI öffnen…</div>
+          <hr><div><span class="ic s">&#xE7AD;</span>Drehen</div><div><span class="ic s">&#xE946;</span>Eigenschaften</div>
+        </div>
+      </div>
+
+      <!-- Leiste: normale Sitzung (zum Vergleich) -->
+      <div class="panel hidden" id="panelNormal">
+        <h3><span class="ic">&#xE771;</span>Bearbeiten</h3>
+        <div class="muted">Normale Sitzung: Lightbox und Rechtsklick kennen nur „Foto verbessern“. Kein Knopf, keine Taste K, kein Hinweis auf die KI-Bearbeitung.</div>
+        <div class="tool"><span class="ic">&#xE771;</span><div><b>Foto verbessern</b><small>Hochskalieren, Gesichter, Einfärben, Entfernen</small></div><span></span></div>
+      </div>
+
+      <!-- Leiste: KI-Bearbeitung -->
+      <div class="panel" id="panel">
+        <h3><span class="ic">&#xE945;</span>KI-Bearbeitung</h3>
+        <div class="runtime" id="rt"><span class="dot" id="rtDot"></span><span id="rtTxt">Bereit · lokal auf diesem PC · im Container</span></div>
+
+        <!-- nicht eingerichtet -->
+        <div id="setupBox" class="hidden" style="display:grid;gap:8px">
+          <div class="note-box warn"><span class="ic s">&#xE7BA;</span><div><b>Noch nicht eingerichtet.</b> Im geöffneten Container wurde keine KI-Bearbeitung gefunden. Sie wird einmalig nach Ihrer Freigabe in den Container gelegt (≈ 1,8 GB Download, entpackt ≈ 6 GB; Modelle zusätzlich, je einzeln).</div></div>
+          <div class="note-box info"><span class="ic s">&#xE946;</span><div>Gefunden, aber Version 0.44.1 ist <b>noch nicht geprüft</b> — Lumora startet nur geprüfte Versionen.</div></div>
+          <button class="btn-std"><span class="ic s">&#xE713;</span>Einstellungen › KI-Bearbeitung</button>
+        </div>
+
+        <div id="tools">
+          <div class="muted" style="margin:2px 0 6px">Feste Vorlagen · Original bleibt unverändert · Ergebnis wird eine neue Fassung.</div>
+          <div class="tool" data-t="bg"><span class="ic">&#xE91B;</span><div><b>Hintergrund</b><small>Person bleibt, Umgebung neu · ≈ 3 min</small></div><span class="st st-ok">bereit</span></div>
+          <div class="sub hidden" id="subBg"><div class="chips"><span class="chip on">Strand</span><span class="chip">Berge</span><span class="chip">Stadt</span><span class="chip">Wald</span><span class="chip">Studio grau</span><span class="chip">Weiß</span></div>
+            <div class="txt" id="bgTxt">optional: „am Abend, warmes Licht“</div></div>
+          <div class="tool on" data-t="outfit" id="tOutfit"><span class="ic">&#xE7E6;</span><div><b>Outfit</b><small>nur Alltagskleidung aus der Liste · ≈ 3 min</small></div><span class="st st-ok" id="stOutfit">bereit</span></div>
+          <div class="sub" id="subOutfit"><div class="chips"><span class="chip">Jeans + Pullover</span><span class="chip on">Wanderkleidung</span><span class="chip">Anzug</span><span class="chip">Winterjacke</span><span class="chip">Tracht</span><span class="chip">Sommerkleid (knielang)</span><span class="chip">Regenjacke</span></div>
+            <div class="muted">Kein Freitext. Gesicht und Haltung bleiben.</div></div>
+          <div class="note-box warn hidden" id="ageNote"><span class="ic s">&#xE7BA;</span><div>Für dieses Foto nicht verfügbar: Eine Person wirkt jünger als 21. Kleidung wird dann nicht bearbeitet.</div></div>
+          <div class="tool" data-t="erase" id="tErase"><span class="ic">&#xE75C;</span><div><b>Entfernen</b><small>Pinsel über Störendes · schnell (SDXL) oder genau (FLUX)</small></div><span class="st st-need">Modell fehlt</span></div>
+          <div class="tool" data-t="extend" id="tExtend"><span class="ic">&#xE740;</span><div><b>Erweitern</b><small>Bild nach außen ergänzen · 4:3 → 16:9</small></div><span class="st st-need">Modell fehlt</span></div>
+          <div class="sub hidden" id="subMask"><div class="seg"><button>Pinsel</button><button class="on">Erweitern 16:9</button><button>3:2</button><button>1:1</button></div>
+            <div class="muted">Pinselgröße</div><div class="slider"><i style="width:35%"></i><b style="left:35%"></b></div></div>
+          <div class="tool" data-t="improve"><span class="ic">&#xE771;</span><div><b>Verbessern</b><small>Details neu aufbauen, Stärke gering · ≈ 40 s</small></div><span class="st st-need">Modell fehlt</span></div>
+          <div class="note-box stop hidden" id="termNote"><span class="ic s">&#xE711;</span><div>Dieser Text wird nicht gesendet — er enthält einen Begriff, den die KI-Bearbeitung nicht umsetzt.</div></div>
+        </div>
+
+        <div id="runBox" class="hidden" style="display:grid;gap:8px">
+          <div class="gpu"><span class="ic s">&#xE7F4;</span>Outfit · Schritt 14 von 20<span class="bar"><i style="width:70%"></i></span>≈ 1:10</div>
+          <div class="note-box info"><span class="ic s">&#xE769;</span><div>Gesichter, Motive und Hintergrund-Aufgaben pausieren, solange die Bearbeitung läuft.</div></div>
+          <button class="btn-std"><span class="ic s">&#xE711;</span>Abbrechen</button>
+        </div>
+
+        <div id="resBox" class="hidden" style="display:grid;gap:8px">
+          <div class="muted">3 Varianten · geprüft ✓</div>
+          <div class="vars" id="vars"></div>
+        </div>
+
+        <div class="save" id="saveBox">
+          <div class="muted" id="saveHint">Speichern als neue Fassung daneben:</div>
+          <div class="file">2024-08-03 Seeufer_ki.jpg</div>
+          <button class="btn-acc" id="btnGo"><span class="ic s">&#xE768;</span>Vorschau berechnen</button>
+          <button class="btn-std" data-v="comfy" id="btnComfy"><span class="ic s">&#xE8A7;</span>ComfyUI-Oberfläche öffnen…</button>
+          <button class="btn-std">Schließen</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== ComfyUI-Fenster (eigenes Fenster, WebView2) ===== -->
+    <div class="cw hidden" id="cw">
+      <div class="tb"><span class="ic s">&#xE945;</span>Lumora · ComfyUI<span class="wc"><span>&#xE921;</span><span>&#xE922;</span><span>&#xE8BB;</span></span></div>
+      <div class="lbar"><span class="ic s" style="color:#6CCB5F">&#xE72E;</span><span style="color:#AAA">nur dieser PC · Daten im Container · Downloads gesperrt · übergeben: <b style="color:#DDD">2024-08-03 Seeufer.jpg</b></span>
+        <div class="r"><button class="btn-acc" data-v="import"><span class="ic s">&#xE896;</span>Ergebnisse übernehmen (2)</button><button class="btn-std" data-v="edit">Schließen</button></div></div>
+      <div class="web">
+        <div class="side"><span class="ic">&#xE8FD;</span><span class="ic">&#xE71D;</span><span class="ic">&#xE8F1;</span><span class="ic">&#xE81C;</span></div>
+        <div class="canvas">
+          <div class="wtabs"><span class="on">Kontext bearbeiten</span><span>+</span></div><span class="run">▶ Run</span>
+          <svg><path d="M190 120 C210 120 210 170 230 170" stroke="#64B5F6" stroke-width="2" fill="none"/><path d="M190 250 C210 250 210 195 230 195" stroke="#FFD54F" stroke-width="2" fill="none"/><path d="M380 180 C400 180 400 180 420 180" stroke="#BA68C8" stroke-width="2" fill="none"/><path d="M570 180 C585 180 585 160 600 160" stroke="#E57373" stroke-width="2" fill="none"/></svg>
+          <div class="nd" style="left:40px;top:70px"><b>Load Image</b><div class="im" id="ndImg"></div></div>
+          <div class="nd" style="left:40px;top:220px"><b>Text</b><i>change the jacket to a red rain jacket</i></div>
+          <div class="nd" style="left:230px;top:140px"><b>Flux Kontext (GGUF)</b><i>model: flux1-kontext-dev-Q4</i><i>guidance 2.5</i></div>
+          <div class="nd" style="left:420px;top:150px"><b>KSampler</b><i>steps 20 · seed 41872</i></div>
+          <div class="nd" style="left:600px;top:120px"><b>Save Image</b><div class="im" id="ndOut"></div></div>
+        </div>
+      </div>
+      <div class="imp hidden" id="imp">
+        <div class="dlg"><div class="in">
+          <h2>Ergebnisse übernehmen</h2>
+          <div class="muted">Neue Bilder aus ComfyUI. Jedes wird vor dem Übernehmen geprüft und als „KI-bearbeitet“ gekennzeichnet.</div>
+          <div class="irow"><div class="th" id="th1"></div><div><b>Fassung von 2024-08-03 Seeufer.jpg</b><small>→ 2024-08-03 Seeufer_ki.jpg · Modell aus dem Arbeitsablauf: FLUX.1 Kontext Q4</small></div><span class="state s-ok">geprüft</span></div>
+          <div class="irow bad"><div class="th">&#xE8D7;</div><div><b>Ergebnis verworfen</b><small>hat die Prüfung nicht bestanden — wird nicht angezeigt und gelöscht</small></div><span class="state s-miss">verworfen</span></div>
+          <div class="muted">Nicht übernommene Ergebnisse bleiben im Container und werden beim nächsten Öffnen wieder angeboten.</div>
+        </div><div class="ft"><button class="btn-std" data-v="comfy">Später</button><button class="btn-acc" data-v="comfy"><span class="ic s">&#xE74E;</span>1 übernehmen</button></div></div>
+      </div>
+    </div>
+  </main>
+
+  <div class="statusbar"><span id="stLib">Privat (versteckt)</span><span id="stat">KI-Bearbeitung: bereit</span><div class="r">0.5.x</div></div>
+</div>
+</div></div>
+
+<script>
+const $=(s)=>document.querySelector(s), $$=(s)=>[...document.querySelectorAll(s)];
+const ph=['#C9D6E3,#6E7F92','#D9CFC9,#6E5E54','#BFD3C1,#4F6B52','#EADFD0,#9C8672','#C8C9E0,#5D5F8A','#E2D6C6,#8B7B6C'];
+const img='linear-gradient(180deg,#9EC9E8 0%,#CFE3F1 45%,#6E9CB8 46%,#4F7F9C 62%,#C9B48A 63%,#A8946A 100%)';
+const imgBg='linear-gradient(180deg,#F5C98A 0%,#F8E0B4 45%,#4FA3C7 46%,#2E7FA6 62%,#EAD7A8 63%,#D6BE86 100%)';
+$('#before').style.background=img; $('#after').style.background=img; ['#ndImg','#ndOut','#th1'].forEach(id=>$(id).style.background=img);
+$('#ndImg').innerHTML='<div class="person" style="height:80%"><div class="head"></div><div class="body"></div></div>';
+$('#ndOut').innerHTML=$('#th1').innerHTML='<div class="person" style="--clo:#C42B1C;height:80%"><div class="head"></div><div class="body"></div></div>';
+let g=''; for(let i=0;i<24;i++){ const c=ph[i%ph.length]; g+=`<div class="tile" style="background:linear-gradient(160deg,${c})">${i===5?'<span class="pair"><span class="ic s">&#xE945;</span>KI · 2 Fassungen</span>':''}</div>`; } $('#grid').innerHTML=g;
+let vs=''; ['#6B8F5A','#7A6A4F','#5A6F8F'].forEach((c,i)=>{ vs+=`<div class="var${i===0?' on':''}" style="background:${img}"><div class="person" style="--clo:${c};height:80%"><div class="head"></div><div class="body"></div></div><span>${i+1}</span></div>`; }); $('#vars').innerHTML=vs;
+let hidden=true, cur='edit';
+const pic=$('#pic'), split=$('#split'), after=$('#after');
+function cmp(on,p){ split.classList.toggle('hidden',!on); after.style.clipPath=on?`inset(0 0 0 ${p}%)`:'inset(0 0 0 100%)'; split.style.left=p+'%'; }
+pic.addEventListener('mousemove',e=>{ if(cur!=='result') return; const r=pic.getBoundingClientRect(); const p=Math.max(5,Math.min(95,(e.clientX-r.left)/r.width*100)); cmp(true,p); });
+function tool(t){ $$('#tools .tool').forEach(x=>x.classList.toggle('on',x.dataset.t===t)); $('#subBg').classList.toggle('hidden',t!=='bg'); $('#subOutfit').classList.toggle('hidden',t!=='outfit'); $('#subMask').classList.toggle('hidden',!(t==='erase'||t==='extend')); }
+function view(v){
+  cur=v; $$('.mock-bar [data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
+  const lb=v!=='settings';
+  $('#lb').classList.toggle('hidden',!lb); $('#pGallery').classList.toggle('on',lb); $('#pSettings').classList.toggle('on',!lb);
+  $('#navGal').classList.toggle('active',lb); $('#navSet').classList.toggle('active',!lb);
+  ['mask','brush','extend','aiBadge','discard','ageNote','termNote','ctx'].forEach(id=>$('#'+id).classList.add('hidden'));
+  $('#setupBox').classList.toggle('hidden',v!=='setup'); $('#tools').classList.toggle('hidden',v==='setup'||v==='run'||v==='result');
+  $('#runBox').classList.toggle('hidden',v!=='run'); $('#resBox').classList.toggle('hidden',v!=='result');
+  $('#tOutfit').classList.remove('off'); $('#stOutfit').className='st st-ok'; $('#stOutfit').textContent='bereit';
+  $('#saveBox').classList.toggle('hidden',v==='setup'||v==='run');
+  $('#rtDot').className='dot'+(v==='setup'?' off':v==='run'?' wait':''); $('#rtTxt').textContent= v==='setup'?'Nicht eingerichtet':v==='run'?'Rechnet · Grafikkarte belegt':'Bereit · lokal auf diesem PC · im Container';
+  $('#pBefore').style.setProperty('--clo','#6F7F96'); after.style.background=img; cmp(false,100); $('#lblR').textContent='Vorschau';
+  $('#btnGo').innerHTML='<span class="ic s">&#xE768;</span>Vorschau berechnen'; $('#saveHint').textContent='Speichern als neue Fassung daneben:';
+  if(v==='edit'){ tool('outfit'); $('#ctx').classList.remove('hidden'); }
+  if(v==='result'){ after.innerHTML='<div class="person" style="--clo:#6B8F5A"><div class="head"></div><div class="body"></div></div>'; cmp(true,50); $('#aiBadge').classList.remove('hidden'); $('#lblR').textContent='Variante 1 · KI-bearbeitet'; $('#btnGo').innerHTML='<span class="ic s">&#xE74E;</span>Als Fassung speichern'; $('#saveHint').textContent='Gespeichert wird nur die gewählte Variante:'; }
+  if(v==='mask'){ tool('extend'); $('#mask').classList.remove('hidden'); $('#brush').classList.remove('hidden'); $('#extend').classList.remove('hidden'); }
+  if(v==='blocked'){ tool('bg'); $('#bgTxt').textContent='… (Text mit gesperrtem Begriff)'; $('#termNote').classList.remove('hidden'); $('#ageNote').classList.remove('hidden'); $('#tOutfit').classList.add('off'); $('#stOutfit').className='st st-off'; $('#stOutfit').textContent='gesperrt'; $('#subOutfit').classList.add('hidden'); $('#discard').classList.remove('hidden'); }
+  else $('#bgTxt').textContent='optional: „am Abend, warmes Licht“';
+  $('#cw').classList.toggle('hidden',!(v==='comfy'||v==='import')); $('#imp').classList.toggle('hidden',v!=='import');
+  if(v==='comfy'||v==='import') $('#rtTxt').textContent='ComfyUI-Fenster offen';
+  if(v==='run') $('#stat').textContent='KI-Bearbeitung: Outfit 70 % · Gesichter/Motive pausiert';
+  else if(v==='blocked') $('#stat').textContent='KI-Bearbeitung: Ergebnis verworfen (Prüfung)';
+  else $('#stat').textContent='KI-Bearbeitung: '+(v==='setup'?'nicht eingerichtet':'bereit');
+  applySession();
+}
+function applySession(){
+  $('#sHidden').classList.toggle('on',hidden); $('#sNormal').classList.toggle('on',!hidden);
+  $('#libSw').innerHTML = hidden ? '<span class="ic">&#xE72E;</span><div><b>Privat</b><small>versteckte Bibliothek</small></div>' : '<span class="ic">&#xE8F1;</span><div><b>Familienfotos</b><small>Bibliothek wechseln</small></div>';
+  $('#stLib').textContent = hidden ? 'Privat (versteckt)' : 'Familienfotos';
+  $('#panel').classList.toggle('hidden',!hidden); $('#panelNormal').classList.toggle('hidden',hidden);
+  $('#tbKi').classList.toggle('hidden',!hidden); $('#ctxComfy').classList.toggle('hidden',!hidden); if(!hidden) $('#cw').classList.add('hidden'); $('#tbEnh').classList.toggle('on',!hidden); $('#ctxKi').classList.toggle('hidden',!hidden);
+  $('#setTabs').innerHTML = hidden ? '<span>Allgemein</span><span>Darstellung</span><span>Storys</span><span>Verbessern</span><span>Versteckte Bibliothek</span><span>Sicherheits-Check</span><span class="on">KI-Bearbeitung</span>' : '<span>Allgemein</span><span>Bibliotheken</span><span>Darstellung</span><span>Storys</span><span>Assistent</span><span>Orte</span><span>Gesichter</span><span>Motive</span><span class="on">Verbessern</span><span>Verbundene Apps</span>';
+  $('#setBody').classList.toggle('hidden',!hidden); $('#setNormal').classList.toggle('hidden',hidden);
+  if(!hidden){ ['mask','brush','extend','aiBadge','discard'].forEach(id=>$('#'+id).classList.add('hidden')); cmp(false,100); $('#stat').textContent='bereit'; }
+}
+document.addEventListener('click',e=>{
+  const v=e.target.closest('[data-v]'); if(v){ view(v.dataset.v); return; }
+  const t=e.target.closest('#tools .tool'); if(t && !t.classList.contains('off')){ tool(t.dataset.t); return; }
+  const ch=e.target.closest('.chip'); if(ch){ ch.parentElement.querySelectorAll('.chip').forEach(x=>x.classList.toggle('on',x===ch)); return; }
+  const va=e.target.closest('.var'); if(va){ $$('.var').forEach(x=>x.classList.toggle('on',x===va)); return; }
+  const c=e.target.closest('.chk, .sw'); if(c && c.style.cursor!=='not-allowed'){ c.classList.toggle('on'); return; }
+  const b=e.target.closest('.seg button'); if(b){ b.parentElement.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b)); }
+});
+$('#sHidden').onclick=()=>{ hidden=true; view(cur); }; $('#sNormal').onclick=()=>{ hidden=false; view(cur); };
+function fit(){ const w=1280,h=800,win=$('#win'); win.style.width=w+'px'; win.style.height=h+'px'; const s=Math.min(1,(document.documentElement.clientWidth-40)/w);
+  win.style.transform=`scale(${s})`; $('#winBox').style.width=w*s+'px'; $('#winBox').style.height=h*s+'px'; }
+function theme(d){ document.body.classList.toggle('dark',d); $('#mbLight').classList.toggle('on',!d); $('#mbDark').classList.toggle('on',d); }
+$('#mbLight').onclick=()=>theme(false); $('#mbDark').onclick=()=>theme(true);
+window.addEventListener('resize',fit); fit(); theme(window.matchMedia('(prefers-color-scheme: dark)').matches); view('edit');
+</script>
+</body>
+</html>

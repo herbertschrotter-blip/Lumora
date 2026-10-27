@@ -3,6 +3,30 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.23] — 2026-10-27
+
+### Docs — Konzept KI-Bearbeitung mit ComfyUI, nur in der versteckten Sitzung (ADR-0076, Mockup 23)
+- **ADR-0076 (Accepted, noch nicht gebaut)** und **Mockup 23**, beide von Herbert abgenommen.
+- **Nur versteckt, alles im Container:**
+  - Programm, Modelle, Ein-/Ausgabe, Caches und Browserdaten liegen in `.lumora-ki` im Container.
+  - Lumora startet ComfyUI selbst, nur auf 127.0.0.1 mit zufälligem Port, in einem Job-Objekt.
+  - Beendet wird es beim Zusperren, am Ende der versteckten Sitzung und nach 10 min Leerlauf, immer vor dem Aushängen.
+  - Die normale Sitzung kennt die Funktion nicht: kein Menü, kein Reiter, kein Modell-Eintrag, keine Protokollzeile.
+- **Bedienung:**
+  - Eigene Leiste in der Lightbox mit festen Vorlagen: Hintergrund, Outfit (nur Alltagskleidung aus einer Liste),
+    Entfernen, Erweitern, Verbessern — über die ComfyUI-API.
+  - Zusätzlich ein ComfyUI-Fenster (WebView2, Daten im Container, nur 127.0.0.1, Downloads gesperrt) mit
+    „Ergebnisse übernehmen“.
+  - Ergebnis wird eine Fassung `<Name>_ki.jpg`, gekennzeichnet „KI-bearbeitet“ (IPTC DigitalSourceType, Vorlage, Modell,
+    Datum). Während eines Auftrags pausiert der Hintergrund (`IForegroundWork`).
+- **Grenzen (`IEditPolicy`):** keine sexualisierten Bearbeitungen echter Personen; Begriffsliste vor dem Senden;
+  Ergebnisprüfung mit lokalem Erkennungsmodell (freizügig + Gesicht → verwerfen); geschätzt unter 21 → kein Outfit.
+  Offen dokumentiert: Schutz vor Versehen, nicht gegen den Besitzer.
+- **Freigaben:** ComfyUI (cu126 wegen Pascal-Grafikkarte), jedes Modell und jede Erweiterung nur einzeln nach Freigabe
+  mit Name, Quelle, Größe, Lizenz und Prüfsumme; nichts davon im Repo oder portablen Paket.
+- Bau in 5 Stufen; Outfit, Hintergrund und das ComfyUI-Fenster erst, wenn die Grenzen gebaut und getestet sind.
+- PLAN „Geplante Vorhaben“ und ADR-Übersicht nachgezogen.
+
 ## [0.5.22] — 2026-10-27
 
 ### Docs — ADR-0075 ergänzt: Platz schaffen am Handy, Server-Modus als Windows-Dienst
