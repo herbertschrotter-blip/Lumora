@@ -1264,6 +1264,9 @@ Gipfelbuch (Touren, Spuren, Gipfel; Fotos nur als Verweis). Die Verbindung läuf
   anderen App stehen. Je Zeile an/aus: Fotos suchen/Vorschaubilder/Originale öffnen, Personen sehen (Standard aus), Touren,
   GPS-Spuren und Gipfel an Lumora geben, Hintergrundstart (Standard aus). **Verbinden** oder **Ablehnen**; nach 5 Minuten
   verfällt die Anfrage. Das gemeinsame Geheimnis liegt nur verschlüsselt (Windows-DPAPI) unter `Lumora\appconnect`.
+- **Lumora fragt selbst** (seit 0.5.9, noch ohne Knopf): Lumora kann andere Apps über ihre Anmeldedatei finden, sie bei
+  Bedarf normal starten, eine Kopplung mit Code anfragen, Rechte nachfragen und trennen. Bedienbar wird das mit dem Reiter
+  „Verbundene Apps“.
 - **Noch offen:** Reiter „Verbundene Apps“ (Mockup 11), Fotos für das Gipfelbuch und Touren in Lumora folgen in den nächsten
   Stufen; bis dahin trennt nur die andere App.
 

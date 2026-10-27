@@ -86,6 +86,33 @@ public sealed class ConnectionStore : IAppConnectPeers
 
     public IReadOnlyList<string> GrantedTo(string appId) => Find(appId)?.GrantedToPeer ?? [];
 
+    /// <summary>Geheimnis der Kopplung für Anfragen als Abfrager (Stufe 3); null ohne Kopplung. Nie protokollieren.</summary>
+    public string? Secret(string appId)
+    {
+        lock (_lock)
+        {
+            return _entries.TryGetValue(appId, out var e) ? Encoding.UTF8.GetString(e.Secret) : null;
+        }
+    }
+
+    /// <summary>Was die andere App Lumora erlaubt (aus <c>grantedToYou</c>, Abschnitt 5 Schritt 7).</summary>
+    public void SetGrantedByPeer(string appId, IEnumerable<string> rights)
+    {
+        var known = rights.Where(Rights.IsKnown).Distinct(StringComparer.Ordinal).ToList();
+        lock (_lock)
+        {
+            if (!_entries.TryGetValue(appId, out var e) || e.Connection.GrantedByPeer.SequenceEqual(known, StringComparer.Ordinal))
+            {
+                return;
+            }
+
+            _entries[appId] = e with { Connection = e.Connection with { GrantedByPeer = known } };
+            Save();
+        }
+
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
     /// <summary>Neue Kopplung (ersetzt eine alte derselben App) mit frischem Geheimnis.</summary>
     public void Add(AppConnection connection, string secret)
     {

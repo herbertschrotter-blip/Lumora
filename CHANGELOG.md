@@ -3,6 +3,18 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.9] — 2026-10-27
+
+### Added — App-Verbindung Stufe 3: Lumora als Abfrager
+- Lumora kann jetzt selbst andere Apps ansprechen (Vertrag 1.1 Abschnitte 4, 5, 9): Apps über ihre Anmeldedatei finden
+  (laufend nur mit lebender `pid` und Port), Kopplung mit sechsstelligem Code anfragen (Hauptversion des Vertrags geprüft),
+  Status jede Sekunde bis höchstens 5 Minuten abfragen, angenommene Kopplung mit demselben DPAPI-geschützten Geheimnis
+  speichern, Rechte über `grantedToYou` nachführen, trennen (Gegenseite benachrichtigt, lokal immer gelöscht). 401
+  `not_paired` — oder `/info` ohne `grantedToYou` trotz Geheimnis — gilt als getrennt. Läuft die Gegenseite nicht, startet
+  Lumora sie normal über ihren `exePath` und wartet höchstens 20 s.
+- Noch ohne Oberfläche (`App.AppConnectClient`); bedienbar mit dem Reiter „Verbundene Apps“ (Stufe 4). ADR-0073 Nachtrag
+  0.5.9. (refs #5)
+
 ## [0.5.8] — 2026-10-27
 
 ### Added — App-Verbindung Stufe 2: Kopplung als Anbieter mit Bestätigungsdialog

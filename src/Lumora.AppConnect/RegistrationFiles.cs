@@ -1,10 +1,11 @@
+using System.Diagnostics;
 using System.Text.Json;
 
 namespace Lumora.AppConnect;
 
 /// <summary>
 /// Anmeldedateien im gemeinsamen Ordner (Abschnitt 4): eigene atomar schreiben (temporäre Datei, dann Umbenennen), andere
-/// lesen (Stufe 3). Kein Geheimnis darin — die Datei ist nur der Wegweiser.
+/// lesen (Stufe 3: Lumora als Abfrager). Kein Geheimnis darin — die Datei ist nur der Wegweiser.
 /// </summary>
 public sealed class RegistrationFiles(string folder)
 {
@@ -32,9 +33,48 @@ public sealed class RegistrationFiles(string folder)
         File.Move(temp, target, overwrite: true);
     }
 
-    public AppRegistration? Read(string appId)
+    public AppRegistration? Read(string appId) => ReadFile(PathOf(appId));
+
+    /// <summary>Alle Anmeldedateien außer der eigenen, nach Anzeigename (Abschnitt 4).</summary>
+    public IReadOnlyList<AppRegistration> Others(string ownAppId)
     {
-        var path = PathOf(appId);
+        if (!Directory.Exists(Folder))
+        {
+            return [];
+        }
+
+        return Directory.EnumerateFiles(Folder, "*.json")
+            .Select(ReadFile)
+            .OfType<AppRegistration>()
+            .Where(r => !string.Equals(r.AppId, ownAppId, StringComparison.Ordinal))
+            .OrderBy(r => r.DisplayName, StringComparer.CurrentCulture)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Läuft die App wirklich und nimmt Anfragen an? <c>running</c> allein reicht nicht — nach einem Absturz bleibt es stehen
+    /// (Abschnitt 4: der Leser prüft <c>pid</c> gegen laufende Prozesse).
+    /// </summary>
+    public static bool IsAlive(AppRegistration registration)
+    {
+        if (!registration.Running || registration.Pid is not int pid || registration.Port is not > 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            using var process = Process.GetProcessById(pid);
+            return !process.HasExited;
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            return false;
+        }
+    }
+
+    private static AppRegistration? ReadFile(string path)
+    {
         try
         {
             return File.Exists(path) ? JsonSerializer.Deserialize<AppRegistration>(File.ReadAllText(path), AppConnectContract.RegistrationJson) : null;

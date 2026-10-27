@@ -12,6 +12,9 @@ public static class AppConnectContract
     /// <summary>Umgesetzte Vertragsversion (Abschnitt 12).</summary>
     public const string Version = "1.1";
 
+    /// <summary>Hauptversion: eine andere bedeutet brechende Änderungen (Abschnitt 12, Fehler 426 <c>contract_mismatch</c>).</summary>
+    public const int Major = 1;
+
     /// <summary>Basispfad (Abschnitt 3).</summary>
     public const string BasePath = "/av/v1";
 
@@ -58,6 +61,12 @@ public static class Rights
     public const string TracksRead = "tracks.read";
     public const string SummitsRead = "summits.read";
     public const string BackgroundStart = "background.start";
+
+    /// <summary>Alle Rechte aus Abschnitt 6; unbekannte Werte zählen nicht (Abschnitt 3).</summary>
+    public static readonly IReadOnlyList<string> All =
+        [PhotosSearch, PhotosThumbnail, PhotosOriginal, PhotosPeople, ToursRead, TracksRead, SummitsRead, BackgroundStart];
+
+    public static bool IsKnown(string right) => All.Contains(right, StringComparer.Ordinal);
 }
 
 /// <summary>Fehlercodes (Abschnitt 11).</summary>

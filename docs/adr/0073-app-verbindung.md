@@ -1,6 +1,6 @@
 # ADR-0073: App-Verbindung — Lumora setzt den Vertrag „App-Verbindung“ 1.1 um
 
-- **Status:** Accepted (Stufe 1 in 0.5.5, Stufe 2 in 0.5.8; weitere Stufen ergänzen diesen ADR)
+- **Status:** Accepted (Stufe 1 in 0.5.5, Stufe 2 in 0.5.8, Stufe 3 in 0.5.9; weitere Stufen ergänzen diesen ADR)
 - **Datum:** 2026-10-26
 - **Entscheider:** Herbert Schrotter (Vertrag, Stufenplan, Antworten auf die offenen Fragen am 2026-10-26), Claude (Umsetzung
   und Detailentscheidungen ohne Rückfrage, siehe unten)
@@ -23,7 +23,7 @@ Lumora setzt **App-Verbindung Version 1.1** um, in sieben Stufen (Plan vom 2026-
 |---|---|---|
 | 1 | 0.5.5 | Anmeldedatei (4), eine Instanz je Benutzer (9), Schnittstelle mit Schutzregeln (3), Fehler (11), `GET /info` (7) |
 | 2 | 0.5.8 | Kopplung als Anbieter mit Bestätigungsdialog, Halte-Zusagen (5, 7) |
-| 3 | geplant | Abfrager: Apps finden, Kopplung anfragen, Geheimnis mit DPAPI, Trennen (4, 5) |
+| 3 | 0.5.9 | Abfrager: Apps finden, Kopplung anfragen, Geheimnis mit DPAPI, Trennen (4, 5) |
 | 4 | geplant | Reiter „Verbundene Apps“ nach Mockup 11 |
 | 5 | geplant | Foto-Endpunkte als Anbieter (8.1) |
 | 6 | geplant | Hintergrundmodus und Start durch andere Apps (9) |
@@ -101,3 +101,26 @@ Lumora-eigene Entscheidungen (keine Vertragsänderung):
 - **Code:** `PairingModels.cs` (Rümpfe, `PairingPermissions`), `PairingCoordinator`, `ConnectionStore`, `LeaseRegistry`;
   Wpf: `AppConnect/PairingDialogWindow`, `WindowPairingPrompt`. Tests: `PairingTests.cs`, `PairingDialogTests.cs`,
   Rauchtest-Schritt „App-Verbindung“ (Kopplung einer Test-App, Dialog hell/dunkel).
+
+## Nachtrag 0.5.9 — Stufe 3: Lumora als Abfrager
+
+- **`AppConnectClient`** (WPF-frei, nach dem Muster des Gipfelbuchs): andere Apps über ihre Anmeldedatei finden
+  (`RegistrationFiles.Others`; laufend nur mit `running`, lebender `pid` und Port — `IsAlive`), Kopplung mit
+  sechsstelligem Code anfragen (vorher Hauptversion des Vertrags prüfen → `contract_mismatch`), Status höchstens jede
+  Sekunde und höchstens 5 Minuten abfragen (`accepted` | `rejected` | `expired`; 404 gilt als abgelaufen), angenommene
+  Kopplung speichern (dasselbe `ConnectionStore` und Geheimnis wie als Anbieter), Rechte über `grantedToYou`
+  nachführen, trennen (`DELETE /pairing`, wenn die Gegenseite läuft; lokal immer).
+- **Rechte:** Lumora fragt an, was es möchte und die Gegenseite anbietet (`wants ∩ provides`), und bietet an, was die
+  Gegenseite möchte (`provides ∩ wants`, ohne Angabe alles). Gespeichert wird nur Bekanntes (Abschnitt 3).
+- **Getrennt erkennen:** 401 `not_paired` auf eine Anfrage mit Geheimnis löscht die Kopplung (Abschnitt 5, Ränder).
+  Lumoras Lesart dazu: `GET /info` ist ohne Geheimnis erreichbar und nennt `grantedToYou` nur „mit gültigem Geheimnis“
+  (Abschnitt 7) — fehlt es trotz mitgesendetem Geheimnis, gilt das ebenso als getrennt. Ein Kandidat für eine
+  Klarstellung im Vertrag (Vorschlag), keine Änderung.
+- **Gegenseite starten:** läuft sie nicht, startet Lumora sie über `exePath` **normal** (ohne `backgroundArg`; der
+  Hintergrundstart ist erst nach der Kopplung erlaubt) und wartet höchstens 20 s auf die Anmeldedatei mit Port
+  (Abschnitt 9, Bereitschaft); nur eine vorhandene `.exe`.
+- **Oberfläche:** noch keine — `App.AppConnectClient` ist verdrahtet, der Reiter „Verbundene Apps“ (Stufe 4, Mockup 11)
+  ruft ihn auf.
+- **Tests:** `AppConnectClientTests` gegen eine zweite echte Schnittstelle im selben Testlauf (Lumora-Code als
+  „Gipfelbuch“): finden, koppeln (beide Seiten dasselbe Geheimnis), abgelehnt, abgelaufen, Rechte nachführen,
+  getrennt erkennen, trennen (auch ohne laufende Gegenseite), Starten mit Bereitschaft und Zeitgrenze.
