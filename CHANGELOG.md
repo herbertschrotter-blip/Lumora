@@ -3,6 +3,21 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.28] — 2026-10-27
+
+### Docs — Prüfliste Stufe 0 der Companion-App (Spike 18, Netz-Teil)
+- Neue Prüfliste `docs/spikes/18-companion-netz.md` für Herbert, ohne etwas zu bauen. Sie prüft:
+  - welche Absender-Adresse der PC über WireGuard sieht und ob sie fest bleibt;
+  - ob der Tunnel nur für eine App gilt und nur den PC erreicht;
+  - ob die feste WLAN-Adresse trotz zufälliger MAC hält;
+  - was zu Hause bei eingeschaltetem WireGuard ankommt.
+- Gemessen wird mit einem kurzzeitigen Python-Webserver auf einem leeren Ordner, nur für das Profil „Privat“; danach
+  wird aufgeräumt.
+- Die Ergebnistabelle nimmt nur „ja / nein / Hinweis“ auf, keine echten Adressen.
+- Je nach Ergebnis sagt die Liste, was in ADR-0075 anzupassen ist.
+- Der Keystore-mTLS-Prototyp bleibt beim Bau von Stufe 1/2.
+- ADR-0075 verweist auf die Liste.
+
 ## [0.5.27] — 2026-10-27
 
 ### Docs — Mockup 22 ergänzt: Fingerabdruck je Bibliothek, Heim-WLAN, Hochladen früh (abgenommen)

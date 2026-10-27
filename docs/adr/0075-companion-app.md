@@ -390,11 +390,13 @@ die PC-Oberfläche bleibt nutzbar, gespeichert wird nur im Dienst.
    Gerät und unverändertem mTLS (Entscheidung 2, Netz).
 
 Am echten Gerät bleibt in Stufe 0 zu prüfen: Absender-Adresse über WireGuard, feste WLAN-Adresse trotz zufälliger MAC,
-Keystore-mTLS mit beiden Schlüsseln.
+Keystore-mTLS mit beiden Schlüsseln. Prüfliste für den Netz-Teil (ohne Bauen):
+[Spike 18](../spikes/18-companion-netz.md).
 
 ## Referenzen
 
 - Mockup `mockups/22-companion-app.html`
+- [Spike 18](../spikes/18-companion-netz.md) — Prüfliste Stufe 0, Netz-Teil
 - ADR-0073 und Vertrag „App-Verbindung“ (Repo `herbertschrotter-blip/app-verbindung`) — bewusst nicht erweitert
 - Android: Keystore/StrongBox, `BiometricPrompt`, Network Security Config; WireGuard-Android: getrennter Tunnel je App,
   Intent-Steuerung mit `CONTROL_TUNNELS`
