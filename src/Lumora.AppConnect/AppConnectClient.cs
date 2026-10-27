@@ -66,6 +66,9 @@ public sealed class AppConnectClient
         _logger = logger ?? NullLogger.Instance;
     }
 
+    /// <summary>Wie lange <see cref="PairAsync"/> höchstens auf die Bestätigung wartet (Oberfläche: „läuft ab um …“).</summary>
+    public TimeSpan PairingTimeout => _timings.PairingTimeout;
+
     /// <summary>Andere Apps mit Anmeldedatei (laufend oder nicht).</summary>
     public IReadOnlyList<AppRegistration> Peers() => _registrations.Others(_own.AppId);
 

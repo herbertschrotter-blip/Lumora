@@ -13,6 +13,7 @@
              xmlns:assistant="clr-namespace:Lumora.Stories.Assistant"
              xmlns:models="clr-namespace:Lumora.Settings.ModelPackages"
              xmlns:enhance="clr-namespace:Lumora.Enhance"
+             xmlns:appconnect="clr-namespace:Lumora.AppConnect"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance local:SettingsViewModel}"
              d:DesignWidth="1000"
@@ -126,6 +127,10 @@
             </TabItem>
             <TabItem Header="Speicher &amp; Wartung" Tag="{x:Static shell:NavigationTags.SettingsStorage}">
                 <sections:SettingsStorageSection x:Name="StorageView" />
+            </TabItem>
+            <!-- Verbundene Apps (ADR-0073 Stufe 4, Mockup 11): DataContext = ConnectedAppsViewModel (Code-Behind) -->
+            <TabItem Header="Verbundene Apps" Tag="{x:Static shell:NavigationTags.SettingsConnectedApps}">
+                <appconnect:SettingsConnectedAppsSection x:Name="ConnectedAppsView" />
             </TabItem>
             <TabItem Header="Info" Tag="{x:Static shell:NavigationTags.SettingsInfo}">
                 <info:InfoSection x:Name="InfoView" />

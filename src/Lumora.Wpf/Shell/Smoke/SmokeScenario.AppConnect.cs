@@ -18,6 +18,7 @@ namespace Lumora.Shell.Smoke;
 /// (<c>AppVerbindung\apps\lumora.json</c>, laufend, mit Port, ohne Geheimnis), die Schnittstelle auf 127.0.0.1 beantwortet
 /// <c>GET /av/v1/info</c> und weist eine Anfrage mit <c>Origin</c> ab. Stufe 2: eine Test-App koppelt per HTTP, der Dialog
 /// (Mockup 11) zeigt Code und Rechte (hell/dunkel), „Verbinden“ → Geheimnis abgeholt, <c>/info</c> mit Rechten, Trennen.
+/// Stufe 4: der Reiter „Verbundene Apps“ zeigt die gekoppelte Test-App mit ihren Rechten und meldet das Trennen.
 /// Der echte Ordner unter <c>%LocalAppData%</c> bleibt unberührt.
 /// </summary>
 internal sealed partial class SmokeScenario
@@ -115,9 +116,25 @@ internal sealed partial class SmokeScenario
         var grantedJson = JsonDocument.Parse(await grantedResponse.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
         Check(grantedJson.TryGetProperty("grantedToYou", out var g) && g.GetArrayLength() == 3, "GET /info mit Geheimnis nennt die erlaubten Rechte");
 
+        // Stufe 4: Reiter „Verbundene Apps“ — die Test-App hat keine Anmeldedatei, ist aber verbunden
+        await OpenSettingsSectionAsync(NavigationTags.SettingsConnectedApps, "Reiter „Verbundene Apps“").ConfigureAwait(true);
+        var view = _settingsPage.FindName("ConnectedAppsView") as FrameworkElement;
+        var apps = view?.DataContext as ConnectedAppsViewModel;
+        await WaitUntilAsync(() => apps?.Apps.Any(a => a.AppId == "rauchtest" && a.IsPaired) == true, ShortWait, "Test-App im Reiter").ConfigureAwait(true);
+        var item = apps!.Apps.Single(a => a.AppId == "rauchtest");
+        Check(apps.IsAvailable && apps.Summary == "1 App verbunden"
+              && item.GrantedToPeer.Where(o => o.IsOn).Select(o => o.Right).SequenceEqual([Rights.PhotosSearch, Rights.PhotosThumbnail, Rights.PhotosOriginal])
+              && item.ReceivedFromPeer.Where(o => o.IsOn).Select(o => o.Right).SequenceEqual([Rights.ToursRead, Rights.TracksRead, Rights.SummitsRead])
+              && item.CanDisconnect && !item.CanPair,
+            $"Verbundene Apps: {item.DisplayName} „{item.StateText}“ ({item.DetailText}), Rechte in beide Richtungen");
+        await SnapshotAsync("78-verbundene-apps").ConfigureAwait(true);
+
         using var unpair = Authorized(HttpMethod.Delete, "/av/v1/pairing", secret!);
         using var unpaired = await http.SendAsync(unpair).ConfigureAwait(true);
         Check((int)unpaired.StatusCode == 204 && app.AppConnections!.Find("rauchtest") is null, "Trennen → 204, Kopplung weg");
+        await WaitUntilAsync(() => apps.Apps.All(a => a.AppId != "rauchtest"), ShortWait, "Test-App aus dem Reiter").ConfigureAwait(true);
+        Check(apps.Message == "Die Verbindung mit Rauchtest-App ist getrennt." && apps.Summary == "Noch keine App verbunden",
+            $"Verbundene Apps nach dem Trennen: „{apps.Message}“");
     }
 
     private static HttpRequestMessage Authorized(HttpMethod method, string path, string secret)

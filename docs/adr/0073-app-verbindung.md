@@ -1,6 +1,6 @@
 # ADR-0073: App-Verbindung — Lumora setzt den Vertrag „App-Verbindung“ 1.1 um
 
-- **Status:** Accepted (Stufe 1 in 0.5.5, Stufe 2 in 0.5.8, Stufe 3 in 0.5.9; weitere Stufen ergänzen diesen ADR)
+- **Status:** Accepted (Stufe 1 in 0.5.5, Stufe 2 in 0.5.8, Stufe 3 in 0.5.9, Stufe 4 in 0.5.13; weitere Stufen ergänzen diesen ADR)
 - **Datum:** 2026-10-26
 - **Entscheider:** Herbert Schrotter (Vertrag, Stufenplan, Antworten auf die offenen Fragen am 2026-10-26), Claude (Umsetzung
   und Detailentscheidungen ohne Rückfrage, siehe unten)
@@ -24,7 +24,7 @@ Lumora setzt **App-Verbindung Version 1.1** um, in sieben Stufen (Plan vom 2026-
 | 1 | 0.5.5 | Anmeldedatei (4), eine Instanz je Benutzer (9), Schnittstelle mit Schutzregeln (3), Fehler (11), `GET /info` (7) |
 | 2 | 0.5.8 | Kopplung als Anbieter mit Bestätigungsdialog, Halte-Zusagen (5, 7) |
 | 3 | 0.5.9 | Abfrager: Apps finden, Kopplung anfragen, Geheimnis mit DPAPI, Trennen (4, 5) |
-| 4 | geplant | Reiter „Verbundene Apps“ nach Mockup 11 |
+| 4 | 0.5.13 | Reiter „Verbundene Apps“ nach Mockup 11 |
 | 5 | geplant | Foto-Endpunkte als Anbieter (8.1) |
 | 6 | geplant | Hintergrundmodus und Start durch andere Apps (9) |
 | 7 | geplant | Touren, Spuren, Gipfel nutzen (8.2) — Umfang A + B (siehe unten) |
@@ -124,3 +124,33 @@ Lumora-eigene Entscheidungen (keine Vertragsänderung):
 - **Tests:** `AppConnectClientTests` gegen eine zweite echte Schnittstelle im selben Testlauf (Lumora-Code als
   „Gipfelbuch“): finden, koppeln (beide Seiten dasselbe Geheimnis), abgelehnt, abgelaufen, Rechte nachführen,
   getrennt erkennen, trennen (auch ohne laufende Gegenseite), Starten mit Bereitschaft und Zeitgrenze.
+
+## Nachtrag 0.5.13 — Stufe 4: Reiter „Verbundene Apps“
+
+- **Reiter** Einstellungen › Verbundene Apps (Mockup 11, vor „Info“): Einleitung, Zahl der Verbindungen, je App eine Karte
+  — alle Apps mit Anmeldedatei (`RegistrationFiles.Others`) und alle Kopplungen, verbundene zuerst. Zustand wie im Mockup:
+  „läuft“, „läuft im Hintergrund“ (`mode`), „nicht gestartet“, „nicht verbunden“; dazu „startet…“ und „wartet auf
+  Bestätigung“. Zeile darunter: Version und „verbunden seit“ bzw. „auf diesem PC nicht mehr angemeldet“.
+- **Verbinden…** (nicht verbundene App): läuft sie nicht, startet Lumora sie normal (höchstens 20 s); dann sechsstelliger
+  Code in der Karte („Prüfen Sie, ob in <App> derselbe Code steht … läuft um hh:mm ab“) mit **Abbrechen**. Ergebnis
+  angenommen / abgelehnt / abgelaufen / abgebrochen steht in der Karte. Abbrechen beendet nur das Warten hier — der Vertrag
+  kennt kein Zurückziehen; der Dialog der anderen App schließt sich beim Ablauf.
+- **Rechte in beide Richtungen:** links „<App> darf von Lumora“ — was die App möchte und Lumora anbietet, **umschaltbar**
+  (Abschnitt 5, Schritt 7: jede Seite ändert nur, was sie erlaubt; `ConnectionStore.SetGrantedToPeer`, nur eigene
+  Rechte; die andere App erfährt es über `grantedToYou`); rechts „Lumora bekommt von <App>“ — nur Anzeige aus
+  `grantedToYou`, beim Öffnen des Reiters und mit **Aktualisieren** nachgefragt.
+- **Getrennt sichtbar:** trennt die andere App (401 bzw. `/info` ohne `grantedToYou`, Stufe 3) oder koppelt sie neu, folgt
+  der Reiter über `ConnectionStore.Changed`; die Karte meldet „Die Verbindung mit <App> ist getrennt.“ bzw. „Mit <App>
+  verbunden.“ **Verbindung trennen…** fragt nach und trennt wie in Stufe 3. **<App> starten** für nicht laufende Apps
+  (normal, ohne `backgroundArg`).
+- **Fehler** nur nach Code aus Abschnitt 11 in eigenen Worten (z. B. `contract_mismatch` → „andere Fassung der
+  App-Verbindung“); Texte der Gegenseite und das Geheimnis zeigt der Reiter nie.
+- **Verdrahtung:** `AppConnectRuntime` (Singleton) übergibt Abfrager und Kopplungen nach dem Start der Schnittstelle an
+  `ConnectedAppsViewModel`; ohne App-Verbindung (Start mit `_hidden`) zeigt der Reiter nur einen Hinweis.
+- **Bewusst noch nicht:** Schalter „Verbindungen erlauben“, „Hintergrundstart erlauben“, „Symbol im Infobereich“ und
+  „Im Hintergrund beenden“ (Stufe 6), Bibliotheken je App (Stufe 5), Anfrage-Zähler unter „Zuletzt“ (es gibt noch keine
+  Foto-Anfragen). Nichts davon braucht eine Vertragsänderung.
+- **Tests:** `ConnectedAppsTests` (Wpf) gegen eine zweite echte Schnittstelle: Leer-Zustand, Verbinden angenommen mit
+  Rechten, Rechte ändern, abgelehnt, abgebrochen, von drüben getrennt, Trennen mit Rückfrage, Starten (gelingt/scheitert),
+  Reiter hell/dunkel ohne Binding-Fehler; `PairingTests`: eigene Rechte ändern, `/info` zeigt sie. Der Rauchtest-Schritt
+  „App-Verbindung“ prüft die gekoppelte Test-App im Reiter und das Trennen.

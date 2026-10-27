@@ -184,6 +184,25 @@ public sealed class PairingTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Lumora_aendert_spaeter_was_es_erlaubt_die_App_sieht_es_ueber_info()
+    {
+        var secret = await PairAsync("gipfelbuch");
+        var changes = 0;
+        _store.Changed += (_, _) => changes++;
+
+        // Abschnitt 5, Schritt 7: nur eigene Rechte, Unbekanntes und Fremdes (tours.read) fällt weg, gleicher Stand speichert nicht
+        _store.SetGrantedToPeer("gipfelbuch", ["photos.search", "photos.people", "tours.read", "foo.bar"]);
+        _store.SetGrantedToPeer("gipfelbuch", ["photos.search", "photos.people"]);
+        _store.SetGrantedToPeer("unbekannt", ["photos.search"]);
+        changes.Should().Be(1);
+        new ConnectionStore(Path.Combine(_root, "appconnect", "connections.json"), new XorProtector()).GrantedTo("gipfelbuch")
+            .Should().Equal("photos.search", "photos.people");
+
+        using var info = Authorized(HttpMethod.Get, "/av/v1/info", "gipfelbuch", secret);
+        Strings((await ReadAsync(await _http.SendAsync(info))).GetProperty("grantedToYou")).Should().Equal("photos.search", "photos.people");
+    }
+
+    [Fact]
     public void Dialogzeilen_buendeln_Rechte_und_ignorieren_Unbekanntes()
     {
         var lines = PairingPermissions.Lines(["photos.search", "photos.people", "photos.future"], ["tracks.read", "neues.recht"]);

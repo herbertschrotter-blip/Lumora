@@ -1,0 +1,244 @@
+<UserControl x:Class="Lumora.AppConnect.SettingsConnectedAppsSection"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:local="clr-namespace:Lumora.AppConnect"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance local:ConnectedAppsViewModel}"
+             d:DesignWidth="1000">
+    <!-- Einstellungen › Verbundene Apps (ADR-0073 Stufe 4, Mockup 11); DataContext = ConnectedAppsViewModel (Code der SettingsPage).
+         Schalter für Hintergrundstart und Infobereich folgen mit Stufe 6, die Bibliotheken je App mit Stufe 5. -->
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="../Settings/Sections/SettingsStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- Zustands-Marke wie in Mockup 11: läuft (grün), im Hintergrund (Akzent), aus (grau), nicht verbunden (gelb) -->
+            <Style x:Key="StateChip" TargetType="Border">
+                <Setter Property="CornerRadius" Value="9" />
+                <Setter Property="Padding" Value="8,1,8,2" />
+                <Setter Property="Margin" Value="8,0,0,0" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                <Setter Property="TextElement.Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding Tone}" Value="Success">
+                        <Setter Property="Background" Value="{DynamicResource SystemFillColorSuccessBackgroundBrush}" />
+                        <Setter Property="TextElement.Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Tone}" Value="Accent">
+                        <Setter Property="Background" Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
+                        <Setter Property="TextElement.Foreground" Value="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Tone}" Value="Caution">
+                        <Setter Property="Background" Value="{DynamicResource SystemFillColorCautionBackgroundBrush}" />
+                        <Setter Property="TextElement.Foreground" Value="{DynamicResource SystemFillColorCautionBrush}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="MetaText" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+
+            <Style x:Key="ColumnHeader" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+                <Setter Property="Margin" Value="0,0,0,6" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+
+            <!-- Ein Recht: Häkchen + Text + Erklärung; links umschaltbar, rechts nur Anzeige -->
+            <DataTemplate x:Key="RightTemplate" DataType="{x:Type local:AppRightOption}">
+                <CheckBox Margin="0,2,0,2" IsChecked="{Binding IsOn}" IsEnabled="{Binding IsEditable}" MinHeight="0"
+                          AutomationProperties.Name="{Binding Text}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="13" />
+                        <TextBlock Style="{StaticResource MetaText}" FontSize="11" Text="{Binding Hint}"
+                                   Visibility="{Binding Hint, Converter={StaticResource NullToVis}}" />
+                    </StackPanel>
+                </CheckBox>
+            </DataTemplate>
+
+            <DataTemplate x:Key="AppTemplate" DataType="{x:Type local:ConnectedAppItemViewModel}">
+                <Border Style="{StaticResource SectionCard}" Padding="0" AutomationProperties.Name="{Binding DisplayName}"
+                        AutomationProperties.AutomationId="{Binding AppId}">
+                    <StackPanel>
+                        <!-- Kopf: Symbol, Name, Zustand, Version · verbunden seit -->
+                        <Grid Margin="16,14,16,14">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border Width="48" Height="48" CornerRadius="10" Margin="0,0,14,0" VerticalAlignment="Top"
+                                    Background="{DynamicResource AccentFillColorDefaultBrush}">
+                                <TextBlock Text="{Binding Initial}" FontSize="22" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+                            </Border>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <WrapPanel>
+                                    <TextBlock FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center" Text="{Binding DisplayName}" />
+                                    <Border Style="{StaticResource StateChip}" AutomationProperties.AutomationId="State">
+                                        <TextBlock FontSize="11" FontWeight="Bold" Text="{Binding StateText}" />
+                                    </Border>
+                                </WrapPanel>
+                                <TextBlock Style="{StaticResource MetaText}" Margin="0,3,0,0" Text="{Binding DetailText}"
+                                           AutomationProperties.AutomationId="Detail" />
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Verbinden: Code und Wartehinweis -->
+                        <Border Padding="16,10,16,12" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                Background="{DynamicResource SubtleFillColorTertiaryBrush}"
+                                Visibility="{Binding IsPairing, Converter={StaticResource BoolToVis}}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource MetaText}" Text="{Binding PairingText}" AutomationProperties.AutomationId="PairingText" />
+                                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                    <Border HorizontalAlignment="Left" Padding="12,6" CornerRadius="6" Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                                            Visibility="{Binding PairingCode, Converter={StaticResource NullToVis}}">
+                                        <TextBlock FontFamily="Cascadia Mono, Consolas" FontSize="20" FontWeight="SemiBold" Text="{Binding PairingCode}"
+                                                   Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" AutomationProperties.Name="Code" />
+                                    </Border>
+                                    <ui:ProgressRing IsIndeterminate="True" Width="20" Height="20" Margin="14,0,0,0" VerticalAlignment="Center" />
+                                    <ui:Button Content="Abbrechen" Margin="14,0,0,0" VerticalAlignment="Center" Command="{Binding PairCancelCommand}"
+                                               AutomationProperties.Name="Verbinden abbrechen" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Rechte in beide Richtungen und Schnittstelle (nur verbunden) -->
+                        <Grid Visibility="{Binding IsPaired, Converter={StaticResource BoolToVis}}">
+                            <Border BorderThickness="0,1,0,0" BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                    Background="{DynamicResource SubtleFillColorTertiaryBrush}" Padding="16,12,16,4">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="24" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource ColumnHeader}" Text="{Binding GrantedHeader}" />
+                                        <ItemsControl ItemsSource="{Binding GrantedToPeer}" ItemTemplate="{StaticResource RightTemplate}" Focusable="False"
+                                                      AutomationProperties.AutomationId="GrantedToPeer" />
+                                        <TextBlock Style="{StaticResource MetaText}" Margin="0,6,0,0"
+                                                   Text="Versteckte Bibliotheken sind für verbundene Apps nie sichtbar. Fotos gibt Lumora nur als Verweis, nie als Kopie." />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Style="{StaticResource ColumnHeader}" Text="{Binding ReceivedHeader}" />
+                                        <ItemsControl ItemsSource="{Binding ReceivedFromPeer}" ItemTemplate="{StaticResource RightTemplate}" Focusable="False"
+                                                      AutomationProperties.AutomationId="ReceivedFromPeer" />
+                                        <TextBlock Style="{StaticResource MetaText}" Margin="0,6,0,0"
+                                                   Text="Was die andere App erlaubt, legt sie selbst fest; Lumora fragt es beim Öffnen dieses Reiters nach." />
+                                    </StackPanel>
+                                    <TextBlock Grid.Row="1" Grid.ColumnSpan="3" Style="{StaticResource MetaText}" Margin="0,10,0,0"
+                                               Text="{Binding InterfaceText}" Visibility="{Binding InterfaceText, Converter={StaticResource NullToVis}}" />
+                                </Grid>
+                            </Border>
+                        </Grid>
+
+                        <!-- Meldung und Aktionen -->
+                        <StackPanel Margin="16,8,16,12">
+                            <TextBlock FontSize="12" TextWrapping="Wrap" Text="{Binding Notice}" Margin="0,0,0,8"
+                                       Visibility="{Binding Notice, Converter={StaticResource NullToVis}}"
+                                       AutomationProperties.AutomationId="Notice">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding NoticeIsError}" Value="True">
+                                                <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <WrapPanel HorizontalAlignment="Right">
+                                <ui:Button Appearance="Primary" Icon="{ui:SymbolIcon PlugConnected24}" Content="Verbinden…" Margin="6,0,0,0"
+                                           Command="{Binding PairCommand}"
+                                           Visibility="{Binding CanPair, Converter={StaticResource BoolToVis}}"
+                                           AutomationProperties.Name="Verbinden" />
+                                <ui:Button Icon="{ui:SymbolIcon Open24}" Content="{Binding StartLabel}" Margin="6,0,0,0"
+                                           Command="{Binding StartCommand}"
+                                           Visibility="{Binding CanStart, Converter={StaticResource BoolToVis}}"
+                                           AutomationProperties.Name="Starten" />
+                                <ui:Button Icon="{ui:SymbolIcon PlugDisconnected24}" Content="Verbindung trennen…" Margin="6,0,0,0"
+                                           Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                                           Command="{Binding DisconnectCommand}"
+                                           Visibility="{Binding CanDisconnect, Converter={StaticResource BoolToVis}}"
+                                           AutomationProperties.Name="Verbindung trennen" />
+                            </WrapPanel>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </DataTemplate>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Style="{StaticResource SectionPanel}">
+            <Border Style="{StaticResource SectionCard}">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="PlugConnected24" Margin="0,0,10,0" />
+                            <ui:TextBlock Style="{StaticResource SectionTitle}" Margin="0" Text="Verbindung mit anderen Apps auf diesem PC" />
+                        </StackPanel>
+                        <ui:Button Grid.Column="1" Icon="{ui:SymbolIcon ArrowSync24}" Content="Aktualisieren" Command="{Binding RefreshCommand}"
+                                   Visibility="{Binding IsAvailable, Converter={StaticResource BoolToVis}}"
+                                   AutomationProperties.Name="Aktualisieren" />
+                    </Grid>
+                    <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0"
+                               Text="Apps wie das Gipfelbuch können Lumora nach Fotos fragen, und Lumora bekommt von ihnen z. B. Touren und GPS-Spuren. Die Verbindung ist nur auf diesem PC erreichbar — nicht im Heimnetz, nicht im Internet. Fotos werden nicht kopiert, nur verwiesen." />
+                    <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0" FontWeight="SemiBold" Text="{Binding Summary}"
+                               Visibility="{Binding IsAvailable, Converter={StaticResource BoolToVis}}"
+                               AutomationProperties.AutomationId="Summary" />
+                    <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0"
+                               Text="Die App-Verbindung ist in diesem Start aus (z. B. beim Start mit versteckten Bibliotheken). Andere Apps sehen Lumora dann nicht."
+                               Visibility="{Binding IsAvailable, Converter={StaticResource InvBoolToVis}}"
+                               AutomationProperties.AutomationId="Unavailable" />
+                </StackPanel>
+            </Border>
+
+            <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,12" Text="{Binding Message}"
+                       Visibility="{Binding Message, Converter={StaticResource NullToVis}}"
+                       AutomationProperties.AutomationId="Message" />
+
+            <ItemsControl x:Name="AppList" ItemsSource="{Binding Apps}" ItemTemplate="{StaticResource AppTemplate}"
+                          AutomationProperties.Name="Apps" Focusable="False" />
+
+            <!-- Hinweis unter der Liste bzw. Leer-Zustand -->
+            <Border BorderThickness="1" CornerRadius="8" Padding="16,12" Margin="0,0,0,12"
+                    BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                    Visibility="{Binding IsAvailable, Converter={StaticResource BoolToVis}}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <ui:SymbolIcon Symbol="Info24" VerticalAlignment="Top" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    <StackPanel Grid.Column="1" Margin="12,0,0,0">
+                        <TextBlock FontWeight="SemiBold" Text="Noch keine App gefunden." Margin="0,0,0,2"
+                                   Visibility="{Binding HasApps, Converter={StaticResource InvBoolToVis}}"
+                                   AutomationProperties.AutomationId="Empty" />
+                        <TextBlock Style="{StaticResource MetaText}" FontSize="13"
+                                   Text="Apps erscheinen hier, sobald sie einmal auf diesem PC gestartet wurden. Verbinden geht von beiden Seiten: hier mit „Verbinden…“ oder in der anderen App (z. B. im Gipfelbuch „Mit Lumora verbinden“). Bestätigt wird immer in der App, die gefragt wird." />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

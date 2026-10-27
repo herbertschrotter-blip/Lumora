@@ -3,6 +3,21 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.13] — 2026-10-27
+
+### Added — App-Verbindung Stufe 4: Reiter „Verbundene Apps“
+- Neuer Reiter Einstellungen › **Verbundene Apps** nach Mockup 11: je App eine Karte mit Zustand (läuft, läuft im
+  Hintergrund, nicht gestartet, nicht verbunden), Version und „verbunden seit“; verbundene zuerst, Zahl der Verbindungen
+  oben, Hinweis ohne Apps.
+- **Verbinden…** startet die andere App bei Bedarf normal (höchstens 20 s), zeigt den sechsstelligen Code und wartet
+  höchstens 5 Minuten auf die Bestätigung drüben; **Abbrechen** beendet das Warten. Angenommen, abgelehnt, abgelaufen und
+  Fehler stehen in der Karte (Fehler nur nach Vertrags-Code, nie Texte der Gegenseite oder das Geheimnis).
+- **Rechte in beide Richtungen:** „<App> darf von Lumora“ mit Häkchen zum Ändern (Vertrag Abschnitt 5, Schritt 7 — nur
+  was Lumora selbst erlaubt), „Lumora bekommt von <App>“ aus `grantedToYou`, nachgefragt beim Öffnen und mit
+  **Aktualisieren**. **<App> starten**, **Verbindung trennen…** mit Rückfrage; trennt die andere App, meldet es die Karte.
+- Schalter für Hintergrundstart/Infobereich und „Im Hintergrund beenden“ folgen mit Stufe 6, Bibliotheken je App mit
+  Stufe 5. ADR-0073 Nachtrag 0.5.13; der Rauchtest-Schritt „App-Verbindung“ prüft den Reiter mit. (refs #5)
+
 ## [0.5.12] — 2026-10-27
 
 ### Added — Vorrang für das, worauf du gerade wartest

@@ -113,6 +113,27 @@ public sealed class ConnectionStore : IAppConnectPeers
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// Was Lumora der App erlaubt, nachträglich ändern (Abschnitt 5, Schritt 7: jede Seite ändert nur, was sie erlaubt; die
+    /// andere erfährt es über <c>grantedToYou</c>). Nur Rechte, die Lumora anbietet.
+    /// </summary>
+    public void SetGrantedToPeer(string appId, IEnumerable<string> rights)
+    {
+        var offered = rights.Where(AppConnectContract.Provides.Contains).Distinct(StringComparer.Ordinal).ToList();
+        lock (_lock)
+        {
+            if (!_entries.TryGetValue(appId, out var e) || e.Connection.GrantedToPeer.SequenceEqual(offered, StringComparer.Ordinal))
+            {
+                return;
+            }
+
+            _entries[appId] = e with { Connection = e.Connection with { GrantedToPeer = offered } };
+            Save();
+        }
+
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
     /// <summary>Neue Kopplung (ersetzt eine alte derselben App) mit frischem Geheimnis.</summary>
     public void Add(AppConnection connection, string secret)
     {

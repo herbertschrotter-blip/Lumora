@@ -56,12 +56,14 @@ public static class NavigationTags
     /// <summary>Einstellungen › Modelle &amp; Daten (ADR-0070): Modelle und Datenpakete laden, prüfen, entfernen, Update suchen.</summary>
     public const string SettingsModels = "settings-models";
     public const string SettingsStorage = "settings-storage";
+    /// <summary>Einstellungen › Verbundene Apps (ADR-0073, Mockup 11): andere Apps auf diesem PC finden, koppeln, Rechte, trennen.</summary>
+    public const string SettingsConnectedApps = "settings-apps";
     public const string SettingsInfo = "settings-info";
 
     /// <summary>Alle Reiter der Einstellungen in Anzeigereihenfolge.</summary>
     public static IReadOnlyList<string> SettingsSections { get; } =
     [
-        Library, Tags, Categories, SettingsFaces, SettingsMotifs, SettingsEnhance /* ADR-0071 */, SettingsArchives, SettingsAppearance, SettingsStories, SettingsAssistant /* ADR-0063 */, SettingsPlaces, SettingsModels /* ADR-0070 */, SettingsStorage, SettingsInfo,
+        Library, Tags, Categories, SettingsFaces, SettingsMotifs, SettingsEnhance /* ADR-0071 */, SettingsArchives, SettingsAppearance, SettingsStories, SettingsAssistant /* ADR-0063 */, SettingsPlaces, SettingsModels /* ADR-0070 */, SettingsStorage, SettingsConnectedApps /* ADR-0073 */, SettingsInfo,
     ];
 
     /// <summary>

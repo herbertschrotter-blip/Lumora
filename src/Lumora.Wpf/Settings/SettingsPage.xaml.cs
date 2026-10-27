@@ -39,7 +39,8 @@ public partial class SettingsPage : UserControl
         Marks.MarkSettingsState? markSettings = null,
         Backup.CatalogBackupSettingsViewModel? catalogBackup = null,
         ModelPackages.ModelPackagesViewModel? modelPackages = null,
-        Lumora.Enhance.EnhanceSettingsViewModel? enhance = null)
+        Lumora.Enhance.EnhanceSettingsViewModel? enhance = null,
+        Lumora.AppConnect.ConnectedAppsViewModel? connectedApps = null)
     {
         _sections = sections;
         InitializeComponent();
@@ -55,6 +56,7 @@ public partial class SettingsPage : UserControl
         AssistantView.DataContext = assistant; // Reiter „Assistent“ (ADR-0063); ohne Dienst leer
         ModelsView.DataContext = modelPackages; // Reiter „Modelle & Daten“ (ADR-0070); ohne Dienst leer
         EnhanceView.DataContext = enhance; // Reiter „Verbessern“ (ADR-0071); ohne Dienst leer
+        ConnectedAppsView.DataContext = connectedApps; // Reiter „Verbundene Apps“ (ADR-0073); ohne Dienst leer
         // Speicher & Wartung › Fehlende Dateien (ADR-0065); ohne Dienst ausgeblendet
         StorageView.MissingFilesCard.DataContext = missingFiles;
         StorageView.MissingFilesCard.Visibility = missingFiles is null ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible;

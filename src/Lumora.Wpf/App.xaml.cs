@@ -214,6 +214,7 @@ public partial class App : Application, ICatalogHostSwitcher
         Lumora.Usage.UsageUiServiceCollectionExtensions.AddUsageUi(services); // Einstellungen › Storys › „Nutzung lernen“ (Wpf/Usage, ADR-0072)
         Lumora.Enhance.EnhanceUiServiceCollectionExtensions.AddEnhanceUi(services); // Foto verbessern: Lightbox-Leiste, Stapel, Fassungen, Einstellungen › Verbessern (Wpf/Enhance, ADR-0071)
         Lumora.PhotoMenu.PhotoMenuServiceCollectionExtensions.AddPhotoMenu(services); // Rechtsklick-Menü, Titelbild, Eigenschaften, Export (Wpf/PhotoMenu, ADR-0068)
+        Lumora.AppConnect.ConnectedAppsUi.AddConnectedAppsUi(services); // Einstellungen › Verbundene Apps (Wpf/AppConnect, ADR-0073 Stufe 4)
 
         services.AddSingleton<MainWindow>();
     }
@@ -271,6 +272,8 @@ public partial class App : Application, ICatalogHostSwitcher
         var leases = new Lumora.AppConnect.LeaseRegistry();
         var registrations = new Lumora.AppConnect.RegistrationFiles(Lumora.AppConnect.RegistrationFiles.ResolveFolder(testRoot));
         AppConnectClient = new Lumora.AppConnect.AppConnectClient(registrations, AppConnections, logger: logger);
+        // Reiter „Verbundene Apps“ (Stufe 4); eine neue Sitzung (Host) gibt es nur mit „_hidden“, dort ist die App-Verbindung aus
+        _host.Services.GetRequiredService<Lumora.AppConnect.AppConnectRuntime>().Attach(AppConnectClient, AppConnections);
         var host = new Lumora.AppConnect.AppConnectHost(
             new Lumora.AppConnect.AppConnectServer(
                 new Lumora.AppConnect.AppConnectIdentity(Lumora.Settings.Info.AppInfo.Version),
