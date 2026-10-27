@@ -314,9 +314,11 @@ public sealed partial class GalleryViewModel : ObservableObject
     public string SelectionText => SelectedCount == 1 ? "1 ausgewählt" : $"{SelectedCount:N0} ausgewählt";
 
     public bool ShowNoLibrary => !HasLibrary;
-    public bool ShowGrid => HasLibrary && !ShowSubfolders && ViewMode == GalleryViewMode.Grid;
+    /// <summary>Kacheln; auch die Ansicht „Ordner“ ohne Unterordner (Mockup 21) zeigt Kacheln.</summary>
+    public bool ShowGrid => HasLibrary && !ShowSubfolders
+        && (ViewMode == GalleryViewMode.Grid || (ViewMode == GalleryViewMode.Folders && !ShowFolderRows));
     public bool ShowList => HasLibrary && !ShowSubfolders && ViewMode == GalleryViewMode.List;
-    public bool IsEmpty => HasLibrary && !IsLoading && !ShowSubfolders && TotalCount == 0 && ErrorMessage is null;
+    public bool IsEmpty => HasLibrary && !IsLoading && !ShowSubfolders && !ShowFolderRows && TotalCount == 0 && ErrorMessage is null;
 
     public string EmptyMessage
     {
@@ -788,6 +790,12 @@ public sealed partial class GalleryViewModel : ObservableObject
                 PageIndex = PageCount - 1;
             }
 
+            // Ansicht „Ordner“: Unterordner als Zeilen statt einer Seite (Mockup 21, GalleryViewModel.FolderRows.cs)
+            if (await TryShowFolderRowsAsync(query, ct))
+            {
+                return;
+            }
+
             if (total == 0 && query.HasFolder && !query.IncludeSubfolders && !query.HasSearch)
             {
                 var subfolders = await _source.GetSubfoldersAsync(_libraryId, query.FolderId!.Value, ct);
@@ -845,7 +853,7 @@ public sealed partial class GalleryViewModel : ObservableObject
     /// <summary>Pager: nur die Page wechseln (Count bleibt), Auswahl wird verworfen.</summary>
     private async Task NavigateToPageAsync(int pageIndex)
     {
-        if (!HasLibrary || !_source.IsOpen || ShowSubfolders)
+        if (!HasLibrary || !_source.IsOpen || ShowSubfolders || ShowFolderRows)
         {
             return;
         }
@@ -1148,7 +1156,7 @@ public sealed partial class GalleryViewModel : ObservableObject
     /// <summary>Läuft auf einem Worker-Thread des ThumbnailService — nur den unveränderlichen Id-Schnappschuss lesen.</summary>
     private void OnThumbnailReady(ThumbnailReadyEventArgs args)
     {
-        if (!InScope(args.LibraryId) || !_currentIdsSnapshot.Contains(args.FileId))
+        if (!InScope(args.LibraryId) || (!_currentIdsSnapshot.Contains(args.FileId) && !_rowIdsSnapshot.Contains(args.FileId)))
         {
             return;
         }
@@ -1176,6 +1184,8 @@ public sealed partial class GalleryViewModel : ObservableObject
                 item.Thumbnail = entry.Image;
                 RememberThumbnailSource(entry);
             }
+
+            AssignRowThumbnail(entry.FileId, entry.Image); // Ansicht „Ordner“ (GalleryViewModel.FolderRows.cs)
         }
     }
 
@@ -2297,6 +2307,7 @@ public sealed partial class GalleryViewModel : ObservableObject
         }
 
         UpdateThumbnailDecodeBox(); // größere Kacheln → zu kleine Vorschaubilder neu dekodieren (ADR-0043)
+        RelayoutFolderRows(); // Ansicht „Ordner“: Zeilenhöhe = Regler
     }
 
     partial void OnViewModeChanged(GalleryViewMode value)

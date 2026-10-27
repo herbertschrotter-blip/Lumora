@@ -3,6 +3,24 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.17] — 2026-10-27
+
+### Added — Galerie-Ansicht „Ordner“: Unterordner als Zeilen (Mockup 21)
+- Vierte Ansicht neben Kacheln, Collage und Liste. Ist ein Ordner mit Unterordnern geöffnet (z. B. Shootings mit Sets),
+  zeigt jede Zeile einen Unterordner: **erstes und letztes Foto** des Ordners immer außen, dazwischen **zufällige** in
+  Aufnahme-Reihenfolge — so viele, wie in die Breite passen, die Zeile randvoll ausgeglichen (passen alle Fotos des
+  Ordners hinein, bleiben sie natürlich breit). Schild „erstes“/„letztes“ auf den Randfotos.
+- Kopf je Zeile: Name (öffnet den Ordner), Zeitraum der Aufnahmen, „248 Fotos · 6 gezeigt“; beim Darüberfahren
+  „Andere Fotos zeigen“, „Diashow dieses Ordners“, „Ordner öffnen“. Rechtsklick: dieselben plus Alle Fotos taggen,
+  kategorisieren, bewerten, Umbenennen, Im Explorer anzeigen (Befehle der Ordnerleiste).
+- Klick auf ein Foto öffnet die Lightbox mit allen Fotos dieses Ordners (Aufnahme-Reihenfolge). Fotos direkt im
+  geöffneten Ordner bekommen eine eigene erste Zeile, Unterordner eines Sets eine eingerückte Zeile (eine Ebene).
+- Zeilenhöhe = Vorschaugrößen-Regler (auch Strg+Mausrad). **Neu mischen** zieht für alle Zeilen andere Zufallsfotos;
+  die Auswahl bleibt bis dahin gleich, auch nach einem Neustart (Startwert `ui.gallery.folderRowsSeed`). Der
+  Galerie-Filter gilt in jeder Zeile; Zeilen ohne Treffer fallen weg. Ohne Unterordner zeigt die Ansicht Kacheln.
+- Geladen werden je Zeile nur die Ids des Ordners und die gewählten Fotos (höchstens 50), nie der ganze Ordner.
+- Tests: Auswahl und Verteilung (`FolderRowLayoutTests`), Rauchtest-Schritt „Ansicht Ordner“.
+
 ## [0.5.16] — 2026-10-27
 
 ### Added — App-Verbindung Stufe 5: Fotos für andere Apps

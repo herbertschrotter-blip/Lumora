@@ -30,11 +30,11 @@ public sealed partial class GalleryViewModel
     public bool ShowGalleryList => ShowGrid || ShowCollage;
 
     /// <summary>Vorschaugrößen-Regler sichtbar: Kacheln (Kachelbreite) und Collage (Reihenhöhe).</summary>
-    public bool IsTileSizeAdjustable => ViewMode is GalleryViewMode.Grid or GalleryViewMode.Collage;
+    public bool IsTileSizeAdjustable => ViewMode is GalleryViewMode.Grid or GalleryViewMode.Collage or GalleryViewMode.Folders;
 
     /// <summary>Dekodierfläche für die aktuelle Ansicht: Collage = Reihenhöhe, sonst Bildbereich der Kachel (ADR-0043).</summary>
     private ThumbnailDecodeBox DecodeBoxForView(double dpiScale)
-        => ViewMode == GalleryViewMode.Collage
+        => ViewMode is GalleryViewMode.Collage or GalleryViewMode.Folders // Ordner-Zeilen: Zeilenhöhe wie die Collage
             ? ThumbnailDecodeBox.FromCollageRow(TileSize, dpiScale)
             : ThumbnailDecodeBox.FromTile(TileWidth, TileHeight, dpiScale);
 

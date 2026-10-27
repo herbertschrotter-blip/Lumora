@@ -10,6 +10,7 @@
              xmlns:conv="clr-namespace:Lumora.Gallery.Converters"
              xmlns:gc="clr-namespace:Lumora.Gallery.Controls"
              xmlns:marks="clr-namespace:Lumora.Marks"
+             xmlns:rows="clr-namespace:Lumora.Gallery.FolderRows"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:GalleryViewModel, IsDesignTimeCreatable=False}"
              d:DesignWidth="1000"
@@ -356,6 +357,122 @@
             </DataTemplate.Triggers>
         </DataTemplate>
 
+        <!-- Ansicht „Ordner“ (Mockup 21): Foto einer Zeile — Bild füllt die Breite, Schild „erstes“/„letztes“ -->
+        <Style x:Key="FolderRowTileButton" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <ContentPresenter />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <DataTemplate x:Key="FolderRowTileTemplate" DataType="{x:Type rows:FolderRowTile}">
+            <Button Width="{Binding Width}"
+                    Margin="0,0,4,0"
+                    Style="{StaticResource FolderRowTileButton}"
+                    ToolTip="{Binding Item.Name}"
+                    AutomationProperties.Name="{Binding Item.Name}"
+                    Command="{Binding DataContext.OpenFolderRowTileCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                    CommandParameter="{Binding}">
+                <Grid ClipToBounds="True">
+                    <Border CornerRadius="4" Background="{DynamicResource ControlFillColorSecondaryBrush}" />
+                    <Image Source="{Binding Item.Thumbnail}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
+                    <Border x:Name="EdgeBadge"
+                            Visibility="Collapsed"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Bottom"
+                            Margin="5"
+                            Padding="7,1,7,2"
+                            CornerRadius="9"
+                            Background="#8C000000">
+                        <TextBlock x:Name="EdgeText" FontSize="10" Foreground="White" />
+                    </Border>
+                </Grid>
+            </Button>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsFirst}" Value="True">
+                    <Setter TargetName="EdgeBadge" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="EdgeText" Property="Text" Value="erstes" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsLast}" Value="True">
+                    <Setter TargetName="EdgeBadge" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="EdgeText" Property="Text" Value="letztes" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <!-- Ansicht „Ordner“: eine Zeile je Unterordner — Kopf (Name öffnet den Ordner, Zeitraum, Anzahl, Knöpfe beim
+             Darüberfahren), darunter die Fotos in Zeilenhöhe (Regler). Rechtsklick: Aktionen für das Set (Code-Behind). -->
+        <DataTemplate x:Key="FolderRowTemplate" DataType="{x:Type rows:FolderRowViewModel}">
+            <Border x:Name="RowBorder"
+                    Margin="0,0,0,10"
+                    Padding="8,4,4,8"
+                    CornerRadius="8"
+                    Background="Transparent"
+                    ContextMenuOpening="OnFolderRowContextMenuOpening"
+                    AutomationProperties.AutomationId="GalleryFolderRow"
+                    AutomationProperties.Name="{Binding Name}">
+                <Border.ContextMenu>
+                    <ContextMenu />
+                </Border.ContextMenu>
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,6" LastChildFill="True">
+                        <StackPanel x:Name="RowActions" DockPanel.Dock="Right" Orientation="Horizontal" Opacity="0">
+                            <ui:Button Appearance="Transparent" Padding="6,3" Icon="{ui:SymbolIcon ArrowShuffle24}" ToolTip="Andere Fotos zeigen"
+                                       Command="{Binding DataContext.ShuffleFolderRowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                       CommandParameter="{Binding}" />
+                            <ui:Button Appearance="Transparent" Padding="6,3" Icon="{ui:SymbolIcon Play24}" ToolTip="Diashow dieses Ordners"
+                                       Command="{Binding DataContext.StartFolderRowSlideshowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                       CommandParameter="{Binding}" />
+                            <ui:Button Appearance="Transparent" Padding="6,3" Icon="{ui:SymbolIcon FolderOpen24}" ToolTip="Ordner öffnen"
+                                       Command="{Binding DataContext.OpenFolderRowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                       CommandParameter="{Binding}" />
+                        </StackPanel>
+                        <ui:SymbolIcon Symbol="Folder24" Filled="True" FontSize="16" VerticalAlignment="Center" Margin="0,0,8,0"
+                                       Foreground="{DynamicResource SystemFillColorCautionBrush}" />
+                        <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
+                            <Hyperlink Command="{Binding DataContext.OpenFolderRowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                       CommandParameter="{Binding}"
+                                       TextDecorations="{x:Null}"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                       ToolTip="{Binding Path}">
+                                <Run Text="{Binding Name, Mode=OneWay}" FontSize="14" FontWeight="SemiBold" />
+                            </Hyperlink>
+                            <Run Text="  " />
+                            <Run Text="{Binding DateText, Mode=OneWay}" FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                            <Run Text=" · " FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                            <Run Text="{Binding InfoText, Mode=OneWay}" FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                        </TextBlock>
+                    </DockPanel>
+                    <ItemsControl ItemsSource="{Binding Tiles}"
+                                  ItemTemplate="{StaticResource FolderRowTileTemplate}"
+                                  Height="{Binding DataContext.TileSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                  ClipToBounds="True"
+                                  Focusable="False">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+            <DataTemplate.Triggers>
+                <Trigger SourceName="RowBorder" Property="IsMouseOver" Value="True">
+                    <Setter TargetName="RowBorder" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                    <Setter TargetName="RowActions" Property="Opacity" Value="1" />
+                </Trigger>
+                <DataTrigger Binding="{Binding IsNested}" Value="True">
+                    <Setter TargetName="RowBorder" Property="Margin" Value="24,0,0,10" />
+                    <Setter TargetName="RowBorder" Property="BorderThickness" Value="2,0,0,0" />
+                    <Setter TargetName="RowBorder" Property="BorderBrush" Value="{DynamicResource DividerStrokeColorDefaultBrush}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
         <!-- Unterordner-Kachel (Container-State) -->
         <DataTemplate x:Key="SubfolderTemplate" DataType="{x:Type data:GallerySubfolderDto}">
             <ui:Button Width="168" Height="124"
@@ -557,6 +674,45 @@
                         </ItemsControl>
                     </StackPanel>
                 </ScrollViewer>
+
+                <!-- Ansicht „Ordner“ (Mockup 21): je Unterordner eine Zeile, virtualisiert -->
+                <DockPanel Visibility="{Binding ShowFolderRows, Converter={StaticResource BoolToVis}}">
+                    <DockPanel DockPanel.Dock="Top" Margin="16,8,16,4" LastChildFill="False">
+                        <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" FontSize="12"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   Text="Erstes und letztes Foto jedes Ordners stehen außen, dazwischen zufällige in Aufnahme-Reihenfolge." />
+                        <ui:Button DockPanel.Dock="Right" Content="Neu mischen" Icon="{ui:SymbolIcon ArrowShuffle24}"
+                                   AutomationProperties.AutomationId="GalleryFolderRowsShuffle"
+                                   ToolTip="Andere zufällige Fotos in allen Zeilen (erstes und letztes bleiben)"
+                                   Command="{Binding ShuffleFolderRowsCommand}" />
+                    </DockPanel>
+                    <ItemsControl x:Name="FolderRowsList"
+                                  AutomationProperties.AutomationId="GalleryFolderRows"
+                                  ItemsSource="{Binding FolderRows}"
+                                  ItemTemplate="{StaticResource FolderRowTemplate}"
+                                  Padding="12,4,12,12"
+                                  Focusable="False"
+                                  SizeChanged="OnFolderRowsSizeChanged"
+                                  PreviewMouseWheel="OnGridPreviewMouseWheel"
+                                  VirtualizingPanel.IsVirtualizing="True"
+                                  VirtualizingPanel.VirtualizationMode="Recycling"
+                                  VirtualizingPanel.ScrollUnit="Pixel"
+                                  ScrollViewer.CanContentScroll="True"
+                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ItemsControl.Template>
+                            <ControlTemplate TargetType="ItemsControl">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" CanContentScroll="True" Padding="{TemplateBinding Padding}">
+                                    <ItemsPresenter />
+                                </ScrollViewer>
+                            </ControlTemplate>
+                        </ItemsControl.Template>
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <VirtualizingStackPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+                </DockPanel>
 
                 <!-- Leerzustand: keine Bibliothek -->
                 <StackPanel VerticalAlignment="Center"

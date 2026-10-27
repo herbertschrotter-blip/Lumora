@@ -25,7 +25,8 @@ Version übernimmt der erste Start automatisch; läuft dabei noch die ältere Ve
   rückgängig machbar), Ordnerfilter, Unterordner-Kacheln für Ordner
   ohne direkte Dateien, Favorit und 1–5 Sterne je Kachel, Mehrfachauswahl mit Aktionsleiste (Favorit, Bewertung,
   Tags, Verschieben nach…, Papierkorb) und Rückgängig. Umschaltbar auf eine **Collage** (echte Seitenverhältnisse,
-  randvolle Reihen) und eine **Listenansicht** mit Spalten.
+  randvolle Reihen), eine **Listenansicht** mit Spalten und die Ansicht **Ordner** (seit 0.5.17: je Unterordner eine
+  Zeile mit erstem und letztem Foto außen und zufälligen dazwischen — ideal für Shootings mit vielen Sets).
 - **Tags**: frei definierbare, farbige Schlagworte (Einstellungen › Tags), Zuweisen für die Auswahl (Aktionsleiste,
   Kontextmenü, Strg+T), Tag- und Kategorie-Marken auf der Kachel, in der Lightbox und im Ordnerbaum (seit 0.4.35),
   Filter nach Tags (ODER/UND/ohne Tag), Suche findet Tag-Namen.
@@ -295,8 +296,8 @@ Kopfzeile (0.2.43, ADR-0041):
 - **Sortieren** [Feld ▾] [Richtung]: **Aufnahmedatum** (Standard seit 0.2.48), Änderungsdatum, Name, Größe oder eine
   Kategorie; der Knopf daneben kehrt die
   Richtung um („Neueste zuerst“ ↔ „Älteste zuerst“, „A → Z“ ↔ „Z → A“ …). Ein neues Feld beginnt mit seiner üblichen
-  Richtung. · **Ansicht** Kacheln | Collage | Liste (wird gemerkt) und **Vorschaugröße** (Regler bei Kacheln und
-  Collage: 120–320 px in 20er-Stufen, wird gemerkt) · rechts **Alle auswählen**, **Rückgängig**, Aktualisieren (ist die
+  Richtung. · **Ansicht** Kacheln | Collage | Liste | Ordner (wird gemerkt) und **Vorschaugröße** (Regler bei Kacheln,
+  Collage und Ordner-Zeilen: 120–320 px in 20er-Stufen, wird gemerkt) · rechts **Alle auswählen**, **Rückgängig**, Aktualisieren (ist die
   Leiste zu schmal, zeigen die beiden nur ihr Symbol).
 - **Unter der Galerie**: Blättern („‹ Seite 1 von 7 ›“, dazu erste/letzte Seite) und **Pro Seite** (200/500/1000).
 - Bei 1280 Pixel Fensterbreite bleiben Titelzeile, Zeile „Datei“ und Sortierleiste einzeilig; schmaler (bzw. rechts auf

@@ -14,6 +14,9 @@ public enum GalleryViewMode
     Grid = 0,
     List = 1,
     Collage = 2,
+
+    /// <summary>Unterordner als Zeilen (Mockup 21): je Set erstes, letztes und zufällige Fotos.</summary>
+    Folders = 3,
 }
 
 /// <summary>Spalten der Listenansicht (Schlüssel für Einstellungen und Kopfzeilen-Kontextmenü).</summary>

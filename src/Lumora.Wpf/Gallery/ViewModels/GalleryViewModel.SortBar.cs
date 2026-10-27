@@ -30,6 +30,7 @@ public sealed partial class GalleryViewModel
         new(GalleryViewMode.Grid, "Kacheln", SymbolRegular.Grid24, "Kacheln: gleich große Quadrate"),
         new(GalleryViewMode.Collage, "Collage", SymbolRegular.Board24, "Collage: echte Seitenverhältnisse, Reihen randvoll"), // ADR-0044
         new(GalleryViewMode.List, "Liste", SymbolRegular.AppsListDetail24, "Liste mit Spalten"),
+        new(GalleryViewMode.Folders, "Ordner", SymbolRegular.Folder24, "Ordner: je Unterordner eine Zeile – erstes, letztes und zufällige Fotos"), // Mockup 21
     ];
 
     /// <summary>Felder der Sortier-Auswahl: Datum, Name, Größe und je Kategorie ein Eintrag.</summary>

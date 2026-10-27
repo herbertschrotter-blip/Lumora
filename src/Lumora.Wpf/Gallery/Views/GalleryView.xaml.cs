@@ -38,8 +38,10 @@ public partial class GalleryView : UserControl
         INavigationService navigation,
         ILogger<GalleryView> logger,
         Lumora.Stories.StoryGalleryBridge? stories = null,
-        Lumora.PhotoMenu.PhotoActions? photoActions = null)
+        Lumora.PhotoMenu.PhotoActions? photoActions = null,
+        Lumora.Folders.FolderTreeViewModel? folderTree = null)
     {
+        _folderTree = folderTree; // Rechtsklick auf eine Ordner-Zeile (GalleryView.FolderRows.cs)
         _photoActions = photoActions; // Rechtsklick-Menü, Strg+C, Alt+Enter (ADR-0068, GalleryView.PhotoMenu.cs)
         _viewModel = viewModel;
         _navigation = navigation;
