@@ -3,6 +3,24 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.22] — 2026-10-27
+
+### Docs — ADR-0075 ergänzt: Platz schaffen am Handy, Server-Modus als Windows-Dienst
+Herbert hat zwei frühere Wünsche bestätigt; beide stehen jetzt im ADR (weiter Proposed).
+- **Platz schaffen am Handy:**
+  - Die App löscht Originale **nur auf dem Handy** und erst, wenn Lumora die Datei per SHA-256 bestätigt hat — wahlweise
+    erst, wenn sie einsortiert ist.
+  - Unmittelbar vorher prüft die App erneut (Prüfsumme neu rechnen, `GET /api/v1/files/by-checksum/{sha256}`, Datei am
+    PC lesbar, nicht offline). Ohne Verbindung wird nichts gelöscht.
+  - Gelöscht wird immer über Androids eigene Rückfrage, nie still im Hintergrund. Am PC wird nie gelöscht.
+- **Server-Modus als Windows-Dienst** (eigene Stufe nach der App):
+  - Eigenes Programm `Lumora.Server` (Worker Service) ist der einzige Schreiber. Die Oberfläche liest direkt und schreibt
+    über eine Named Pipe; das ist der größte Umbau.
+  - Empfohlen ist Herberts Benutzerkonto. Bibliotheken auf Netzlaufwerken brauchen UNC-Pfade, die versteckte Bibliothek
+    läuft nie im Dienst.
+  - Lumora richtet den Dienst nicht selbst ein: Herbert führt mitgelieferte Skripte als Administrator aus.
+- Stufenplan angepasst (Stufe 7 Dienst, Stufe 8 iOS), PLAN „Welle 7“ und ADR-Übersicht nachgezogen.
+
 ## [0.5.21] — 2026-10-27
 
 ### Docs — Konzept Companion-App: native Android-App über WireGuard (ADR-0075, Mockup 22)

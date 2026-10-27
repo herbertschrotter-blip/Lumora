@@ -1,6 +1,7 @@
 # ADR-0075: Companion-App — native Android-App, nur über WireGuard, gegenseitiges TLS
 
-- **Status:** Proposed (Entwurf 2026-10-27; ersetzt den früheren PWA-Entwurf gleicher Nummer, der nie im Repo lag)
+- **Status:** Proposed (Entwurf 2026-10-27; ersetzt den früheren PWA-Entwurf gleicher Nummer, der nie im Repo lag;
+  ergänzt am selben Tag um „Platz schaffen am Handy“ und „Server-Modus als Windows-Dienst“, 0.5.22)
 - **Datum:** 2026-10-27
 - **Entscheider:** Herbert Schrotter (Vorgaben: richtige App statt Web-App, maximale Sicherheit, nur über WireGuard,
   keine Webfreigabe), Claude (Konzept)
@@ -31,8 +32,15 @@ FileId (400 px kurze Kante), SHA-256 für jede Datei (0.5.18), Personen, Alben, 
    Lumora-Zertifizierungsstelle. Keine Portfreigabe für Lumora, keine öffentliche Domain, kein Cloud-Tunnel.
 3. **Am PC** ein neues WPF-freies Projekt `Lumora.Companion` (eigener Kestrel, `AddCompanion()`), **getrennt** von der
    App-Verbindung, plus Einstellungsseite „Mobilgeräte“. Server **standardmäßig aus**.
-4. **Funktionsumfang:** ansehen, suchen, bewerten, Storys ansehen, Fotos an Lumora teilen. **Kein** Löschen, Verschieben,
-   Umbenennen; **nie** die versteckte Bibliothek.
+4. **Funktionsumfang:** ansehen, suchen, bewerten, Storys ansehen, Fotos an Lumora teilen. Am PC **kein** Löschen,
+   Verschieben, Umbenennen; **nie** die versteckte Bibliothek.
+5. **Platz schaffen am Handy** (Herbert 2026-10-21, bestätigt 2026-10-27): Die App löscht Originale **auf dem Handy**
+   erst, wenn Lumora die Datei per Prüfsumme bestätigt hat (wahlweise erst, wenn sie einsortiert ist), und immer über
+   Androids eigene Lösch-Bestätigung. Am PC wird dabei nie etwas gelöscht.
+6. **Server-Modus als Windows-Dienst** (Herbert 2026-10-21, bestätigt 2026-10-27): Lumora läuft später als Dienst
+   „Lumora Server“ ohne Fenster mit Windows; der Dienst ist der einzige Schreiber, die PC-Oberfläche bleibt nutzbar und
+   speichert über den Dienst. Eigene Stufe nach der App; bis dahin trägt der Hintergrundbetrieb aus 0.5.20. Lumora
+   richtet den Dienst **nicht selbst** ein — Herbert führt ein mitgeliefertes Skript als Administrator aus.
 
 ## Zielbild und Funktionsumfang
 
@@ -45,7 +53,8 @@ FileId (400 px kurze Kante), SHA-256 für jede Datei (0.5.18), Personen, Alben, 
 | **Bewerten** | Sterne, Favorit (Recht „bewerten“); Tags setzen erst in einer späteren Stufe | Kategorien, Personen zuordnen |
 | **Storys** | Storys und Erinnerungen abspielen | Storys anlegen/bearbeiten |
 | **Teilen-Ziel** | Android „Teilen › Lumora“ schickt Fotos in einen Eingangs-Ordner am PC (Recht „hochladen“) | Einsortieren |
-| **Nie** | Löschen, Verschieben, Umbenennen, Katalog-Wartung, versteckte Bibliothek | — |
+| **Platz schaffen** | Originale **am Handy** löschen, die Lumora per Prüfsumme bestätigt hat (siehe unten) | — |
+| **Nie** | am PC löschen, verschieben, umbenennen, Katalog-Wartung; versteckte Bibliothek | — |
 
 Die App zeigt, was Lumora am PC gerade weiß; ohne Verbindung nur den verschlüsselten Zwischenspeicher (siehe Sicherheit),
 Bewertungen offline werden nicht gesammelt (Stufe 1–4: nur online, keine Konflikte).
@@ -168,6 +177,7 @@ PC mit Lumora (lauscht z. B. auf 192.0.2.10:47820 — Beispiel), Windows-Firewal
 | `GET /api/v1/files/{id}/original` | Original (Recht „Originale laden“), mit `Range` für Videos |
 | `PUT /api/v1/files/{id}/rating`, `/favorite` | Bewerten (Recht „bewerten“) über denselben Dienst wie die Lightbox am PC |
 | `POST /api/v1/uploads`, `PUT /uploads/{id}`, `POST /uploads/{id}/complete` | Hochladen: erst SHA-256 und Größe melden (schon vorhanden → überspringen), dann in Teilen (fortsetzbar), Lumora prüft die Prüfsumme, legt die Datei atomar in den Eingangs-Ordner und protokolliert sie als `OperationBatch` (Rückgängig = Papierkorb) |
+| `GET /api/v1/files/by-checksum/{sha256}` | Bestätigung für „Platz schaffen“: gibt es die Datei in einer Bibliothek dieses Geräts, mit Zustand `eingang` (noch im Eingangs-Ordner) oder `einsortiert`, und ist sie am Speicherort lesbar (nicht offline) |
 | `GET /api/v1/app/latest`, `/app/apk` | App-Update von Lumora (siehe Verteilung) |
 | `DELETE /api/v1/device` | Gerät entkoppelt sich selbst |
 
@@ -212,6 +222,55 @@ bekommt die Tabellen nicht befüllt (keine Geräte dort). PLAN Kap. 4 wird beim 
   Regel „eingehend, TCP-Port, nur Profil Privat, Remote-Adressen = Geräteadressen“. Lumora **liest** die Regeln nur und
   zeigt „Regel fehlt / zu weit / passt“ (wie der Sicherheits-Check, ADR-0064).
 
+## Platz schaffen am Handy (Originale nach Bestätigung löschen)
+
+Herbert will Handy-Speicher frei machen, ohne ein Foto zu verlieren. Ablauf:
+
+1. Fotos kommen per Senden/Sichern an Lumora; Lumora prüft die SHA-256 und meldet „gespeichert“.
+2. Die App merkt sich je Handy-Foto die bestätigte Prüfsumme. Unter „Platz schaffen“ zeigt sie, was sicher am PC liegt
+   („412 Fotos, 3,1 GB am PC bestätigt“), mit der Einstellung **„erst nach dem Einsortieren“** (Datei liegt nicht mehr im
+   Eingangs-Ordner, sondern in der Bibliothek).
+3. **Unmittelbar vor dem Löschen** prüft die App erneut: Prüfsumme der Handy-Datei neu rechnen und bei Lumora über
+   `/files/by-checksum` nachfragen. Nur wenn Lumora die Datei jetzt noch hat **und lesen kann** (nicht offline, nicht
+   fehlend — Offline-vs-Missing, PLAN Kap. 12), kommt sie auf die Liste. Ohne Verbindung wird nichts gelöscht.
+4. Gelöscht wird über `MediaStore.createDeleteRequest` — **Android fragt selbst** („412 Fotos löschen?“). Die App löscht
+   nie still und nie automatisch im Hintergrund, auch nicht beim automatischen Sichern.
+5. Am PC wird nie etwas gelöscht; das Protokoll hält „n Fotos am Handy gelöscht, am PC bestätigt“ fest.
+
+Vom Handy aus einsortieren (Eingang → Ordner der Bibliothek) bleibt vorerst beim PC; die App zeigt nur den Zustand.
+
+## Server-Modus als Windows-Dienst
+
+Ziel (Herbert): Lumora läuft mit Windows, auch ohne Anmeldung und ohne Fenster, damit das Handy jederzeit Zugriff hat;
+die PC-Oberfläche bleibt nutzbar, gespeichert wird nur im Dienst.
+
+- **Eigenes Programm `Lumora.Server`** (.NET Worker Service mit `UseWindowsService`, WPF-frei): Katalog, Vorschaubilder,
+  Hintergrund-Planer (Scan, Ordnerüberwachung, Prüfsummen, Gesichter, Motive), Companion-Server. Domain, Data und
+  Services sind schon WPF-frei; der WIC-Renderer (heute im Wpf-Projekt hinter einem Services-Interface) zieht in ein
+  WPF-freies Projekt. Ob WIC und ONNX DirectML in der Dienst-Sitzung 0 laufen, **prüft ein Spike**; sonst Rückfall CPU.
+- **Ein Schreiber:** Der Dienst ist der einzige Schreiber des normalen Katalogs (Single-Writer bleibt). Die Oberfläche
+  liest weiter direkt aus SQLite (WAL erlaubt parallele Leser) und schickt **jede Änderung** über eine lokale Named Pipe
+  an den Dienst (Zugriff nur für Herberts Benutzerkonto per ACL). Fortschritt der Dienst-Vorgänge kommt über dieselbe Pipe
+  in die Aktivitäts-Anzeige. Das ist der größte Umbau: jeder Schreibweg der Oberfläche braucht einen Pipe-Weg.
+- **Konto:** Empfehlung **Herberts Benutzerkonto** — gleicher Datenordner, gleiche DPAPI-Geheimnisse der App-Verbindung,
+  gleicher CNG-Schlüssel der Zertifizierungsstelle, gleiche Rechte auf die Foto-Laufwerke. Nachteil: Passwort beim
+  Einrichten, Recht „Als Dienst anmelden“. Alternative: virtuelles Dienstkonto mit eigenem Datenordner und eigenen
+  Ordnerrechten — sauberer getrennt, aber Katalog-Umzug und Rechte je Foto-Ordner.
+- **Laufwerke:** Ein Dienst sieht keine verbundenen Netzlaufwerks-Buchstaben des Benutzers; Bibliotheken auf solchen
+  Laufwerken brauchen UNC-Pfade, sonst gelten sie als offline (der Offline-vs-Missing-Guard verhindert Schaden).
+- **Versteckte Bibliothek nie im Dienst:** `_hidden` startet wie bisher eine eigene Lumora ohne Dienst und ohne Server.
+- **Einrichten nur durch Herbert:** Lumora installiert, startet und ändert den Dienst **nicht selbst** (keine
+  Windows-Einstellung, wie bei Firewall und ADR-0064). Mitgeliefert werden `build/install-server.ps1` und
+  `build/uninstall-server.ps1`, als Administrator auszuführen; das Skript legt den Dienst an und erlaubt Herberts
+  Benutzer Starten/Stoppen ohne Administrator. Die Seite „Mobilgeräte“ zeigt den Dienst-Zustand nur an (läuft /
+  gestoppt / nicht eingerichtet).
+- **Sichtbarkeit:** Ein Dienst hat kein Symbol im Infobereich; das zeigt die Oberfläche bzw. ein kleiner Begleiter beim
+  Anmelden. Auch im Dienst bleibt „Mobilgeräte zulassen“ ein bewusster Schalter (Standard aus, Zeitlimit wählbar).
+- **App-Verbindung (ADR-0073):** bleibt zunächst in der Oberfläche; ob sie in den Dienst wandert (eine Instanz,
+  Anmeldedatei, Hintergrundstart), wird vor der Stufe am Vertrag geprüft und nötigenfalls dort vorgeschlagen.
+- **Bis dahin** deckt der Hintergrundbetrieb aus 0.5.20 das meiste ab (Lumora läuft nach dem Schließen weiter, solange
+  Herbert angemeldet ist).
+
 ## Stufenplan und Aufwand (grob)
 
 | Stufe | Inhalt | Aufwand |
@@ -222,8 +281,9 @@ bekommt die Tabellen nicht befüllt (keine Geräte dort). PLAN Kap. 4 wird beim 
 | 3 | **Ansehen**: Zeitleiste, Alben/Ordner, Lightbox, Suche, Storys, verschlüsselter Zwischenspeicher | 10–15 PT |
 | 4 | **Bewerten**: Sterne, Favorit (später Tags) | 2–3 PT |
 | 5 | **Hochladen/Teilen**: Teilen-Ziel, fortsetzbare Übertragung, Prüfsumme, Eingangs-Ordner | 3–5 PT |
-| 6 | später: **Handy-Fotos in der gemeinsamen Zeitleiste** (entschieden, Abgleich über SHA-256, Marke „nur am Handy“) / **automatisches Sichern** (WorkManager, nur über WireGuard, nur im WLAN wählbar) | 5–8 PT |
-| 7 | später: **iOS** (Plattform-Teile in Swift, Apple-Entwicklerkonto nötig) | 5–10 PT |
+| 6 | später: **Handy-Fotos in der gemeinsamen Zeitleiste** (entschieden, Abgleich über SHA-256, Marke „nur am Handy“) / **automatisches Sichern** (WorkManager, nur über WireGuard, nur im WLAN wählbar) / **Platz schaffen** (Originale am Handy nach Bestätigung löschen) | 7–11 PT |
+| 7 | später: **Server-Modus als Windows-Dienst** — Spike (WIC/DirectML in Sitzung 0, Konto, Laufwerke), `Lumora.Server`, Schreiben über Named Pipe, Einrichtungs-Skripte | 20–35 PT |
+| 8 | später: **iOS** (Plattform-Teile in Swift, Apple-Entwicklerkonto nötig) | 5–10 PT |
 
 ## Verteilung ohne Play Store
 
@@ -256,7 +316,10 @@ bekommt die Tabellen nicht befüllt (keine Geräte dort). PLAN Kap. 4 wird beim 
 
 ### Negativ
 - Zweites Repo, zweite Sprache (Dart + Kotlin), eigene Release-Signatur und Update-Weg.
-- Der PC muss laufen und Lumora mit eingeschaltetem Server; kein Zugriff, wenn der PC schläft.
+- Der PC muss laufen und Lumora mit eingeschaltetem Server; kein Zugriff, wenn der PC schläft. Der Dienst (Stufe 7)
+  hebt die Anmelde-Pflicht auf, ist aber der größte Umbau (Schreiben über Pipe) und braucht einmal Administratorrechte.
+- „Platz schaffen“ ist die einzige Funktion, die etwas löscht — am Handy, mit doppelter Prüfung und Android-Rückfrage.
+  Ein Fehler in Lumoras Bestätigung wäre teuer; deshalb sind Tests mit fehlender, offline und geänderter Datei Pflicht.
 - Eigene Zertifizierungsstelle heißt eigene Pflege (Erneuern, Widerrufen) und eigene Tests.
 - Das portable Paket wächst nicht (Kestrel ist schon da), aber die Angriffsfläche am PC: ein lauschender Port im Heimnetz.
 
