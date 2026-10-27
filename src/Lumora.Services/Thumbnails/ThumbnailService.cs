@@ -74,6 +74,12 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
     private readonly List<Task> _workers = new();
     private int _started;
     private int _pending;
+
+    /// <summary>Vorrang, solange Vorschaubilder fehlen, auf die jemand wartet (Galerie, Lightbox-Leiste; ADR-0074 Nachtrag 0.5.15).</summary>
+    private readonly Background.ForegroundHold? _hold;
+    private readonly Lock _foregroundLock = new();
+    private int _foregroundJobs;
+    private IDisposable? _foregroundEntry;
     private int _disposed;
     private int _ffmpegMissingLogged;
     private readonly object _pauseLock = new();
@@ -104,8 +110,10 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
         IVideoThumbnailRenderer videoRenderer,
         ILogger<ThumbnailService> logger,
         IFallbackImageThumbnailRenderer? fallbackRenderer = null,
-        IScanGate? scanGate = null)
+        IScanGate? scanGate = null,
+        Background.IForegroundWork? foreground = null)
     {
+        _hold = foreground is null ? null : new Background.ForegroundHold(foreground, Background.ForegroundNeed.Cpu, "Vorschaubilder");
         _factory = factory;
         _paths = paths;
         _imageRenderer = imageRenderer;
@@ -398,6 +406,10 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
                 if (channel.Writer.TryWrite(req))
                 {
                     Interlocked.Increment(ref _pending);
+                    if (!background)
+                    {
+                        ForegroundJobQueued();
+                    }
                 }
                 else
                 {
@@ -556,8 +568,40 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
         }
     }
 
+    private void ForegroundJobQueued()
+    {
+        if (_hold is null)
+        {
+            return;
+        }
+
+        lock (_foregroundLock)
+        {
+            if (_foregroundJobs++ == 0)
+            {
+                _foregroundEntry = _hold.Enter();
+            }
+        }
+    }
+
+    private void ForegroundJobDone()
+    {
+        IDisposable? entry = null;
+        lock (_foregroundLock)
+        {
+            if (_foregroundJobs > 0 && --_foregroundJobs == 0)
+            {
+                (entry, _foregroundEntry) = (_foregroundEntry, null);
+            }
+        }
+
+        entry?.Dispose();
+    }
+
     private async Task ProcessJobAsync(ThumbnailRequest req)
     {
+        // Auftrag der Galerie (nicht der Pflege): zählt für den Vorrang, bis er fertig ist
+        var foreground = _hold is not null && _states.TryGetValue(req.FileId, out var queued) && !queued.Background;
         var cachePath = BuildCachePath(req.LibraryId, req.FileId);
         try
         {
@@ -622,6 +666,10 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
         finally
         {
             Interlocked.Decrement(ref _pending);
+            if (foreground)
+            {
+                ForegroundJobDone();
+            }
         }
     }
 
@@ -868,6 +916,7 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
         }
 
         _cts.Cancel();
+        _hold?.Dispose();
         _imageChannel.Writer.TryComplete();
         _videoChannel.Writer.TryComplete();
         try

@@ -427,7 +427,7 @@ public sealed partial class FaceRecognitionService : IFaceRecognitionService, ID
                 }
 
                 var result = new SuggestionWrite[faces.Count];
-                Parallel.For(0, faces.Count, new ParallelOptions { CancellationToken = ct }, i =>
+                Parallel.For(0, faces.Count, Background.BackgroundCpu.Options(ct), i => // Vorschläge im Hintergrund: halbe Kerne
                 {
                     var face = faces[i];
                     var suggestion = model.Model.Suggest(face.Sample, rejected.TryGetValue(face.FaceId, out var r) ? r : null);

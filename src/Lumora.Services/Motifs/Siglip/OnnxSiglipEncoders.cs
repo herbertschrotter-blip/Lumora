@@ -37,11 +37,14 @@ public static class SiglipModel
         {
             options.EnableMemoryPattern = false; // DirectML-Vorgabe (ONNX-Runtime-Doku)
             options.AppendExecutionProvider_DML(0);
+            // Was auf dem Prozessor bleibt (Vor-/Nachbereitung im Graphen), nicht mit allen Kernen (ADR-0074 Nachtrag 0.5.15)
+            options.IntraOpNumThreads = Background.BackgroundCpu.OnnxThreads;
+            options.InterOpNumThreads = 1;
         }
         else
         {
             // Höchstens die Hälfte der Kerne: Oberfläche, Vorschaubilder und Gesichtserkennung behalten Luft.
-            options.IntraOpNumThreads = Math.Clamp(Environment.ProcessorCount / 2, 1, 8);
+            options.IntraOpNumThreads = Math.Min(Background.BackgroundCpu.MaxThreads, 8);
             options.InterOpNumThreads = 1;
         }
 

@@ -60,7 +60,7 @@ public static class SimilarGrouping
             Parallel.For(
                 blockStart,
                 blockEnd,
-                new ParallelOptions { CancellationToken = ct },
+                Background.BackgroundCpu.Options(ct),
                 i =>
                 {
                     if (!assigned[i])

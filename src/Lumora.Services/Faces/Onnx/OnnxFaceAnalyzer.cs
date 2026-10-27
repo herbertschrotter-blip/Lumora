@@ -130,10 +130,13 @@ public sealed class OnnxFaceAnalyzer : IFaceAnalyzer
             // DirectML-Vorgaben: kein Memory-Pattern, sequentielle Ausführung (ONNX-Runtime-Doku).
             options.EnableMemoryPattern = false;
             options.AppendExecutionProvider_DML(0);
+            // Was auf dem Prozessor bleibt (Vor-/Nachbereitung im Graphen), nicht mit allen Kernen (ADR-0074 Nachtrag 0.5.15)
+            options.IntraOpNumThreads = Background.BackgroundCpu.OnnxThreads;
+            options.InterOpNumThreads = 1;
         }
         else
         {
-            options.IntraOpNumThreads = Math.Clamp(Environment.ProcessorCount / 2, 1, 8);
+            options.IntraOpNumThreads = Math.Min(Background.BackgroundCpu.MaxThreads, 8);
             options.InterOpNumThreads = 1;
         }
 

@@ -166,7 +166,7 @@ internal sealed class FaceModel : IFaceModel
     {
         ArgumentNullException.ThrowIfNull(faces);
         var result = new FaceSuggestion[faces.Count];
-        Parallel.For(0, faces.Count, new ParallelOptions { CancellationToken = cancellationToken }, i =>
+        Parallel.For(0, faces.Count, Background.BackgroundCpu.Options(cancellationToken), i =>
             result[i] = Suggest(faces[i]));
         return result;
     }

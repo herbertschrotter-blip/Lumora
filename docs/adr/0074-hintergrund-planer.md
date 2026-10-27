@@ -134,6 +134,30 @@ Schritten jeweils auf ein Hintergrund-Foto, und die Dateidienste rechneten auf d
 **Folgen:** Längere Stapel „Foto verbessern“ halten alle Hintergrund-Aufgaben für ihre Dauer an — gewollt (Herbert wartet
 auf das Ergebnis); sie laufen danach von selbst weiter. Vorschaubilder und Einlesen sind nicht betroffen.
 
+## Nachtrag 0.5.15 — Vorrang für Lightbox und Galerie, Kern-Obergrenze (Herbert, 2026-10-27)
+
+**Anlass:** Herbert: Lumora braucht „gefühlt ewig“, um die Lightbox zu öffnen. Messung an der laufenden App (versteckte
+Sitzung, 12 Kerne): 50–100 % Prozessorlast; Stapel-Abzüge zeigten Gesichter (Vorbereitung, Erkennung, Laden), Motive,
+Vorschaubilder (Bildmaße), Datum/Orte (Dateilesen) und die Gesichter-Vorschläge nach dem Start (`Parallel.For` über alle
+Kerne) gleichzeitig. Zusammen deutlich mehr Rechen-Threads als Kerne; das Lightbox-Bild (`Task.Run`) wartete im
+gemeinsamen Thread-Pool.
+
+**Entscheidung:**
+- `ForegroundHold`: hält für kurze, oft wiederholte Vordergrund-Arbeit EINE Anmeldung bei `IForegroundWork`, solange
+  eine läuft und 2 s danach (kein Flackern beim Blättern; parallele Arbeiten melden nur einmal an).
+- **Lightbox** (`LightboxImageCache`): Dekodieren per `TaskCreationOptions.LongRunning` auf eigenem Thread, währenddessen
+  Vorrang „Lightbox“ (`Cpu`).
+- **Vorschaubilder** (`ThumbnailService`): Vorrang „Vorschaubilder“ (`Cpu`), solange Aufträge der Galerie (nicht der
+  Pflege) eingereiht oder in Arbeit sind.
+- `BackgroundCpu`: parallele Hintergrund-Schleifen höchstens halbe Kerne (`MaxThreads`) — Gesichter-Vorschläge
+  (`FaceRecognitionService`, `FaceModel.SuggestMany`), Training (`FaceRecognizer`), ähnliche Fotos (`SimilarGrouping`);
+  ONNX-Sitzungen von Gesichtern und Motiven mit DirectML `IntraOpNumThreads` = Kerne/4 (1–4), auf dem Prozessor halbe
+  Kerne (höchstens 8). Gesichter gruppieren (Personen-Seite, der Benutzer wartet) und Foto verbessern bleiben ohne Grenze.
+
+**Folgen:** Hintergrund-Aufgaben pausieren beim Blättern in Lightbox und Galerie (Gesichter/Motive vor dem nächsten Foto,
+Dateidienste am Stapelende) und laufen danach weiter; ohne Grafikkarte erkennen Gesichter und Motive etwas langsamer.
+Offen: die Gesichter-Vorschläge rechnen nach jedem Start komplett neu.
+
 ## Alternativen
 
 - **Gemeinsamer Arbeitsplan mit einer Warteschlange je Datei** (ein Leser, der alle Dienste füttert) → verworfen. Großer
@@ -145,10 +169,10 @@ auf das Ergebnis); sie laufen danach von selbst weiter. Vorschaubilder und Einle
 
 ## Referenzen
 
-- `src/Lumora.Services/Background/BackgroundPlanner.cs`, `StorageKindProbe.cs`, `ForegroundWork.cs` (0.5.12)
+- `src/Lumora.Services/Background/BackgroundPlanner.cs`, `StorageKindProbe.cs`, `ForegroundWork.cs` (0.5.12), `ForegroundHold.cs`, `BackgroundCpu.cs` (0.5.15)
 - `src/Lumora.Services/Metadata/FileMetadataProbe.cs`
 - `src/Lumora.Services/Activity/ActivityBridge.Indexes.cs`, `ActivityCenter.cs`
 - `src/Lumora.Wpf/Shell/Activity/ActivityStatusViewModel.cs` („Alle pausieren“)
 - Tests: `tests/Lumora.Tests/Background/BackgroundPlannerTests.cs`, `Metadata/FileMetadataProbeTests.cs`,
-  `Activity/ActivityCenterTests.cs`, `Activity/ActivityBridgeTests.cs`, `Enhance/EnhanceForegroundTests.cs`,
+  `Activity/ActivityCenterTests.cs`, `Activity/ActivityBridgeTests.cs`, `Enhance/EnhanceForegroundTests.cs`, `Background/ForegroundHoldTests.cs` (0.5.15),
   `Faces/FaceIndexServiceTests.cs` (Vorrang, 0.5.12)

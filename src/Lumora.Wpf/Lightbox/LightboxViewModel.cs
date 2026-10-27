@@ -52,7 +52,8 @@ public sealed partial class LightboxViewModel : ObservableObject, IDisposable
     private readonly IArchiveMoveService? _archiveMove;
     private readonly ILogger<LightboxViewModel> _logger;
     private readonly Dispatcher _dispatcher;
-    private readonly LightboxImageCache _cache = new(capacity: 4);
+    private readonly LightboxImageCache _cache;
+    private readonly Lumora.Services.Background.ForegroundHold _imageHold;
     private readonly List<LightboxItem> _items = new();
     private readonly Dictionary<int, LightboxItem> _itemsById = new();
 
@@ -89,8 +90,12 @@ public sealed partial class LightboxViewModel : ObservableObject, IDisposable
         Lumora.Marks.MarkSettingsState? markSettings = null,
         Lumora.Services.Usage.IUsageSignals? usageSignals = null,
         Lumora.Services.Usage.IUsageService? usageService = null,
-        Lumora.Enhance.EnhancePanelFactory? enhance = null)
+        Lumora.Enhance.EnhancePanelFactory? enhance = null,
+        Lumora.Services.Background.IForegroundWork? foreground = null)
     {
+        // Bilder laden hat Vorrang vor Hintergrund-Aufgaben (ADR-0074 Nachtrag 0.5.15)
+        _imageHold = new Lumora.Services.Background.ForegroundHold(foreground, Lumora.Services.Background.ForegroundNeed.Cpu, "Lightbox");
+        _cache = new LightboxImageCache(capacity: 4, _imageHold);
         InitMarks(markSettings); // Leiste unten mit Tags/Kategorien (Mockup 16, LightboxViewModel.Marks.cs)
         _slideshow = slideshow; // „Diashow ab hier“ (ADR-0059, LightboxViewModel.Slideshow.cs)
         _vlc = vlc;
@@ -1533,6 +1538,7 @@ public sealed partial class LightboxViewModel : ObservableObject, IDisposable
 
         media?.Dispose();
         _cache.Dispose();
+        _imageHold.Dispose();
         ImageSource = null;
     }
 }

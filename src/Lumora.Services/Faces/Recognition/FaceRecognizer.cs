@@ -97,7 +97,7 @@ public sealed class FaceRecognizer : IFaceRecognizer
         var hasLinear = new bool[persons];
         var typical = new float[persons];
         var mad = new float[persons];
-        var parallel = new ParallelOptions { CancellationToken = cancellationToken };
+        var parallel = Background.BackgroundCpu.Options(cancellationToken); // Training im Hintergrund: höchstens die Hälfte der Kerne
 
         Parallel.For(0, persons, parallel, p =>
         {

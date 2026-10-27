@@ -3,6 +3,22 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.15] — 2026-10-27
+
+### Changed — Lightbox und Galerie haben Vorrang, Hintergrund rechnet mit höchstens halben Kernen
+- Anlass: die Lightbox öffnete sehr langsam. Gemessen lastete Lumora 50–100 % auf allen 12 Kernen aus — Gesichter,
+  Motive, Vorschaubilder, Dateilesen und die Gesichter-Vorschläge (über alle Kerne) gleichzeitig; das Bild der Lightbox
+  wartete im gemeinsamen Thread-Pool dahinter.
+- **Lightbox:** dekodiert jedes Bild auf einem eigenen Thread (nicht mehr im gemeinsamen Pool) und meldet währenddessen
+  Vorrang an („wartet — Vorrang für „Lightbox““); er bleibt nach dem letzten Bild 2 s stehen, damit er beim Blättern nicht
+  flackert.
+- **Galerie:** solange angeforderte Vorschaubilder fehlen, haben sie Vorrang („… „Vorschaubilder““); die Pflege im
+  Hintergrund (fehlende Vorschaubilder der ganzen Bibliothek) zählt nicht.
+- **Kern-Obergrenze:** Gesichter-Vorschläge, Training und die Suche nach ähnlichen Fotos rechnen mit höchstens der Hälfte
+  der Kerne; Gesichter- und Motiv-Erkennung auf der Grafikkarte mit 1–4 Prozessor-Threads (Kerne/4) statt allen.
+  Gesichter gruppieren auf der Personen-Seite und Foto verbessern nutzen weiter alle Kerne.
+- ADR-0074 Nachtrag 0.5.15 (`ForegroundHold`, `BackgroundCpu`).
+
 ## [0.5.14] — 2026-10-27
 
 ### Docs — Mockup 21 „Galerie: Unterordner als Zeilen“, abgenommen

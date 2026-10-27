@@ -8,7 +8,9 @@ namespace Lumora.Lightbox.Imaging;
 /// <summary>
 /// Kleiner LRU-Cache dekodierter Lightbox-Bilder (aktuelles Bild + Prefetch ±1, ADR-0007 „Critical“).
 /// Schlüssel ist die FileId; ein geänderter Pfad (Move/Rename) invalidiert den Eintrag.
-/// Laufende Decodes werden beim Verdrängen abgebrochen. Thread-sicher.
+/// Laufende Decodes werden beim Verdrängen abgebrochen. Thread-sicher. Seit 0.5.15 dekodiert jedes Bild auf einem eigenen
+/// Thread (nicht im gemeinsamen Thread-Pool, wo es hinter Hintergrund-Arbeit warten müsste) und meldet währenddessen
+/// Vorrang an (<see cref="Lumora.Services.Background.ForegroundHold"/>, ADR-0074 Nachtrag 0.5.15).
 /// </summary>
 internal sealed class LightboxImageCache : IDisposable
 {
@@ -16,11 +18,13 @@ internal sealed class LightboxImageCache : IDisposable
     private readonly Dictionary<int, Entry> _entries = new();
     private readonly LinkedList<int> _lru = new();
     private readonly int _capacity;
+    private readonly Lumora.Services.Background.ForegroundHold? _hold;
     private bool _disposed;
 
-    public LightboxImageCache(int capacity = 4)
+    public LightboxImageCache(int capacity = 4, Lumora.Services.Background.ForegroundHold? hold = null)
     {
         _capacity = Math.Max(2, capacity);
+        _hold = hold;
     }
 
     private sealed class Entry
@@ -53,7 +57,18 @@ internal sealed class LightboxImageCache : IDisposable
 
             var cts = new CancellationTokenSource();
             var token = cts.Token;
-            var task = Task.Run(() => LightboxImageDecoder.Decode(path, maxDecodePixelWidth, token), token);
+            var hold = _hold;
+            var task = Task.Factory.StartNew(
+                () =>
+                {
+                    using (hold?.Enter())
+                    {
+                        return LightboxImageDecoder.Decode(path, maxDecodePixelWidth, token);
+                    }
+                },
+                token,
+                TaskCreationOptions.LongRunning,
+                TaskScheduler.Default);
             _entries[fileId] = new Entry { Path = path, Task = task, Cts = cts };
             _lru.AddFirst(fileId);
             EvictLocked();
