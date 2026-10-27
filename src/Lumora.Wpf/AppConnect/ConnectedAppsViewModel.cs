@@ -152,6 +152,9 @@ public sealed partial class ConnectedAppsViewModel : ObservableObject
         }
     }
 
+    /// <summary>Touren verbundener Apps (Stufe 7); null ohne Katalog (Tests).</summary>
+    internal TourSync? Tours => _runtime.Tours;
+
     /// <summary>Anmeldedateien und Kopplungen lesen (ohne Netz) und die Karten abgleichen.</summary>
     internal void Reload()
     {
@@ -207,6 +210,10 @@ public sealed partial class ConnectedAppsViewModel : ObservableObject
         }
 
         _runtime.Connections!.Changed += (_, _) => Post(Reload);
+        if (_runtime.Tours is { } tours)
+        {
+            tours.Changed += (_, _) => Post(Reload);
+        }
         Reload();
     }
 

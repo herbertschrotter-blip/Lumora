@@ -140,6 +140,15 @@
                                                       AutomationProperties.AutomationId="ReceivedFromPeer" />
                                         <TextBlock Style="{StaticResource MetaText}" Margin="0,6,0,0"
                                                    Text="Was die andere App erlaubt, legt sie selbst fest; Lumora fragt es beim Öffnen dieses Reiters nach." />
+                                        <!-- Touren (Stufe 7): Stand und Abgleich -->
+                                        <StackPanel Margin="0,10,0,0" Visibility="{Binding ToursText, Converter={StaticResource NullToVis}}">
+                                            <TextBlock FontSize="13" Text="{Binding ToursText}" TextWrapping="Wrap" AutomationProperties.AutomationId="ToursText" />
+                                            <TextBlock Style="{StaticResource MetaText}" Margin="0,2,0,6"
+                                                       Text="Spuren der Touren nutzt Lumora für „Ungenaue Orte“ und Fotos ohne Ort — bei derselben Aktivität vor der eigenen Garmin-Spur." />
+                                            <ui:Button Icon="{ui:SymbolIcon ArrowSync24}" Content="Touren abgleichen" HorizontalAlignment="Left"
+                                                       Command="{Binding SyncToursCommand}" IsEnabled="{Binding CanSyncTours}"
+                                                       AutomationProperties.Name="Touren abgleichen" />
+                                        </StackPanel>
                                     </StackPanel>
                                     <!-- Bibliotheken (Stufe 5): nur angehakte sind für die App sichtbar -->
                                     <StackPanel Grid.Row="1" Margin="0,12,0,0">

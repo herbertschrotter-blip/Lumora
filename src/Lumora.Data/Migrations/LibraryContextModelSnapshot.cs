@@ -79,6 +79,83 @@ namespace Lumora.Data.Migrations
                     b.ToTable("AlbumItems", (string)null);
                 });
 
+            modelBuilder.Entity("Lumora.Domain.Entities.AppTour", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("AppId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<double>("AscentMeters")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("DistanceMeters")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("DurationSeconds")
+                        .HasColumnType("REAL");
+
+                    b.Property<long>("EndUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ExternalId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("HasTrack")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double>("MaxLatitude")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("MaxLongitude")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("MinLatitude")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("MinLongitude")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Region")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Sport")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("StartOffsetMinutes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("StartUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Summits")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppId", "ExternalId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AppTours_App_External");
+
+                    b.HasIndex("StartUtc", "EndUtc")
+                        .HasDatabaseName("IX_AppTours_Time");
+
+                    b.ToTable("AppTours", (string)null);
+                });
+
             modelBuilder.Entity("Lumora.Domain.Entities.AssistantAlias", b =>
                 {
                     b.Property<int>("Id")
@@ -786,6 +863,9 @@ namespace Lumora.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("AppTourId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<byte[]>("Checksum")
                         .IsRequired()
                         .HasColumnType("BLOB");
@@ -837,6 +917,10 @@ namespace Lumora.Data.Migrations
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AppTourId")
+                        .HasDatabaseName("IX_GpsTracks_AppTour")
+                        .HasFilter("AppTourId IS NOT NULL");
 
                     b.HasIndex("GroupId", "Checksum")
                         .IsUnique()

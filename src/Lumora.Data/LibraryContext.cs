@@ -47,6 +47,7 @@ public sealed class LibraryContext : DbContext
     public DbSet<Story> Stories => Set<Story>(); // Storys (ADR-0058)
     public DbSet<StoryItem> StoryItems => Set<StoryItem>();
     public DbSet<GpsTrack> GpsTracks => Set<GpsTrack>(); // GPS-Spuren (ADR-0062)
+    public DbSet<AppTour> AppTours => Set<AppTour>(); // Touren verbundener Apps (ADR-0073 Stufe 7)
     public DbSet<AssistantHistoryEntry> AssistantHistory => Set<AssistantHistoryEntry>(); // Story-Assistent (ADR-0063)
     public DbSet<AssistantAlias> AssistantAliases => Set<AssistantAlias>();
     public DbSet<FileUsageDay> FileUsageDays => Set<FileUsageDay>(); // Nutzungs-Signale (ADR-0072)

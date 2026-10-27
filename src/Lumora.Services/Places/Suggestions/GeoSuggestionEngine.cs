@@ -33,11 +33,15 @@ public readonly record struct SuggestionCandidate(int FileId, long Utc);
 public readonly record struct SuggestionAnchor(int FileId, long Utc, double Latitude, double Longitude);
 
 /// <summary>Spur mit Zeitraum; Punkte werden erst bei Bedarf geladen (<see cref="LoadPoints"/>, zwischengespeichert).</summary>
-public sealed class SuggestionTrack(int id, long startUtc, long endUtc, Func<TrackPoint[]> loadPoints)
+/// <param name="preferred">Spur aus einer verbundenen App (Gipfelbuch-Tour): bei gleicher Stufe Vorrang vor einer eigenen
+/// Spur derselben Aktivität (Herbert, ADR-0073 Frage 6).</param>
+public sealed class SuggestionTrack(int id, long startUtc, long endUtc, Func<TrackPoint[]> loadPoints, bool preferred = false)
 {
     private TrackPoint[]? _points;
 
     public int Id { get; } = id;
+
+    public bool Preferred { get; } = preferred;
 
     public long StartUtc { get; } = startUtc;
 
@@ -133,6 +137,7 @@ public static class GeoSuggestionEngine
 
         var t = candidate.Utc;
         GeoSuggestion? best = null;
+        var bestPreferred = false;
         // Spuren mit Start ≤ t + Toleranz; die mit Ende ≥ t − Toleranz zählen
         var upper = UpperBound(trackStarts, t + toleranceSeconds);
         for (var i = upper - 1; i >= 0; i--)
@@ -149,14 +154,21 @@ public static class GeoSuggestionEngine
             }
 
             var suggestion = AtTime(candidate.FileId, track, t);
-            if (suggestion is not null && (best is null || suggestion.Level > best.Level || (suggestion.Level == best.Level && suggestion.GapSeconds < best.GapSeconds)))
+            if (suggestion is not null && (best is null || Better(suggestion, track.Preferred, best, bestPreferred)))
             {
                 best = suggestion;
+                bestPreferred = track.Preferred;
             }
         }
 
         return best;
     }
+
+    /// <summary>Höhere Stufe gewinnt; bei gleicher Stufe die Spur der verbundenen App, sonst die kleinere Lücke.</summary>
+    private static bool Better(GeoSuggestion candidate, bool candidatePreferred, GeoSuggestion best, bool bestPreferred)
+        => candidate.Level != best.Level ? candidate.Level > best.Level
+            : candidatePreferred != bestPreferred ? candidatePreferred
+            : candidate.GapSeconds < best.GapSeconds;
 
     /// <summary>Position der Spur zur Zeit <paramref name="t"/> (interpoliert) samt Stufe; null bei zu großer Lücke.</summary>
     public static GeoSuggestion? AtTime(int fileId, SuggestionTrack track, long t)

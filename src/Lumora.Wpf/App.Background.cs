@@ -27,6 +27,7 @@ public partial class App
     private LeaseRegistry? _leases;
     private BackgroundLifetime? _lifetime;
     private AppConnectServer? _appConnectServer;
+    private TourSync? _tourSync;
     private BackgroundTrayIcon? _tray;
     private DispatcherTimer? _trayTimer;
     private bool _windowServicesStarted;
@@ -160,6 +161,7 @@ public partial class App
             }
 
             LeaveBackground();
+            _ = RequestToursAfterStartAsync();
             if (connectedApps)
             {
                 _host.Services.GetRequiredService<INavigationService>().NavigateTo(NavigationTags.SettingsConnectedApps);
@@ -197,6 +199,7 @@ public partial class App
             {
                 _appConnect = null;
                 _appConnectServer = null;
+                _host.Services.GetService<Lumora.Services.Places.Tracks.ExternalTrackSyncHub>()?.Attach(null); // fragt keine App mehr
                 await host.DisposeAsync().ConfigureAwait(true);
                 Log.Information("App-Verbindung: aus (Schalter) — Schnittstelle geschlossen");
                 if (_lifetime?.IsBackground == true)
@@ -252,6 +255,23 @@ public partial class App
         _exiting = true;
         UpdateTray();
         Shutdown(0);
+    }
+
+    /// <summary>
+    /// Touren verbundener Apps kurz nach dem Start nachfragen (Stufe 7) — nur bei Apps, die schon laufen; im Hintergrundbetrieb
+    /// nicht (schlank), dort erst mit dem Fenster.
+    /// </summary>
+    private async Task RequestToursAfterStartAsync()
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(30)).ConfigureAwait(true);
+            _host.Services.GetService<Lumora.Services.Places.Tracks.ExternalTrackSyncHub>()?.Request(mayStartApps: false);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "App-Verbindung: Touren nach dem Start nicht nachgefragt");
+        }
     }
 
     /// <summary>Beim Beenden: Symbol und Takt weg.</summary>

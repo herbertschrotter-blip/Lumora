@@ -171,6 +171,13 @@ public sealed partial class ConnectedAppItemViewModel : ObservableObject
 
     /// <summary>„Im Hintergrund beenden“: die App läuft ohne Fenster und Lumora hält dort eine Zusage (Stufe 6).</summary>
     [ObservableProperty] private bool _canStopBackground;
+
+    /// <summary>Stand der übernommenen Touren („412 Touren · 2016–2026“, Mockup 11 „Zuletzt“); null ohne Recht auf Touren.</summary>
+    [ObservableProperty] private string? _toursText;
+
+    [ObservableProperty] private bool _canSyncTours;
+
+    private bool _syncingTours;
     [ObservableProperty] private string? _notice;
     [ObservableProperty] private bool _noticeIsError;
 
@@ -197,7 +204,70 @@ public sealed partial class ConnectedAppItemViewModel : ObservableObject
         StartLabel = $"{DisplayName} öffnen";
         SyncRights();
         SyncLibraries(libraries);
+        ToursText = ReadToursText();
         Apply();
+    }
+
+    /// <summary>Darf Lumora von dieser App Touren holen (Recht <c>tours.read</c> von drüben)?</summary>
+    private bool ReceivesTours => _owner.Tours is not null && Connection?.GrantedByPeer.Contains(Rights.ToursRead, StringComparer.Ordinal) == true;
+
+    private string? ReadToursText()
+    {
+        if (!ReceivesTours)
+        {
+            return null;
+        }
+
+        if (_syncingTours)
+        {
+            return "Touren werden abgeglichen…";
+        }
+
+        var summary = _owner.Tours!.Summary(AppId);
+        var years = summary.FirstYear == summary.LastYear ? $"{summary.FirstYear}" : $"{summary.FirstYear}–{summary.LastYear}";
+        return summary.Count switch
+        {
+            0 => "Touren übernommen: noch keine",
+            1 => $"Touren übernommen: 1 Tour · {years}",
+            _ => $"Touren übernommen: {summary.Count} Touren · {years}",
+        };
+    }
+
+    /// <summary>
+    /// „Touren abgleichen“ (Stufe 7): Touren und Spuren jetzt holen — die App wird dafür im Hintergrund gestartet, wenn sie
+    /// Lumora das erlaubt (Herbert: automatisch + Knopf).
+    /// </summary>
+    [RelayCommand]
+    private async Task SyncToursAsync()
+    {
+        if (_owner.Tours is not { } tours)
+        {
+            return;
+        }
+
+        SetNotice(null, false);
+        _syncingTours = true;
+        ToursText = ReadToursText();
+        Apply();
+        try
+        {
+            var result = await Task.Run(() => tours.SyncAsync(AppId, mayStartApps: true));
+            SetNotice(result.Problem is { } problem
+                    ? $"Touren nicht abgeglichen: {Name} {problem}."
+                    : $"{result.Tours} {(result.Tours == 1 ? "Tour" : "Touren")} abgeglichen, {result.NewTracks} {(result.NewTracks == 1 ? "Spur" : "Spuren")} neu.",
+                result.Problem is not null);
+        }
+        catch (Exception ex)
+        {
+            // Netz/Gegenseite in eigenen Worten; alles andere (z. B. Katalog gesperrt) nur allgemein — Details im Protokoll
+            SetNotice(ex is AppConnectException or HttpRequestException or TaskCanceledException ? Describe(ex) : "Touren nicht abgeglichen.", true);
+        }
+        finally
+        {
+            _syncingTours = false;
+            ToursText = ReadToursText();
+            Apply();
+        }
     }
 
     private string Name => Registration?.DisplayName ?? Connection?.DisplayName ?? AppId;
@@ -386,6 +456,7 @@ public sealed partial class ConnectedAppItemViewModel : ObservableObject
         var idle = Phase == ConnectedAppPhase.Idle;
         CanPair = idle && !IsPaired && reg is not null;
         CanStart = idle && reg is not null;
+        CanSyncTours = idle && !_syncingTours && ReceivesTours;
         CanStopBackground = idle && IsRunning && reg?.Mode == AppConnectHost.BackgroundMode && _client.Holds(AppId);
         CanDisconnect = idle && IsPaired;
     }

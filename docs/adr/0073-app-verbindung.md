@@ -27,7 +27,7 @@ Lumora setzt **App-Verbindung Version 1.1** um, in sieben Stufen (Plan vom 2026-
 | 4 | 0.5.13 | Reiter „Verbundene Apps“ nach Mockup 11 |
 | 5 | 0.5.16 | Foto-Endpunkte als Anbieter (8.1) |
 | 6 | 0.5.20 | Hintergrundmodus und Start durch andere Apps (9) |
-| 7 | geplant | Touren, Spuren, Gipfel nutzen (8.2) — Umfang A + B (siehe unten) |
+| 7 | 0.5.24 (A) | Touren, Spuren, Gipfel nutzen (8.2) — A: Touren als Ortsquelle in 0.5.24; B: Galerie-Filter „Tour“ nach Mockup 24 |
 
 Lumora-eigene Entscheidungen (keine Vertragsänderung):
 
@@ -271,4 +271,58 @@ im Infobereich nur, wenn der Schalter an ist (Vertrag: Standard aus). Die Hinter
 - Ende-zu-Ende-Prüfung gegen die gebaute `Lumora.exe` (abgeschirmte Wurzel): Hintergrundstart → angemeldet als
   `background`, kein Fenster, Ende nach dem startenden Prozess; Schalter aus → sofort beendet; Fenster schließen mit Zusage →
   Hintergrund, ohne Zusage → beendet.
+
+## Nachtrag 0.5.24 — Stufe 7 Teil A: Touren als Ortsquelle
+
+**Umfang:** Antwort A auf Frage 4 (Touren als Ortsquelle für „Ungenaue Orte“), Frage 5 (Spuren in Lumoras Spurentabelle)
+und Frage 6 (Garmin-Import bleibt, Gipfelbuch hat bei derselben Aktivität Vorrang). Teil B — Galerie-Filter „Tour“ — folgt
+nach Mockup 24 (Herbert, 2026-10-27: „Mockup zuerst“; abgenommen).
+
+**Entscheidungen:**
+- **Datenhaltung** (Migration `AddAppTours`, nur CREATE TABLE und ADD COLUMN):
+  - Tabelle `AppTours`: eine Zeile je Tour einer App mit Name, Zeiten, Zeitzonen-Abstand, Sportart, Region, Länge,
+    Aufstieg, Dauer, Rahmen, `HasTrack` und Gipfeln als JSON für spätere Storys; eindeutig `(AppId, ExternalId)`. Sie gilt
+    für den ganzen Katalog — Touren gehören keiner Bibliothek.
+  - Die Spur liegt je Bibliotheks-Gruppe in `GpsTracks` mit `AppTourId` (ohne Fremdschlüssel, kein Tabellen-Neuaufbau) und
+    Herkunft `GpsTrackSource.App = 4`.
+  - Gruppen verknüpfen und lösen nehmen `AppTourId` mit.
+  - Die Kennung der Tour bleibt undurchsichtiger Text (Vertrag Abschnitt 10).
+- **Abgleich** (`TourSync`, Lumora.AppConnect):
+  - Alle Touren seitenweise ohne `includeDemo`; Lumora verwirft zusätzlich `source: "demo"`.
+  - Neue Touren anlegen, vorhandene nachführen. Haben sich Zeiten, Länge oder `hasTrack` geändert, wird die Spur neu
+    geholt; verschwundene Touren werden samt Spuren gelöscht.
+  - Je Tour mit Spur fehlende Gruppen ergänzen, die neuesten zuerst. Eine Spur wird je Tour einmal geholt und in jede
+    fehlende Gruppe geschrieben; identische Punkte einer eigenen Spur bleiben dabei unverändert (`INSERT OR IGNORE`).
+  - Ohne `tracks.read` werden die Spuren entfernt, ohne `tours.read` oder nach dem Trennen auch die Touren.
+  - `GpsTracksChangedMessage` lässt die Vorschläge neu rechnen.
+  - Ein Abgleich zur Zeit (SemaphoreSlim); das Protokoll nennt nur App-Kennung und Anzahlen.
+- **Wann:** über `IExternalTrackSync` (Services; die App-Verbindung hängt `TourSync.SyncAllAsync` ein, ohne
+  App-Verbindung passiert nichts):
+  - 30 Sekunden nach dem Start (nicht im Hintergrundbetrieb) nur mit laufenden Apps.
+  - Beim Laden der Vorschläge der Seite „Orte“ mit Starten im Hintergrund, wenn die App `background.start` gibt; Lumora
+    hält dann während des Abgleichs eine Zusage (120 s, alle 25 Spuren verlängert) und gibt sie frei.
+  - Automatisch höchstens alle 10 Minuten; „mit Starten“ wird getrennt gezählt, damit ein Abgleich nach dem Start
+    „Ungenaue Orte“ nicht blockiert.
+  - Dazu der Knopf „Touren abgleichen“ in der Karte (immer, mit Starten).
+- **Vorrang (Frage 6):**
+  - `SuggestionTrack.Preferred` für Spuren mit Herkunft App. Bei gleicher Stufe gewinnt die Tour-Spur, sonst wie bisher
+    die kleinere Lücke; eine höhere Stufe gewinnt immer.
+  - Der eigene Garmin-Import bleibt unverändert, auch für dieselbe Aktivität.
+- **Karte:** „Touren übernommen: n Touren · Jahr–Jahr“ unter „Lumora bekommt von …“, nur mit `tours.read`; Knopf „Touren
+  abgleichen“ mit Meldung „n Touren abgeglichen, m Spuren neu.“.
+
+**Folgen:** Der erste Abgleich holt alle Spuren einmal (bei rund 1 000 Touren einige Minuten, im Hintergrund). Er belegt je
+Gruppe zusätzlich etwa 13 KB je Spur. Fotos aus der Zeit einer Tour ohne Spur bekommen dadurch keinen Ort — sie dienen nur
+dem Filter (Teil B).
+
+**Tests:**
+- `TourSyncTests` (Gegenseite als HTTP-Handler):
+  - Touren mit und ohne Spur, Demo nie, zwei Seiten.
+  - Spuren je Gruppe mit Herkunft, Gerät und Sportart, je Tour ein Abruf, zweiter Abgleich ohne Abruf.
+  - Geänderte und gelöschte Touren, entzogene Rechte und Trennen.
+  - Gleiche Punkte schon vorhanden.
+  - Starten nur mit Erlaubnis samt Zusage und Freigabe.
+  - Vorrang in `GeoSuggestionEngine.FromTracks`; Taktung von `ExternalTrackSyncHub`.
+- `ConnectedAppsTests`: Stand und „Touren abgleichen“ in der Karte.
+- Der Rauchtest prüft Touren nicht (die Test-App ist kein Gipfelbuch). Gegen das echte Gipfelbuch prüft Herbert.
 

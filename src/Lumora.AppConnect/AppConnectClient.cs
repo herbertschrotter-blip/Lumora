@@ -64,7 +64,11 @@ public sealed class AppConnectClient
         _startInBackground = startInBackground ?? StartWith;
         _registrations = registrations;
         _connections = connections;
-        _http = http ?? new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+        // gzip für große Spuren (Vertrag Abschnitt 8.2); 30 s reichen auch für eine lange Tour in voller Auflösung
+        _http = http ?? new HttpClient(new HttpClientHandler { AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate })
+        {
+            Timeout = TimeSpan.FromSeconds(30),
+        };
         _own = own ?? AppConnectClientIdentity.Lumora;
         _timings = timings ?? AppConnectClientTimings.Default;
         _start = start ?? (exe => StartWith(exe, string.Empty));
@@ -143,6 +147,25 @@ public sealed class AppConnectClient
     /// <summary>Fenster der Gegenseite zeigen: normal starten — läuft sie schon, holt ihr zweiter Start das Fenster nach vorn (Abschnitt 9).</summary>
     public bool Open(string appId)
         => _registrations.Read(appId) is { } registration && _start(registration.ExePath);
+
+    /// <summary>
+    /// <c>GET /tours</c> (Vertrag Abschnitt 8.2, Recht <c>tours.read</c>): alle Touren seitenweise, ohne Demo-Touren (Lumora
+    /// setzt <c>includeDemo</c> nie).
+    /// </summary>
+    public async Task<TourPage> ToursAsync(AppRegistration peer, string? cursor = null, int limit = 500, CancellationToken ct = default)
+    {
+        var path = $"/tours?limit={limit.ToString(System.Globalization.CultureInfo.InvariantCulture)}"
+                   + (cursor is null ? string.Empty : "&cursor=" + Uri.EscapeDataString(cursor));
+        using var response = await SendAsync(peer, HttpMethod.Get, path, null, withSecret: true, ct).ConfigureAwait(false);
+        return await ReadAsync<TourPage>(response, peer, ct).ConfigureAwait(false);
+    }
+
+    /// <summary><c>GET /tours/{id}/track</c> (Recht <c>tracks.read</c>) in voller Auflösung; null, wenn die Tour keine Spur hat (404).</summary>
+    public async Task<TourTrack?> TrackAsync(AppRegistration peer, string tourId, CancellationToken ct = default)
+    {
+        using var response = await SendAsync(peer, HttpMethod.Get, "/tours/" + Uri.EscapeDataString(tourId) + "/track", null, withSecret: true, ct).ConfigureAwait(false);
+        return response.StatusCode == HttpStatusCode.NotFound ? null : await ReadAsync<TourTrack>(response, peer, ct).ConfigureAwait(false);
+    }
 
     /// <summary>Hält Lumora gerade eine Zusage bei <paramref name="appId"/>?</summary>
     public bool Holds(string appId) => _held.ContainsKey(appId);

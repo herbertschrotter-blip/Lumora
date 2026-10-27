@@ -52,4 +52,7 @@ public sealed class GpsTrack
     public required byte[] Points { get; set; }
 
     public DateTime ImportedAtUtc { get; set; }
+
+    /// <summary>Tour einer verbundenen App, aus der die Spur stammt (<see cref="AppTour"/>); null bei eigenem Einlesen.</summary>
+    public int? AppTourId { get; set; }
 }

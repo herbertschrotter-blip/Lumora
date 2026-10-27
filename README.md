@@ -1309,7 +1309,10 @@ Gipfelbuch (Touren, Spuren, Gipfel; Fotos nur als Verweis). Die Verbindung läuf
     Hintergrund-Aufgaben ruhen dann.
   - Lumora beendet sich selbst, wenn es niemand mehr braucht (spätestens nach 10 Minuten ohne Anfrage).
   - „Lumora öffnen“ (erneuter Start oder Infobereich) holt das Fenster zurück.
-- **Noch offen:** Touren in Lumora (Stufe 7).
+- **Touren** (seit 0.5.24): Gibt das Gipfelbuch Lumora „Touren“ und „GPS-Spuren“, holt Lumora sie kurz nach dem Start, beim
+  Öffnen von „Ungenaue Orte“ (startet das Gipfelbuch dafür im Hintergrund, wenn es das erlaubt) oder mit „Touren abgleichen“
+  in der Karte. Die Spuren schlagen Orte vor wie eine Garmin-Spur — bei derselben Aktivität mit Vorrang.
+- **Noch offen:** Galerie-Filter „Tour“ (Mockup 24).
 
 ## Datenablage
 

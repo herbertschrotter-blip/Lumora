@@ -260,6 +260,10 @@ public partial class App : Application, ICatalogHostSwitcher
 
                 EnterBackground(BackgroundStart);
             }
+            else
+            {
+                _ = RequestToursAfterStartAsync();
+            }
         }
         catch (SessionStartException startEx)
         {
@@ -299,7 +303,11 @@ public partial class App : Application, ICatalogHostSwitcher
             // „_hidden“, dort ist die App-Verbindung aus
             PairingPrompt = new Lumora.AppConnect.WindowPairingPrompt(Dispatcher, () => MainWindow);
             AppConnectClient = new Lumora.AppConnect.AppConnectClient(registrations, AppConnections!, logger: logger);
-            _host.Services.GetRequiredService<Lumora.AppConnect.AppConnectRuntime>().Attach(AppConnectClient, AppConnections!, _appConnectSettings);
+            // Touren verbundener Apps (Stufe 7): AppTours + Spuren je Gruppe
+            _tourSync = new Lumora.AppConnect.TourSync(AppConnectClient, AppConnections!,
+                _host.Services.GetRequiredService<Lumora.Services.Database.ILibraryContextFactory>(),
+                _host.Services.GetRequiredService<Lumora.Services.Places.Tracks.IGpsTrackStore>(), logger: logger);
+            _host.Services.GetRequiredService<Lumora.AppConnect.AppConnectRuntime>().Attach(AppConnectClient, AppConnections!, _appConnectSettings, _tourSync);
         }
 
         // „Verbindungen erlauben“ aus (Stufe 6): keine Schnittstelle, keine Anmeldedatei als laufend
@@ -308,6 +316,10 @@ public partial class App : Application, ICatalogHostSwitcher
             Log.Information("App-Verbindung: aus (Schalter „Verbindungen erlauben“)");
             return;
         }
+
+        // „Lumora fragt“ (Stufe 7): Abgleich der Touren für die Seite „Orte“ und den Start einhängen
+        var tourSync = _tourSync!;
+        _host.Services.GetRequiredService<Lumora.Services.Places.Tracks.ExternalTrackSyncHub>().Attach((mayStart, ct) => tourSync.SyncAllAsync(mayStart, ct));
 
         var leases = _leases!;
         Lumora.AppConnect.AppConnectHost? hostRef = null;

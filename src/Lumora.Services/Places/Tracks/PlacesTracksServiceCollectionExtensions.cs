@@ -20,6 +20,9 @@ public static class PlacesTracksServiceCollectionExtensions
         services.TryAddSingleton<IGpsTrackAutoImport, GpsTrackAutoImport>();
         services.TryAddSingleton<IGeoAssignService>(sp => sp.GetRequiredService<GeoLocationService>());
         services.TryAddSingleton<IGeoSuggestionService, GeoSuggestionService>();
+        // Spuren aus verbundenen Apps (ADR-0073 Stufe 7): die App-Verbindung hängt ihren Abgleich hier ein
+        services.TryAddSingleton<ExternalTrackSyncHub>();
+        services.TryAddSingleton<IExternalTrackSync>(sp => sp.GetRequiredService<ExternalTrackSyncHub>());
         return services;
     }
 

@@ -275,7 +275,7 @@ public sealed class GeoSuggestionService : IGeoSuggestionService
         }
 
         var tracks = trackInfos
-            .Select(t => new SuggestionTrack(t.Id, t.StartUnix, t.EndUnix, () => LoadPointsSafe(t.Id)))
+            .Select(t => new SuggestionTrack(t.Id, t.StartUnix, t.EndUnix, () => LoadPointsSafe(t.Id), preferred: t.Source == GpsTrackSource.App))
             .ToList();
         var byTrack = trackInfos.ToDictionary(t => t.Id);
         var suggestions = await Task.Run(() => GeoSuggestionEngine.Suggest(candidates, anchors, tracks, settings.ToleranceSeconds), ct).ConfigureAwait(false);
@@ -325,18 +325,8 @@ public sealed class GeoSuggestionService : IGeoSuggestionService
 
     /// <summary>UTC eines Fotos (null ohne genaues Aufnahmedatum).</summary>
     private static PhotoTime? Resolve(Row row, TimeZoneInfo zone, GeoTrackSettings settings)
-    {
-        if (row.CapturedAt is not { } at || row.Source is not { } source || row.Precision != (int)CaptureDatePrecision.Exact)
-        {
-            return null;
-        }
-
-        return PhotoTimeResolver.Resolve(
-            new PhotoTimeInput(at, row.Offset, (CaptureDateSource)source, row.ExifOffset, row.GpsTime,
-                row.Accuracy == (int)GeoAccuracy.Exact && row.GeoSource == (int)GeoSource.Exif, row.Camera),
-            zone,
-            settings.OffsetFor(row.Camera));
-    }
+        => PhotoTimeResolver.ResolveCatalog(row.CapturedAt, row.Offset, row.Source, row.Precision, row.ExifOffset, row.GpsTime,
+            row.Accuracy, row.GeoSource, row.Camera, zone, settings);
 
     /// <summary>Stützen im Bereich: genaue EXIF-Orte (UTC = GPS-Zeit, falls vorhanden) und aus Spuren übernommene Orte.</summary>
     private List<SuggestionAnchor> ReadAnchors(LibraryScopeInfo scope, long fromUnix, long toUnix, TimeZoneInfo zone, GeoTrackSettings settings)

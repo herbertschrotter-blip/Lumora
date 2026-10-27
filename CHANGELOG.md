@@ -3,6 +3,38 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.24] — 2026-10-27
+
+### Added — App-Verbindung Stufe 7 (Teil A): Touren vom Gipfelbuch als Spuren für „Ungenaue Orte“
+- Lumora holt die **Touren** einer verbundenen App (Vertrag Abschnitt 8.2, Recht „Touren“) und legt sie in der neuen
+  Tabelle `AppTours` ab — auch Touren ohne Spur, für den kommenden Galerie-Filter „Tour“ (Mockup 24 `mockups/24-galerie-filter-tour.html`, von Herbert am 2026-10-27 abgenommen).
+- Die **Spuren** (Recht „GPS-Spuren“) landen je Bibliotheks-Gruppe in der Spurentabelle (Herbert, Frage 5), Herkunft „aus
+  verbundener App“, Gerät „Gipfelbuch“, Name und Sportart der Tour.
+  - „Ungenaue Orte“ und Fotos ohne Ort nutzen sie wie eine Garmin-Spur.
+  - Bei derselben Aktivität hat die Tour-Spur bei gleicher Stufe Vorrang vor der eigenen Garmin-Spur (Frage 6); der
+    eigene Garmin-Import bleibt.
+  - Sind die Punkte identisch mit einer schon eingelesenen Spur, bleibt die eigene Zeile.
+- **Abgleich** (Herbert: automatisch + Knopf):
+  - 30 Sekunden nach dem Start, wenn die App läuft.
+  - Beim Öffnen von „Ungenaue Orte“; dafür startet Lumora die App im Hintergrund, wenn sie es erlaubt.
+  - Höchstens alle 10 Minuten; dazu „Touren abgleichen“ in der Karte der App.
+  - Neue Spuren lassen die Vorschläge neu rechnen.
+- **Aufräumen:** Geänderte Touren bekommen ihre Spur neu, gelöschte verschwinden samt Spuren. Ohne Recht „GPS-Spuren“
+  gehen die Spuren, ohne „Touren“ oder nach dem Trennen auch die Touren. Demo-Touren nie.
+- **Karte im Reiter „Verbundene Apps“:** „Touren übernommen: 412 Touren · 2016–2026“ (Mockup 11 „Zuletzt“) mit „Touren
+  abgleichen“.
+- **Technik:**
+  - Schema — Migration `AddAppTours` (nur CREATE TABLE und ADD COLUMN): Tabelle `AppTours`, Spalte `GpsTracks.AppTourId`,
+    neue Herkunft `GpsTrackSource.App = 4`.
+  - Der Client fragt `GET /tours` (seitenweise, ohne Demo) und `GET /tours/{id}/track` mit gzip.
+  - Startet Lumora die App selbst, hält es während des Abgleichs eine Zusage und gibt sie danach frei.
+  - Protokoll nur mit Anzahlen.
+- **Tests:**
+  - `TourSyncTests`: Touren mit und ohne Spur, Spuren je Gruppe, nichts doppelt, Änderungen, Rechte, Starten nur mit
+    Erlaubnis, Vorrang in den Vorschlägen, Taktung.
+  - `ConnectedAppsTests`: Stand und Knopf in der Karte.
+- ADR-0073 Nachtrag 0.5.24. (refs #5)
+
 ## [0.5.23] — 2026-10-27
 
 ### Docs — Konzept KI-Bearbeitung mit ComfyUI, nur in der versteckten Sitzung (ADR-0076, Mockup 23)

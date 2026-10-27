@@ -13,4 +13,7 @@ public enum GpsTrackSource
 
     /// <summary>Garmin TCX (<c>Trackpoint</c> mit Position).</summary>
     Tcx = 3,
+
+    /// <summary>Aus einer verbundenen App (Gipfelbuch-Tour, App-Verbindung Stufe 7) — hat bei derselben Aktivität Vorrang.</summary>
+    App = 4,
 }

@@ -14,14 +14,18 @@ public sealed class AppConnectRuntime
     /// <summary>Schalter des Reiters (Stufe 6); null in Tests ohne Schalter.</summary>
     public AppConnectSettingsStore? Settings { get; private set; }
 
+    /// <summary>Touren verbundener Apps (Stufe 7); null in Tests ohne Katalog.</summary>
+    public TourSync? Tours { get; private set; }
+
     /// <summary>App-Verbindung ist bereit (einmal je Start).</summary>
     public event EventHandler? Attached;
 
-    public void Attach(AppConnectClient client, ConnectionStore connections, AppConnectSettingsStore? settings = null)
+    public void Attach(AppConnectClient client, ConnectionStore connections, AppConnectSettingsStore? settings = null, TourSync? tours = null)
     {
         Client = client;
         Connections = connections;
         Settings = settings;
+        Tours = tours;
         Attached?.Invoke(this, EventArgs.Empty);
     }
 }

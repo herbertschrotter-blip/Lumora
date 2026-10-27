@@ -17,8 +17,12 @@ public sealed class PlacesSuggestionContext(
     IGpsTrackStore tracks,
     ILibraryScope scope,
     IReverseGeocoder geocoder,
-    PlaceActions? placeActions = null)
+    PlaceActions? placeActions = null,
+    IExternalTrackSync? externalTracks = null)
 {
+    /// <summary>Spuren aus verbundenen Apps nachfragen (App-Verbindung Stufe 7); null in Tests.</summary>
+    public IExternalTrackSync? ExternalTracks { get; } = externalTracks;
+
     public IGeoSuggestionService Suggestions { get; } = suggestions;
 
     public IGeoTagUndoService Undo { get; } = undo;

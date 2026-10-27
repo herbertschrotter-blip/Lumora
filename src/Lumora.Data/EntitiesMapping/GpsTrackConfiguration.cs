@@ -26,5 +26,30 @@ internal sealed class GpsTrackConfiguration : IEntityTypeConfiguration<GpsTrack>
 
         // Zeitraum-Abfrage „welche Aktivität deckt diese Foto-Zeit ab“ (Start ≤ t + Toleranz, Ende ≥ t − Toleranz).
         b.HasIndex(x => new { x.GroupId, x.StartUtc, x.EndUtc }).HasDatabaseName("IX_GpsTracks_Group_Time");
+
+        // Spuren aus Touren verbundener Apps (ADR-0073 Stufe 7): ohne Fremdschlüssel (kein Tabellen-Neuaufbau), der Abgleich
+        // löscht sie mit der Tour.
+        b.HasIndex(x => x.AppTourId).HasDatabaseName("IX_GpsTracks_AppTour").HasFilter("AppTourId IS NOT NULL");
+    }
+}
+
+// Touren verbundener Apps (ADR-0073 Stufe 7, Migration AddAppTours) — gelten für den ganzen Katalog.
+internal sealed class AppTourConfiguration : IEntityTypeConfiguration<AppTour>
+{
+    public void Configure(EntityTypeBuilder<AppTour> b)
+    {
+        b.ToTable("AppTours");
+        b.HasKey(x => x.Id);
+        b.Property(x => x.Id).ValueGeneratedOnAdd();
+        b.Property(x => x.AppId).IsRequired();
+        b.Property(x => x.ExternalId).IsRequired();
+        b.Property(x => x.Name).IsRequired();
+        b.Property(x => x.Sport).IsRequired();
+        b.Property(x => x.Summits).IsRequired();
+        b.Property(x => x.StartUtc).HasConversion(ValueConverters.DateTimeToUnixSeconds);
+        b.Property(x => x.EndUtc).HasConversion(ValueConverters.DateTimeToUnixSeconds);
+        b.Property(x => x.UpdatedAtUtc).HasConversion(ValueConverters.DateTimeToUnixSeconds);
+        b.HasIndex(x => new { x.AppId, x.ExternalId }).IsUnique().HasDatabaseName("UX_AppTours_App_External");
+        b.HasIndex(x => new { x.StartUtc, x.EndUtc }).HasDatabaseName("IX_AppTours_Time");
     }
 }

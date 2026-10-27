@@ -32,8 +32,8 @@ public sealed record GpsTrackSummary(int Count, DateTime? FirstStartUtc, DateTim
     public static GpsTrackSummary Empty { get; } = new(0, null, null, [], null);
 }
 
-/// <summary>Eine neue Spur zum Speichern.</summary>
-public sealed record NewGpsTrack(ParsedTrack Track, byte[] Checksum);
+/// <summary>Eine neue Spur zum Speichern; <paramref name="AppTourId"/> = Tour einer verbundenen App (ADR-0073 Stufe 7).</summary>
+public sealed record NewGpsTrack(ParsedTrack Track, byte[] Checksum, int? AppTourId = null);
 
 /// <summary>Lesen und Schreiben der Tabelle <c>GpsTracks</c> (ADR-0062) — immer je Bibliotheks-Gruppe.</summary>
 public interface IGpsTrackStore
@@ -159,8 +159,8 @@ public sealed class GpsTrackStore(ILibraryContextFactory factory) : IGpsTrackSto
             cmd.Transaction = tx;
             cmd.CommandText = """
                 INSERT OR IGNORE INTO GpsTracks (GroupId, StartUtc, EndUtc, MinLatitude, MinLongitude, MaxLatitude, MaxLongitude, PointCount,
-                                                 DistanceMeters, Sport, Device, Name, Source, Checksum, Points, ImportedAtUtc)
-                VALUES ($g, $start, $end, $minLat, $minLon, $maxLat, $maxLon, $count, $dist, $sport, $device, $name, $source, $checksum, $points, $now);
+                                                 DistanceMeters, Sport, Device, Name, Source, Checksum, Points, ImportedAtUtc, AppTourId)
+                VALUES ($g, $start, $end, $minLat, $minLon, $maxLat, $maxLon, $count, $dist, $sport, $device, $name, $source, $checksum, $points, $now, $tour);
                 """;
             cmd.Parameters.AddWithValue("$g", groupId);
             var names = new[] { "$start", "$end", "$minLat", "$minLon", "$maxLat", "$maxLon", "$count", "$dist", "$sport", "$device", "$name", "$source", "$checksum", "$points" };
@@ -172,9 +172,11 @@ public sealed class GpsTrackStore(ILibraryContextFactory factory) : IGpsTrackSto
                 _ => SqliteType.Integer,
             }));
             cmd.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+            var tour = cmd.Parameters.Add("$tour", SqliteType.Integer);
             var inserted = 0;
-            foreach (var (track, checksum) in tracks)
+            foreach (var (track, checksum, appTourId) in tracks)
             {
+                tour.Value = (object?)appTourId ?? DBNull.Value;
                 ct.ThrowIfCancellationRequested();
                 var points = track.Points;
                 p["$start"].Value = points[0].Utc;

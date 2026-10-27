@@ -276,6 +276,57 @@ public sealed class ConnectedAppsTests : IAsyncLifetime
     });
 
     [Fact]
+    public Task Touren_abgleichen_zeigt_den_Stand_in_der_Karte() => OnUiAsync(async () =>
+    {
+        using var db = await Lumora.Wpf.Tests.ArchiveTarget.ArchiveTestDb.CreateAsync();
+        WritePeer(running: true);
+        var secret = ConnectionStore.NewSecret();
+        _store.Add(new AppConnection("gipfelbuch", "Gipfelbuch", [Rights.PhotosSearch], [Rights.ToursRead], new DateTime(2026, 10, 22, 10, 0, 0, DateTimeKind.Utc)), secret);
+        _peerStore.Add(new AppConnection("lumoratest", "Lumora", [Rights.ToursRead], [Rights.PhotosSearch], new DateTime(2026, 10, 22, 10, 0, 0, DateTimeKind.Utc)), secret);
+        var tourClient = new AppConnectClient(_registrations, _store, new System.Net.Http.HttpClient(new OneTourGipfelbuch()),
+            AppConnectClientIdentity.Lumora with { AppId = "lumoratest" });
+        var tours = new TourSync(tourClient, _store, db.Factory, new Lumora.Services.Places.Tracks.GpsTrackStore(db.Factory),
+            new CommunityToolkit.Mvvm.Messaging.WeakReferenceMessenger());
+        Attach(tours);
+        var vm = new ConnectedAppsViewModel(_runtime, _dialogs, libraries: _libraries);
+        vm.Reload();
+        var app = vm.Apps.Single();
+        app.ToursText.Should().Be("Touren übernommen: noch keine");
+        app.CanSyncTours.Should().BeTrue();
+
+        await app.SyncToursCommand.ExecuteAsync(null);
+
+        app.Notice.Should().Be("1 Tour abgeglichen, 0 Spuren neu.");
+        app.NoticeIsError.Should().BeFalse();
+        await WaitAsync(() => app.ToursText == "Touren übernommen: 1 Tour · 2025");
+        app.ToursText.Should().Be("Touren übernommen: 1 Tour · 2025");
+
+        _store.SetGrantedByPeer("gipfelbuch", [Rights.TracksRead]);
+        vm.Reload();
+        app.ToursText.Should().BeNull("ohne tours.read keine Touren-Zeile");
+        app.CanSyncTours.Should().BeFalse();
+    });
+
+    /// <summary>Gipfelbuch mit einer Tour ohne Spur (Vertrag 8.2), als Handler.</summary>
+    private sealed class OneTourGipfelbuch : System.Net.Http.HttpMessageHandler
+    {
+        protected override Task<System.Net.Http.HttpResponseMessage> SendAsync(System.Net.Http.HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var start = new DateTime(2025, 7, 1, 7, 0, 0, DateTimeKind.Utc);
+            var page = new TourPage([new Tour
+            {
+                Id = "t1", Name = "Handalm", Start = new DateTimeOffset(start), StartUtc = start, EndUtc = start.AddHours(4), Sport = "hiking",
+                Bbox = [15.0, 47.0, 15.1, 47.1], HasTrack = false, Source = "fit",
+            }], null);
+            var json = System.Text.Json.JsonSerializer.Serialize(page, AppConnectContract.Json);
+            return Task.FromResult(new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new System.Net.Http.StringContent(json, System.Text.Encoding.UTF8, "application/json"),
+            });
+        }
+    }
+
+    [Fact]
     public Task Reiter_hell_und_dunkel_ohne_Binding_Fehler() => OnUiAsync(async () =>
     {
         WritePeer(running: true);
@@ -311,13 +362,14 @@ public sealed class ConnectedAppsTests : IAsyncLifetime
         return new ConnectedAppsViewModel(_runtime, _dialogs, libraries: _libraries);
     }
 
-    private void Attach()
+    private void Attach(TourSync? tours = null)
         => _runtime.Attach(
             new AppConnectClient(_registrations, _store, own: AppConnectClientIdentity.Lumora with { AppId = "lumoratest" },
                 timings: new AppConnectClientTimings(TimeSpan.FromMilliseconds(20), TimeSpan.FromSeconds(10), TimeSpan.FromMilliseconds(400)),
                 start: path => _start(path)),
             _store,
-            _settings);
+            _settings,
+            tours);
 
     private async Task<ConnectedAppItemViewModel> PairAsync(ConnectedAppsViewModel vm)
     {

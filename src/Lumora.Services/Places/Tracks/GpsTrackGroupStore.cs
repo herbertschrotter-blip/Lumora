@@ -27,9 +27,9 @@ internal static class GpsTrackGroupStore
     public static int CopyForLibrary(SqliteConnection connection, SqliteTransaction tx, int fromGroup, int toGroup)
         => Execute(connection, tx, """
             INSERT OR IGNORE INTO GpsTracks (GroupId, StartUtc, EndUtc, MinLatitude, MinLongitude, MaxLatitude, MaxLongitude, PointCount,
-                                             DistanceMeters, Sport, Device, Name, Source, Checksum, Points, ImportedAtUtc)
+                                             DistanceMeters, Sport, Device, Name, Source, Checksum, Points, ImportedAtUtc, AppTourId)
             SELECT $to, StartUtc, EndUtc, MinLatitude, MinLongitude, MaxLatitude, MaxLongitude, PointCount,
-                   DistanceMeters, Sport, Device, Name, Source, Checksum, Points, ImportedAtUtc
+                   DistanceMeters, Sport, Device, Name, Source, Checksum, Points, ImportedAtUtc, AppTourId
             FROM GpsTracks WHERE GroupId = $from;
             """, ("$from", fromGroup), ("$to", toGroup));
 

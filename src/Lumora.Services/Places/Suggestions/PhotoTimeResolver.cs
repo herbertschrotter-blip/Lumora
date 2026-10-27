@@ -50,6 +50,25 @@ public static class PhotoTimeResolver
     /// <summary>Größter plausibler Abstand zu UTC (14 h).</summary>
     public const int MaxOffsetMinutes = 14 * 60;
 
+    /// <summary>
+    /// Zeit aus den Katalog-Spalten einer Datei (gemeinsam für „Ungenaue Orte“ und den Galerie-Filter „Tour“): nur mit genauem
+    /// Aufnahmedatum; die GPS-Zeit zählt nur bei genauem EXIF-Ort.
+    /// </summary>
+    public static PhotoTime? ResolveCatalog(long? capturedAt, int? offset, int? source, int precision, int? exifOffset, long? gpsTime,
+        int? accuracy, int? geoSource, string? camera, TimeZoneInfo zone, Tracks.GeoTrackSettings settings)
+    {
+        if (capturedAt is not { } at || source is not { } kind || precision != (int)CaptureDatePrecision.Exact)
+        {
+            return null;
+        }
+
+        return Resolve(
+            new PhotoTimeInput(at, offset, (CaptureDateSource)kind, exifOffset, gpsTime,
+                accuracy == (int)GeoAccuracy.Exact && geoSource == (int)GeoSource.Exif, camera),
+            zone,
+            settings.OffsetFor(camera));
+    }
+
     public static PhotoTime? Resolve(PhotoTimeInput input, TimeZoneInfo zone, int cameraOffsetSeconds)
     {
         if (input.Source == CaptureDateSource.Unknown)

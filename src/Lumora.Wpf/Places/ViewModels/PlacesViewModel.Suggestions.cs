@@ -275,6 +275,9 @@ public sealed partial class PlacesViewModel
         var context = _suggestionContext!;
         var version = ++_suggestionVersion;
         IsSuggestionsLoading = true;
+        // Touren verbundener Apps (Stufe 7): höchstens alle 10 Minuten, die App darf dafür im Hintergrund starten; neue Spuren
+        // melden sich mit GpsTracksChangedMessage und laden die Vorschläge neu
+        context.ExternalTracks?.Request(mayStartApps: true);
         try
         {
             var scope = await context.Scope.GetCurrentAsync().ConfigureAwait(true);
