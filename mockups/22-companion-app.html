@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lumora — Companion-App für Android (Entwurf 22)</title>
+<style>
+/* =====================================================================
+   Mockup 22 · Companion-App: native Android-App „Lumora“ (Flutter) für die laufende Lumora am PC, nur über WireGuard
+   (FritzBox) und gegenseitiges TLS (ADR-0075, Vorschlag). Zwölf Handy-Bildschirme in Originalbreite (390 px): Kopplung,
+   App-Sperre, Verbindungsstatus, Ansehen, Bewerten, Teilen, Gerät gesperrt — und am PC Einstellungen › Mobilgeräte mit
+   Kopplungs-Rückfrage. Löst den früheren PWA-Entwurf gleicher Nummer ab (lag nie im Repo).
+   Tokens 1:1 aus 08–21. Namen, Orte, Fotos erfunden; Adressen sind Beispieladressen (192.0.2.x). Hell/Dunkel über „dark“.
+   ABGENOMMEN von Herbert am 2026-10-27: alle zwölf Handy-Bildschirme (QR scannen, Code vergleichen, App-Sperre, Keine
+   Verbindung, Zeitleiste, Alben/Ordner, Lightbox mit Bewerten, Suche, Storys, An Lumora senden, Mehr, Gerät gesperrt),
+   Einstellungen › Mobilgeräte (Schalter mit Zeitlimit, Adresse/Port, Stammzertifikat, Firewall nur geprüft, Hintergrund,
+   Geräte mit Sperren, Gerät hinzufügen, Protokoll) und die Kopplungs-Rückfrage. Bewusst nicht im Mockup: Handy-Fotos in
+   der gemeinsamen Zeitleiste (entschieden, Stufe 6, Marke „nur am Handy“), Tags setzen am Handy, iOS.
+   ===================================================================== */:root {
+  --mica-base:#F3F3F3; --layer-default:rgba(255,255,255,0.7); --layer-card:#FFFFFF; --layer-subtle:rgba(0,0,0,0.026);
+  --layer-secondary:rgba(0,0,0,0.04); --layer-tertiary:rgba(0,0,0,0.06);
+  --text-primary:#1A1A1A; --text-secondary:#5C5C5C; --text-tertiary:#8B8B8B; --text-on-accent:#FFFFFF;
+  --stroke-default:rgba(0,0,0,0.0578); --stroke-divider:rgba(0,0,0,0.0803); --stroke-card:rgba(0,0,0,0.0578); --ctl-bottom:rgba(0,0,0,0.16);
+  --accent:#5B5FC7; --accent-light:#7579D8; --accent-dark:#4145A0; --accent-soft:rgba(91,95,199,0.08); --accent-soft-2:rgba(91,95,199,0.16);
+  --success:#107C10; --success-soft:rgba(16,124,16,0.10); --warning:#C29C00; --warning-soft:rgba(194,156,0,0.14); --danger:#C42B1C;
+  --shadow-card:0 2px 4px rgba(0,0,0,0.02), 0 1px 2px rgba(0,0,0,0.03); --shadow-flyout:0 8px 16px rgba(0,0,0,0.14);
+  --brand-indigo:#5B5FC7; --brand-violet:#8B5CF6; --brand-coral:#F97362; --brand-amber:#F5A524;
+  --page-bg:#E4E4EA; --smoke:rgba(0,0,0,0.3);
+}
+body.dark {
+  color-scheme:dark;
+  --mica-base:#202020; --layer-default:rgba(43,43,43,0.7); --layer-card:#2C2C2C; --layer-subtle:rgba(255,255,255,0.03);
+  --layer-secondary:rgba(255,255,255,0.0418); --layer-tertiary:rgba(255,255,255,0.0605);
+  --text-primary:#FFFFFF; --text-secondary:#D0D0D0; --text-tertiary:#A0A0A0;
+  --stroke-default:rgba(255,255,255,0.0837); --stroke-divider:rgba(255,255,255,0.0837); --stroke-card:rgba(255,255,255,0.0578); --ctl-bottom:rgba(255,255,255,0.22);
+  --accent:#818CF8; --accent-light:#A5B0FF; --accent-dark:#6066D8; --accent-soft:rgba(129,140,248,0.12); --accent-soft-2:rgba(129,140,248,0.24);
+  --success:#6CCB5F; --success-soft:rgba(108,203,95,0.12); --warning:#FCE100; --warning-soft:rgba(252,225,0,0.14); --danger:#FF6B5E;
+  --shadow-card:0 2px 4px rgba(0,0,0,0.18), 0 1px 2px rgba(0,0,0,0.22); --shadow-flyout:0 8px 16px rgba(0,0,0,0.4);
+  --brand-indigo:#818CF8; --brand-violet:#A78BFA; --brand-coral:#FB8A7A; --brand-amber:#FBBF24;
+  --page-bg:#121214; --smoke:rgba(0,0,0,0.55);
+}
+* { box-sizing:border-box; } html,body { margin:0; }
+body { background:var(--page-bg); color:var(--text-primary); font-family:'Segoe UI Variable Text','Segoe UI',system-ui,sans-serif; font-size:14px; }
+button { font:inherit; color:inherit; }
+.ic { font-family:'Segoe Fluent Icons','Segoe MDL2 Assets'; font-size:16px; line-height:1; font-style:normal; }
+.ic.s { font-size:12px; }
+.hidden { display:none !important; }
+.mock-bar { position:sticky; top:0; z-index:100; display:flex; gap:16px; align-items:center; flex-wrap:wrap; padding:7px 20px; background:#2B2B33; color:#EEE; font-size:12px; }
+.mock-bar .grp { display:flex; gap:4px; align-items:center; }
+.mock-bar button { background:#44444F; color:#EEE; border:1px solid #5A5A66; border-radius:4px; padding:3px 9px; cursor:pointer; font-size:12px; }
+.mock-bar button.on { background:#5B5FC7; border-color:#7579D8; }
+.mock-bar .note { margin-left:auto; color:#AAB; }
+.stage-wrap { padding:16px 20px 32px; display:flex; justify-content:center; }
+.win-box { position:relative; flex:none; }
+.window { position:absolute; left:0; top:0; transform-origin:0 0; background:var(--mica-base); border-radius:8px; border:1px solid var(--stroke-default);
+  box-shadow:0 16px 48px rgba(0,0,0,0.22); overflow:hidden; display:grid; grid-template-columns:232px 1fr; grid-template-rows:36px 1fr 30px; }
+.titlebar { grid-column:1/-1; display:flex; align-items:center; gap:10px; padding-left:14px; font-size:12px; color:var(--text-secondary); }
+.titlebar .tile { width:16px; height:16px; border-radius:4px; background:linear-gradient(135deg,#6366F1,#4145A0); }
+.titlebar .wc { margin-left:auto; display:flex; height:100%; } .titlebar .wc span { width:46px; display:grid; place-items:center; font-family:'Segoe Fluent Icons'; font-size:10px; color:var(--text-primary); }
+.nav { padding:2px 8px 10px; display:flex; flex-direction:column; gap:2px; }
+.wbs { font-family:'Segoe UI Variable Display','Segoe UI',sans-serif; font-size:22px; padding:2px 12px 10px;
+  background:linear-gradient(100deg,var(--brand-indigo),var(--brand-violet) 45%,var(--brand-coral) 75%,var(--brand-amber)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.lib-switch { margin:0 2px 8px; padding:8px 10px; border-radius:6px; background:var(--layer-card); border:1px solid var(--stroke-card); box-shadow:var(--shadow-card); display:flex; gap:10px; align-items:center; }
+.lib-switch b { display:block; font-weight:600; } .lib-switch small { display:block; color:var(--text-tertiary); font-size:11px; }
+.nav-item { display:flex; align-items:center; gap:12px; padding:9px 12px; border-radius:4px; position:relative; white-space:nowrap; }
+.nav-item.active { background:var(--layer-secondary); }
+.nav-item.active::before { content:''; position:absolute; left:0; top:10px; bottom:10px; width:3px; border-radius:2px; background:var(--accent); }
+.nav .spacer { flex:1; }
+.content { position:relative; min-width:0; min-height:0; background:var(--layer-default); border-top-left-radius:8px; border-left:1px solid var(--stroke-default); border-top:1px solid var(--stroke-default); overflow:auto; }
+.statusbar { grid-column:1/-1; display:flex; align-items:center; gap:18px; padding:0 14px; font-size:12px; color:var(--text-secondary); border-top:1px solid var(--stroke-divider); background:var(--mica-base); }
+.statusbar .r { margin-left:auto; display:flex; gap:10px; align-items:center; }
+.btn-acc { background:var(--accent); color:var(--text-on-accent); border:1px solid transparent; border-radius:4px; padding:5px 14px; font-size:13px; cursor:pointer; display:inline-flex; gap:6px; align-items:center; white-space:nowrap; }
+body.dark .btn-acc { color:#111; } .btn-acc:hover { background:var(--accent-light); }
+.btn-std { background:var(--layer-card); border:1px solid var(--stroke-divider); border-bottom-color:var(--ctl-bottom); border-radius:4px; padding:5px 12px; font-size:13px; cursor:pointer; display:inline-flex; gap:6px; align-items:center; white-space:nowrap; }
+.btn-std:hover { background:var(--layer-subtle); }
+.btn-std.danger { color:var(--danger); }
+.phead { padding:18px 24px 6px; } .phead h1 { font-size:28px; font-weight:600; margin:0; }
+.tabs { display:flex; gap:4px; padding:4px 24px 10px; border-bottom:1px solid var(--stroke-divider); flex-wrap:wrap; }
+.tabs span { padding:6px 12px; border-radius:4px; color:var(--text-secondary); }
+.tabs span.on { color:var(--text-primary); font-weight:600; box-shadow:inset 0 -3px 0 var(--accent); }
+.body { padding:14px 24px 24px; display:grid; gap:12px; max-width:960px; }
+.card { background:var(--layer-card); border:1px solid var(--stroke-card); border-radius:8px; box-shadow:var(--shadow-card); padding:14px 16px; }
+.card h2 { font-size:15px; margin:0 0 4px; display:flex; gap:10px; align-items:center; }
+.muted { color:var(--text-secondary); font-size:12px; line-height:1.5; }
+.opt { display:grid; grid-template-columns:1fr auto; gap:12px; align-items:center; padding:10px 0; border-top:1px solid var(--stroke-divider); }
+.opt:first-of-type { border-top:0; }
+.opt b { font-weight:600; font-size:13px; display:block; }
+.sw { width:40px; height:20px; border-radius:10px; border:1px solid var(--text-secondary); position:relative; flex:none; cursor:pointer; display:inline-block; }
+.sw::after { content:''; position:absolute; top:4px; left:4px; width:10px; height:10px; border-radius:50%; background:var(--text-secondary); transition:left .12s; }
+.sw.on { background:var(--accent); border-color:var(--accent); } .sw.on::after { left:24px; background:#fff; }
+.chk { width:16px; height:16px; border-radius:3px; border:1px solid var(--text-secondary); display:inline-grid; place-items:center; flex:none; font-family:'Segoe Fluent Icons'; font-size:10px; color:transparent; cursor:pointer; }
+.chk.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+.app { border:1px solid var(--stroke-card); border-radius:8px; background:var(--layer-card); box-shadow:var(--shadow-card); overflow:hidden; }
+.app-h { display:grid; grid-template-columns:48px 1fr auto; gap:14px; align-items:center; padding:14px 16px; cursor:pointer; }
+.app-ico { width:48px; height:48px; border-radius:10px; display:grid; place-items:center; color:#fff; font-size:22px; }
+.app-h .n { font-weight:600; font-size:15px; display:flex; gap:8px; align-items:center; }
+.app-h .d { font-size:12px; color:var(--text-secondary); margin-top:3px; }
+.state { font-size:11px; font-weight:700; border-radius:9px; padding:2px 8px; display:inline-flex; gap:5px; align-items:center; }
+.state::before { content:''; width:7px; height:7px; border-radius:50%; background:currentColor; }
+.st-run { background:var(--success-soft); color:var(--success); }
+.st-bg { background:var(--accent-soft-2); color:var(--accent-dark); } body.dark .st-bg { color:var(--accent-light); }
+.st-off { background:var(--layer-tertiary); color:var(--text-secondary); }
+.st-new { background:var(--warning-soft); color:#8A6D00; } body.dark .st-new { color:var(--warning); }
+.app-b { border-top:1px solid var(--stroke-divider); padding:12px 16px 14px; display:grid; grid-template-columns:1fr 1fr; gap:14px 24px; background:var(--layer-subtle); }
+.app-b h3 { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--text-tertiary); margin:0 0 6px; font-weight:600; }
+.perm { display:flex; gap:8px; align-items:flex-start; font-size:13px; padding:3px 0; }
+.perm small { display:block; color:var(--text-secondary); font-size:11px; }
+.kv { display:grid; grid-template-columns:150px 1fr; gap:4px 10px; font-size:12px; }
+.kv span:nth-child(odd) { color:var(--text-secondary); }
+.app-f { grid-column:1/-1; display:flex; gap:8px; justify-content:flex-end; padding-top:4px; }
+.empty { border:1px dashed var(--stroke-divider); border-radius:8px; padding:14px 16px; display:flex; gap:12px; align-items:center; color:var(--text-secondary); font-size:13px; }
+/* --- Mockup 18: Galerie mit Ordnerleiste --- */
+.content { display:grid; grid-template-columns:auto 1fr; overflow:hidden; }
+.fpane { width:270px; border-right:1px solid var(--stroke-divider); display:flex; flex-direction:column; min-height:0; background:var(--layer-subtle); transition:width .15s; }
+.fpane.closed { width:44px; }
+.fph { display:flex; align-items:center; gap:8px; padding:12px 10px 8px 14px; font-weight:600; font-size:13px; }
+.fph .ic { color:var(--text-secondary); }
+.fph .sp { flex:1; }
+.ibtn { width:28px; height:28px; border-radius:4px; border:0; background:transparent; display:grid; place-items:center; cursor:pointer; color:var(--text-secondary); font-family:'Segoe Fluent Icons'; font-size:12px; }
+.ibtn:hover { background:var(--layer-secondary); }
+.fpane.closed .fph span:not(.ic), .fpane.closed .fbody, .fpane.closed .ffoot { display:none; }
+.fpane.closed .fph { flex-direction:column; padding:10px 6px; }
+.fsearch { margin:0 10px 6px; padding:5px 8px; border:1px solid var(--stroke-divider); border-bottom-color:var(--ctl-bottom); border-radius:4px; background:var(--layer-card); font-size:12px; color:var(--text-tertiary); display:flex; gap:6px; align-items:center; }
+.fbody { flex:1; overflow:auto; padding:2px 6px; }
+.node { display:flex; align-items:center; gap:6px; padding:5px 8px; border-radius:4px; position:relative; font-size:13px; cursor:pointer; white-space:nowrap; }
+.node:hover { background:var(--layer-secondary); }
+.node .exp { width:12px; color:var(--text-tertiary); font-family:'Segoe Fluent Icons'; font-size:8px; }
+.node .fic { color:var(--brand-amber); font-size:14px; }
+.node .nm { overflow:hidden; text-overflow:ellipsis; }
+.node .tm { display:inline-flex; gap:4px; color:var(--text-tertiary); font-size:10px; margin-left:4px; }
+.node .cnt { color:var(--text-tertiary); font-size:11px; margin-left:auto; padding-left:6px; }
+.node.sel { background:var(--accent-soft-2); font-weight:600; }
+.node.sel::before { content:''; position:absolute; left:0; top:5px; bottom:5px; width:3px; border-radius:2px; background:var(--accent); }
+.node.sel .fic { color:var(--accent); }
+.node.root { font-weight:600; margin-top:6px; }
+.node.root .fic { color:var(--text-secondary); }
+.node.off { color:var(--text-tertiary); }
+.ffoot { border-top:1px solid var(--stroke-divider); padding:8px 12px; font-size:12px; color:var(--text-secondary); display:grid; gap:6px; }
+.ffoot label { display:flex; gap:8px; align-items:center; }
+.main { min-width:0; display:grid; grid-template-rows:auto auto 1fr; }
+.ghead { display:flex; align-items:center; gap:12px; padding:16px 20px 6px; }
+.ghead h1 { margin:0; font-size:26px; font-weight:600; }
+.crumb { font-size:13px; color:var(--text-secondary); display:flex; gap:6px; align-items:center; }
+.crumb b { color:var(--text-primary); font-weight:600; }
+.crumb .sepc { font-family:'Segoe Fluent Icons'; font-size:8px; color:var(--text-tertiary); }
+.fbar { display:flex; gap:6px; flex-wrap:wrap; align-items:center; padding:4px 20px 10px; border-bottom:1px solid var(--stroke-divider); }
+.chip { display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 6px 0 10px; border-radius:14px; font-size:12px; background:var(--layer-card); border:1px solid var(--stroke-card); }
+.chip.on { background:var(--accent-soft-2); border-color:transparent; color:var(--accent-dark); font-weight:600; } body.dark .chip.on { color:var(--accent-light); }
+.chip .x { font-family:'Segoe Fluent Icons'; font-size:9px; width:18px; height:18px; display:grid; place-items:center; border-radius:50%; cursor:pointer; }
+.chip .x:hover { background:var(--layer-tertiary); }
+.chip.add { color:var(--text-secondary); padding-right:10px; }
+.fbar .sp { flex:1; }
+.fbar .res { font-size:12px; color:var(--text-secondary); }
+.gal { display:grid; grid-template-columns:repeat(var(--cols,6),1fr); gap:6px; padding:12px 20px 20px; align-content:start; overflow:auto; }
+.tile { aspect-ratio:1; border-radius:4px; position:relative; }
+.tile .mk { position:absolute; top:5px; left:5px; height:18px; padding:0 6px; border-radius:9px; background:rgba(0,0,0,.52); color:#fff; font-size:10px; display:inline-flex; align-items:center; gap:3px; font-family:'Segoe Fluent Icons'; }
+.menu { position:absolute; z-index:40; min-width:250px; background:var(--layer-card); border:1px solid var(--stroke-card); border-radius:8px; box-shadow:var(--shadow-flyout); padding:4px; font-size:13px; }
+body.dark .menu { background:#2B2B2B; }
+.mi { display:grid; grid-template-columns:22px 1fr auto; gap:8px; align-items:center; padding:6px 8px; border-radius:4px; white-space:nowrap; }
+.mi:hover { background:var(--layer-secondary); }
+.mi .ic { font-size:14px; color:var(--text-secondary); }
+.mi .k { font-size:11px; color:var(--text-tertiary); }
+.mi.danger { color:var(--danger); } .mi.danger .ic { color:var(--danger); }
+.msep { height:1px; background:var(--stroke-divider); margin:4px 6px; }
+.note { position:absolute; right:20px; bottom:16px; width:330px; font-size:12px; line-height:1.55; color:var(--text-secondary); background:var(--layer-card); border:1px solid var(--stroke-card); border-radius:8px; padding:10px 12px; box-shadow:var(--shadow-card); }
+body.dark .note { background:#2B2B2B; }
+.note b { color:var(--text-primary); }
+.drop { outline:2px dashed var(--accent); outline-offset:-2px; background:var(--accent-soft); }
+/* --- Mockup 22: Companion-App (PWA) --- */
+.intro { max-width:820px; margin:14px auto 4px; padding:0 16px; font-size:13px; line-height:1.55; color:var(--text-secondary); }
+.intro b { color:var(--text-primary); }
+.phones { display:flex; flex-wrap:wrap; gap:28px 22px; justify-content:center; padding:16px 12px 28px; }
+.pcap { width:390px; max-width:100%; }
+.pcap h3 { margin:0 0 8px; font-size:13px; font-weight:600; color:var(--text-primary); display:flex; gap:8px; align-items:center; }
+.pcap h3 .n { width:20px; height:20px; border-radius:50%; background:var(--accent); color:#fff; display:inline-grid; place-items:center; font-size:11px; }
+body.dark .pcap h3 .n { color:#111; }
+.pcap p { margin:8px 2px 0; font-size:12px; line-height:1.5; color:var(--text-secondary); }
+.phone { width:390px; max-width:100%; height:800px; border-radius:34px; border:10px solid #18181C; background:var(--mica-base); position:relative; overflow:hidden; box-shadow:0 16px 40px rgba(0,0,0,.28); display:flex; flex-direction:column; }
+body.dark .phone { border-color:#000; }
+.sbar { height:30px; flex:none; display:flex; align-items:center; justify-content:space-between; padding:0 20px; font-size:12px; font-weight:600; }
+.sbar .r { display:flex; gap:6px; align-items:center; }
+.vpn { font-size:10px; font-weight:700; padding:1px 5px; border-radius:4px; background:var(--success-soft); color:var(--success); }
+.ahead { flex:none; display:flex; align-items:center; gap:10px; padding:8px 16px 8px; }
+.ahead h1 { margin:0; font-size:22px; font-weight:600; flex:1; }
+.ahead .ib { width:36px; height:36px; border-radius:18px; display:grid; place-items:center; color:var(--text-secondary); font-family:'Segoe Fluent Icons','Segoe MDL2 Assets'; font-size:16px; }
+.ahead .ib:hover { background:var(--layer-secondary); }
+.scroll { flex:1; overflow:auto; padding:0 12px 12px; }
+.tabbar { flex:none; height:64px; display:grid; grid-template-columns:repeat(5,1fr); border-top:1px solid var(--stroke-divider); background:var(--layer-card); }
+.tabbar span { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; font-size:10.5px; color:var(--text-secondary); }
+.tabbar span .ic { font-size:19px; }
+.tabbar span.on { color:var(--accent); font-weight:600; }
+.month { font-size:13px; font-weight:600; margin:12px 4px 6px; display:flex; justify-content:space-between; }
+.month small { color:var(--text-tertiary); font-weight:400; }
+.grid3 { display:grid; grid-template-columns:repeat(4,1fr); gap:2px; }
+.grid3 .t { aspect-ratio:1; position:relative; }
+.grid3 .t .h { position:absolute; right:3px; bottom:2px; color:#fff; font-family:'Segoe Fluent Icons'; font-size:10px; text-shadow:0 1px 2px rgba(0,0,0,.6); }
+.grid3 .t.vid::after { content:'0:12'; position:absolute; right:3px; top:3px; font-size:9px; color:#fff; background:rgba(0,0,0,.5); border-radius:3px; padding:0 3px; }
+.chips { display:flex; gap:6px; overflow:auto; padding:2px 0 8px; }
+.chips .chip { flex:none; }
+.card2 { background:var(--layer-card); border:1px solid var(--stroke-card); border-radius:12px; box-shadow:var(--shadow-card); }
+.albums { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.alb .cov { aspect-ratio:1; border-radius:10px; }
+.alb b { display:block; font-size:13px; margin-top:6px; }
+.alb small { color:var(--text-tertiary); font-size:11px; }
+.seg { display:flex; background:var(--layer-tertiary); border-radius:8px; padding:3px; margin:2px 0 10px; }
+.seg span { flex:1; text-align:center; padding:6px 0; font-size:12px; border-radius:6px; color:var(--text-secondary); }
+.seg span.on { background:var(--layer-card); color:var(--text-primary); font-weight:600; box-shadow:var(--shadow-card); }
+.frow { display:flex; align-items:center; gap:10px; padding:10px 6px; border-bottom:1px solid var(--stroke-divider); font-size:14px; }
+.frow .fic { color:var(--brand-amber); font-family:'Segoe Fluent Icons'; font-size:20px; }
+.frow small { margin-left:auto; color:var(--text-tertiary); font-size:12px; }
+.lb { background:#000; color:#fff; flex:1; display:flex; flex-direction:column; }
+.lb .top { display:flex; align-items:center; gap:10px; padding:8px 14px; font-size:13px; }
+.lb .top .sp { flex:1; }
+.lb .img { flex:1; margin:4px 0; background:linear-gradient(160deg,#F7D99A,#C78F2B); position:relative; }
+.lb .img .swp { position:absolute; top:50%; transform:translateY(-50%); width:36px; height:36px; border-radius:18px; background:rgba(0,0,0,.35); display:grid; place-items:center; font-family:'Segoe Fluent Icons'; font-size:14px; }
+.lb .bottom { padding:10px 14px 14px; display:grid; gap:10px; }
+.stars { display:flex; gap:10px; font-family:'Segoe Fluent Icons'; font-size:22px; color:#F5A524; align-items:center; }
+.stars .off { color:#666; }
+.stars .heart { margin-left:auto; color:#FB8A7A; }
+.lbtags { display:flex; gap:6px; flex-wrap:wrap; }
+.lbtags span { font-size:11px; padding:3px 9px; border-radius:11px; background:rgba(255,255,255,.14); }
+.lbtags span.add { background:transparent; border:1px dashed rgba(255,255,255,.4); }
+.lb .meta { font-size:11px; color:#BBB; display:flex; gap:12px; }
+.search { margin:4px 0 10px; display:flex; gap:8px; align-items:center; padding:9px 12px; border-radius:10px; background:var(--layer-card); border:1px solid var(--stroke-card); font-size:14px; color:var(--text-tertiary); }
+.sect { font-size:12px; font-weight:600; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:.04em; margin:12px 4px 6px; }
+.people { display:flex; gap:12px; overflow:auto; padding-bottom:4px; }
+.people span { flex:none; display:flex; flex-direction:column; align-items:center; gap:4px; font-size:11px; }
+.people i { width:52px; height:52px; border-radius:26px; display:block; }
+.story { border-radius:14px; overflow:hidden; position:relative; height:190px; margin-bottom:10px; }
+.story .ov { position:absolute; inset:auto 0 0 0; padding:12px 14px; background:linear-gradient(transparent,rgba(0,0,0,.65)); color:#fff; }
+.story .ov b { display:block; font-size:16px; } .story .ov small { font-size:11px; opacity:.85; }
+.mem { display:flex; gap:8px; overflow:auto; }
+.mem .m { flex:none; width:110px; height:150px; border-radius:12px; position:relative; }
+.mem .m small { position:absolute; left:8px; bottom:8px; color:#fff; font-size:11px; font-weight:600; text-shadow:0 1px 3px rgba(0,0,0,.6); }
+.sheet { position:absolute; left:0; right:0; bottom:0; background:var(--layer-card); border-radius:18px 18px 0 0; box-shadow:0 -8px 24px rgba(0,0,0,.25); padding:10px 16px 18px; }
+body.dark .sheet { background:#2B2B2B; }
+.sheet .grab { width:38px; height:4px; border-radius:2px; background:var(--stroke-divider); margin:0 auto 10px; }
+.sheet h4 { margin:0 0 4px; font-size:16px; }
+.pick { display:flex; gap:6px; margin:10px 0; }
+.pick span { width:64px; height:64px; border-radius:8px; position:relative; }
+.pick span::after { content:'\E73E'; font-family:'Segoe Fluent Icons'; position:absolute; right:4px; top:4px; width:16px; height:16px; border-radius:8px; background:var(--accent); color:#fff; font-size:9px; display:grid; place-items:center; }
+.opt2 { display:flex; align-items:center; gap:10px; padding:9px 2px; border-top:1px solid var(--stroke-divider); font-size:13px; }
+.opt2 .sp { flex:1; } .opt2 small { color:var(--text-tertiary); }
+.bar { height:6px; border-radius:3px; background:var(--layer-tertiary); overflow:hidden; } .bar i { display:block; height:100%; width:62%; background:var(--accent); }
+.btnfull { display:block; text-align:center; padding:11px 0; border-radius:10px; background:var(--accent); color:#fff; font-weight:600; font-size:14px; margin-top:12px; }
+body.dark .btnfull { color:#111; }
+.btnghost { display:block; text-align:center; padding:10px 0; border-radius:10px; border:1px solid var(--stroke-divider); font-size:14px; margin-top:8px; }
+.pairwrap { flex:1; display:flex; flex-direction:column; align-items:center; padding:24px 22px; text-align:center; gap:12px; }
+.logo { font-family:'Segoe UI Variable Display','Segoe UI',sans-serif; font-size:34px; background:linear-gradient(100deg,var(--brand-indigo),var(--brand-violet) 45%,var(--brand-coral) 75%,var(--brand-amber)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.cam { width:240px; height:240px; border-radius:18px; background:#111; position:relative; display:grid; place-items:center; }
+.cam::before { content:''; position:absolute; inset:34px; border:3px solid #fff; border-radius:14px; opacity:.85; }
+.cam .qr { width:120px; height:120px; background:repeating-conic-gradient(#fff 0 25%, #222 0 50%) 0 0/20px 20px; border-radius:4px; opacity:.85; }
+.codebox { display:flex; gap:6px; } .codebox span { width:36px; height:44px; border-radius:8px; border:1px solid var(--stroke-divider); background:var(--layer-card); display:grid; place-items:center; font-size:20px; font-weight:600; }
+.okline { display:flex; gap:8px; align-items:flex-start; text-align:left; font-size:12px; color:var(--text-secondary); }
+.okline .ic { color:var(--success); }
+.kv2 { display:grid; grid-template-columns:auto 1fr; gap:6px 12px; font-size:13px; padding:12px 14px; }
+.kv2 span:nth-child(odd) { color:var(--text-tertiary); }
+.pill { font-size:11px; font-weight:700; padding:2px 8px; border-radius:9px; display:inline-flex; gap:5px; align-items:center; }
+.pill::before { content:''; width:7px; height:7px; border-radius:50%; background:currentColor; }
+.pill.ok { background:var(--success-soft); color:var(--success); }
+.pill.warn { background:var(--warning-soft); color:#8A6D00; } body.dark .pill.warn { color:var(--warning); }
+/* Desktop: Einstellungen › Mobilgeräte */
+.deskwrap { padding:10px 12px 40px; display:flex; justify-content:center; }
+.desk { width:1100px; max-width:100%; background:var(--mica-base); border-radius:10px; border:1px solid var(--stroke-default); box-shadow:0 16px 48px rgba(0,0,0,.22); overflow:hidden; }
+.desk .dh { padding:16px 22px 4px; } .desk .dh h1 { margin:0; font-size:26px; font-weight:600; }
+.desk .tabs span { cursor:default; }
+.devrow { display:grid; grid-template-columns:44px 1fr auto; gap:12px; align-items:center; padding:12px 0; border-top:1px solid var(--stroke-divider); }
+.devrow:first-of-type { border-top:0; }
+.devico { width:44px; height:44px; border-radius:10px; display:grid; place-items:center; background:var(--accent-soft-2); color:var(--accent); font-family:'Segoe Fluent Icons'; font-size:20px; }
+.devrow b { font-size:14px; } .devrow small { display:block; color:var(--text-secondary); font-size:12px; margin-top:2px; }
+.sel { border:1px solid var(--stroke-divider); border-bottom-color:var(--ctl-bottom); border-radius:4px; padding:4px 10px; font-size:13px; background:var(--layer-card); display:inline-flex; gap:8px; align-items:center; }
+.qrbig { width:150px; height:150px; background:repeating-conic-gradient(var(--text-primary) 0 25%, var(--layer-card) 0 50%) 0 0/15px 15px; border-radius:6px; border:8px solid var(--layer-card); box-shadow:var(--shadow-card); }
+.two { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+@media (max-width: 900px) { .two { grid-template-columns:1fr; } }
+/* --- Mockup 22 nativ: Sperre, Verbindung, Gerät gesperrt --- */
+.lockwrap { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; padding:24px; text-align:center; }
+.fp { width:84px; height:84px; border-radius:42px; display:grid; place-items:center; background:var(--accent-soft-2); color:var(--accent); font-family:'Segoe Fluent Icons','Segoe MDL2 Assets'; font-size:40px; }
+.fp.bad { background:rgba(196,43,28,.12); color:var(--danger); }
+.fp.warn { background:var(--warning-soft); color:#8A6D00; } body.dark .fp.warn { color:var(--warning); }
+.lockwrap .t { font-size:17px; font-weight:600; } .lockwrap .d { font-size:13px; color:var(--text-secondary); line-height:1.5; max-width:290px; }
+.lnk { font-size:13px; color:var(--accent); }
+.chkrows { width:100%; text-align:left; }
+.chkrow { display:flex; gap:10px; align-items:center; padding:10px 14px; border-top:1px solid var(--stroke-divider); font-size:13px; }
+.chkrow:first-child { border-top:0; }
+.chkrow .ic { width:18px; text-align:center; }
+.chkrow .ok { color:var(--success); } .chkrow .no { color:var(--danger); } .chkrow .wt { color:var(--text-tertiary); }
+.chkrow small { margin-left:auto; color:var(--text-tertiary); font-size:11px; }
+.conn { font-size:11px; font-weight:600; padding:3px 9px; border-radius:11px; display:inline-flex; gap:5px; align-items:center; background:var(--success-soft); color:var(--success); }
+.conn::before { content:''; width:7px; height:7px; border-radius:50%; background:currentColor; }
+.conn.off { background:var(--warning-soft); color:#8A6D00; } body.dark .conn.off { color:var(--warning); }
+.sascode { font-size:30px; font-weight:600; letter-spacing:.12em; font-variant-numeric:tabular-nums; }
+.banner { display:flex; gap:8px; align-items:center; margin:0 0 8px; padding:8px 10px; border-radius:10px; background:var(--warning-soft); font-size:12px; }
+.banner .ic { color:#8A6D00; } body.dark .banner .ic { color:var(--warning); }
+.tbl { width:100%; border-collapse:collapse; font-size:12px; margin-top:6px; }
+.tbl td, .tbl th { padding:6px 8px; border-top:1px solid var(--stroke-divider); text-align:left; }
+.tbl th { color:var(--text-tertiary); font-weight:600; border-top:0; }
+.devrow.locked b { color:var(--text-secondary); }
+.devrow.locked .devico { background:rgba(196,43,28,.12); color:var(--danger); }
+.pill.bad { background:rgba(196,43,28,.12); color:var(--danger); }
+.dlg { max-width:460px; margin:0 auto; background:var(--layer-card); border:1px solid var(--stroke-card); border-radius:8px; box-shadow:var(--shadow-flyout); overflow:hidden; }
+body.dark .dlg { background:#2B2B2B; }
+.dlg .dt { padding:16px 20px 4px; font-size:18px; font-weight:600; }
+.dlg .db { padding:6px 20px 14px; display:grid; gap:10px; font-size:13px; }
+.dlg .df { padding:12px 20px; background:var(--layer-subtle); border-top:1px solid var(--stroke-divider); display:flex; gap:8px; justify-content:flex-end; }
+.deskstat { display:flex; gap:18px; align-items:center; padding:6px 14px; font-size:12px; color:var(--text-secondary); border-top:1px solid var(--stroke-divider); }
+.deskstat .r { margin-left:auto; display:flex; gap:6px; align-items:center; }
+</style>
+</head>
+<body>
+<div class="mock-bar">
+  <span><b>Mockup 22 · Companion-App (native Android-App) · Entwurf</b></span>
+  <span class="grp">Design: <button id="mbLight">Hell</button><button id="mbDark" class="on">Dunkel</button></span>
+  <span class="note2" style="color:#AAB">Handy-Bildschirme in Originalbreite, darunter die Einstellung am PC</span>
+</div>
+
+<div class="intro">
+  <b>Idee:</b> Eine richtige Android-App „Lumora“ zeigt die Bibliotheken der laufenden Lumora am PC. Erreichbar nur über
+  WireGuard (endet an der FritzBox), nur für Geräte, die am PC gekoppelt und bestätigt wurden, jede Anfrage mit
+  gegenseitigem TLS. Fotos bleiben am PC; die App zeigt, sucht, bewertet und schickt Fotos an Lumora — löscht und
+  verschiebt nie, die versteckte Bibliothek erscheint nie. Namen und Fotos erfunden, Adressen sind Beispiele.
+</div>
+
+<div class="phones" id="phones"></div>
+
+<div class="intro"><b>Am PC: Einstellungen › Mobilgeräte</b> — Server an/aus mit Zeitlimit, Adresse, Firewall-Prüfung (Lumora ändert die Firewall nicht), gekoppelte Geräte mit Rechten, Sperren mit einem Klick, Gerät hinzufügen, Protokoll.</div>
+<div class="deskwrap"><div class="desk" id="desk"></div></div>
+<div class="intro"><b>Am PC: Rückfrage beim Koppeln</b> — erscheint, sobald das Handy den QR-Code gescannt hat. Ohne „Zulassen“ kein Zugang, auch nicht im WireGuard-Netz.</div>
+<div class="deskwrap"><div class="dlg" id="dlg"></div></div>
+
+<script>
+const $=(s)=>document.querySelector(s);
+const ph=['#9EC9E8,#3F7FB2','#F7D99A,#C78F2B','#C8E0B5,#5E8B47','#E6B8C8,#A0567A','#D8D3EC,#6E64A8','#F3B9A8,#B4553F','#BFD9DA,#3E8287','#E8E2D6,#8C7B60'];
+const g=(i)=>`linear-gradient(160deg,${ph[i%ph.length]})`;
+const sb=(vpn=true)=>`<div class="sbar"><span>9:41</span><span class="r">${vpn?'<span class="vpn"><span class="ic s" style="font-size:9px">&#xE72E;</span> VPN</span>':''}<span class="ic s">&#xE701;</span><span class="ic s">&#xE83F;</span></span></div>`;
+const sbar=sb(true);
+const TABS=['Fotos','Alben','Suche','Storys','Mehr'], TIC=['&#xE91B;','&#xE8F1;','&#xE721;','&#xE786;','&#xE712;'];
+const tabbar=(on)=>`<div class="tabbar">${TABS.map((t,i)=>`<span class="${t===on?'on':''}"><span class="ic">${TIC[i]}</span>${t}</span>`).join('')}</div>`;
+const tiles=(n,o=0)=>Array.from({length:n},(_,i)=>`<span class="t ${(i+o)%11===5?'vid':''}" style="background:${g(i+o)}">${(i+o)%7===2?'<span class="h">&#xEB52;</span>':''}</span>`).join('');
+const conn=`<span class="conn">Arbeitszimmer-PC</span>`;
+
+const SCREENS=[
+ ['Koppeln: QR-Code scannen', 'Erster Start. Am PC „Gerät hinzufügen“ zeigt einen QR-Code (Adresse, Port, Fingerabdruck des Lumora-Stammzertifikats, einmaliges Token für 5 Minuten). Die App erzeugt ihren Schlüssel im Android Keystore — hardwaregestützt, nicht exportierbar. WireGuard muss dafür schon an sein.',
+  `${sbar}<div class="pairwrap"><div class="logo">lumora</div><div style="font-size:15px;font-weight:600">Mit Lumora am PC koppeln</div>
+   <div class="cam"><div class="qr"></div></div>
+   <div style="font-size:12px;color:var(--text-secondary)">Lumora › Einstellungen › Mobilgeräte › „Gerät hinzufügen“</div>
+   <div class="okline"><span class="ic">&#xE72E;</span><span>Der Schlüssel dieses Geräts bleibt im Sicherheitschip des Handys und kann nicht kopiert werden.</span></div>
+   <div class="okline"><span class="ic">&#xE705;</span><span>WireGuard ist an · nur Lumora läuft durch den Tunnel.</span></div></div>`],
+ ['Koppeln: Code vergleichen', 'Nach dem Scan prüft die App das Zertifikat des PCs gegen den Fingerabdruck aus dem QR-Code und zeigt einen Vergleichscode. Am PC steht derselbe Code in der Rückfrage. Erst nach „Zulassen“ am PC stellt Lumora das Gerätezertifikat aus.',
+  `${sbar}<div class="lockwrap"><div class="fp">&#xE8EA;</div><div class="t">Steht am PC derselbe Code?</div>
+   <div class="sascode">481 297</div>
+   <div class="d">Lumora auf <b>Arbeitszimmer-PC</b> fragt jetzt, ob dieses Gerät („Pixel 8“) zugelassen wird. Stimmt der Code nicht, am PC <b>Ablehnen</b> drücken.</div>
+   <div class="card2 chkrows"><div class="chkrow"><span class="ic ok">&#xE73E;</span>Zertifikat von Lumora geprüft<small>Fingerabdruck passt</small></div>
+   <div class="chkrow"><span class="ic ok">&#xE73E;</span>Geräteschlüssel erzeugt<small>Keystore · StrongBox</small></div>
+   <div class="chkrow"><span class="ic wt">&#xE823;</span>Wartet auf Bestätigung am PC …<small>noch 4:12</small></div></div>
+   <span class="lnk">Abbrechen</span></div>`],
+ ['App-Sperre', 'Beim Öffnen und nach 1 Minute im Hintergrund: Fingerabdruck oder Geräte-PIN (starke Biometrie). In „Zuletzt verwendet“ erscheint keine Vorschau, Bildschirmfotos sind gesperrt (abschaltbar).',
+  `${sb(false)}<div class="lockwrap"><div class="logo">lumora</div><div class="fp">&#xE928;</div><div class="t">Lumora ist gesperrt</div>
+   <div class="d">Zum Entsperren Fingerabdruck auflegen.</div><span class="lnk">Mit Geräte-PIN entsperren</span></div>`],
+ ['Keine Verbindung', 'Ohne WireGuard oder wenn Lumora am PC nicht erreichbar ist, zeigt die App, woran es liegt. „WireGuard einschalten“ öffnet die WireGuard-App — oder schaltet den Tunnel selbst ein, wenn das in der WireGuard-App erlaubt ist. Mit dem Zwischenspeicher lassen sich zuletzt gesehene Fotos ansehen (nicht bewerten).',
+  `${sb(false)}<div class="lockwrap" style="justify-content:flex-start;padding-top:40px"><div class="fp warn">&#xE705;</div><div class="t">Keine Verbindung zu Lumora</div>
+   <div class="card2 chkrows"><div class="chkrow"><span class="ic no">&#xE711;</span>WireGuard<small>aus</small></div>
+   <div class="chkrow"><span class="ic wt">&#xE9CE;</span>Lumora am PC<small>nicht prüfbar</small></div>
+   <div class="chkrow"><span class="ic ok">&#xE73E;</span>Dieses Gerät<small>gekoppelt</small></div></div>
+   <span class="btnfull" style="width:100%"><span class="ic s">&#xE705;</span> WireGuard einschalten</span>
+   <span class="btnghost" style="width:100%">Zuletzt gesehene ansehen (offline)</span>
+   <div class="d" style="font-size:11px">Andere Fälle: „Lumora am PC läuft nicht“ · „Mobilgeräte am PC ausgeschaltet“ · „Gerade nicht verfügbar“</div></div>`],
+ ['Fotos (Zeitleiste)', 'Startseite: alle Fotos der freigegebenen Bibliotheken nach Aufnahmedatum, Monate als Überschrift, Monatsleiste zum Schnell-Scrollen, nachladen beim Scrollen. Oben der verbundene PC. Raster mit den 400-px-Vorschaubildern aus dem Cache am PC.',
+  `${sbar}<div class="ahead"><h1>Fotos</h1>${conn}<span class="ib">&#xE71C;</span></div>
+   <div class="scroll"><div class="chips"><span class="chip on"><span class="ic s">&#xE8F1;</span>Familienfotos ▾</span><span class="chip">Favoriten</span><span class="chip">ab 4 ★</span><span class="chip">Videos</span></div>
+   <div class="month">Oktober 2026 <small>214</small></div><div class="grid3">${tiles(16)}</div>
+   <div class="month">September 2026 <small>389</small></div><div class="grid3">${tiles(16,5)}</div></div>${tabbar('Fotos')}`],
+ ['Alben und Ordner', 'Alben, Ordner der Bibliothek (wie die Ansicht „Ordner“ am PC), Personen und Orte — nur ansehen. Ordner zeigen nur Namen, nie Pfade des PCs.',
+  `${sbar}<div class="ahead"><h1>Alben</h1>${conn}</div>
+   <div class="scroll"><div class="seg"><span class="on">Alben</span><span>Ordner</span><span>Personen</span><span>Orte</span></div>
+   <div class="albums">${['Urlaub Dolomiten|212','Geburtstag|64','Lieblingsfotos|130','Berge 2026|318'].map((a,i)=>{const [n,c]=a.split('|');return `<div class="alb"><div class="cov" style="background:${g(i*2)}"></div><b>${n}</b><small>${c} Fotos</small></div>`}).join('')}</div>
+   <div class="sect">Ordner</div>${['2024','2025','2026','Vom Handy'].map((f,i)=>`<div class="frow"><span class="fic">&#xE8B7;</span>${f}<small>${[2010,718,1380,96][i]}</small></div>`).join('')}</div>${tabbar('Alben')}`],
+ ['Lightbox und Bewerten', 'Wischen, zoomen, Videos abspielen. Sterne und Herz schreibt Lumora am PC (Recht „bewerten“), nur mit Verbindung. Lightbox lädt eine 2048-px-Fassung; „Original laden“ nur auf Wunsch (Recht „Originale“).',
+  `<div class="lb">${sbar.replace('class="sbar"','class="sbar" style="color:#fff"')}<div class="top"><span class="ic">&#xE72B;</span><span>12. Okt. 2026 · 14:32</span><span class="sp"></span><span class="ic">&#xE946;</span><span class="ic">&#xE72D;</span></div>
+   <div class="img"><span class="swp" style="left:10px">&#xE76B;</span><span class="swp" style="right:10px">&#xE76C;</span></div>
+   <div class="bottom"><div class="stars">&#xE735;&#xE735;&#xE735;&#xE735;<span class="off">&#xE734;</span><span class="heart">&#xEB52;</span></div>
+   <div class="lbtags"><span>Berge</span><span>Sonnenuntergang</span><span>Anna</span></div>
+   <div class="meta"><span><span class="ic s">&#xE707;</span> Seiser Alm</span><span>4032 × 3024</span><span><u>Original laden (6,1 MB)</u></span></div></div></div>`],
+ ['Suche', 'Suche über Namen, Tags, Personen, Orte und Motive — derselbe Filter wie am PC. Filter als Chips, kombinierbar.',
+  `${sbar}<div class="ahead"><h1>Suche</h1>${conn}</div><div class="scroll"><div class="search"><span class="ic">&#xE721;</span>Hund am Strand …</div>
+   <div class="sect">Personen</div><div class="people">${['Anna','Paul','Lena','Max','Oma'].map((p,i)=>`<span><i style="background:${g(i+3)}"></i>${p}</span>`).join('')}</div>
+   <div class="sect">Zeitraum</div><div class="chips"><span class="chip">Heute vor einem Jahr</span><span class="chip">2026</span><span class="chip">Sommer</span><span class="chip add"><span class="ic s">&#xE787;</span>Von – bis</span></div>
+   <div class="sect">Orte</div><div class="chips"><span class="chip">Dolomiten</span><span class="chip">Wien</span><span class="chip">Zuhause</span></div>
+   <div class="sect">Tags</div><div class="chips"><span class="chip on">Berge ✕</span><span class="chip">Familie</span><span class="chip">Essen</span></div>
+   <div class="month">38 Treffer</div><div class="grid3">${tiles(8,2)}</div></div>${tabbar('Suche')}`],
+ ['Storys', 'Storys und Erinnerungen aus Lumora abspielen. Anlegen und Bearbeiten bleibt am PC.',
+  `${sbar}<div class="ahead"><h1>Storys</h1>${conn}</div><div class="scroll">
+   <div class="sect">Erinnerungen</div><div class="mem">${['Vor 1 Jahr','Vor 3 Jahren','Sommer 2024','Anna'].map((m,i)=>`<span class="m" style="background:${g(i+1)}"><small>${m}</small></span>`).join('')}</div>
+   <div class="sect">Storys</div>
+   ${['Urlaub Dolomiten|Aug. 2026 · 212 Fotos','Geburtstag Paul|Mai 2026 · 64 Fotos'].map((s,i)=>{const [n,d]=s.split('|');return `<div class="story" style="background:${g(i*3+1)}"><div class="ov"><b>${n}</b><small>${d}</small></div></div>`}).join('')}</div>${tabbar('Storys')}`],
+ ['An Lumora senden (Teilen)', 'In der Android-Galerie Fotos wählen › Teilen › Lumora (Recht „hochladen“). Ziel ist der Eingangs-Ordner, den der PC für dieses Gerät festlegt. Schon vorhandene (gleiche Prüfsumme) werden übersprungen, Übertragung setzt nach Abbruch fort. „Fertig“ erst, wenn Lumora jede Datei geprüft hat — am Handy wird nie etwas gelöscht.',
+  `${sbar}<div class="ahead"><h1>Fotos</h1></div><div class="scroll" style="opacity:.35"><div class="grid3">${tiles(24,3)}</div></div>
+   <div class="sheet"><div class="grab"></div><h4>3 Fotos an Lumora senden</h4><div style="font-size:12px;color:var(--text-secondary)">über WireGuard · an Arbeitszimmer-PC</div>
+   <div class="pick">${[1,4,6].map(i=>`<span style="background:${g(i)}"></span>`).join('')}</div>
+   <div class="opt2"><span class="ic">&#xE8B7;</span><span class="sp">Ziel</span><small>Familienfotos › Vom Handy</small></div>
+   <div class="opt2"><span class="ic">&#xE8C8;</span><span class="sp">Schon vorhandene überspringen</span><span class="sw on" style="width:36px;height:18px"></span></div>
+   <div class="opt2"><span class="ic">&#xE896;</span><span class="sp">2 von 3 übertragen · 1 schon vorhanden</span></div><div class="bar"><i></i></div>
+   <span class="btnfull">Senden</span></div>`],
+ ['Mehr: Verbindung und Gerät', 'Mit welchem Lumora das Handy verbunden ist, Rechte dieses Geräts (nur am PC änderbar), Sperre und Zwischenspeicher (verschlüsselt, mit Ablauf), App-Update über Lumora am PC, Entkoppeln.',
+  `${sbar}<div class="ahead"><h1>Mehr</h1></div><div class="scroll">
+   <div class="card2"><div class="kv2"><span>Lumora</span><span><span class="pill ok">verbunden</span></span><span>PC</span><span>Arbeitszimmer-PC</span><span>Weg</span><span>WireGuard · TLS mit Gerätezertifikat</span><span>Zertifikat</span><span>gültig bis Okt. 2027</span></div></div>
+   <div class="sect">Dieses Gerät darf</div><div class="card2" style="padding:4px 14px">
+   ${['Ansehen|Familienfotos, Berge','Bewerten|ja','Originale laden|ja','An Lumora senden|ja'].map(r=>{const [a,b]=r.split('|');return `<div class="opt2" style="border-top:0"><span class="sp">${a}</span><small>${b}</small></div>`}).join('')}
+   <div style="font-size:11px;color:var(--text-tertiary);padding:4px 0 10px">Rechte ändern nur am PC.</div></div>
+   <div class="sect">Sicherheit am Handy</div><div class="card2" style="padding:4px 14px">
+   <div class="opt2" style="border-top:0"><span class="sp">Sperren nach</span><small>1 Minute ▾</small></div>
+   <div class="opt2"><span class="sp">Bildschirmfotos verhindern</span><span class="sw on" style="width:36px;height:18px"></span></div>
+   <div class="opt2"><span class="sp">Zwischenspeicher (verschlüsselt)</span><small>142 von 300 MB · 30 Tage · leeren</small></div></div>
+   <div class="sect">App</div><div class="card2" style="padding:4px 14px">
+   <div class="opt2" style="border-top:0"><span class="sp">Version 1.0.3</span><small><span class="lnk">Update 1.0.4 vom PC laden</span></small></div></div>
+   <span class="btnghost" style="color:var(--danger)">Dieses Gerät entkoppeln</span></div>${tabbar('Mehr')}`],
+ ['Gerät gesperrt', 'Wurde das Gerät am PC gesperrt oder entfernt, lehnt Lumora jede Anfrage ab. Die App löscht dann Zwischenspeicher und Zertifikat und bietet nur noch „Neu koppeln“ an.',
+  `${sbar}<div class="lockwrap"><div class="fp bad">&#xE72E;</div><div class="t">Dieses Gerät ist gesperrt</div>
+   <div class="d">Lumora auf <b>Arbeitszimmer-PC</b> lässt dieses Gerät nicht mehr zu. Zwischengespeicherte Fotos und der Geräteschlüssel wurden gelöscht.</div>
+   <span class="btnfull" style="width:100%">Neu koppeln</span></div>`],
+];
+$('#phones').innerHTML=SCREENS.map(([t,d,h],i)=>`<div class="pcap"><h3><span class="n">${i+1}</span>${t}</h3><div class="phone">${h}</div><p>${d}</p></div>`).join('');
+
+$('#desk').innerHTML=`<div class="dh"><h1>Einstellungen</h1></div>
+ <div class="tabs"><span>Allgemein</span><span>Darstellung</span><span>Bibliotheken</span><span>Verbundene Apps</span><span class="on">Mobilgeräte</span><span>Modelle &amp; Daten</span></div>
+ <div class="body" style="max-width:none">
+  <div class="card"><h2><span class="ic">&#xE8EA;</span>Mobilgeräte zulassen <span class="pill ok" style="margin-left:6px">an · noch 3:12 h</span><span style="margin-left:auto"><span class="sw on"></span></span></h2>
+   <div class="muted">Gekoppelte Handys sehen deine Fotos über die Lumora-App — nur über WireGuard, nur solange Lumora läuft, nie die versteckten Bibliotheken. Standard: aus.</div>
+   <div class="opt"><div><b>Eingeschaltet</b><span class="muted">Danach schaltet Lumora die Verbindung selbst wieder aus.</span></div><span class="sel">für 4 Stunden ▾</span></div>
+   <div class="opt"><div><b>Adresse und Port</b><span class="muted">Heimnetz-Adresse dieses PCs. Verbindungen von anderen Adressen als denen der gekoppelten Geräte werden sofort geschlossen.</span></div><span class="sel">192.0.2.10 (Ethernet) ▾ &nbsp;:&nbsp; 47820</span></div>
+   <div class="opt"><div><b>Lumora-Stammzertifikat</b><span class="muted">Von Lumora selbst ausgestellt, Schlüssel nicht exportierbar im Windows-Schlüsselspeicher. Die App vertraut nur diesem Zertifikat.</span></div><span class="sel" style="font-family:Consolas,monospace;font-size:12px">SHA-256 7F:3A:…:C2:91</span></div>
+   <div class="opt"><div><b>Windows-Firewall</b><span class="muted">Lumora ändert die Firewall nicht. Regel: eingehend, TCP 47820, nur Profil „Privat“, Remote-Adressen = Geräte unten.</span></div><span style="display:flex;gap:8px;align-items:center"><span class="pill warn">Regel zu weit: alle Adressen</span><button class="btn-std">Anleitung…</button><button class="btn-std"><span class="ic s">&#xE72C;</span>Prüfen</button></span></div>
+   <div class="opt"><div><b>Für Mobilgeräte im Hintergrund weiterlaufen</b><span class="muted">Fenster schließen beendet Lumora nicht, solange die Verbindung an ist — mit Symbol im Infobereich. Lumora richtet keinen Autostart ein.</span></div><span class="sw"></span></div>
+  </div>
+  <div class="two">
+   <div class="card"><h2><span class="ic">&#xE8EA;</span>Gekoppelte Geräte</h2>
+    ${[['','&#xE8EA;','Pixel 8','192.0.2.201 · Ansehen, bewerten, Originale, senden · Familienfotos, Berge','zuletzt vor 3 Min.','<button class="btn-std">Rechte…</button><button class="btn-std danger"><span class="ic s">&#xE72E;</span>Sperren</button>'],
+       ['','&#xE8EA;','Tablet','192.0.2.202 · Nur ansehen · Familienfotos','seit 94 Tagen nicht da — entfernen?','<button class="btn-std">Rechte…</button><button class="btn-std danger"><span class="ic s">&#xE72E;</span>Sperren</button>'],
+       ['locked','&#xE72E;','Altes Handy','192.0.2.203 · gesperrt am 20. Okt. 2026','Auch in der FritzBox die WireGuard-Verbindung löschen.','<button class="btn-std">Entsperren</button><button class="btn-std danger">Entfernen</button>']].map(([c,ic,n,r,l,b])=>`<div class="devrow ${c}"><span class="devico">${ic}</span><div><b>${n}</b>${c?' <span class="pill bad">gesperrt</span>':''}<small>${r}</small><small style="color:var(--text-tertiary)">${l}</small></div><span style="display:flex;gap:6px">${b}</span></div>`).join('')}
+   </div>
+   <div class="card"><h2><span class="ic">&#xE710;</span>Gerät hinzufügen</h2>
+    <div style="display:flex;gap:16px;align-items:center;margin-top:8px"><span class="qrbig"></span>
+     <div class="muted" style="font-size:12px">1. Lumora-App installieren, am Handy WireGuard einschalten.<br>2. In der App diesen Code scannen.<br>3. Hier den Vergleichscode prüfen und zulassen.<br><br>Code gilt noch <b>4:12</b> · nur einmal</div></div>
+    <div class="opt" style="margin-top:10px"><div><b>Neues Gerät darf</b><span class="muted">Bibliotheken wählst du beim Zulassen; Standard: keine.</span></div><span class="sel">Nur ansehen ▾</span></div>
+   </div>
+  </div>
+  <div class="card"><h2><span class="ic">&#xE81C;</span>Protokoll <span class="muted" style="margin-left:auto;font-weight:400">90 Tage · ohne Dateinamen</span></h2>
+   <table class="tbl"><tr><th>Zeit</th><th>Gerät</th><th>Adresse</th><th>Was</th></tr>
+    <tr><td>heute 14:02</td><td>Pixel 8</td><td>192.0.2.201</td><td>312 Vorschaubilder, 4 Bewertungen</td></tr>
+    <tr><td>heute 13:58</td><td>Pixel 8</td><td>192.0.2.201</td><td>3 Fotos gesendet (1 schon vorhanden)</td></tr>
+    <tr><td>gestern 22:41</td><td>—</td><td>192.0.2.57</td><td><span style="color:var(--danger)">12 abgelehnte Verbindungen · Adresse 1 Stunde ignoriert</span></td></tr></table>
+  </div>
+ </div>
+ <div class="deskstat"><span>Familienfotos · 48 213 Fotos</span><span class="r"><span class="ic s">&#xE8EA;</span>Mobilgeräte: an · 1 verbunden</span></div>`;
+
+$('#dlg').innerHTML=`<div class="dt">Neues Gerät koppeln?</div>
+ <div class="db"><div>„<b>Pixel 8</b>“ (Android) möchte sich mit Lumora verbinden.</div>
+  <div class="kv"><span>Adresse</span><span>192.0.2.201 (über WireGuard)</span><span>Vergleichscode</span><span><b style="font-size:16px;letter-spacing:.1em">481 297</b> — steht derselbe am Handy?</span></div>
+  <div class="opt" style="padding-top:6px"><div><b>Darf</b></div><span class="sel">Ansehen und bewerten ▾</span></div>
+  <div class="opt"><div><b>Bibliotheken</b></div><span class="sel"><span class="chk on">&#xE73E;</span>Familienfotos &nbsp; <span class="chk on">&#xE73E;</span>Berge &nbsp; <span class="chk">&#xE73E;</span>Arbeit</span></div>
+  <div class="muted">Versteckte Bibliotheken sind nie wählbar. Das Gerät erhält ein Zertifikat für ein Jahr; erneuert sich selbst, solange es nicht gesperrt ist.</div></div>
+ <div class="df"><button class="btn-std">Ablehnen</button><button class="btn-acc">Zulassen</button></div>`;
+function theme(d){ document.body.classList.toggle('dark',d); $('#mbLight').classList.toggle('on',!d); $('#mbDark').classList.toggle('on',d); }
+$('#mbLight').onclick=()=>theme(false); $('#mbDark').onclick=()=>theme(true); theme(true);
+</script>
+</body>
+</html>

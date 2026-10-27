@@ -3,6 +3,29 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.21] — 2026-10-27
+
+### Docs — Konzept Companion-App: native Android-App über WireGuard (ADR-0075, Mockup 22)
+- **ADR-0075 (Proposed):** Die Begleit-App wird eine **richtige Android-App** statt einer Web-App (Herbert) — Empfehlung
+  Flutter (iOS später aus demselben Code, Kotlin-Teil für Schlüssel und TLS), Alternative Kotlin/Compose.
+  - **Netz:** nur über WireGuard am Router. Lumora lauscht auf der Heimnetz-Adresse und lässt nur die festen Adressen
+    gekoppelter Geräte zu. Keine Portfreigabe, keine Webfreigabe, kein Cloud-Tunnel, keine öffentliche Domain.
+  - **Sicherheit in Schichten:**
+    - gegenseitiges TLS mit eigener Lumora-Zertifizierungsstelle und Pinning,
+    - Kopplung per QR-Code mit Vergleichscode und Bestätigung am PC,
+    - Geräteschlüssel im Android Keystore, Fingerabdruck-Sperre, verschlüsselter Zwischenspeicher mit Ablauf,
+    - Gerät mit einem Klick sperren, Server standardmäßig aus (mit Zeitlimit), Rechte je Gerät und Bibliothek,
+    - Protokoll, Sperre nach Fehlversuchen; Bedrohungsmodell inklusive „kompromittierter PC = nicht abwehrbar“.
+  - **Umbau Lumora:** neues Projekt `Lumora.Companion` mit eigenem Kestrel und `AddCompanion()` (getrennt von der
+    App-Verbindung), API-Entwurf, Migration `AddCompanionDevices`, Seite „Mobilgeräte“, Zusammenspiel mit
+    Hintergrund-Planer und Hintergrundbetrieb; die Windows-Firewall prüft Lumora nur.
+  - Stufenplan mit grobem Aufwand, Verteilung als APK mit Update über Lumora, Hinweis auf Googles Entwicklerverifizierung.
+  - Entschieden: Handy-Fotos erscheinen später in einer **gemeinsamen Zeitleiste** (Herbert). Die übrigen offenen
+    Fragen stehen im ADR.
+- **Mockup 22** (abgenommen 2026-10-27): zwölf Handy-Bildschirme der nativen App, Einstellungen › Mobilgeräte und die
+  Kopplungs-Rückfrage am PC; ersetzt den PWA-Entwurf, der nie im Repo lag.
+- PLAN „Welle 7“ auf die native App umgestellt, ADR-Übersicht ergänzt.
+
 ## [0.5.20] — 2026-10-27
 
 ### Added — App-Verbindung Stufe 6: Hintergrundbetrieb, Schalter, Symbol im Infobereich
