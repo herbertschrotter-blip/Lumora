@@ -21,18 +21,18 @@ public sealed class FolderRowTile(FolderRowViewModel row, GalleryItem item, doub
 }
 
 /// <summary>
-/// Eine Zeile der Ansicht „Ordner“ (Mockup 21): ein Unterordner (Set) mit Kopf (Name, Zeitraum, Anzahl) und den Fotos,
-/// die in die Breite passen. Die Kandidaten (erstes, letztes, zufällige) bleiben bis „Andere Fotos zeigen“ bzw.
+/// Eine Zeile der Ansicht „Ordner“ (Mockup 21): ein Ordner mit eigenen Fotos — nur die direkt darin, nie die seiner
+/// Unterordner — mit Kopf (Name, Zeitraum, Anzahl) und den Fotos, die in die Breite passen. Die Kandidaten (erstes, letztes, zufällige) bleiben bis „Andere Fotos zeigen“ bzw.
 /// „Neu mischen“; bei geänderter Breite oder Zeilenhöhe wird nur neu verteilt.
 /// </summary>
 public sealed partial class FolderRowViewModel : ObservableObject
 {
-    public FolderRowViewModel(int folderId, string name, string? path, bool includeSubfolders, int level, GalleryQuery query)
+    public FolderRowViewModel(int folderId, string name, string? path, bool isOpenedFolder, int level, GalleryQuery query)
     {
         FolderId = folderId;
         Name = name;
         Path = path;
-        IncludeSubfolders = includeSubfolders;
+        IsOpenedFolder = isOpenedFolder;
         Level = level;
         Query = query;
     }
@@ -43,10 +43,10 @@ public sealed partial class FolderRowViewModel : ObservableObject
 
     public string? Path { get; }
 
-    /// <summary>false nur für die Zeile „Fotos in …“ (Dateien direkt im geöffneten Ordner).</summary>
-    public bool IncludeSubfolders { get; }
+    /// <summary>true nur für die Zeile „Fotos in …“ (Dateien direkt im geöffneten Ordner).</summary>
+    public bool IsOpenedFolder { get; }
 
-    /// <summary>0 = Unterordner, 1 = eingerückter Unterordner eines Sets.</summary>
+    /// <summary>0 = Ordner, 1 = eingerückter Unterordner eines Ordners mit eigener Zeile (<see cref="FolderRowPlan"/>).</summary>
     public int Level { get; }
 
     public bool IsNested => Level > 0;

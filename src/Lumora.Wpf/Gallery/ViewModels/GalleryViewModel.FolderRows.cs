@@ -19,9 +19,10 @@ namespace Lumora.Gallery.ViewModels;
 
 /// <summary>
 /// Ansicht „Ordner“ (Mockup 21, abgenommen 2026-10-27): Ist ein Ordner mit Unterordnern geöffnet, zeigt jede Zeile einen
-/// Unterordner (Set) — erstes und letztes Foto immer außen, dazwischen zufällige, so viele wie passen
-/// (<see cref="FolderRowLayout"/>). Fotos direkt im Ordner bekommen eine eigene erste Zeile, Unterordner eines Sets eine
-/// eingerückte Zeile (eine Ebene). Der Galerie-Filter gilt in jeder Zeile. Die Zeilenhöhe ist der Größenregler; die Auswahl
+/// Ordner mit eigenen Fotos — erstes und letztes Foto immer außen, dazwischen zufällige, so viele wie passen
+/// (<see cref="FolderRowLayout"/>). Eine Zeile zeigt nur die Fotos direkt im Ordner, nie die seiner Unterordner; Ordner
+/// ohne eigene Fotos bekommen keine Zeile (<see cref="FolderRowPlan"/>). Fotos direkt im geöffneten Ordner stehen in der
+/// ersten Zeile, Unterordner eines Ordners mit eigener Zeile eingerückt darunter. Der Galerie-Filter gilt in jeder Zeile. Die Zeilenhöhe ist der Größenregler; die Auswahl
 /// bleibt bis „Neu mischen“ (Startwert in den Einstellungen) bzw. „Andere Fotos zeigen“ einer Zeile. Ohne Unterordner
 /// zeigt die Ansicht wie „Kacheln“.
 /// </summary>
@@ -79,8 +80,8 @@ public sealed partial class GalleryViewModel
     }
 
     /// <summary>
-    /// Im Modus „Ordner“ mit geöffnetem Ordner: Unterordner als Zeilen zeigen. false = keine Zeilen (anderer Modus, kein
-    /// Ordner oder keine Unterordner) — dann lädt die Galerie wie gewohnt.
+    /// Im Modus „Ordner“ mit geöffnetem Ordner: Ordner mit eigenen Fotos als Zeilen zeigen. false = keine Zeilen (anderer
+    /// Modus, kein Ordner oder keine Unterordner mit Fotos) — dann lädt die Galerie wie gewohnt.
     /// </summary>
     private async Task<bool> TryShowFolderRowsAsync(GalleryQuery query, CancellationToken ct)
     {
@@ -91,8 +92,8 @@ public sealed partial class GalleryViewModel
             return false;
         }
 
-        var subfolders = await _source.GetSubfoldersAsync(_libraryId, folderId, ct);
-        if (ct.IsCancellationRequested || subfolders.Count == 0)
+        var folders = await _source.GetFoldersWithFilesBelowAsync(folderId, ct);
+        if (ct.IsCancellationRequested || folders.Count == 0)
         {
             ClearFolderRows();
             return false;
@@ -116,26 +117,20 @@ public sealed partial class GalleryViewModel
         var rowQuery = query with { Sort = GallerySort.CapturedDesc, CategorySort = null };
 
         // Fotos direkt im geöffneten Ordner zuerst
-        await AddFolderRowAsync(new FolderRowViewModel(folderId, $"Fotos in „{FolderName}“", null, includeSubfolders: false, level: 0,
+        await AddFolderRowAsync(new FolderRowViewModel(folderId, $"Fotos in „{FolderName}“", null, isOpenedFolder: true, level: 0,
             rowQuery with { FolderId = folderId, IncludeSubfolders = false }), ct);
-        foreach (var sub in subfolders)
+        foreach (var entry in FolderRowPlan.Build(folders))
         {
             if (ct.IsCancellationRequested)
             {
                 return true;
             }
 
-            await AddFolderRowAsync(new FolderRowViewModel(sub.Id, sub.Name, sub.Path, includeSubfolders: true, level: 0,
-                rowQuery with { FolderId = sub.Id, IncludeSubfolders = true }), ct);
-            var inner = await _source.GetSubfoldersAsync(_libraryId, sub.Id, ct);
-            foreach (var child in inner)
-            {
-                await AddFolderRowAsync(new FolderRowViewModel(child.Id, child.Name, child.Path, includeSubfolders: true, level: 1,
-                    rowQuery with { FolderId = child.Id, IncludeSubfolders = true }), ct);
-            }
+            await AddFolderRowAsync(new FolderRowViewModel(entry.FolderId, entry.Name, entry.Path, isOpenedFolder: false, entry.Level,
+                rowQuery with { FolderId = entry.FolderId, IncludeSubfolders = false }), ct);
         }
 
-        var sets = FolderRows.Count(r => r.IncludeSubfolders && !r.IsNested);
+        var sets = FolderRows.Count(r => !r.IsOpenedFolder);
         SetLoadStatus($"{sets:N0} Ordner · {TotalCount:N0} {(TotalCount == 1 ? "Foto" : "Fotos")}");
         _logger.LogInformation("Ansicht Ordner: FolderId={FolderId} Zeilen={Rows}", folderId, FolderRows.Count);
         return true;
@@ -171,7 +166,7 @@ public sealed partial class GalleryViewModel
     private async Task PickFolderRowAsync(FolderRowViewModel row, CancellationToken ct)
     {
         // fest über Neustarts (HashCode.Combine wäre je Prozess anders)
-        var seed = unchecked((((_folderRowsSeed * 31) + row.FolderId) * 31 + (row.IncludeSubfolders ? 1 : 0)) * 31 + row.Salt);
+        var seed = unchecked(((_folderRowsSeed * 31) + row.FolderId) * 31 + row.Salt);
         var pick = FolderRowLayout.Pick(row.IdsAscending, FolderRowMaxCandidates, seed);
         var dtos = await _source.LoadFilesByIdsAsync(pick.All.ToList(), ct);
         if (ct.IsCancellationRequested)
@@ -360,10 +355,22 @@ public sealed partial class GalleryViewModel
         }
     }
 
-    /// <summary>Klick auf den Namen: den Ordner öffnen (zeigt wieder Zeilen, wenn er selbst Unterordner hat).</summary>
+    /// <summary>
+    /// Klick auf den Namen: den Ordner öffnen (zeigt wieder Zeilen, wenn er selbst Unterordner mit Fotos hat); „Fotos in …“
+    /// zeigt nur die Fotos direkt im geöffneten Ordner.
+    /// </summary>
     [RelayCommand]
     private Task OpenFolderRowAsync(FolderRowViewModel? row)
-        => row is null ? Task.CompletedTask : ApplyFolderFilterAsync(row.FolderId, row.IncludeSubfolders, row.IncludeSubfolders ? row.Name : FolderName);
+    {
+        if (row is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        return row.IsOpenedFolder
+            ? ApplyFolderFilterAsync(row.FolderId, false, FolderName)
+            : ApplyFolderFilterAsync(row.FolderId, true, FolderRowPlan.LastSegment(row.Name));
+    }
 
     /// <summary>Klick auf ein Foto: Lightbox mit allen Fotos dieses Sets in Aufnahme-Reihenfolge.</summary>
     [RelayCommand]

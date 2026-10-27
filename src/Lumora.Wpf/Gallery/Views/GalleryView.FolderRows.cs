@@ -39,7 +39,7 @@ public partial class GalleryView
         Add(menu, "Diashow dieses Ordners", SymbolRegular.Play24, () => _viewModel.StartFolderRowSlideshowCommand.Execute(row));
 
         // Ordner-Aktionen nur für echte Unterordner (nicht „Fotos in …“) und wenn die Ordnerleiste den Ordner kennt
-        if (row.IncludeSubfolders && _folderTree?.RevealFolder(row.FolderId) is { } node)
+        if (!row.IsOpenedFolder && _folderTree?.RevealFolder(row.FolderId) is { } node)
         {
             menu.Items.Add(new Separator());
             Add(menu, "Alle Fotos taggen…", SymbolRegular.Tag24, () => _folderTree.EditFolderTagsCommand.Execute(node));

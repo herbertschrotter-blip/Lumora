@@ -232,63 +232,14 @@ public sealed partial class GalleryPageSource : IDisposable
     public Task<IReadOnlyList<GallerySubfolderDto>> GetSubfoldersAsync(int libraryId, int folderId, CancellationToken ct)
         => RunAsync<IReadOnlyList<GallerySubfolderDto>>(conn =>
         {
-            // Unterordner gehören immer der Bibliothek des Ordners (in „Alle verknüpften“ nicht zwingend der aktiven, ADR-0048).
-            string? parentPath = null;
-            using (var pathCmd = conn.CreateCommand())
-            {
-                pathCmd.CommandText = "SELECT Path, LibraryId FROM Folders WHERE Id = $id;";
-                pathCmd.Parameters.AddWithValue("$id", folderId);
-                using var pathReader = pathCmd.ExecuteReader();
-                if (pathReader.Read())
-                {
-                    parentPath = pathReader.GetString(0);
-                    libraryId = pathReader.GetInt32(1);
-                }
-            }
-
-            if (parentPath is null)
+            if (ReadDescendants(conn, folderId, ct) is not { } found)
             {
                 return Array.Empty<GallerySubfolderDto>();
             }
 
-            var parentTrimmed = TrimSeparators(parentPath);
+            var (parentTrimmed, descendants, directCounts) = found;
+
             var prefix = parentTrimmed + Path.DirectorySeparatorChar;
-
-            var descendants = new List<(int Id, string Path)>();
-            using (var folderCmd = conn.CreateCommand())
-            {
-                folderCmd.CommandText = """
-                    SELECT Id, Path FROM Folders
-                    WHERE LibraryId = $libId AND Path LIKE $prefix ESCAPE '\';
-                    """;
-                folderCmd.Parameters.AddWithValue("$libId", libraryId);
-                folderCmd.Parameters.AddWithValue("$prefix", EscapeLike(prefix) + "%");
-                using var reader = folderCmd.ExecuteReader();
-                while (reader.Read())
-                {
-                    descendants.Add((reader.GetInt32(0), reader.GetString(1)));
-                }
-            }
-
-            if (descendants.Count == 0)
-            {
-                return Array.Empty<GallerySubfolderDto>();
-            }
-
-            ct.ThrowIfCancellationRequested();
-
-            var directCounts = new Dictionary<int, int>();
-            using (var countCmd = conn.CreateCommand())
-            {
-                countCmd.CommandText = "SELECT FolderId, COUNT(*) FROM Files WHERE LibraryId = $libId GROUP BY FolderId;";
-                countCmd.Parameters.AddWithValue("$libId", libraryId);
-                using var reader = countCmd.ExecuteReader();
-                while (reader.Read())
-                {
-                    directCounts[reader.GetInt32(0)] = reader.GetInt32(1);
-                }
-            }
-
             var known = new HashSet<string>(descendants.Select(d => TrimSeparators(d.Path)), StringComparer.OrdinalIgnoreCase);
             var result = new List<GallerySubfolderDto>();
             foreach (var (id, path) in descendants)
@@ -332,6 +283,72 @@ public sealed partial class GalleryPageSource : IDisposable
             result.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
             return result;
         }, ct);
+
+    /// <summary>
+    /// Erfasste Nachfahren eines Ordners (per Pfad-Präfix) und die Anzahl der Dateien direkt in jedem Ordner der
+    /// Bibliothek; null = Ordner unbekannt oder ohne Nachfahren. Unterordner gehören immer der Bibliothek des Ordners
+    /// (in „Alle verknüpften“ nicht zwingend der aktiven, ADR-0048).
+    /// </summary>
+    private static (string ParentTrimmed, List<(int Id, string Path)> Descendants, Dictionary<int, int> DirectCounts)? ReadDescendants(
+        SqliteConnection conn, int folderId, CancellationToken ct)
+    {
+        string? parentPath = null;
+        var libraryId = 0;
+        using (var pathCmd = conn.CreateCommand())
+        {
+            pathCmd.CommandText = "SELECT Path, LibraryId FROM Folders WHERE Id = $id;";
+            pathCmd.Parameters.AddWithValue("$id", folderId);
+            using var pathReader = pathCmd.ExecuteReader();
+            if (pathReader.Read())
+            {
+                parentPath = pathReader.GetString(0);
+                libraryId = pathReader.GetInt32(1);
+            }
+        }
+
+        if (parentPath is null)
+        {
+            return null;
+        }
+
+        var parentTrimmed = TrimSeparators(parentPath);
+        var descendants = new List<(int Id, string Path)>();
+        using (var folderCmd = conn.CreateCommand())
+        {
+            folderCmd.CommandText = """
+                SELECT Id, Path FROM Folders
+                WHERE LibraryId = $libId AND Path LIKE $prefix ESCAPE '\';
+                """;
+            folderCmd.Parameters.AddWithValue("$libId", libraryId);
+            folderCmd.Parameters.AddWithValue("$prefix", EscapeLike(parentTrimmed + Path.DirectorySeparatorChar) + "%");
+            using var reader = folderCmd.ExecuteReader();
+            while (reader.Read())
+            {
+                descendants.Add((reader.GetInt32(0), reader.GetString(1)));
+            }
+        }
+
+        if (descendants.Count == 0)
+        {
+            return null;
+        }
+
+        ct.ThrowIfCancellationRequested();
+
+        var directCounts = new Dictionary<int, int>();
+        using (var countCmd = conn.CreateCommand())
+        {
+            countCmd.CommandText = "SELECT FolderId, COUNT(*) FROM Files WHERE LibraryId = $libId GROUP BY FolderId;";
+            countCmd.Parameters.AddWithValue("$libId", libraryId);
+            using var reader = countCmd.ExecuteReader();
+            while (reader.Read())
+            {
+                directCounts[reader.GetInt32(0)] = reader.GetInt32(1);
+            }
+        }
+
+        return (parentTrimmed, descendants, directCounts);
+    }
 
     private static string TrimSeparators(string path)
         => path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);

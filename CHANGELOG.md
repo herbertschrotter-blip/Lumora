@@ -3,6 +3,17 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.19] — 2026-10-27
+
+### Fixed — Ansicht „Ordner“: nur Ordner mit eigenen Fotos, nur deren Fotos
+- Eine Zeile zeigt nur noch die Fotos, die **direkt** im Ordner liegen. Hat ein Ordner Unterordner mit Fotos, tauchen deren
+  Fotos nicht mehr zusätzlich in seiner Zeile auf; sie bekommen eigene Zeilen (Herbert).
+- Ordner **ohne eigene Fotos** bekommen keine Zeile mehr. Liegen darunter Ordner mit Fotos, stehen diese mit ihrem Pfad
+  („Urlaub\Tag 1“); Unterordner eines Ordners mit eigener Zeile stehen eingerückt darunter, jetzt in jeder Tiefe, nicht nur
+  eine Ebene. Lightbox und Diashow einer Zeile zeigen ebenfalls nur deren Fotos.
+- Die Ordner kommen in einer Abfrage (`GetFoldersWithFilesBelowAsync`) statt einer je Unterordner. Gilt nur für die Ansicht
+  „Ordner“; Kacheln, Liste und Collage zeigen wie bisher alle Fotos samt Unterordnern.
+
 ## [0.5.18] — 2026-10-27
 
 ### Added — Prüfsummen für alle Fotos und Videos im Leerlauf
