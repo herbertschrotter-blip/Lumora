@@ -15,11 +15,15 @@ public sealed partial class ConnectedAppsViewModel : ObservableObject
     private readonly AppConnectRuntime _runtime;
     private readonly IDialogService _dialogs;
     private readonly TimeProvider _time;
+    private readonly Lumora.Services.Library.ILibraryService? _libraryService;
+    private IReadOnlyList<(int Id, string Name)> _libraries = [];
     private readonly SynchronizationContext? _ui;
     private bool _refreshing;
 
-    public ConnectedAppsViewModel(AppConnectRuntime runtime, IDialogService dialogs, TimeProvider? time = null)
+    public ConnectedAppsViewModel(AppConnectRuntime runtime, IDialogService dialogs, TimeProvider? time = null,
+        Lumora.Services.Library.ILibraryService? libraries = null)
     {
+        _libraryService = libraries;
         _runtime = runtime;
         _dialogs = dialogs;
         _time = time ?? TimeProvider.System;
@@ -61,6 +65,11 @@ public sealed partial class ConnectedAppsViewModel : ObservableObject
         _refreshing = true;
         try
         {
+            if (_libraryService is not null)
+            {
+                _libraries = (await _libraryService.GetAllAsync()).Select(l => (l.Id, l.Name)).ToList();
+            }
+
             Reload();
             foreach (var item in Apps.ToList())
             {
@@ -91,7 +100,7 @@ public sealed partial class ConnectedAppsViewModel : ObservableObject
                      .Distinct(StringComparer.Ordinal))
         {
             var item = existing.GetValueOrDefault(appId) ?? new ConnectedAppItemViewModel(appId, this, client, connections, _dialogs, _time);
-            item.Update(registrations.GetValueOrDefault(appId), paired.GetValueOrDefault(appId));
+            item.Update(registrations.GetValueOrDefault(appId), paired.GetValueOrDefault(appId), _libraries);
             wanted.Add(item);
         }
 

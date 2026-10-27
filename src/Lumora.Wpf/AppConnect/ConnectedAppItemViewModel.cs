@@ -74,6 +74,42 @@ public sealed partial class AppRightOption : ObservableObject
     }
 }
 
+/// <summary>Eine Bibliothek, aus der die App Fotos sehen darf (ADR-0073 Stufe 5; neue Kopplungen sehen keine).</summary>
+public sealed partial class AppLibraryOption : ObservableObject
+{
+    private readonly Action _changed;
+    private bool _quiet;
+
+    internal AppLibraryOption(int id, string name, bool isOn, Action changed)
+    {
+        Id = id;
+        Name = name;
+        _isOn = isOn;
+        _changed = changed;
+    }
+
+    public int Id { get; }
+
+    public string Name { get; }
+
+    [ObservableProperty] private bool _isOn;
+
+    internal void Sync(bool isOn)
+    {
+        _quiet = true;
+        IsOn = isOn;
+        _quiet = false;
+    }
+
+    partial void OnIsOnChanged(bool value)
+    {
+        if (!_quiet)
+        {
+            _changed();
+        }
+    }
+}
+
 /// <summary>
 /// Karte einer App in Einstellungen › Verbundene Apps (ADR-0073 Stufe 4, Mockup 11): Zustand, Rechte in beide Richtungen,
 /// Verbinden mit Code, Starten, Trennen. Nur was Vertrag 1.1 hergibt; das Geheimnis sieht die Karte nie.
@@ -109,6 +145,9 @@ public sealed partial class ConnectedAppItemViewModel : ObservableObject
 
     public ObservableCollection<AppRightOption> ReceivedFromPeer { get; } = [];
 
+    /// <summary>Normale Bibliotheken; angehakt = die App sieht deren Fotos (Abschnitt 8.1).</summary>
+    public ObservableCollection<AppLibraryOption> Libraries { get; } = [];
+
     [ObservableProperty] private string _displayName = string.Empty;
     [ObservableProperty] private string _initial = "?";
     [ObservableProperty] private string _detailText = string.Empty;
@@ -119,6 +158,8 @@ public sealed partial class ConnectedAppItemViewModel : ObservableObject
     [ObservableProperty] private bool _isRunning;
     [ObservableProperty] private string _grantedHeader = string.Empty;
     [ObservableProperty] private string _receivedHeader = string.Empty;
+    [ObservableProperty] private string _librariesHeader = string.Empty;
+    [ObservableProperty] private string? _librariesHint;
     [ObservableProperty] private string _startLabel = string.Empty;
     [ObservableProperty] private ConnectedAppPhase _phase;
     [ObservableProperty] private bool _isPairing;
@@ -134,7 +175,7 @@ public sealed partial class ConnectedAppItemViewModel : ObservableObject
     internal bool IsBusy => Phase != ConnectedAppPhase.Idle;
 
     /// <summary>Anmeldedatei und Kopplung übernehmen; Übergänge verbunden ↔ getrennt melden.</summary>
-    internal void Update(AppRegistration? registration, AppConnection? connection)
+    internal void Update(AppRegistration? registration, AppConnection? connection, IReadOnlyList<(int Id, string Name)> libraries)
     {
         var wasPaired = Connection is not null;
         Registration = registration ?? (IsBusy ? Registration : null);
@@ -149,8 +190,10 @@ public sealed partial class ConnectedAppItemViewModel : ObservableObject
         Initial = DisplayName.Length > 0 ? DisplayName[..1].ToUpper(CultureInfo.CurrentCulture) : "?";
         GrantedHeader = $"{DisplayName} darf von Lumora";
         ReceivedHeader = $"Lumora bekommt von {DisplayName}";
+        LibrariesHeader = $"Bibliotheken, die {DisplayName} sieht";
         StartLabel = $"{DisplayName} starten";
         SyncRights();
+        SyncLibraries(libraries);
         Apply();
     }
 
@@ -361,6 +404,37 @@ public sealed partial class ConnectedAppItemViewModel : ObservableObject
             option.Sync(granted.Contains(option.Right));
         }
     }
+
+    private void SyncLibraries(IReadOnlyList<(int Id, string Name)> libraries)
+    {
+        var allowed = Connection?.Libraries ?? [];
+        if (Connection is null)
+        {
+            Libraries.Clear();
+        }
+        else if (!Libraries.Select(l => (l.Id, l.Name)).SequenceEqual(libraries))
+        {
+            Libraries.Clear();
+            foreach (var (id, name) in libraries)
+            {
+                Libraries.Add(new AppLibraryOption(id, name, allowed.Contains(id), SaveLibraries));
+            }
+        }
+        else
+        {
+            foreach (var option in Libraries)
+            {
+                option.Sync(allowed.Contains(option.Id));
+            }
+        }
+
+        LibrariesHint = Connection is not null && allowed.Count == 0
+            ? $"Noch keine Bibliothek angehakt — {DisplayName} findet bei Lumora keine Fotos."
+            : null;
+    }
+
+    private void SaveLibraries()
+        => _connections.SetLibraries(AppId, Libraries.Where(l => l.IsOn).Select(l => l.Id));
 
     private void SaveGrants()
         => _connections.SetGrantedToPeer(AppId, GrantedToPeer.Where(o => o.IsOn).Select(o => o.Right));

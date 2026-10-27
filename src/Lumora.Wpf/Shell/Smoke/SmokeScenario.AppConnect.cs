@@ -19,6 +19,8 @@ namespace Lumora.Shell.Smoke;
 /// <c>GET /av/v1/info</c> und weist eine Anfrage mit <c>Origin</c> ab. Stufe 2: eine Test-App koppelt per HTTP, der Dialog
 /// (Mockup 11) zeigt Code und Rechte (hell/dunkel), „Verbinden“ → Geheimnis abgeholt, <c>/info</c> mit Rechten, Trennen.
 /// Stufe 4: der Reiter „Verbundene Apps“ zeigt die gekoppelte Test-App mit ihren Rechten und meldet das Trennen.
+/// Stufe 5: ohne freigegebene Bibliothek findet die Test-App nichts; mit Häkchen im Reiter Fotos, ein echtes Vorschaubild
+/// (JPEG, ETag/304) und das Original.
 /// Der echte Ordner unter <c>%LocalAppData%</c> bleibt unberührt.
 /// </summary>
 internal sealed partial class SmokeScenario
@@ -128,6 +130,7 @@ internal sealed partial class SmokeScenario
               && item.CanDisconnect && !item.CanPair,
             $"Verbundene Apps: {item.DisplayName} „{item.StateText}“ ({item.DetailText}), Rechte in beide Richtungen");
         await SnapshotAsync("78-verbundene-apps").ConfigureAwait(true);
+        await PhotosForPeerAsync(http, secret!, item).ConfigureAwait(true);
 
         using var unpair = Authorized(HttpMethod.Delete, "/av/v1/pairing", secret!);
         using var unpaired = await http.SendAsync(unpair).ConfigureAwait(true);
@@ -135,6 +138,50 @@ internal sealed partial class SmokeScenario
         await WaitUntilAsync(() => apps.Apps.All(a => a.AppId != "rauchtest"), ShortWait, "Test-App aus dem Reiter").ConfigureAwait(true);
         Check(apps.Message == "Die Verbindung mit Rauchtest-App ist getrennt." && apps.Summary == "Noch keine App verbunden",
             $"Verbundene Apps nach dem Trennen: „{apps.Message}“");
+    }
+
+    /// <summary>Stufe 5: Foto-Endpunkte (Vertrag 8.1) mit der Rauchtest-Bibliothek.</summary>
+    private async Task PhotosForPeerAsync(HttpClient http, string secret, ConnectedAppItemViewModel item)
+    {
+        const string search = "/av/v1/photos?fromUtc=1970-01-01T00:00:00Z&limit=500";
+        using var none = Authorized(HttpMethod.Get, search, secret);
+        using var noneResponse = await http.SendAsync(none).ConfigureAwait(true);
+        var noneJson = JsonDocument.Parse(await noneResponse.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
+        Check(noneResponse.IsSuccessStatusCode && noneJson.GetProperty("items").GetArrayLength() == 0 && item.LibrariesHint is not null,
+            "Fotos: neue Kopplung sieht keine Bibliothek (0 Treffer, Hinweis in der Karte)");
+
+        Check(item.Libraries.Count > 0, $"Karte zeigt {item.Libraries.Count} Bibliothek(en) zum Anhaken");
+        item.Libraries[0].IsOn = true;
+        using var found = Authorized(HttpMethod.Get, search, secret);
+        using var foundResponse = await http.SendAsync(found).ConfigureAwait(true);
+        var items = JsonDocument.Parse(await foundResponse.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement.GetProperty("items");
+        var photo = items.EnumerateArray().FirstOrDefault(i => i.GetProperty("mediaType").GetString() == "photo");
+        Check(foundResponse.IsSuccessStatusCode && items.GetArrayLength() > 0 && photo.ValueKind == JsonValueKind.Object
+              && items.EnumerateArray().All(i => i.GetProperty("id").GetString()!.StartsWith("lum-", StringComparison.Ordinal) && !i.TryGetProperty("people", out _)),
+            $"Fotos: mit freigegebener Bibliothek {items.GetArrayLength()} Treffer, ohne Personen");
+
+        var id = photo.GetProperty("id").GetString();
+        using var thumb = Authorized(HttpMethod.Get, $"/av/v1/photos/{id}/thumbnail?size=256", secret);
+        using var thumbResponse = await http.SendAsync(thumb).ConfigureAwait(true);
+        var jpeg = await thumbResponse.Content.ReadAsByteArrayAsync().ConfigureAwait(true);
+        var etag = thumbResponse.Headers.ETag?.Tag;
+        using var again = Authorized(HttpMethod.Get, $"/av/v1/photos/{id}/thumbnail?size=256", secret);
+        if (etag is not null)
+        {
+            again.Headers.IfNoneMatch.Add(new EntityTagHeaderValue(etag));
+        }
+
+        using var againResponse = await http.SendAsync(again).ConfigureAwait(true);
+        Check(thumbResponse.IsSuccessStatusCode && thumbResponse.Content.Headers.ContentType?.MediaType == "image/jpeg"
+              && jpeg.Length > 2 && jpeg[0] == 0xFF && jpeg[1] == 0xD8 && (int)againResponse.StatusCode == 304,
+            $"Vorschaubild 256: JPEG ({jpeg.Length} Bytes), ETag, If-None-Match → {(int)againResponse.StatusCode}");
+
+        using var original = Authorized(HttpMethod.Get, $"/av/v1/photos/{id}/original", secret);
+        using var originalResponse = await http.SendAsync(original).ConfigureAwait(true);
+        var originalJson = JsonDocument.Parse(await originalResponse.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
+        Check(originalResponse.IsSuccessStatusCode && originalJson.GetProperty("available").GetBoolean()
+              && File.Exists(originalJson.GetProperty("path").GetString()),
+            "Original: Pfad vorhanden, available = true");
     }
 
     private static HttpRequestMessage Authorized(HttpMethod method, string path, string secret)

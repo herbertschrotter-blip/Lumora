@@ -9,7 +9,7 @@
              d:DataContext="{d:DesignInstance local:ConnectedAppsViewModel}"
              d:DesignWidth="1000">
     <!-- Einstellungen › Verbundene Apps (ADR-0073 Stufe 4, Mockup 11); DataContext = ConnectedAppsViewModel (Code der SettingsPage).
-         Schalter für Hintergrundstart und Infobereich folgen mit Stufe 6, die Bibliotheken je App mit Stufe 5. -->
+         Bibliotheken je App seit Stufe 5; Schalter für Hintergrundstart und Infobereich folgen mit Stufe 6. -->
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -125,6 +125,7 @@
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
                                     <StackPanel>
                                         <TextBlock Style="{StaticResource ColumnHeader}" Text="{Binding GrantedHeader}" />
@@ -140,7 +141,23 @@
                                         <TextBlock Style="{StaticResource MetaText}" Margin="0,6,0,0"
                                                    Text="Was die andere App erlaubt, legt sie selbst fest; Lumora fragt es beim Öffnen dieses Reiters nach." />
                                     </StackPanel>
-                                    <TextBlock Grid.Row="1" Grid.ColumnSpan="3" Style="{StaticResource MetaText}" Margin="0,10,0,0"
+                                    <!-- Bibliotheken (Stufe 5): nur angehakte sind für die App sichtbar -->
+                                    <StackPanel Grid.Row="1" Margin="0,12,0,0">
+                                        <TextBlock Style="{StaticResource ColumnHeader}" Text="{Binding LibrariesHeader}" />
+                                        <ItemsControl ItemsSource="{Binding Libraries}" Focusable="False" AutomationProperties.AutomationId="Libraries">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="{x:Type local:AppLibraryOption}">
+                                                    <CheckBox Margin="0,2,0,2" MinHeight="0" IsChecked="{Binding IsOn}" Content="{Binding Name}"
+                                                              AutomationProperties.Name="{Binding Name}" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <TextBlock Style="{StaticResource MetaText}" Margin="0,4,0,0" Text="{Binding LibrariesHint}"
+                                                   Foreground="{DynamicResource SystemFillColorCautionBrush}"
+                                                   Visibility="{Binding LibrariesHint, Converter={StaticResource NullToVis}}"
+                                                   AutomationProperties.AutomationId="LibrariesHint" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Row="2" Grid.ColumnSpan="3" Style="{StaticResource MetaText}" Margin="0,10,0,0"
                                                Text="{Binding InterfaceText}" Visibility="{Binding InterfaceText, Converter={StaticResource NullToVis}}" />
                                 </Grid>
                             </Border>

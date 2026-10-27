@@ -14,6 +14,9 @@ public interface IAppConnectPeers
 
     /// <summary>Trennen (Abschnitt 5, Schritt 6); true, wenn es die Kopplung gab.</summary>
     bool Remove(string appId);
+
+    /// <summary>Bibliotheken, aus denen <paramref name="appId"/> Fotos sieht (Abschnitt 8.1); leer = keine.</summary>
+    IReadOnlyList<int> LibrariesOf(string appId) => [];
 }
 
 /// <summary>Noch keine Kopplung möglich (Stufe 1): jede geschützte Anfrage endet mit 401 <c>not_paired</c>.</summary>

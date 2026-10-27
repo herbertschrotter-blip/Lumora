@@ -1,6 +1,6 @@
 # ADR-0073: App-Verbindung — Lumora setzt den Vertrag „App-Verbindung“ 1.1 um
 
-- **Status:** Accepted (Stufe 1 in 0.5.5, Stufe 2 in 0.5.8, Stufe 3 in 0.5.9, Stufe 4 in 0.5.13; weitere Stufen ergänzen diesen ADR)
+- **Status:** Accepted (Stufe 1 in 0.5.5, Stufe 2 in 0.5.8, Stufe 3 in 0.5.9, Stufe 4 in 0.5.13, Stufe 5 in 0.5.16; weitere Stufen ergänzen diesen ADR)
 - **Datum:** 2026-10-26
 - **Entscheider:** Herbert Schrotter (Vertrag, Stufenplan, Antworten auf die offenen Fragen am 2026-10-26), Claude (Umsetzung
   und Detailentscheidungen ohne Rückfrage, siehe unten)
@@ -25,7 +25,7 @@ Lumora setzt **App-Verbindung Version 1.1** um, in sieben Stufen (Plan vom 2026-
 | 2 | 0.5.8 | Kopplung als Anbieter mit Bestätigungsdialog, Halte-Zusagen (5, 7) |
 | 3 | 0.5.9 | Abfrager: Apps finden, Kopplung anfragen, Geheimnis mit DPAPI, Trennen (4, 5) |
 | 4 | 0.5.13 | Reiter „Verbundene Apps“ nach Mockup 11 |
-| 5 | geplant | Foto-Endpunkte als Anbieter (8.1) |
+| 5 | 0.5.16 | Foto-Endpunkte als Anbieter (8.1) |
 | 6 | geplant | Hintergrundmodus und Start durch andere Apps (9) |
 | 7 | geplant | Touren, Spuren, Gipfel nutzen (8.2) — Umfang A + B (siehe unten) |
 
@@ -154,3 +154,36 @@ Lumora-eigene Entscheidungen (keine Vertragsänderung):
   Rechten, Rechte ändern, abgelehnt, abgebrochen, von drüben getrennt, Trennen mit Rückfrage, Starten (gelingt/scheitert),
   Reiter hell/dunkel ohne Binding-Fehler; `PairingTests`: eigene Rechte ändern, `/info` zeigt sie. Der Rauchtest-Schritt
   „App-Verbindung“ prüft die gekoppelte Test-App im Reiter und das Trennen.
+
+## Nachtrag 0.5.16 — Stufe 5: Fotos als Anbieter
+
+- **Endpunkte** nach Abschnitt 8.1 (`AppConnectServer.Photos.cs`): `GET /photos` (Zeitraum `fromUtc`/`toUtc` und/oder
+  `bbox`, `mediaType`, `limit` 1…500, `cursor`), `GET /photos/{id}`, `GET /photos/by-checksum/{checksum}`,
+  `GET /photos/{id}/thumbnail?size=256|512|1024`, `GET /photos/{id}/original`. Das Recht wird bei jeder Anfrage geprüft
+  (403 `missing_right`). **Lesart:** `GET /photos/{id}` und `by-checksum` nennt der Vertrag ohne eigenes Recht; Lumora
+  verlangt dafür `photos.search` (dieselben Daten wie die Suche) — Kandidat für eine Klarstellung, keine Änderung.
+- **Bibliotheken je App:** Lumora antwortet nur aus den Bibliotheken, die der Benutzer der App im Reiter „Verbundene
+  Apps“ anhakt (Lumora-eigene Einstellung `Libraries` je Kopplung in `appconnect\connections.json`, nicht Teil des
+  Vertrags). Neue Kopplungen sehen keine (Herbert, Frage 2); die Karte weist darauf hin. Alles außerhalb gibt es für die
+  App nicht: kein Treffer, keine Zählung, 404. Versteckte Bibliotheken liegen nie im Katalog dieser Sitzung (Start mit
+  `_hidden` nimmt nicht teil).
+- **Katalog** (`CatalogPhotoCatalog`, nur lesend, rohe SQLite-Verbindung): Sortierung und Zeitraum über
+  `COALESCE(CapturedAt, ModifiedAtUtc)` wie die Galerie (Index `IX_Files_Library_Captured`), Fortsetzung als
+  undurchsichtiger Text aus Zeit und Datei. Zeiten: mit bekanntem Abstand `taken` (mit Offset) und `takenUtc`, sonst nur
+  `takenLocal` (Wanduhrzeit in der Zeitzone des PCs, ADR-0046). Ort nur mit beiden Koordinaten, `geoAccuracy`/`geoSource`
+  aus ADR-0062; `width`/`height` 0, solange unbekannt. Fehlende Dateien bleiben Katalog-Einträge (`available: false`).
+- **Prüfsumme:** `checksum` nur, wo Lumora den SHA-256 schon kennt (bisher aus „Doppelte“, gültig für Größe und
+  Änderungszeit der Datei); sonst fehlt das Feld. **Offen:** fehlende Prüfsummen im Leerlauf nachrechnen (Herbert, Frage 3)
+  — eigener Schritt mit dem Hintergrund-Planer (ADR-0074).
+- **Personen:** nur mit `photos.people`, nur bestätigte Gesichter, ausgeblendete Personen nie.
+- **Vorschaubilder:** aus dem Vorschaubild-Cache (fehlt es, wird es wie für die Galerie erzeugt, höchstens 10 s, sonst
+  503 `busy` mit `Retry-After: 10`), mit dem WIC-Renderer auf längste Seite ≤ `size` verkleinert; 512/1024 bei Fotos aus
+  dem Original (Drehung angewendet). Höchstens zwei gleichzeitig; Arbeitsdateien unter `appconnect\tmp`, sofort gelöscht.
+  `ETag` aus Datei, Größe und Änderungszeit, `If-None-Match` → 304. Gesperrte Datenbank → 503 `busy`.
+- **Behoben:** Der Koordinator meldete `accepted` mit Geheimnis, bevor die Kopplung gespeichert war (Lücke für 401
+  `not_paired` bei einer schnellen Gegenseite); jetzt erst speichern, dann melden.
+- **Protokoll** nur mit App-Kennung und Anzahlen („gipfelbuch: 12 Fotos gesucht“), nie Pfade, Namen oder Koordinaten.
+- **Tests:** `PhotoEndpointsTests` gegen einen echten Testkatalog über HTTP (Felder nach Schema, Seiten, Gebiet, Art,
+  400er, Rechte, Bibliotheksgrenze, Prüfsumme, Personen, Vorschaubild mit ETag/304/busy, Original); `ConnectedAppsTests`
+  (Bibliotheken anhaken); Rauchtest-Schritt „App-Verbindung“ fragt mit der Test-App echte Fotos, ein echtes Vorschaubild
+  und das Original ab.

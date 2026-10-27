@@ -113,6 +113,7 @@ public sealed partial class PairingCoordinator
             _logger.LogWarning(ex, "App-Verbindung: Kopplungsdialog fehlgeschlagen");
         }
 
+        PairingDecision chosen;
         lock (_lock)
         {
             if (IsExpired(pending))
@@ -128,18 +129,25 @@ public sealed partial class PairingCoordinator
             }
 
             // Nur, was angefragt bzw. angeboten wurde
-            var granted = decision.GrantedRights.Intersect(pending.Request.RequestedRights, StringComparer.Ordinal).ToList();
-            var accepted = decision.AcceptedOfferedRights.Intersect(pending.Request.OfferedRights, StringComparer.Ordinal).ToList();
-            pending.Decision = new PairingDecision(granted, accepted);
-            pending.Secret = ConnectionStore.NewSecret();
+            chosen = new PairingDecision(
+                decision.GrantedRights.Intersect(pending.Request.RequestedRights, StringComparer.Ordinal).ToList(),
+                decision.AcceptedOfferedRights.Intersect(pending.Request.OfferedRights, StringComparer.Ordinal).ToList());
+        }
+
+        // Erst speichern, dann „accepted“ melden: sonst fragt die andere App womöglich schon mit dem Geheimnis und bekommt 401
+        var secret = ConnectionStore.NewSecret();
+        _store.Add(new AppConnection(pending.Request.AppId, pending.Request.DisplayName.Trim(), chosen.GrantedRights,
+            chosen.AcceptedOfferedRights, _time.GetUtcNow().UtcDateTime), secret);
+        lock (_lock)
+        {
+            pending.Decision = chosen;
+            pending.Secret = secret;
             pending.State = "accepted";
         }
 
-        _store.Add(new AppConnection(pending.Request.AppId, pending.Request.DisplayName.Trim(), pending.Decision.GrantedRights,
-            pending.Decision.AcceptedOfferedRights, _time.GetUtcNow().UtcDateTime), pending.Secret);
         _onPaired?.Invoke(pending.Request.AppId);
         _logger.LogInformation("App-Verbindung: gekoppelt mit {AppId}, {Granted} Rechte erlaubt, {Accepted} angenommen",
-            pending.Request.AppId, pending.Decision.GrantedRights.Count, pending.Decision.AcceptedOfferedRights.Count);
+            pending.Request.AppId, chosen.GrantedRights.Count, chosen.AcceptedOfferedRights.Count);
     }
 
     private bool IsExpired(Pending p) => _time.GetUtcNow() - p.CreatedUtc >= Lifetime;

@@ -3,6 +3,23 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.16] — 2026-10-27
+
+### Added — App-Verbindung Stufe 5: Fotos für andere Apps
+- Lumora beantwortet jetzt die Foto-Anfragen aus Vertrag 1.1 Abschnitt 8.1: Suche nach Zeitraum und/oder Gebiet (Fotos,
+  Videos oder beides, seitenweise), ein Foto, Suche über die Prüfsumme, Vorschaubilder 256/512/1024 (JPEG, Drehung
+  angewendet, ETag/304) und der Pfad des Originals mit „erreichbar“. Das Recht wird bei jeder Anfrage geprüft.
+- **Bibliotheken je App** in Einstellungen › Verbundene Apps: nur angehakte Bibliotheken sind für die App sichtbar, neu
+  verbundene Apps sehen keine (Hinweis in der Karte). Alles andere gibt es für die App nicht — kein Treffer, keine Zählung.
+- Personen-Namen nur mit Recht „Personen auf den Fotos sehen“ und nur bestätigte; Prüfsumme nur, wo Lumora sie schon
+  kennt (Nachrechnen im Leerlauf folgt). Protokoll nur mit Anzahlen.
+- ADR-0073 Nachtrag 0.5.16; Rauchtest-Schritt „App-Verbindung“ fragt echte Fotos, ein Vorschaubild und das Original ab.
+  (refs #5)
+
+### Fixed
+- Kopplung als Anbieter (seit 0.5.8): Lumora meldete „angenommen“ samt Geheimnis, bevor die Kopplung gespeichert war — eine
+  schnelle App konnte in dieser Lücke 401 `not_paired` bekommen. Jetzt erst speichern, dann melden.
+
 ## [0.5.15] — 2026-10-27
 
 ### Changed — Lightbox und Galerie haben Vorrang, Hintergrund rechnet mit höchstens halben Kernen

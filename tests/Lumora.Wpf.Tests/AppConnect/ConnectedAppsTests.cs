@@ -24,6 +24,7 @@ public sealed class ConnectedAppsTests : IAsyncLifetime
     private readonly ScriptedPrompt _prompt = new();
     private readonly ScriptedDialogs _dialogs = new();
     private readonly AppConnectRuntime _runtime = new();
+    private readonly InMemoryLibraries _libraries = new();
     private RegistrationFiles _registrations = null!;
     private ConnectionStore _peerStore = null!;
     private ConnectionStore _store = null!;
@@ -200,9 +201,30 @@ public sealed class ConnectedAppsTests : IAsyncLifetime
     });
 
     [Fact]
+    public Task Bibliotheken_je_App_neu_verbunden_keine_angehakt_speichert_die_Auswahl() => OnUiAsync(async () =>
+    {
+        _libraries.Add(1, "Familienfotos", 10, DateTime.UtcNow);
+        _libraries.Add(2, "Urlaub & Sport", 20, DateTime.UtcNow);
+        WritePeer(running: true);
+        var vm = AttachedViewModel();
+        var app = await PairAsync(vm);
+
+        app.LibrariesHeader.Should().Be("Bibliotheken, die Gipfelbuch sieht");
+        app.Libraries.Select(l => (l.Name, l.IsOn)).Should().Equal(("Familienfotos", false), ("Urlaub & Sport", false));
+        app.LibrariesHint.Should().Contain("findet bei Lumora keine Fotos");
+
+        app.Libraries[1].IsOn = true;
+        _store.LibrariesOf("gipfelbuch").Should().Equal(2);
+        await WaitAsync(() => app.LibrariesHint is null);
+        await vm.RefreshAsync();
+        app.Libraries.Select(l => l.IsOn).Should().Equal(false, true);
+    });
+
+    [Fact]
     public Task Reiter_hell_und_dunkel_ohne_Binding_Fehler() => OnUiAsync(async () =>
     {
         WritePeer(running: true);
+        _libraries.Add(1, "Familienfotos", 10, DateTime.UtcNow);
         var vm = AttachedViewModel();
         await PairAsync(vm);
         using var errors = new BindingErrors();
@@ -231,7 +253,7 @@ public sealed class ConnectedAppsTests : IAsyncLifetime
     private ConnectedAppsViewModel AttachedViewModel()
     {
         Attach();
-        return new ConnectedAppsViewModel(_runtime, _dialogs);
+        return new ConnectedAppsViewModel(_runtime, _dialogs, libraries: _libraries);
     }
 
     private void Attach()

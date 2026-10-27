@@ -18,7 +18,8 @@ public sealed record AppConnectIdentity(string AppVersion);
 /// <summary>
 /// Lokale Schnittstelle nach Vertrag „App-Verbindung“ 1.1 (ADR-0073): HTTP nur auf <c>127.0.0.1</c>, Basispfad
 /// <c>/av/v1</c>, Schutz gegen Browser-Angriffe (Abschnitt 3), Fehler nach Abschnitt 11, <c>GET /info</c> (Stufe 1),
-/// Kopplung als Anbieter und Halte-Zusagen (Abschnitte 5 und 7, Stufe 2). Ohne Koordinator gibt es keine Kopplung.
+/// Kopplung als Anbieter und Halte-Zusagen (Abschnitte 5 und 7, Stufe 2), Fotos (Abschnitt 8.1, Stufe 5, in
+/// <c>AppConnectServer.Photos.cs</c>). Ohne Koordinator gibt es keine Kopplung, ohne Katalog keine Fotos.
 /// </summary>
 public sealed partial class AppConnectServer : IAsyncDisposable
 {
@@ -31,6 +32,7 @@ public sealed partial class AppConnectServer : IAsyncDisposable
     private readonly IAppConnectPeers _peers;
     private readonly PairingCoordinator? _pairing;
     private readonly LeaseRegistry _leases;
+    private readonly IPhotoCatalog? _photos;
     private readonly Func<string> _mode;
     private readonly Func<long> _second;
     private readonly ILogger _logger;
@@ -42,8 +44,9 @@ public sealed partial class AppConnectServer : IAsyncDisposable
     /// <param name="mode">Aktueller Modus für <c>GET /info</c> (<c>window</c> | <c>background</c>).</param>
     /// <param name="second">Laufende Sekunde für die Anfragegrenze (Tests geben eine eigene Uhr).</param>
     public AppConnectServer(AppConnectIdentity identity, IAppConnectPeers peers, Func<string> mode, ILogger? logger = null, Func<long>? second = null,
-        PairingCoordinator? pairing = null, LeaseRegistry? leases = null)
+        PairingCoordinator? pairing = null, LeaseRegistry? leases = null, IPhotoCatalog? photos = null)
     {
+        _photos = photos;
         _identity = identity;
         _peers = peers;
         _pairing = pairing;
@@ -203,6 +206,7 @@ public sealed partial class AppConnectServer : IAsyncDisposable
         app.MapPost(b + "/lease", (Delegate)CreateLeaseAsync);
         app.MapPut(b + "/lease/{id}", (Delegate)ExtendLeaseAsync);
         app.MapDelete(b + "/lease/{id}", ReleaseLease);
+        MapPhotoEndpoints(app);
         app.MapFallback(() => Error(StatusCodes.Status404NotFound, ErrorCodes.NotFound, "Unbekannter Pfad."));
     }
 

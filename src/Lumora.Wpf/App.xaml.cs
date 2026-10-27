@@ -281,7 +281,13 @@ public partial class App : Application, ICatalogHostSwitcher
                 () => "window",
                 logger,
                 pairing: new Lumora.AppConnect.PairingCoordinator(AppConnections, PairingPrompt, logger: logger, onPaired: leases.ReleaseAll),
-                leases: leases),
+                leases: leases,
+                // Fotos für andere Apps (Stufe 5): nur aus den Bibliotheken, die der Benutzer je App freigibt
+                photos: new Lumora.AppConnect.CatalogPhotoCatalog(
+                    _host.Services.GetRequiredService<Lumora.Services.Database.ILibraryContextFactory>(),
+                    _host.Services.GetService<IThumbnailService>(),
+                    _host.Services.GetService<IImageThumbnailRenderer>(),
+                    _host.Services.GetRequiredService<IAppDataPaths>())),
             registrations,
             Lumora.Settings.Info.AppInfo.Version,
             Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "Lumora.exe"),

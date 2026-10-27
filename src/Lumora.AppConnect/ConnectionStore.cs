@@ -7,7 +7,14 @@ namespace Lumora.AppConnect;
 /// <summary>Eine gekoppelte App (ohne Geheimnis im Klartext).</summary>
 /// <param name="GrantedToPeer">Rechte, die Lumora der App erlaubt.</param>
 /// <param name="GrantedByPeer">Rechte, die die App Lumora erlaubt (von ihr angeboten, von Lumora angenommen).</param>
-public sealed record AppConnection(string AppId, string DisplayName, IReadOnlyList<string> GrantedToPeer, IReadOnlyList<string> GrantedByPeer, DateTime PairedAtUtc);
+public sealed record AppConnection(string AppId, string DisplayName, IReadOnlyList<string> GrantedToPeer, IReadOnlyList<string> GrantedByPeer, DateTime PairedAtUtc)
+{
+    /// <summary>
+    /// Bibliotheken, aus denen Lumora der App Fotos zeigt (Abschnitt 8.1: „nur aus normalen Bibliotheken, die der Benutzer
+    /// der App freigegeben hat“). Lumora-eigene Einstellung, nicht Teil des Vertrags; eine neue Kopplung sieht keine (ADR-0073).
+    /// </summary>
+    public IReadOnlyList<int> Libraries { get; init; } = [];
+}
 
 /// <summary>Schützt das Geheimnis einer Kopplung (Windows: DPAPI für den Benutzer; Tests ersetzen ihn).</summary>
 public interface ISecretProtector
@@ -134,6 +141,26 @@ public sealed class ConnectionStore : IAppConnectPeers
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
+    public IReadOnlyList<int> LibrariesOf(string appId) => Find(appId)?.Libraries ?? [];
+
+    /// <summary>Bibliotheken festlegen, aus denen die App Fotos sieht (Einstellungen › Verbundene Apps).</summary>
+    public void SetLibraries(string appId, IEnumerable<int> libraryIds)
+    {
+        var ids = libraryIds.Distinct().Order().ToList();
+        lock (_lock)
+        {
+            if (!_entries.TryGetValue(appId, out var e) || e.Connection.Libraries.SequenceEqual(ids))
+            {
+                return;
+            }
+
+            _entries[appId] = e with { Connection = e.Connection with { Libraries = ids } };
+            Save();
+        }
+
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
     /// <summary>Neue Kopplung (ersetzt eine alte derselben App) mit frischem Geheimnis.</summary>
     public void Add(AppConnection connection, string secret)
     {
@@ -183,7 +210,10 @@ public sealed class ConnectionStore : IAppConnectPeers
                 try
                 {
                     var secret = _protector.Unprotect(Convert.FromBase64String(s.ProtectedSecret));
-                    _entries[s.AppId] = new Entry(new AppConnection(s.AppId, s.DisplayName, s.GrantedToPeer ?? [], s.GrantedByPeer ?? [], s.PairedAtUtc), secret);
+                    _entries[s.AppId] = new Entry(new AppConnection(s.AppId, s.DisplayName, s.GrantedToPeer ?? [], s.GrantedByPeer ?? [], s.PairedAtUtc)
+                    {
+                        Libraries = s.Libraries ?? [],
+                    }, secret);
                 }
                 catch (Exception ex) when (ex is CryptographicException or FormatException)
                 {
@@ -201,7 +231,7 @@ public sealed class ConnectionStore : IAppConnectPeers
     {
         var stored = _entries.Values.Select(e => new StoredConnection(
             e.Connection.AppId, e.Connection.DisplayName, Convert.ToBase64String(_protector.Protect(e.Secret)),
-            e.Connection.GrantedToPeer, e.Connection.GrantedByPeer, e.Connection.PairedAtUtc)).ToList();
+            e.Connection.GrantedToPeer, e.Connection.GrantedByPeer, e.Connection.PairedAtUtc, e.Connection.Libraries)).ToList();
         Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
         var temp = $"{_path}.{Environment.ProcessId}.tmp";
         File.WriteAllText(temp, JsonSerializer.Serialize(stored, AppConnectContract.RegistrationJson));
@@ -210,5 +240,6 @@ public sealed class ConnectionStore : IAppConnectPeers
 
     private sealed record Entry(AppConnection Connection, byte[] Secret);
 
-    private sealed record StoredConnection(string AppId, string DisplayName, string ProtectedSecret, IReadOnlyList<string>? GrantedToPeer, IReadOnlyList<string>? GrantedByPeer, DateTime PairedAtUtc);
+    private sealed record StoredConnection(string AppId, string DisplayName, string ProtectedSecret, IReadOnlyList<string>? GrantedToPeer,
+        IReadOnlyList<string>? GrantedByPeer, DateTime PairedAtUtc, IReadOnlyList<int>? Libraries);
 }

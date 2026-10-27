@@ -1294,8 +1294,12 @@ Gipfelbuch (Touren, Spuren, Gipfel; Fotos nur als Verweis). Die Verbindung läuf
   App von Lumora darf (Häkchen umschaltbar, gilt sofort), rechts, was Lumora von ihr bekommt (legt die andere App fest;
   **Aktualisieren** fragt nach). **<App> starten** und **Verbindung trennen…** (mit Rückfrage). Trennt die andere App,
   steht das in ihrer Karte.
-- **Noch offen:** Bibliotheken je App und Fotos für das Gipfelbuch (Stufe 5), Hintergrundstart mit Schaltern und Symbol im
-  Infobereich (Stufe 6), Touren in Lumora (Stufe 7).
+- **Fotos für andere Apps** (seit 0.5.16): In der Karte einer verbundenen App die **Bibliotheken** anhaken, aus denen sie Fotos
+  sehen darf — neu verbundene Apps sehen keine. Die App kann dann nach Zeitraum und Gebiet suchen, Vorschaubilder holen und
+  das Original öffnen (nur mit den Rechten links). Personen-Namen nur mit „Personen auf den Fotos sehen“. Versteckte
+  Bibliotheken sind nie dabei.
+- **Noch offen:** Prüfsummen für alle Fotos im Leerlauf, Hintergrundstart mit Schaltern und Symbol im Infobereich (Stufe 6),
+  Touren in Lumora (Stufe 7).
 
 ## Datenablage
 
