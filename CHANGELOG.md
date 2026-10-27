@@ -3,6 +3,16 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.14] — 2026-10-27
+
+### Docs — Mockup 21 „Galerie: Unterordner als Zeilen“, abgenommen
+- `mockups/21-galerie-ordner-zeilen.html`: neue Galerie-Ansicht **Ordner** (neben Raster, Liste, Collage). Beim Öffnen
+  eines Ordners mit Unterordnern (Shootings, Sets) zeigt jede Zeile einen Unterordner, gefüllt mit so vielen Fotos, wie in
+  die Breite passen: erstes und letztes Foto des Ordners immer außen, dazwischen zufällige in Aufnahme-Reihenfolge; Zeile
+  auf volle Breite ausgeglichen, kleine Sets ganz. Zeilenhöhe per Regler, „Neu mischen“, Kopf mit Name, Datum, Anzahl,
+  Tags/Kategorien; Rechtsklick mit Aktionen für das ganze Set; Sets mit Unterordnern eine Ebene tief eingerückt.
+- PLAN.md Kap. 7: Vorhaben „Galerie-Ansicht Ordner als Zeilen“.
+
 ## [0.5.13] — 2026-10-27
 
 ### Added — App-Verbindung Stufe 4: Reiter „Verbundene Apps“

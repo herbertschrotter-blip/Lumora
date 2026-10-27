@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lumora — Galerie: Unterordner als Zeilen (Entwurf 21)</title>
+<style>
+/* =====================================================================
+   Mockup 21 · Galerie: Unterordner als Zeilen. Tokens 1:1 aus 08–18.
+   Neue Galerie-Ansicht „Ordner“ (neben Raster, Liste, Collage): beim Öffnen eines Ordners mit Unterordnern (Shootings,
+   Sets) je Unterordner eine Zeile, gefüllt mit so vielen Fotos wie in die Breite passen — erstes und letztes Foto des
+   Ordners immer, dazwischen zufällige in Aufnahme-Reihenfolge. Namen erfunden. Hell/Dunkel über „dark“.
+   ABGENOMMEN von Herbert am 2026-10-27: alle fünf Ansichten (Sets als Zeilen, größere Zeilen, Sets mit Unterordnern,
+   Rechtsklick auf ein Set, Vorher-Raster) samt breitem/schmalem Fenster. Annahmen dabei: die Zufallsauswahl bleibt bis
+   „Neu mischen“ (bzw. neue Fotos) gleich; Unterordner nur eine Ebene tief als eigene Zeilen.
+   ===================================================================== */:root {
+  --mica-base:#F3F3F3; --layer-default:rgba(255,255,255,0.7); --layer-card:#FFFFFF; --layer-subtle:rgba(0,0,0,0.026);
+  --layer-secondary:rgba(0,0,0,0.04); --layer-tertiary:rgba(0,0,0,0.06);
+  --text-primary:#1A1A1A; --text-secondary:#5C5C5C; --text-tertiary:#8B8B8B; --text-on-accent:#FFFFFF;
+  --stroke-default:rgba(0,0,0,0.0578); --stroke-divider:rgba(0,0,0,0.0803); --stroke-card:rgba(0,0,0,0.0578); --ctl-bottom:rgba(0,0,0,0.16);
+  --accent:#5B5FC7; --accent-light:#7579D8; --accent-dark:#4145A0; --accent-soft:rgba(91,95,199,0.08); --accent-soft-2:rgba(91,95,199,0.16);
+  --success:#107C10; --success-soft:rgba(16,124,16,0.10); --warning:#C29C00; --warning-soft:rgba(194,156,0,0.14); --danger:#C42B1C;
+  --shadow-card:0 2px 4px rgba(0,0,0,0.02), 0 1px 2px rgba(0,0,0,0.03); --shadow-flyout:0 8px 16px rgba(0,0,0,0.14);
+  --brand-indigo:#5B5FC7; --brand-violet:#8B5CF6; --brand-coral:#F97362; --brand-amber:#F5A524;
+  --page-bg:#E4E4EA; --smoke:rgba(0,0,0,0.3);
+}
+body.dark {
+  color-scheme:dark;
+  --mica-base:#202020; --layer-default:rgba(43,43,43,0.7); --layer-card:#2C2C2C; --layer-subtle:rgba(255,255,255,0.03);
+  --layer-secondary:rgba(255,255,255,0.0418); --layer-tertiary:rgba(255,255,255,0.0605);
+  --text-primary:#FFFFFF; --text-secondary:#D0D0D0; --text-tertiary:#A0A0A0;
+  --stroke-default:rgba(255,255,255,0.0837); --stroke-divider:rgba(255,255,255,0.0837); --stroke-card:rgba(255,255,255,0.0578); --ctl-bottom:rgba(255,255,255,0.22);
+  --accent:#818CF8; --accent-light:#A5B0FF; --accent-dark:#6066D8; --accent-soft:rgba(129,140,248,0.12); --accent-soft-2:rgba(129,140,248,0.24);
+  --success:#6CCB5F; --success-soft:rgba(108,203,95,0.12); --warning:#FCE100; --warning-soft:rgba(252,225,0,0.14); --danger:#FF6B5E;
+  --shadow-card:0 2px 4px rgba(0,0,0,0.18), 0 1px 2px rgba(0,0,0,0.22); --shadow-flyout:0 8px 16px rgba(0,0,0,0.4);
+  --brand-indigo:#818CF8; --brand-violet:#A78BFA; --brand-coral:#FB8A7A; --brand-amber:#FBBF24;
+  --page-bg:#121214; --smoke:rgba(0,0,0,0.55);
+}
+* { box-sizing:border-box; } html,body { margin:0; }
+body { background:var(--page-bg); color:var(--text-primary); font-family:'Segoe UI Variable Text','Segoe UI',system-ui,sans-serif; font-size:14px; }
+button { font:inherit; color:inherit; }
+.ic { font-family:'Segoe Fluent Icons','Segoe MDL2 Assets'; font-size:16px; line-height:1; font-style:normal; }
+.ic.s { font-size:12px; }
+.hidden { display:none !important; }
+.mock-bar { position:sticky; top:0; z-index:100; display:flex; gap:16px; align-items:center; flex-wrap:wrap; padding:7px 20px; background:#2B2B33; color:#EEE; font-size:12px; }
+.mock-bar .grp { display:flex; gap:4px; align-items:center; }
+.mock-bar button { background:#44444F; color:#EEE; border:1px solid #5A5A66; border-radius:4px; padding:3px 9px; cursor:pointer; font-size:12px; }
+.mock-bar button.on { background:#5B5FC7; border-color:#7579D8; }
+.mock-bar .note { margin-left:auto; color:#AAB; }
+.stage-wrap { padding:16px 20px 32px; display:flex; justify-content:center; }
+.win-box { position:relative; flex:none; }
+.window { position:absolute; left:0; top:0; transform-origin:0 0; background:var(--mica-base); border-radius:8px; border:1px solid var(--stroke-default);
+  box-shadow:0 16px 48px rgba(0,0,0,0.22); overflow:hidden; display:grid; grid-template-columns:232px 1fr; grid-template-rows:36px 1fr 30px; }
+.titlebar { grid-column:1/-1; display:flex; align-items:center; gap:10px; padding-left:14px; font-size:12px; color:var(--text-secondary); }
+.titlebar .tile { width:16px; height:16px; border-radius:4px; background:linear-gradient(135deg,#6366F1,#4145A0); }
+.titlebar .wc { margin-left:auto; display:flex; height:100%; } .titlebar .wc span { width:46px; display:grid; place-items:center; font-family:'Segoe Fluent Icons'; font-size:10px; color:var(--text-primary); }
+.nav { padding:2px 8px 10px; display:flex; flex-direction:column; gap:2px; }
+.wbs { font-family:'Segoe UI Variable Display','Segoe UI',sans-serif; font-size:22px; padding:2px 12px 10px;
+  background:linear-gradient(100deg,var(--brand-indigo),var(--brand-violet) 45%,var(--brand-coral) 75%,var(--brand-amber)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.lib-switch { margin:0 2px 8px; padding:8px 10px; border-radius:6px; background:var(--layer-card); border:1px solid var(--stroke-card); box-shadow:var(--shadow-card); display:flex; gap:10px; align-items:center; }
+.lib-switch b { display:block; font-weight:600; } .lib-switch small { display:block; color:var(--text-tertiary); font-size:11px; }
+.nav-item { display:flex; align-items:center; gap:12px; padding:9px 12px; border-radius:4px; position:relative; white-space:nowrap; }
+.nav-item.active { background:var(--layer-secondary); }
+.nav-item.active::before { content:''; position:absolute; left:0; top:10px; bottom:10px; width:3px; border-radius:2px; background:var(--accent); }
+.nav .spacer { flex:1; }
+.content { position:relative; min-width:0; min-height:0; background:var(--layer-default); border-top-left-radius:8px; border-left:1px solid var(--stroke-default); border-top:1px solid var(--stroke-default); overflow:auto; }
+.statusbar { grid-column:1/-1; display:flex; align-items:center; gap:18px; padding:0 14px; font-size:12px; color:var(--text-secondary); border-top:1px solid var(--stroke-divider); background:var(--mica-base); }
+.statusbar .r { margin-left:auto; display:flex; gap:10px; align-items:center; }
+.btn-acc { background:var(--accent); color:var(--text-on-accent); border:1px solid transparent; border-radius:4px; padding:5px 14px; font-size:13px; cursor:pointer; display:inline-flex; gap:6px; align-items:center; white-space:nowrap; }
+body.dark .btn-acc { color:#111; } .btn-acc:hover { background:var(--accent-light); }
+.btn-std { background:var(--layer-card); border:1px solid var(--stroke-divider); border-bottom-color:var(--ctl-bottom); border-radius:4px; padding:5px 12px; font-size:13px; cursor:pointer; display:inline-flex; gap:6px; align-items:center; white-space:nowrap; }
+.btn-std:hover { background:var(--layer-subtle); }
+.btn-std.danger { color:var(--danger); }
+.phead { padding:18px 24px 6px; } .phead h1 { font-size:28px; font-weight:600; margin:0; }
+.tabs { display:flex; gap:4px; padding:4px 24px 10px; border-bottom:1px solid var(--stroke-divider); flex-wrap:wrap; }
+.tabs span { padding:6px 12px; border-radius:4px; color:var(--text-secondary); }
+.tabs span.on { color:var(--text-primary); font-weight:600; box-shadow:inset 0 -3px 0 var(--accent); }
+.body { padding:14px 24px 24px; display:grid; gap:12px; max-width:960px; }
+.card { background:var(--layer-card); border:1px solid var(--stroke-card); border-radius:8px; box-shadow:var(--shadow-card); padding:14px 16px; }
+.card h2 { font-size:15px; margin:0 0 4px; display:flex; gap:10px; align-items:center; }
+.muted { color:var(--text-secondary); font-size:12px; line-height:1.5; }
+.opt { display:grid; grid-template-columns:1fr auto; gap:12px; align-items:center; padding:10px 0; border-top:1px solid var(--stroke-divider); }
+.opt:first-of-type { border-top:0; }
+.opt b { font-weight:600; font-size:13px; display:block; }
+.sw { width:40px; height:20px; border-radius:10px; border:1px solid var(--text-secondary); position:relative; flex:none; cursor:pointer; display:inline-block; }
+.sw::after { content:''; position:absolute; top:4px; left:4px; width:10px; height:10px; border-radius:50%; background:var(--text-secondary); transition:left .12s; }
+.sw.on { background:var(--accent); border-color:var(--accent); } .sw.on::after { left:24px; background:#fff; }
+.chk { width:16px; height:16px; border-radius:3px; border:1px solid var(--text-secondary); display:inline-grid; place-items:center; flex:none; font-family:'Segoe Fluent Icons'; font-size:10px; color:transparent; cursor:pointer; }
+.chk.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+.app { border:1px solid var(--stroke-card); border-radius:8px; background:var(--layer-card); box-shadow:var(--shadow-card); overflow:hidden; }
+.app-h { display:grid; grid-template-columns:48px 1fr auto; gap:14px; align-items:center; padding:14px 16px; cursor:pointer; }
+.app-ico { width:48px; height:48px; border-radius:10px; display:grid; place-items:center; color:#fff; font-size:22px; }
+.app-h .n { font-weight:600; font-size:15px; display:flex; gap:8px; align-items:center; }
+.app-h .d { font-size:12px; color:var(--text-secondary); margin-top:3px; }
+.state { font-size:11px; font-weight:700; border-radius:9px; padding:2px 8px; display:inline-flex; gap:5px; align-items:center; }
+.state::before { content:''; width:7px; height:7px; border-radius:50%; background:currentColor; }
+.st-run { background:var(--success-soft); color:var(--success); }
+.st-bg { background:var(--accent-soft-2); color:var(--accent-dark); } body.dark .st-bg { color:var(--accent-light); }
+.st-off { background:var(--layer-tertiary); color:var(--text-secondary); }
+.st-new { background:var(--warning-soft); color:#8A6D00; } body.dark .st-new { color:var(--warning); }
+.app-b { border-top:1px solid var(--stroke-divider); padding:12px 16px 14px; display:grid; grid-template-columns:1fr 1fr; gap:14px 24px; background:var(--layer-subtle); }
+.app-b h3 { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--text-tertiary); margin:0 0 6px; font-weight:600; }
+.perm { display:flex; gap:8px; align-items:flex-start; font-size:13px; padding:3px 0; }
+.perm small { display:block; color:var(--text-secondary); font-size:11px; }
+.kv { display:grid; grid-template-columns:150px 1fr; gap:4px 10px; font-size:12px; }
+.kv span:nth-child(odd) { color:var(--text-secondary); }
+.app-f { grid-column:1/-1; display:flex; gap:8px; justify-content:flex-end; padding-top:4px; }
+.empty { border:1px dashed var(--stroke-divider); border-radius:8px; padding:14px 16px; display:flex; gap:12px; align-items:center; color:var(--text-secondary); font-size:13px; }
+/* --- Mockup 18: Galerie mit Ordnerleiste --- */
+.content { display:grid; grid-template-columns:auto 1fr; overflow:hidden; }
+.fpane { width:270px; border-right:1px solid var(--stroke-divider); display:flex; flex-direction:column; min-height:0; background:var(--layer-subtle); transition:width .15s; }
+.fpane.closed { width:44px; }
+.fph { display:flex; align-items:center; gap:8px; padding:12px 10px 8px 14px; font-weight:600; font-size:13px; }
+.fph .ic { color:var(--text-secondary); }
+.fph .sp { flex:1; }
+.ibtn { width:28px; height:28px; border-radius:4px; border:0; background:transparent; display:grid; place-items:center; cursor:pointer; color:var(--text-secondary); font-family:'Segoe Fluent Icons'; font-size:12px; }
+.ibtn:hover { background:var(--layer-secondary); }
+.fpane.closed .fph span:not(.ic), .fpane.closed .fbody, .fpane.closed .ffoot { display:none; }
+.fpane.closed .fph { flex-direction:column; padding:10px 6px; }
+.fsearch { margin:0 10px 6px; padding:5px 8px; border:1px solid var(--stroke-divider); border-bottom-color:var(--ctl-bottom); border-radius:4px; background:var(--layer-card); font-size:12px; color:var(--text-tertiary); display:flex; gap:6px; align-items:center; }
+.fbody { flex:1; overflow:auto; padding:2px 6px; }
+.node { display:flex; align-items:center; gap:6px; padding:5px 8px; border-radius:4px; position:relative; font-size:13px; cursor:pointer; white-space:nowrap; }
+.node:hover { background:var(--layer-secondary); }
+.node .exp { width:12px; color:var(--text-tertiary); font-family:'Segoe Fluent Icons'; font-size:8px; }
+.node .fic { color:var(--brand-amber); font-size:14px; }
+.node .nm { overflow:hidden; text-overflow:ellipsis; }
+.node .tm { display:inline-flex; gap:4px; color:var(--text-tertiary); font-size:10px; margin-left:4px; }
+.node .cnt { color:var(--text-tertiary); font-size:11px; margin-left:auto; padding-left:6px; }
+.node.sel { background:var(--accent-soft-2); font-weight:600; }
+.node.sel::before { content:''; position:absolute; left:0; top:5px; bottom:5px; width:3px; border-radius:2px; background:var(--accent); }
+.node.sel .fic { color:var(--accent); }
+.node.root { font-weight:600; margin-top:6px; }
+.node.root .fic { color:var(--text-secondary); }
+.node.off { color:var(--text-tertiary); }
+.ffoot { border-top:1px solid var(--stroke-divider); padding:8px 12px; font-size:12px; color:var(--text-secondary); display:grid; gap:6px; }
+.ffoot label { display:flex; gap:8px; align-items:center; }
+.main { min-width:0; display:grid; grid-template-rows:auto auto 1fr; }
+.ghead { display:flex; align-items:center; gap:12px; padding:16px 20px 6px; }
+.ghead h1 { margin:0; font-size:26px; font-weight:600; }
+.crumb { font-size:13px; color:var(--text-secondary); display:flex; gap:6px; align-items:center; }
+.crumb b { color:var(--text-primary); font-weight:600; }
+.crumb .sepc { font-family:'Segoe Fluent Icons'; font-size:8px; color:var(--text-tertiary); }
+.fbar { display:flex; gap:6px; flex-wrap:wrap; align-items:center; padding:4px 20px 10px; border-bottom:1px solid var(--stroke-divider); }
+.chip { display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 6px 0 10px; border-radius:14px; font-size:12px; background:var(--layer-card); border:1px solid var(--stroke-card); }
+.chip.on { background:var(--accent-soft-2); border-color:transparent; color:var(--accent-dark); font-weight:600; } body.dark .chip.on { color:var(--accent-light); }
+.chip .x { font-family:'Segoe Fluent Icons'; font-size:9px; width:18px; height:18px; display:grid; place-items:center; border-radius:50%; cursor:pointer; }
+.chip .x:hover { background:var(--layer-tertiary); }
+.chip.add { color:var(--text-secondary); padding-right:10px; }
+.fbar .sp { flex:1; }
+.fbar .res { font-size:12px; color:var(--text-secondary); }
+.gal { display:grid; grid-template-columns:repeat(var(--cols,6),1fr); gap:6px; padding:12px 20px 20px; align-content:start; overflow:auto; }
+.tile { aspect-ratio:1; border-radius:4px; position:relative; }
+.tile .mk { position:absolute; top:5px; left:5px; height:18px; padding:0 6px; border-radius:9px; background:rgba(0,0,0,.52); color:#fff; font-size:10px; display:inline-flex; align-items:center; gap:3px; font-family:'Segoe Fluent Icons'; }
+.menu { position:absolute; z-index:40; min-width:250px; background:var(--layer-card); border:1px solid var(--stroke-card); border-radius:8px; box-shadow:var(--shadow-flyout); padding:4px; font-size:13px; }
+body.dark .menu { background:#2B2B2B; }
+.mi { display:grid; grid-template-columns:22px 1fr auto; gap:8px; align-items:center; padding:6px 8px; border-radius:4px; white-space:nowrap; }
+.mi:hover { background:var(--layer-secondary); }
+.mi .ic { font-size:14px; color:var(--text-secondary); }
+.mi .k { font-size:11px; color:var(--text-tertiary); }
+.mi.danger { color:var(--danger); } .mi.danger .ic { color:var(--danger); }
+.msep { height:1px; background:var(--stroke-divider); margin:4px 6px; }
+.note { position:absolute; right:20px; bottom:16px; width:330px; font-size:12px; line-height:1.55; color:var(--text-secondary); background:var(--layer-card); border:1px solid var(--stroke-card); border-radius:8px; padding:10px 12px; box-shadow:var(--shadow-card); }
+body.dark .note { background:#2B2B2B; }
+.note b { color:var(--text-primary); }
+.drop { outline:2px dashed var(--accent); outline-offset:-2px; background:var(--accent-soft); }
+/* --- Mockup 21: Ordner als Zeilen --- */
+.vsw { display:inline-flex; border:1px solid var(--stroke-divider); border-radius:4px; overflow:hidden; background:var(--layer-card); }
+.vsw span { display:inline-flex; align-items:center; gap:5px; padding:4px 9px; font-size:12px; cursor:pointer; color:var(--text-secondary); border-left:1px solid var(--stroke-divider); }
+.vsw span:first-child { border-left:0; }
+.vsw span.on { background:var(--accent-soft-2); color:var(--accent-dark); font-weight:600; } body.dark .vsw span.on { color:var(--accent-light); }
+.sets { overflow:auto; padding:6px 20px 20px; display:flex; flex-direction:column; gap:14px; }
+.set { position:relative; border-radius:8px; padding:6px 8px 8px; margin:0 -8px; }
+.set:hover { background:var(--layer-subtle); }
+.seth { display:flex; align-items:baseline; gap:10px; padding:2px 2px 6px; }
+.seth .fic { color:var(--brand-amber); font-size:14px; align-self:center; }
+.seth b { font-size:14px; font-weight:600; cursor:pointer; }
+.seth b:hover { text-decoration:underline; }
+.seth .meta { font-size:12px; color:var(--text-tertiary); }
+.seth .tm { display:inline-flex; gap:4px; color:var(--text-tertiary); font-size:11px; align-items:center; }
+.seth .acts { margin-left:auto; display:flex; gap:2px; opacity:0; transition:opacity .1s; }
+.set:hover .seth .acts, .set.hot .seth .acts { opacity:1; }
+.strip { display:flex; gap:4px; height:var(--rowh,150px); overflow:hidden; }
+.ph { height:100%; border-radius:4px; position:relative; flex:none; min-width:0; }
+.ph .pos { position:absolute; left:5px; bottom:5px; height:18px; padding:0 7px; border-radius:9px; background:rgba(0,0,0,.55); color:#fff; font-size:10px; display:inline-flex; align-items:center; gap:4px; }
+.ph .pos .ic { font-size:10px; }
+.ph.sel { outline:2px solid var(--accent); outline-offset:-2px; }
+.ph .star { position:absolute; right:5px; top:5px; color:#fff; font-family:'Segoe Fluent Icons'; font-size:11px; text-shadow:0 1px 2px rgba(0,0,0,.6); }
+.more { flex:1; min-width:70px; border-radius:4px; border:1px dashed var(--stroke-divider); display:grid; place-items:center; text-align:center; color:var(--text-secondary); font-size:12px; cursor:pointer; }
+.more:hover { background:var(--layer-secondary); }
+.more b { display:block; font-size:16px; color:var(--text-primary); }
+.sub { margin-left:22px; border-left:2px solid var(--stroke-divider); padding-left:12px; }
+.zoom { display:inline-flex; align-items:center; gap:8px; font-size:12px; color:var(--text-secondary); }
+.zoom input { width:110px; accent-color:var(--accent); }
+.legend { display:flex; gap:14px; align-items:center; font-size:12px; color:var(--text-secondary); padding:0 20px 6px; }
+.legend .pos { position:static; display:inline-flex; height:18px; padding:0 7px; border-radius:9px; background:rgba(0,0,0,.55); color:#fff; font-size:10px; align-items:center; gap:4px; }
+</style>
+</head>
+<body>
+<div class="mock-bar">
+  <span><b>Mockup 21 · Galerie: Unterordner als Zeilen · Entwurf</b></span>
+  <span class="grp">Design: <button id="mbLight">Hell</button><button id="mbDark" class="on">Dunkel</button></span>
+  <span class="grp">Ansicht: <button data-v="rows" class="on">Sets als Zeilen</button><button data-v="big">Größere Zeilen</button><button data-v="nested">Sets mit Unterordnern</button><button data-v="menu">Rechtsklick auf Set</button><button data-v="normal">Vorher: Raster</button></span>
+  <span class="grp">Fenster: <button data-w="1280" class="on">breit</button><button data-w="960">schmal</button></span>
+</div>
+
+<div class="stage-wrap"><div class="win-box" id="winBox">
+<div class="window" id="win">
+  <div class="titlebar"><span class="tile" style="aspect-ratio:auto"></span> Lumora<span class="wc"><span>&#xE921;</span><span>&#xE922;</span><span>&#xE8BB;</span></span></div>
+  <nav class="nav">
+    <div class="wbs">lumora</div>
+    <div class="lib-switch"><span class="ic">&#xE8F1;</span><div><b>Shootings</b><small>Bibliothek wechseln</small></div></div>
+    <div class="nav-item active"><span class="ic">&#xE91B;</span>Galerie</div>
+    <div class="nav-item"><span class="ic">&#xE8F1;</span>Alben</div>
+    <div class="nav-item"><span class="ic">&#xE786;</span>Storys</div>
+    <div class="nav-item"><span class="ic">&#xE716;</span>Personen</div>
+    <div class="nav-item"><span class="ic">&#xE707;</span>Orte</div>
+    <div class="spacer"></div>
+    <div class="nav-item"><span class="ic">&#xE713;</span>Einstellungen</div>
+  </nav>
+  <main class="content" id="content"></main>
+  <div class="statusbar"><span><span class="ic s">&#xE8F1;</span> Shootings</span><span id="sbinfo">8 Sets · 1 412 Fotos</span><span class="r" style="color:var(--text-tertiary)"><span class="ic s">&#xE73E;</span> Keine Aktivität</span></div>
+</div>
+</div></div>
+
+<script>
+const $=(s)=>document.querySelector(s), $$=(s)=>[...document.querySelectorAll(s)];
+const ph=['#9EC9E8,#3F7FB2','#F7D99A,#C78F2B','#C8E0B5,#5E8B47','#E6B8C8,#A0567A','#D8D3EC,#6E64A8','#F3B9A8,#B4553F','#BFD9DA,#3E8287','#E8E2D6,#8C7B60','#C9C9CF,#55555F'];
+const TAG='&#xE8EC;', CAT='&#xE8A9;';
+// Namen erfunden. [Name, Fotos, Zeitraum, Grundfarbe, Tags, Unterordner]
+const SETS=[
+ ['Studio – weißer Hintergrund','248','12. Mai 2024',8,14,0],
+ ['Seeufer im Abendlicht','186','3. Jun 2024',0,22,0],
+ ['Altstadt Porträts','97','21.–22. Jun 2024',5,0,0],
+ ['Herbstwald','312','5. Okt 2024',1,9,0],
+ ['Industriehalle','154','19. Okt 2024',8,0,0],
+ ['Schwarz-Weiß Serie','5','2. Nov 2024',8,0,0],
+ ['Bahnhof bei Nacht','221','15. Nov 2024',4,3,0],
+ ['Winterfeld','189','7. Dez 2024',6,0,0]];
+let seed=7; const rnd=()=>{ seed=(seed*16807)%2147483647; return seed/2147483647; };
+const ASPECTS=[2/3,2/3,2/3,3/4,3/2,4/5,2/3,1];
+let rowH=150, winW=1280;
+
+// Zeile füllen: erstes Foto, dann zufällige, das letzte Foto immer am Ende — so viele, wie in die Breite passen
+function strip(set, idx, width, h){
+  const [name,count,,base]=set, total=parseInt(count.replace(/\s/g,''));
+  const gap=4; const items=[];
+  const mk=(n,kind)=>({n,kind,a:ASPECTS[Math.floor(rnd()*ASPECTS.length)]});
+  const first=mk(1,'first'), last=mk(total,'last');
+  let used=first.a*h + (total>1? gap+last.a*h : 0);
+  const middle=[];
+  const picked=new Set([1,total]);
+  while(middle.length < total-2){
+    const c=mk(0,'rand'); const w=c.a*h+gap;
+    if(used+w > width) break;
+    let n; do { n=2+Math.floor(rnd()*(total-2)); } while(picked.has(n)); picked.add(n); c.n=n;
+    middle.push(c); used+=w;
+  }
+  middle.sort((x,y)=>x.n-y.n);
+  const all=[first,...middle]; if(total>1) all.push(last);
+  const html=all.map((p,i)=>{
+    const col=ph[(base+i*3)%ph.length];
+    const pos=p.kind==='first'?`<span class="pos"><span class="ic">&#xE892;</span>erstes</span>`:p.kind==='last'?`<span class="pos">letztes<span class="ic">&#xE893;</span></span>`:'';
+    const star=(i%5===2)?'<span class="star">&#xE735;&#xE735;&#xE735;&#xE735;</span>':'';
+    const w=Math.round(p.a*h), fill=all.length<total; // Rest der Breite gleichmäßig verteilen (wie die Collage); kleine Sets bleiben natürlich breit
+    return `<span class="ph" style="${fill?`flex:${w} 1 ${w}px`:`width:${w}px`};background:linear-gradient(160deg,${col})" title="Foto ${p.n} von ${total}">${pos}${star}</span>`;
+  }).join('');
+  const shown=all.length, rest=total-shown;
+  return {html, shown, total};
+}
+
+function setRow(set, idx, opts={}){
+  const [name,count,date,,tags,cats]=set;
+  const width = (winW-232) - (opts.paneOpen===false?44:270) - 40 - (opts.indent?36:0);
+  const s=strip(set, idx, width, rowH);
+  const tm = (tags||cats)?`<span class="tm">${tags?`<span class="ic s">${TAG}</span>${tags}`:''}${cats?` <span class="ic s">${CAT}</span>${cats}`:''}</span>`:'';
+  const info = s.shown<s.total ? `${count} Fotos · ${s.shown} gezeigt` : `${count} Fotos · alle gezeigt`;
+  return `<div class="set ${opts.hot?'hot':''}"><div class="seth"><span class="ic fic">&#xE8B7;</span><b title="Ordner öffnen">${name}</b><span class="meta">${date} · ${info}</span>${tm}
+     <span class="acts"><button class="ibtn" title="Andere Fotos zeigen">&#xE8B1;</button><button class="ibtn" title="Diashow dieses Sets">&#xE768;</button><button class="ibtn" title="Ordner öffnen">&#xE8A7;</button></span></div>
+     <div class="strip" style="--rowh:${rowH}px">${s.html}</div></div>`;
+}
+
+const TREE=[
+ [0,'Alle Fotos der Bibliothek','1 412',null,'root'],
+ [0,'Bibliotheksordner','1 412',true,'root'],
+ [1,'2023','—',false,''],
+ [1,'Shootings 2024','1 412',true,'sel'],
+ ...SETS.map(s=>[2,s[0],s[1],null,'']),
+ [1,'Shootings 2025','—',false,'']];
+function tree(){
+  return TREE.map(([d,n,c,o,cls])=>{
+    const exp = o===null?'':(o?'&#xE70D;':'&#xE76C;');
+    const ic = cls.includes('root') ? (n.startsWith('Alle')?'&#xE91B;':'&#xE8B7;') : '&#xE8B7;';
+    return `<div class="node ${cls}" style="padding-left:${8+d*16}px"><span class="exp">${exp}</span><span class="ic fic">${ic}</span><span class="nm">${n}</span><span class="cnt">${c}</span></div>`;
+  }).join('');
+}
+function pane(){
+  return `<aside class="fpane" id="fpane">
+    <div class="fph"><span class="ic">&#xE8B7;</span><span>Ordner</span><span class="sp"></span><button class="ibtn">&#xE710;</button><button class="ibtn">&#xE76B;</button></div>
+    <div class="fsearch"><span class="ic s">&#xE721;</span>Ordner suchen…</div>
+    <div class="fbody">${tree()}</div>
+    <div class="ffoot"><label><span class="chk on">&#xE73E;</span>Unterordner einschließen</label></div>
+  </aside>`;
+}
+const crumb=`Bibliotheksordner<span class="sepc">&#xE76C;</span><b>Shootings 2024</b>`;
+function head(mode, res){
+  const vs=['Raster','Liste','Collage','Ordner'].map((n,i)=>{
+    const ic=['&#xF0E2;','&#xE8FD;','&#xE80A;','&#xE8B7;'][i];
+    return `<span class="${n===mode?'on':''}" data-mode="${n}"><span class="ic s">${ic}</span>${n}</span>`; }).join('');
+  return `<div class="ghead"><h1>Galerie</h1><div class="crumb">${crumb}</div></div>
+   <div class="fbar"><span class="chip on"><span class="ic s">&#xE8B7;</span>Ordner: Shootings 2024 <span class="x">&#xE711;</span></span><span class="chip add"><span class="ic s">&#xE710;</span>Filter</span><span class="sp"></span>
+   ${mode==='Ordner'?`<span class="zoom"><span class="ic s">&#xE71F;</span><input type="range" min="100" max="260" value="${rowH}" id="zoomR"><span class="ic s">&#xE8A3;</span></span><button class="btn-std" id="shuffle"><span class="ic s">&#xE8B1;</span>Neu mischen</button>`:''}
+   <span class="res">${res}</span><span class="vsw">${vs}</span></div>`;
+}
+function rowsView(note, opts={}){
+  seed=shuffleSeed||opts.seed||7;
+  const rows=SETS.map((s,i)=>setRow(s,i,{hot:opts.hot===i})).join('');
+  return pane()+`<section class="main" style="grid-template-rows:auto auto auto 1fr">${head('Ordner','8 Sets · 1 412 Fotos')}
+    <div class="legend"><span class="pos"><span class="ic">&#xE892;</span>erstes</span> und <span class="pos">letztes<span class="ic">&#xE893;</span></span> Foto des Ordners stehen immer außen, dazwischen zufällige in Aufnahme-Reihenfolge</div>
+    <div class="sets">${rows}</div></section>`+(note?`<div class="note">${note}</div>`:'');
+}
+const V={
+ rows:()=>rowsView(`<b>Ansicht „Ordner“:</b> Je Unterordner (Set) eine Zeile. Lumora füllt sie mit so vielen Fotos, wie in die Breite passen: <b>erstes</b> und <b>letztes</b> Foto immer, dazwischen zufällige (nach Aufnahmezeit sortiert). Fenster schmaler → weniger Fotos. Klick auf ein Foto öffnet die Lightbox in diesem Set, Klick auf den Namen öffnet den Ordner. „Schwarz-Weiß Serie“ hat nur 5 Fotos – alle gezeigt.`),
+ big:()=>{ if(rowH===150) rowH=230; return rowsView(`<b>Zeilenhöhe</b> mit dem Regler oben (wie die Kachelgröße heute). Größere Zeilen → weniger Fotos je Set. „Neu mischen“ zieht andere Zufallsfotos (erstes und letztes bleiben); Lumora merkt sich die Ziehung, bis du neu mischst oder Fotos dazukommen.`,{seed:11}); },
+ nested:()=>{
+   seed=5;
+   const inner=[['Outfit 1 – Kleid rot','64','12. Mai 2024',3,0,0],['Outfit 2 – Jeans','71','12. Mai 2024',1,0,0],['Outfit 3 – Mantel','58','12. Mai 2024',6,0,0]];
+   const html=setRow(SETS[0],0)+`<div class="sub">${inner.map((s,i)=>setRow(s,i,{indent:true})).join('')}</div>`+SETS.slice(1,4).map((s,i)=>setRow(s,i+1)).join('');
+   return pane()+`<section class="main" style="grid-template-rows:auto auto 1fr">${head('Ordner','8 Sets · 1 412 Fotos')}<div class="sets">${html}</div></section>`
+     +`<div class="note"><b>Set mit Unterordnern:</b> Die Zeile des Sets zeigt Fotos aus allen Unterordnern (erstes/letztes über das ganze Set). Darunter eingerückt je Unterordner eine eigene Zeile – nur eine Ebene tief, tiefere Ordner zählen zu ihrem Unterordner. Fotos direkt im geöffneten Ordner (ohne Unterordner) bekämen eine eigene erste Zeile „Fotos in Shootings 2024“.</div>`;
+ },
+ menu:()=>rowsView('',{hot:1}).replace('<div class="sets">','<div class="sets">')+`<div class="menu" style="left:520px;top:380px">
+     <div class="mi"><span class="ic">&#xE8A7;</span>Ordner öffnen<span class="k">Eingabe</span></div>
+     <div class="mi"><span class="ic">&#xE8B1;</span>Andere Fotos zeigen<span class="k"></span></div>
+     <div class="mi"><span class="ic">&#xE768;</span>Diashow dieses Sets<span class="k"></span></div>
+     <div class="msep"></div>
+     <div class="mi"><span class="ic">&#xEB9F;</span>Als Titelbild des Ordners<span class="k"></span></div>
+     <div class="mi"><span class="ic">&#xE8EC;</span>Alle Fotos des Sets taggen / kategorisieren…<span class="k"></span></div>
+     <div class="mi"><span class="ic">&#xE735;</span>Alle Fotos des Sets bewerten ▸<span class="k"></span></div>
+     <div class="msep"></div>
+     <div class="mi"><span class="ic">&#xE8AC;</span>Umbenennen…<span class="k">F2</span></div>
+     <div class="mi"><span class="ic">&#xE838;</span>Im Explorer anzeigen<span class="k"></span></div>
+   </div><div class="note"><b>Rechtsklick auf den Set-Namen</b> bzw. auf eine leere Stelle der Zeile: Aktionen für den ganzen Ordner. Rechtsklick auf ein Foto zeigt das bekannte Foto-Menü (Mockup 18). „Als Titelbild des Ordners“ übernimmt das Foto unter der Maus.</div>`,
+ normal:()=>pane()+`<section class="main">${head('Raster','1 412 Fotos')}<div class="gal" style="--cols:7">${Array.from({length:35},(_,i)=>`<span class="tile" style="background:linear-gradient(160deg,${ph[i%9]})"></span>`).join('')}</div></section>`
+   +`<div class="note"><b>Vorher:</b> Der Ordner „Shootings 2024“ mit Unterordnern zeigt alle 1 412 Fotos gemischt im Raster – welches Set was enthält, sieht man nur, wenn man jeden Ordner einzeln öffnet. Umschalten oben rechts: <b>Ordner</b>.</div>`};
+let cur='rows', shuffleSeed=0;
+// Zeichnet die aktuelle Ansicht neu (Regler, Neu mischen, Fensterbreite) und hängt die Bedienelemente an
+function render(){
+  $$('.mock-bar [data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===cur));
+  $('#content').innerHTML = (cur==='rows' && shuffleSeed) ? V.rows().replace(/^/,'') : V[cur]();
+  const z=$('#zoomR'); if(z) z.oninput=()=>{ rowH=+z.value; render(); };
+  const sh=$('#shuffle'); if(sh) sh.onclick=()=>{ shuffleSeed=Math.floor(Math.random()*1e6)+1; render(); };
+  $$('.vsw [data-mode]').forEach(m=>m.onclick=()=>{ cur = m.dataset.mode==='Ordner' ? 'rows' : 'normal'; render(); });
+}
+function view(v){ cur=v; shuffleSeed=0; if(v!=='big') rowH=150; render(); }
+document.addEventListener('click',e=>{
+  const v=e.target.closest('.mock-bar [data-v]'); if(v) view(v.dataset.v);
+  const w=e.target.closest('.mock-bar [data-w]'); if(w){ winW=+w.dataset.w; $$('.mock-bar [data-w]').forEach(b=>b.classList.toggle('on',b===w)); fit(); render(); } });function fit(){ const w=winW,h=800,win=$('#win'); win.style.width=w+'px'; win.style.height=h+'px'; const s=Math.min(1,(document.documentElement.clientWidth-40)/w);
+  win.style.transform=`scale(${s})`; $('#winBox').style.width=w*s+'px'; $('#winBox').style.height=h*s+'px'; }
+function theme(d){ document.body.classList.toggle('dark',d); $('#mbLight').classList.toggle('on',!d); $('#mbDark').classList.toggle('on',d); }
+$('#mbLight').onclick=()=>theme(false); $('#mbDark').onclick=()=>theme(true);
+window.addEventListener('resize',fit); fit(); theme(true); view('rows');
+</script>
+</body>
+</html>
