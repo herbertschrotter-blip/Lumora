@@ -232,6 +232,8 @@ public sealed class EnhanceWorld : IAsyncDisposable
 
     public ActivityCenter Activities { get; } = new();
 
+    public Lumora.Services.Background.ForegroundWork Foreground { get; } = new();
+
     public TestStoragePaths Storage { get; private set; } = null!;
 
     public PhotoEnhanceService Service { get; private set; } = null!;
@@ -265,7 +267,8 @@ public sealed class EnhanceWorld : IAsyncDisposable
             faces ?? new FakeFaceLocator(),
             world.Activities,
             NullLogger<PhotoEnhanceService>.Instance,
-            fx.Messenger);
+            fx.Messenger,
+            world.Foreground);
         return world;
     }
 

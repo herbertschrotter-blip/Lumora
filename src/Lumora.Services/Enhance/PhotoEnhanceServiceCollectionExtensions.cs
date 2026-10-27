@@ -44,7 +44,8 @@ public static class PhotoEnhanceServiceCollectionExtensions
             sp.GetService<IEnhanceFaceLocator>(),
             sp.GetService<IActivityCenter>(),
             sp.GetService<ILogger<PhotoEnhanceService>>(),
-            sp.GetService<IMessenger>()));
+            sp.GetService<IMessenger>(),
+            sp.GetService<Background.IForegroundWork>()));
         return services;
     }
 }

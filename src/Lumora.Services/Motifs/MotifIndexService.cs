@@ -508,6 +508,12 @@ public sealed class MotifIndexService : IMotifIndexService, IDisposable
                     loads.Enqueue(StartLoad(candidates[next++]));
                 }
 
+                // Vorrang für Arbeit, auf die der Benutzer wartet (Foto verbessern, Assistent): vor jedem Foto fragen (ADR-0074)
+                if (await Background.BackgroundPlanner.WaitForPermissionAsync(_planner, Background.BackgroundJob.Motifs, ct).ConfigureAwait(false))
+                {
+                    state.ResetClock();
+                }
+
                 MotifFileResult? result;
                 using (await AcquireGpuAsync(encoder, outcome, ct).ConfigureAwait(false))
                 {

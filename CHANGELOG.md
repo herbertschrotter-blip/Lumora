@@ -3,6 +3,17 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.12] — 2026-10-27
+
+### Added — Vorrang für das, worauf du gerade wartest
+- **Foto verbessern** (Vorschau und mehrere Fotos) und der **Assistent** melden sich als Vordergrund-Arbeit an. Solange sie
+  rechnen, warten die Hintergrund-Aufgaben: braucht die Arbeit die Grafikkarte, halten Gesichter und Motive **vor dem
+  nächsten Foto** an (nicht erst am Stapelende); braucht sie den Prozessor (Verbessern immer, Assistent ohne Grafikkarte),
+  warten alle Hintergrund-Aufgaben nach ihrem laufenden Stapel. Danach laufen sie von selbst weiter.
+- In den Aktivitäten steht dann „wartet — Vorrang für „Foto verbessern““ bzw. „… „Assistent““; das Verbessern mehrerer
+  Fotos zeigt „Vorrang vor den Hintergrund-Aufgaben“ statt „Grafikkarte geteilt“.
+- ADR-0074 Nachtrag 0.5.12 (`IForegroundWork`, Wartegrund `Foreground`).
+
 ## [0.5.11] — 2026-10-27
 
 ### Added — Foto verbessern: fünf weitere Hochskalier-Modelle, je Foto wählbar

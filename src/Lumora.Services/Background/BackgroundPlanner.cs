@@ -38,6 +38,9 @@ public enum BackgroundWait
 
     /// <summary>Eine wichtigere Aufgabe liest gerade Dateien.</summary>
     Turn,
+
+    /// <summary>Der Benutzer wartet gerade auf eine Arbeit, die Grafikkarte bzw. Prozessor braucht (<see cref="IForegroundWork"/>).</summary>
+    Foreground,
 }
 
 /// <summary>Zustand einer Aufgabe für die Aktivitäts-Anzeige.</summary>
@@ -51,7 +54,9 @@ public sealed record BackgroundJobStateMessage(BackgroundJobState State);
 /// Hintergrund-Planer (ADR-0074): statt dass alle Dienste gleichzeitig dieselben Dateien lesen, vergibt er
 /// <b>eine Datei-Spur</b> nach Vorrang — erst die Metadaten (Aufnahmedatum, Orte, Genauigkeit; abwechselnd Stapel um Stapel
 /// über dieselben Dateien), dann Doppelte, dann Foto-Güte. Gesichter, Motive und Storys brauchen die Spur nicht (Grafikkarte
-/// bzw. Katalog), halten aber wie alle beim Einlesen, beim Katalog-Umzug und bei Pause an.
+/// bzw. Katalog), halten aber wie alle beim Einlesen, beim Katalog-Umzug und bei Pause an. Seit 0.5.12 hat Arbeit, auf die
+/// der Benutzer wartet, Vorrang (<see cref="IForegroundWork"/>): braucht sie die Grafikkarte, warten Gesichter und Motive;
+/// braucht sie den Prozessor, warten alle.
 /// </summary>
 public interface IBackgroundPlanner
 {
@@ -64,7 +69,7 @@ public interface IBackgroundPlanner
     /// <summary>true = Aufgabe nutzt die Datei-Spur.</summary>
     bool UsesFileLane(BackgroundJob job);
 
-    /// <summary>Darf <paramref name="job"/> gerade arbeiten (nicht pausiert, kein Einlesen, kein Katalog-Umzug)? Für
+    /// <summary>Darf <paramref name="job"/> gerade arbeiten (nicht pausiert, kein Einlesen, kein Katalog-Umzug, kein Vorrang)? Für
     /// Aufgaben, die liegengebliebene Arbeit selbst später nachholen, statt zu warten.</summary>
     bool CanRun(BackgroundJob job);
 
@@ -104,6 +109,7 @@ public sealed class BackgroundPlanner : IBackgroundPlanner, IDisposable
     private readonly IDatabaseAccessGate? _catalog;
     private readonly IStorageKindProbe _storage;
     private readonly IMessenger? _messenger;
+    private readonly IForegroundWork? _foreground;
     private readonly ILogger _logger;
     private readonly Lock _lock = new();
     private readonly List<Waiter> _waiters = [];
@@ -115,13 +121,19 @@ public sealed class BackgroundPlanner : IBackgroundPlanner, IDisposable
     private long _sequence;
 
     public BackgroundPlanner(IScanGate? scanGate = null, IDatabaseAccessGate? catalog = null, IStorageKindProbe? storage = null,
-        IMessenger? messenger = null, ILogger<BackgroundPlanner>? logger = null, TimeProvider? time = null)
+        IMessenger? messenger = null, ILogger<BackgroundPlanner>? logger = null, TimeProvider? time = null, IForegroundWork? foreground = null)
     {
         _scanGate = scanGate;
         _catalog = catalog;
         _storage = storage ?? new StorageKindProbe();
         _messenger = messenger;
         _logger = logger ?? (ILogger)NullLogger.Instance;
+        _foreground = foreground;
+        if (_foreground is not null)
+        {
+            _foreground.Changed += OnForegroundChanged;
+        }
+
         _timer = (time ?? TimeProvider.System).CreateTimer(_ => Pump(), null, PollInterval, PollInterval);
     }
 
@@ -144,7 +156,7 @@ public sealed class BackgroundPlanner : IBackgroundPlanner, IDisposable
     {
         lock (_lock)
         {
-            return !_paused.Contains(job) && GlobalBlock() == BackgroundWait.None;
+            return !_paused.Contains(job) && Block(job) == BackgroundWait.None;
         }
     }
 
@@ -256,12 +268,11 @@ public sealed class BackgroundPlanner : IBackgroundPlanner, IDisposable
         var granted = new List<Waiter>();
         lock (_lock)
         {
-            var blocker = GlobalBlock();
             // Datei-Spur: der Wartende mit höchstem Vorrang, bei gleichem Vorrang der älteste (abwechselnd Stapel um Stapel)
             Waiter? next = null;
-            if (_laneHolder is null && blocker == BackgroundWait.None)
+            if (_laneHolder is null)
             {
-                next = _waiters.Where(w => UsesFileLane(w.Job) && !_paused.Contains(w.Job))
+                next = _waiters.Where(w => UsesFileLane(w.Job) && !_paused.Contains(w.Job) && Block(w.Job) == BackgroundWait.None)
                     .OrderBy(w => FileLanePriority[w.Job]).ThenBy(w => w.Sequence).FirstOrDefault();
                 _laneHolder = next?.Job; // vor der Schleife, damit Wartende schon sehen, wer dran ist
             }
@@ -269,6 +280,7 @@ public sealed class BackgroundPlanner : IBackgroundPlanner, IDisposable
             foreach (var w in _waiters.ToList())
             {
                 BackgroundWait wait;
+                var blocker = Block(w.Job);
                 if (_paused.Contains(w.Job))
                 {
                     wait = BackgroundWait.Paused;
@@ -308,11 +320,26 @@ public sealed class BackgroundPlanner : IBackgroundPlanner, IDisposable
         Publish(changed);
     }
 
-    private BackgroundWait GlobalBlock()
+    private BackgroundWait Block(BackgroundJob job)
         => _allPaused ? BackgroundWait.AllPaused
             : _catalog?.IsSuspended == true ? BackgroundWait.CatalogMove
             : _scanGate?.IsAnyBusy == true ? BackgroundWait.Scan
+            : YieldsToForeground(job) ? BackgroundWait.Foreground
             : BackgroundWait.None;
+
+    /// <summary>Prozessor gebraucht → alle warten; nur Grafikkarte → Gesichter und Motive.</summary>
+    private bool YieldsToForeground(BackgroundJob job)
+    {
+        var need = _foreground?.Need ?? ForegroundNeed.None;
+        return need.HasFlag(ForegroundNeed.Cpu) || (need.HasFlag(ForegroundNeed.Gpu) && job is BackgroundJob.Faces or BackgroundJob.Motifs);
+    }
+
+    private void OnForegroundChanged()
+    {
+        _logger.LogInformation("Hintergrund: Vorrang {State}", _foreground?.What is { } what ? $"für „{what}“" : "beendet");
+        Pump();
+        Changed?.Invoke(); // auch ohne Wartende (Storys fragen nur CanRun)
+    }
 
     private string? ReasonFor(BackgroundWait wait) => wait switch
     {
@@ -320,6 +347,7 @@ public sealed class BackgroundPlanner : IBackgroundPlanner, IDisposable
         BackgroundWait.AllPaused => "alle Hintergrund-Aufgaben pausiert",
         BackgroundWait.Scan => "wartet auf das Einlesen",
         BackgroundWait.CatalogMove => "wartet auf den Katalog-Umzug",
+        BackgroundWait.Foreground => _foreground?.What is { } what ? $"wartet — Vorrang für „{what}“" : "wartet — Vorrang für deine Arbeit",
         BackgroundWait.Turn => _laneHolder is { } holder ? $"wartet — zuerst {JobNames.Of(holder)}" : "wartet auf die Reihe",
         _ => null,
     };
@@ -385,7 +413,15 @@ public sealed class BackgroundPlanner : IBackgroundPlanner, IDisposable
         }
     }
 
-    public void Dispose() => _timer.Dispose();
+    public void Dispose()
+    {
+        if (_foreground is not null)
+        {
+            _foreground.Changed -= OnForegroundChanged;
+        }
+
+        _timer.Dispose();
+    }
 
     private sealed class Waiter(BackgroundJob job, long sequence)
     {

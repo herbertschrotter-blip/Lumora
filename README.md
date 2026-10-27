@@ -1173,6 +1173,9 @@ automatische Aktualisierung und Änderungen, die auf den Katalog warten.
   nach der anderen. Während des Einlesens ruhen alle Hintergrund-Aufgaben. Jede hat **Pause/Fortsetzen**; im Kopf der
   Liste hält **Alle pausieren** alles an (Einlesen und Vorschaubilder laufen weiter) — die Pause gilt bis
   **Alle fortsetzen** bzw. bis zum nächsten Start. Die Restzeit folgt der jüngsten Geschwindigkeit; Warten zählt nicht mit.
+  **Vorrang (seit 0.5.12):** Während **Foto verbessern** oder der **Assistent** rechnet, warten die Hintergrund-Aufgaben
+  („wartet — Vorrang für „Foto verbessern““) — Gesichter und Motive schon vor dem nächsten Foto — und laufen danach von
+  selbst weiter.
   Das manuelle Entpacken im Entpacken-Dialog, „Neu aufbauen“ und „Speicherort ändern“ zeigen ihren Fortschritt weiter in
   ihren Dialogen bzw. auf der Bibliotheksseite.
 

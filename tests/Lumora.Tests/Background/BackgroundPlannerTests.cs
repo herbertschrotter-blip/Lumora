@@ -10,11 +10,12 @@ public sealed class BackgroundPlannerTests : IDisposable
     private readonly ManualTimerTime _time = new();
     private readonly ScanGate _scanGate = new(new CommunityToolkit.Mvvm.Messaging.StrongReferenceMessenger());
     private readonly FakeStorage _storage = new();
+    private readonly ForegroundWork _foreground = new();
     private readonly BackgroundPlanner _planner;
 
     public BackgroundPlannerTests()
     {
-        _planner = new BackgroundPlanner(_scanGate, storage: _storage, time: _time);
+        _planner = new BackgroundPlanner(_scanGate, storage: _storage, time: _time, foreground: _foreground);
     }
 
     public void Dispose() => _planner.Dispose();
@@ -114,6 +115,62 @@ public sealed class BackgroundPlannerTests : IDisposable
         (await motifs).Dispose();
         _planner.CanRun(BackgroundJob.Stories).Should().BeTrue();
         changes.Should().BeGreaterThanOrEqualTo(2);
+    }
+
+    [Fact]
+    public async Task Braucht_der_Benutzer_die_Grafikkarte_warten_Gesichter_und_Motive_und_laufen_danach_von_selbst_weiter()
+    {
+        var changes = 0;
+        _planner.Changed += () => changes++;
+        var claim = _foreground.Begin(ForegroundNeed.Gpu, "Foto verbessern");
+
+        var faces = _planner.AcquireAsync(BackgroundJob.Faces, CancellationToken.None);
+        var motifs = _planner.AcquireAsync(BackgroundJob.Motifs, CancellationToken.None);
+        var dates = _planner.AcquireAsync(BackgroundJob.CaptureDates, CancellationToken.None);
+
+        faces.IsCompleted.Should().BeFalse();
+        motifs.IsCompleted.Should().BeFalse();
+        _planner.GetState(BackgroundJob.Faces).Should().Be(
+            new BackgroundJobState(BackgroundJob.Faces, BackgroundWait.Foreground, "wartet — Vorrang für „Foto verbessern“"));
+        dates.IsCompleted.Should().BeTrue("Dateien lesen braucht die Grafikkarte nicht");
+        _planner.CanRun(BackgroundJob.Stories).Should().BeTrue();
+
+        claim.Dispose();
+
+        faces.IsCompleted.Should().BeTrue("ohne Warten auf den nächsten Takt");
+        motifs.IsCompleted.Should().BeTrue();
+        _planner.GetState(BackgroundJob.Motifs).Wait.Should().Be(BackgroundWait.None);
+        changes.Should().BeGreaterThanOrEqualTo(2);
+        (await dates).Dispose();
+    }
+
+    [Fact]
+    public async Task Braucht_der_Benutzer_den_Prozessor_warten_alle_Hintergrund_Aufgaben()
+    {
+        Task<IDisposable> dates, quality;
+        using (_foreground.Begin(ForegroundNeed.Cpu, "Assistent"))
+        {
+            dates = _planner.AcquireAsync(BackgroundJob.CaptureDates, CancellationToken.None);
+            quality = _planner.AcquireAsync(BackgroundJob.Quality, CancellationToken.None);
+
+            dates.IsCompleted.Should().BeFalse();
+            quality.IsCompleted.Should().BeFalse();
+            _planner.CanRun(BackgroundJob.Stories).Should().BeFalse();
+            _planner.GetState(BackgroundJob.CaptureDates).Reason.Should().Be("wartet — Vorrang für „Assistent“");
+
+            using (_foreground.Begin(ForegroundNeed.Gpu, "Foto verbessern"))
+            {
+                _planner.GetState(BackgroundJob.CaptureDates).Reason.Should().Be("wartet — Vorrang für „Foto verbessern“", "die jüngste Arbeit wird genannt");
+            }
+
+            dates.IsCompleted.Should().BeFalse("der Assistent rechnet noch");
+        }
+
+        _planner.CanRun(BackgroundJob.Stories).Should().BeTrue();
+        dates.IsCompleted.Should().BeTrue();
+        quality.IsCompleted.Should().BeFalse("Foto-Güte steht in der Datei-Spur hinter dem Aufnahmedatum");
+        (await dates).Dispose();
+        quality.IsCompleted.Should().BeTrue();
     }
 
     [Fact]

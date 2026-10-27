@@ -48,8 +48,9 @@ public interface IAssistantRuntime
 /// Sprach-KI über Ollama (ADR-0063): Chat mit JSON-Schema, Temperatur 0, Zeitlimit, <c>keep_alive</c> kurz (danach entlädt
 /// Ollama das Modell). Ollama ist ein fremder Prozess — solange eine Anfrage läuft, hält der Assistent die gemeinsame
 /// Grafikkarten-Sperre (<see cref="IGpuGate"/>), damit Gesichts- und Motiv-Erkennung zwischen zwei Fotos pausieren statt
-/// gleichzeitig zu rechnen. Mit „Grafikkarte nutzen“ aus rechnet Ollama nur auf der CPU (ohne Sperre). Protokolliert
-/// nie den Satz, nur Dauer und Erfolg.
+/// gleichzeitig zu rechnen. Mit „Grafikkarte nutzen“ aus rechnet Ollama nur auf der CPU (ohne Sperre). Seit 0.5.12 meldet
+/// er die Anfrage als Vordergrund-Arbeit an (<see cref="Background.IForegroundWork"/>): mit Grafikkarte warten Gesichter und
+/// Motive, auf dem Prozessor alle Hintergrund-Aufgaben. Protokolliert nie den Satz, nur Dauer und Erfolg.
 /// </summary>
 public sealed class OllamaIntentModel : IIntentModel, IAssistantRuntime
 {
@@ -62,15 +63,18 @@ public sealed class OllamaIntentModel : IIntentModel, IAssistantRuntime
     private readonly OllamaClient _client;
     private readonly IAssistantSettingsStore _settings;
     private readonly IGpuGate? _gpu;
+    private readonly Background.IForegroundWork? _foreground;
     private readonly IOllamaLocator _locator;
     private readonly ILogger<OllamaIntentModel> _logger;
 
-    public OllamaIntentModel(OllamaClient client, IAssistantSettingsStore settings, ILogger<OllamaIntentModel> logger, IGpuGate? gpu = null, IOllamaLocator? locator = null)
+    public OllamaIntentModel(OllamaClient client, IAssistantSettingsStore settings, ILogger<OllamaIntentModel> logger, IGpuGate? gpu = null,
+        IOllamaLocator? locator = null, Background.IForegroundWork? foreground = null)
     {
         _client = client;
         _settings = settings;
         _logger = logger;
         _gpu = gpu;
+        _foreground = foreground;
         _locator = locator ?? new OllamaLocator();
     }
 
@@ -79,6 +83,7 @@ public sealed class OllamaIntentModel : IIntentModel, IAssistantRuntime
         var settings = await _settings.LoadAsync(ct).ConfigureAwait(false);
         var started = System.Diagnostics.Stopwatch.StartNew();
         IDisposable? lease = null;
+        using var priority = _foreground?.Begin(settings.UseGpu ? Background.ForegroundNeed.Gpu : Background.ForegroundNeed.Cpu, "Assistent");
         try
         {
             if (settings.UseGpu && _gpu is not null)

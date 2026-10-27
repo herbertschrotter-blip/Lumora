@@ -279,6 +279,42 @@ public sealed class FaceIndexServiceTests
     }
 
     [Fact]
+    public async Task Vordergrund_Arbeit_auf_der_Grafikkarte_haelt_die_Erkennung_vor_dem_naechsten_Foto_an()
+    {
+        // ADR-0074 Nachtrag 0.5.12: verbessert der Benutzer ein Foto, wartet die Erkennung nach dem laufenden Foto
+        using var fx = await TempLibraryFixture.CreateAsync();
+        var lib = await fx.CreateLibraryAsync();
+        for (var i = 0; i < 5; i++)
+        {
+            fx.WriteLibraryFile($"f{i}.jpg");
+        }
+
+        await fx.ScanAsync(lib.Id);
+        var foreground = new Lumora.Services.Background.ForegroundWork();
+        using var planner = new Lumora.Services.Background.BackgroundPlanner(foreground: foreground);
+        var factory = new FakeFaceAnalyzerFactory { Gate = new SemaphoreSlim(0) };
+        using var service = new FaceIndexService(
+            fx.ContextFactory, fx.CreateLibraryService(), factory, new FakeFaceImageLoader(),
+            new MemoryFaceSettingsStore(new FaceIndexSettings(true, true)), NullLogger<FaceIndexService>.Instance, fx.Messenger,
+            Options, planner: planner);
+        await service.StartAsync();
+        factory.Gate.Release(1);
+        await WaitUntilAsync(() => factory.Calls == 1, "ein Foto");
+
+        var claim = foreground.Begin(Lumora.Services.Background.ForegroundNeed.Gpu, "Foto verbessern");
+        factory.Gate.Release(100);
+        await WaitUntilAsync(() => planner.GetState(Lumora.Services.Background.BackgroundJob.Faces).Wait == Lumora.Services.Background.BackgroundWait.Foreground, "wartet");
+        var callsWhileWaiting = factory.Calls;
+        await Task.Delay(300);
+        callsWhileWaiting.Should().BeLessThanOrEqualTo(2, "höchstens das schon laufende Foto wird fertig");
+        factory.Calls.Should().Be(callsWhileWaiting, "während des Vorrangs rechnet die Erkennung nicht weiter");
+
+        claim.Dispose();
+        await WaitForIdleAsync(service, total: 5);
+        factory.Calls.Should().Be(5);
+    }
+
+    [Fact]
     public async Task Abbrechen_schreibt_schon_analysierte_Fotos_unabhaengig_vom_Schreib_Intervall()
     {
         // Wackel-Test unter Last (Issue #20, 0.4.41): War nach dem ersten Foto das Schreib-Intervall abgelaufen, wurde es

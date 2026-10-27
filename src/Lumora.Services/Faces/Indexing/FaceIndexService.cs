@@ -477,6 +477,12 @@ public sealed class FaceIndexService : IFaceIndexService, IDisposable
                         loads.Enqueue(StartLoad(candidates[next++]));
                     }
 
+                    // Vorrang für Arbeit, auf die der Benutzer wartet (Foto verbessern, Assistent): vor jedem Foto fragen (ADR-0074)
+                    if (await Background.BackgroundPlanner.WaitForPermissionAsync(_planner, Background.BackgroundJob.Faces, ct).ConfigureAwait(false))
+                    {
+                        state.ResetClock();
+                    }
+
                     FaceFileResult? result;
                     // Nie zugleich mit der Motiv-Erkennung auf der Grafikkarte (ADR-0052): Sperre je Foto, nur mit DirectML.
                     using (await AcquireGpuAsync(analyzer, outcome, ct).ConfigureAwait(false))

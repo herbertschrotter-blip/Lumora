@@ -114,9 +114,13 @@ public sealed partial class ActivityBridge
         }
     }
 
-    /// <summary>Wartegrund des Planers, der den ganzen Index anhält (Einlesen, Katalog-Umzug, alle pausiert); sonst null.</summary>
+    /// <summary>Wartegrund des Planers, der den ganzen Index anhält (Einlesen, Katalog-Umzug, alle pausiert, Vorrang); sonst null.</summary>
     private string? GlobalWait(BackgroundJob job)
-        => _planner?.GetState(job) is { Wait: BackgroundWait.Scan or BackgroundWait.CatalogMove or BackgroundWait.AllPaused, Reason: { } reason } ? reason : null;
+        => _planner?.GetState(job) is
+        {
+            Wait: BackgroundWait.Scan or BackgroundWait.CatalogMove or BackgroundWait.AllPaused or BackgroundWait.Foreground,
+            Reason: { } reason,
+        } ? reason : null;
 
     /// <summary>Warteschlange der Vorschaubilder: Fortschritt = höchster Stand seit Beginn minus Rest.</summary>
     internal void PollThumbnails()

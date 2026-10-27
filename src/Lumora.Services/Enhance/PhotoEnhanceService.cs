@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Lumora.Services.Activity;
+using Lumora.Services.Background;
 using Lumora.Services.Database;
 using Lumora.Services.Faces;
 using Lumora.Services.Infrastructure;
@@ -74,6 +75,7 @@ public sealed class PhotoEnhanceService : IPhotoEnhanceService, IDisposable
     private readonly IFileOperationService _fileOps;
     private readonly IGpuGate _gpu;
     private readonly IActivityCenter? _activities;
+    private readonly IForegroundWork? _foreground;
     private readonly ILogger _logger;
     private readonly IMessenger _messenger;
     private readonly Dictionary<EnhanceTool, (IEnhanceEngine Engine, bool UseGpu)> _loaded = [];
@@ -96,7 +98,8 @@ public sealed class PhotoEnhanceService : IPhotoEnhanceService, IDisposable
         IEnhanceFaceLocator? faces = null,
         IActivityCenter? activities = null,
         ILogger<PhotoEnhanceService>? logger = null,
-        IMessenger? messenger = null)
+        IMessenger? messenger = null,
+        IForegroundWork? foreground = null)
     {
         _factory = factory;
         _storage = storage;
@@ -108,6 +111,7 @@ public sealed class PhotoEnhanceService : IPhotoEnhanceService, IDisposable
         _gpu = gpu;
         _faces = faces;
         _activities = activities;
+        _foreground = foreground;
         _logger = logger ?? (ILogger)NullLogger.Instance;
         // Neu geladene oder entfernte Modelle: geladene Sitzungen verwerfen (beim nächsten Lauf neu)
         _messenger = messenger ?? WeakReferenceMessenger.Default;
@@ -205,8 +209,15 @@ public sealed class PhotoEnhanceService : IPhotoEnhanceService, IDisposable
         RequireModels(options, status);
         var info = await LoadInfoAsync(fileId, ct).ConfigureAwait(false);
         var ready = status.Where(s => s.Ready && s.ModelId is not null).Select(s => s.Tool).ToHashSet();
+        using var priority = BeginForeground();
         return await Task.Run(() => RenderCoreAsync(info, options, settings, ready, progress, ct), ct).ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// Vorrang vor den Hintergrund-Aufgaben (ADR-0074 Nachtrag 0.5.12): der Benutzer wartet auf das Ergebnis. Auch mit
+    /// Grafikkarte braucht das Verbessern den Prozessor (Laden, Kacheln, Speichern) — deshalb pausieren alle.
+    /// </summary>
+    private IDisposable? BeginForeground() => _foreground?.Begin(ForegroundNeed.Gpu | ForegroundNeed.Cpu, "Foto verbessern");
 
     private async Task<EnhancePreview> RenderCoreAsync(
         FileInfoRow info,
@@ -670,7 +681,9 @@ public sealed class PhotoEnhanceService : IPhotoEnhanceService, IDisposable
             ids.Count == 1 ? "1 Foto" : $"{ids.Count:N0} Fotos",
             UserInitiated: true,
             Cancel: () => _ = linked.CancelAsync()));
-        handle?.Report(0, ids.Count, "im Hintergrund · Grafikkarte geteilt mit Gesichtern und Motiven");
+        using var priority = BeginForeground();
+        var detail = _foreground is null ? "im Hintergrund · Grafikkarte geteilt mit Gesichtern und Motiven" : "Vorrang vor den Hintergrund-Aufgaben";
+        handle?.Report(0, ids.Count, detail);
 
         var finished = new List<(FileInfoRow Info, EnhancePreview Preview)>();
         var problems = new List<string>();

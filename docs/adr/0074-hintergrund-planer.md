@@ -110,6 +110,30 @@ Herbert sah „7 laufend“ und fragte, ob man das nicht besser aufteilen könne
   übergeben wird. Das betrifft Tests und Rückfall.
 - **Pause nur für die Sitzung:** Pause-Zustände werden nicht gespeichert; nach einem Neustart läuft alles wieder.
 
+## Nachtrag 0.5.12 — Vorrang für Arbeit, auf die der Benutzer wartet (Herbert, 2026-10-27)
+
+**Anlass:** Herbert: „wenn ich grafikkarte bei zb verbesserung brauche dann sollen andere hintergrundaufgaben kurz pausiert
+werden. ziel soll es sein alles was ich momentan mache und brauche so schnell wie möglich zu machen.“ Bisher teilten sich
+Verbessern, Gesichter und Motive die Grafikkarte Foto um Foto (`IGpuGate`, FIFO) — das Verbessern wartete zwischen seinen
+Schritten jeweils auf ein Hintergrund-Foto, und die Dateidienste rechneten auf dem Prozessor weiter.
+
+**Entscheidung:**
+- `IForegroundWork` (Singleton, `AddBackgroundPlanner`): Arbeit, auf die der Benutzer wartet, meldet sich mit
+  `Begin(ForegroundNeed, Name)` an (Dispose = ab; mehrere zugleich erlaubt). `ForegroundNeed.Gpu` → Gesichter und Motive
+  warten; `ForegroundNeed.Cpu` → alle Aufgaben warten. Der Planer prüft das in `Block(job)` nach Alle-Pause, Katalog-Umzug
+  und Einlesen; neuer Wartegrund `BackgroundWait.Foreground` mit Text „wartet — Vorrang für „Name““ (jüngste Arbeit). An-
+  und Abmelden lösen sofort eine neue Vergabe aus (kein Warten auf den Takt).
+- **Foto verbessern** meldet `Gpu | Cpu` an (auch mit Grafikkarte braucht es den Prozessor für Laden, Kacheln, Speichern):
+  je Vorschau und für den ganzen Stapel mehrerer Fotos, damit zwischen zwei Fotos nichts dazwischenrutscht.
+- **Assistent** (Ollama) meldet je Anfrage `Gpu` an, ohne Grafikkarte `Cpu`.
+- **Gesichter und Motive** fragen den Planer jetzt **vor jedem Foto** (bisher nur je Lesestapel) — der Vorrang wirkt nach dem
+  laufenden Foto, ebenso Alle-Pause und Einlesen. Die Dateidienste halten weiterhin am Ende ihres Stapels.
+- Die GPU-Sperre bleibt unverändert (Schutz vor gleichzeitigem Rechnen); ein schon an der Sperre wartendes
+  Hintergrund-Foto wird noch fertig.
+
+**Folgen:** Längere Stapel „Foto verbessern“ halten alle Hintergrund-Aufgaben für ihre Dauer an — gewollt (Herbert wartet
+auf das Ergebnis); sie laufen danach von selbst weiter. Vorschaubilder und Einlesen sind nicht betroffen.
+
 ## Alternativen
 
 - **Gemeinsamer Arbeitsplan mit einer Warteschlange je Datei** (ein Leser, der alle Dienste füttert) → verworfen. Großer
@@ -121,9 +145,10 @@ Herbert sah „7 laufend“ und fragte, ob man das nicht besser aufteilen könne
 
 ## Referenzen
 
-- `src/Lumora.Services/Background/BackgroundPlanner.cs`, `StorageKindProbe.cs`
+- `src/Lumora.Services/Background/BackgroundPlanner.cs`, `StorageKindProbe.cs`, `ForegroundWork.cs` (0.5.12)
 - `src/Lumora.Services/Metadata/FileMetadataProbe.cs`
 - `src/Lumora.Services/Activity/ActivityBridge.Indexes.cs`, `ActivityCenter.cs`
 - `src/Lumora.Wpf/Shell/Activity/ActivityStatusViewModel.cs` („Alle pausieren“)
 - Tests: `tests/Lumora.Tests/Background/BackgroundPlannerTests.cs`, `Metadata/FileMetadataProbeTests.cs`,
-  `Activity/ActivityCenterTests.cs`, `Activity/ActivityBridgeTests.cs`
+  `Activity/ActivityCenterTests.cs`, `Activity/ActivityBridgeTests.cs`, `Enhance/EnhanceForegroundTests.cs`,
+  `Faces/FaceIndexServiceTests.cs` (Vorrang, 0.5.12)
