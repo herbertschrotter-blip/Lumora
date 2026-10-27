@@ -52,6 +52,7 @@ public sealed partial class LightboxViewModel
         var version = ++_placeRowVersion;
         _ = LoadPlaceRowAsync(item, version);
         QueueGeoHint(item); // „Position geschätzt“ (ADR-0062)
+        QueueTour(item); // Abschnitt „Tour“ (ADR-0073 Stufe 7, Mockup 24)
     }
 
     private async Task LoadPlaceRowAsync(LightboxItem item, int version)

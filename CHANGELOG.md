@@ -3,6 +3,38 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.25] — 2026-10-27
+
+### Added — App-Verbindung Stufe 7 (Teil B): Galerie-Filter „Tour“ (Mockup 24)
+- **Chip „Tour ▾“** in der Zeile „Inhalt“ der Filterkarte. Die Auswahl zeigt die Touren verbundener Apps nach Jahren
+  (neueste zuerst): Sportart, Datum, Länge, Höhenmeter, Region, bestiegene Gipfel und die Zahl der Fotos im aktuellen
+  Bereich.
+  - Suche nach Tour, Gipfel oder Region; Schnellfilter „nur mit Fotos“ und Sportarten.
+  - Unten „Touren abgleichen“; ohne Touren ein Hinweis mit „Verbundene Apps…“.
+  - Der Chip erscheint erst, wenn es Touren gibt (wie Alben und Kategorien). Ohne Touren bleibt die Zeile „Inhalt“ bei
+    1280 DIP einzeilig; mit Touren und allen anderen Chips bricht sie in zwei Zeilen um.
+- **Gefiltert** wird auf den Zeitraum der Tour.
+  - Die Aufnahmezeit wird abgeglichen wie bei „Ungenaue Orte“: Zeitzone der Datei, GPS-Zeit, Kamera-Abweichung, Toleranz
+    aus Einstellungen › Orte.
+  - Der Filter gilt UND mit allen anderen Filtern; „Es gilt“ nennt „Tour „Name“ · Datum Uhrzeit–Uhrzeit“ mit ✕.
+- **Tour-Leiste über den Fotos:** Name, Zahlen und Gipfel, dazu „Auf der Karte“ (Seite „Orte“ auf den Rahmen der Tour)
+  und „Im Gipfelbuch öffnen“. Darunter ein Zeitstrahl mit einem Strich je Foto und der Ankunft am Gipfel.
+- **Lightbox:** Abschnitt „Tour“ mit Name, Sportart, Länge, Höhenmetern und Gipfeln samt Ankunftszeit. „Alle n Fotos
+  dieser Tour“ setzt den Filter und schließt die Lightbox.
+- Wechselt der Bibliotheksbereich, werden die Fotos der aktiven Tour neu bestimmt. Fotos ohne Aufnahmedatum gehören zu
+  keiner Tour.
+- **Technik:**
+  - `IAppTourReader` (Liste mit Fotozahlen, Fotos einer Tour, Tour eines Fotos).
+  - `GalleryTourFilter` (Id-Liste in der SQL).
+  - Gemeinsamer Zeitabgleich `PhotoTimeResolver.ResolveCatalog` für Vorschläge und Touren.
+  - Nachrichten `ShowTourInGalleryMessage` und `ShowAreaOnMapMessage`.
+- **Tests und Prüfungen:**
+  - `AppTourReaderTests`: Zeitabgleich, Toleranz, ohne Aufnahmedatum, Bereich, Reihenfolge, Gipfel, Rahmen, Lightbox.
+  - Galerie-SQL mit Tour UND anderen Filtern.
+  - `GalleryTourTests`: Texte, Tour-Leiste, Zeitstrahl.
+  - Rauchtest-Schritt „Galerie-Filter Tour“ mit hell und dunkel.
+- ADR-0073 Nachtrag 0.5.25. (refs #5)
+
 ## [0.5.24] — 2026-10-27
 
 ### Added — App-Verbindung Stufe 7 (Teil A): Touren vom Gipfelbuch als Spuren für „Ungenaue Orte“

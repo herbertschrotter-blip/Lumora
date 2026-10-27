@@ -220,6 +220,25 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- Tour (ADR-0073 Stufe 7, Mockup 24): Tour einer verbundenen App zur Aufnahmezeit -->
+                        <StackPanel Visibility="{Binding HasTour, Converter={StaticResource BoolToVis}}"
+                                    AutomationProperties.AutomationId="LightboxTour">
+                            <TextBlock Style="{StaticResource InfoHeader}" Text="TOUR" Margin="0,14,0,8" />
+                            <TextBlock Text="{Binding TourName}" FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource LightboxTextBrush}" />
+                            <TextBlock Text="{Binding TourDetails}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"
+                                       Foreground="{DynamicResource LightboxTextSecondaryBrush}" />
+                            <TextBlock Text="{Binding TourPeaks}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"
+                                       Foreground="{DynamicResource LightboxTextBrush}"
+                                       Visibility="{Binding TourPeaks, Converter={StaticResource StringToVis}}" />
+                            <Button Style="{StaticResource LightboxOverlayButton}" Padding="10,4" MinHeight="28" Margin="0,8,0,0"
+                                    HorizontalAlignment="Left" Background="{DynamicResource LightboxChipBrush}"
+                                    AutomationProperties.Name="Alle Fotos dieser Tour"
+                                    Command="{Binding ShowTourInGalleryCommand}">
+                                <TextBlock Text="{Binding TourLinkText}" FontSize="12" Foreground="{DynamicResource LightboxTextBrush}" />
+                            </Button>
+                        </StackPanel>
+
                         <TextBlock Style="{StaticResource InfoHeader}"
                                    Text="{Binding MediaInfoHeader}"
                                    Margin="0,14,0,8" />

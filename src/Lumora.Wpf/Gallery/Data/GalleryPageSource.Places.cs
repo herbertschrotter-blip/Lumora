@@ -37,6 +37,12 @@ public sealed partial class GalleryPageSource
             yield return $"AND ({string.Join(" OR ", parts)})";
         }
 
+        if (filter.Tour is { } tour)
+        {
+            // Tour (ADR-0073 Stufe 7): die beim Wählen bestimmten Dateien; ohne Treffer nichts
+            yield return tour.FileIds.Count == 0 ? "AND 0" : $"AND f.Id IN ({Literals(tour.FileIds)})";
+        }
+
         if (filter.Geo is { IsActive: true } geo)
         {
             if (UsesIdList(geo) && geo.FileIds is { } ids)

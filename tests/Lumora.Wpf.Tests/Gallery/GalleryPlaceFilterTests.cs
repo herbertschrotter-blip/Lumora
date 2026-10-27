@@ -96,6 +96,20 @@ public sealed class GalleryPlaceFilterTests(GalleryPlaceFilterTests.Catalog cata
     }
 
     [Fact]
+    public async Task Tour_zeigt_nur_ihre_Dateien_und_wirkt_mit_den_anderen_Filtern()
+    {
+        // Filter „Tour“ (ADR-0073 Stufe 7, Mockup 24): Id-Liste aus dem Tour-Leser, UND mit allen anderen Filtern
+        var ids = catalog.Ids;
+        var tour = new GalleryTourFilter(1, [ids["wien1.jpg"], ids["wien2.mp4"], ids["rom.jpg"]], "Handalm");
+        (await NamesAsync(new GalleryFilterState { Tour = tour })).Should().Equal("rom.jpg", "wien1.jpg", "wien2.mp4");
+        (await NamesAsync(new GalleryFilterState(GalleryMediaKind.Images) { Tour = tour })).Should().Equal("rom.jpg", "wien1.jpg");
+        (await NamesAsync(new GalleryFilterState { Tour = tour, Place = new GalleryPlaceFilter([Wien], false) })).Should().Equal("wien1.jpg", "wien2.mp4");
+        (await NamesAsync(new GalleryFilterState { Tour = tour with { FileIds = [] } })).Should().BeEmpty("keine Fotos aus der Zeit der Tour");
+        new GalleryFilterState { Tour = tour }.ActiveCount.Should().Be(1);
+        new GalleryFilterState { Tour = tour }.ToString().Should().Contain("Tour=3");
+    }
+
+    [Fact]
     public async Task Orte_mit_ODER_und_ohne_Ort()
     {
         (await NamesAsync(new GalleryFilterState { Place = new GalleryPlaceFilter([Wien], false) }))

@@ -63,6 +63,9 @@ public sealed record GalleryFilterState(
     /// <summary>Nur „Lieblinge“: Fotos mit gelernter Vorliebe aus der Nutzung (ADR-0072, Chip in der Zeile „Datei“).</summary>
     public bool LovedOnly { get; init; }
 
+    /// <summary>Tour einer verbundenen App (ADR-0073 Stufe 7, Mockup 24, Zeile „Inhalt“); null = keine.</summary>
+    public GalleryTourFilter? Tour { get; init; }
+
     /// <summary>Mindest-Bewertung auf 0–5 begrenzt.</summary>
     public int EffectiveMinRating => Math.Clamp(MinRating, 0, MaxRating);
 
@@ -75,7 +78,8 @@ public sealed record GalleryFilterState(
            + (Place is { IsActive: true } ? 1 : 0)
            + (Geo is { IsActive: true } ? 1 : 0)
            + (Duplicates is not null ? 1 : 0)
-           + (LovedOnly ? 1 : 0);
+           + (LovedOnly ? 1 : 0)
+           + (Tour is not null ? 1 : 0);
 
     public bool IsActive => ActiveCount > 0;
 
@@ -85,5 +89,6 @@ public sealed record GalleryFilterState(
            + (Place is { IsActive: true } p ? $" Ort={p.PlaceIds.Count}{(p.IncludeWithoutLocation ? "+ohne" : string.Empty)}" : string.Empty)
            + (Geo is { IsActive: true } g ? $" Karte={g.FileIds?.Count.ToString() ?? "Ausschnitt"}" : string.Empty)
            + (Duplicates is not null ? " Doppelte" : string.Empty)
-           + (LovedOnly ? " Lieblinge" : string.Empty);
+           + (LovedOnly ? " Lieblinge" : string.Empty)
+           + (Tour is { } t ? $" Tour={t.FileIds.Count}" : string.Empty);
 }

@@ -1,0 +1,192 @@
+<UserControl x:Class="Lumora.Gallery.Tours.TourFilterDropDown"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:gc="clr-namespace:Lumora.Gallery.Controls"
+             xmlns:local="clr-namespace:Lumora.Gallery.Tours"
+             xmlns:shell="clr-namespace:Lumora.Shell"
+             x:Name="Root"
+             Focusable="False">
+    <!--
+        Chip „Tour ▾“ in der Zeile „Inhalt“ (ADR-0073 Stufe 7, Mockup 24). Auswahl: Suche, Schnellfilter, Touren nach Jahren
+        (neueste zuerst) mit Sportart, Datum, Länge, Höhenmetern, Region, Gipfeln und Fotozahl im Bereich; ein Klick setzt den
+        Filter. Fuß: „n Touren aus dem Gipfelbuch“, „Touren abgleichen“, „Leeren“. Ohne Touren der Leer-Zustand mit
+        „Verbundene Apps…“. DataContext = GalleryViewModel (GalleryViewModel.Tours.cs).
+    -->
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="../Controls/GalleryFilterStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <BooleanToVisibilityConverter x:Key="BoolToVis" />
+            <shell:BoolToVisibilityConverter x:Key="InvBoolToVis" Invert="True" />
+            <shell:NullToVisibilityConverter x:Key="NullToVis" />
+
+            <!-- Eine Tour als flacher Knopf (ganze Zeile klickbar) -->
+            <Style x:Key="TourRowButton" TargetType="Button">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Bg" Background="{TemplateBinding Background}" CornerRadius="4" Padding="8,6">
+                                <ContentPresenter />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bg" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <Grid>
+        <ToggleButton x:Name="Toggle"
+                      Style="{StaticResource GalleryFilterChip}"
+                      AutomationProperties.AutomationId="GalleryTourFilterButton"
+                      AutomationProperties.Name="{Binding TourFilterChipText}"
+                      ToolTip="Fotos aus der Zeit einer Tour verbundener Apps (z. B. Gipfelbuch)"
+                      gc:FilterChip.IsActive="{Binding HasTourFilter}"
+                      IsChecked="{Binding IsOpen, ElementName=FilterPopup, Mode=TwoWay}">
+            <StackPanel Orientation="Horizontal">
+                <ui:SymbolIcon Symbol="Run24" FontSize="13" Margin="0,0,6,0" />
+                <TextBlock Text="{Binding TourFilterChipText}" MaxWidth="260" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                <ui:SymbolIcon Symbol="ChevronDown24" FontSize="10" Margin="6,0,0,0" />
+            </StackPanel>
+        </ToggleButton>
+
+        <Popup x:Name="FilterPopup"
+               PlacementTarget="{Binding ElementName=Toggle}"
+               Placement="Bottom"
+               StaysOpen="False"
+               AllowsTransparency="True"
+               PopupAnimation="Fade"
+               Opened="OnPopupOpened"
+               Closed="OnPopupClosed">
+            <Border Style="{StaticResource GalleryFlyoutBorder}" Width="520" MaxHeight="600">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top">
+                        <TextBlock Text="FOTOS EINER TOUR" Style="{StaticResource GalleryFlyoutHeading}" />
+                        <ui:TextBox x:Name="SearchBox"
+                                    Margin="0,0,0,6"
+                                    PlaceholderText="Tour, Gipfel oder Region suchen"
+                                    Icon="{ui:SymbolIcon Search24}"
+                                    ClearButtonEnabled="True"
+                                    AutomationProperties.Name="Tour suchen"
+                                    Visibility="{Binding HasTours, Converter={StaticResource BoolToVis}}"
+                                    Text="{Binding TourFilterSearch, UpdateSourceTrigger=PropertyChanged}" />
+                        <ListBox ItemsSource="{Binding TourQuickFilters}"
+                                 SelectedItem="{Binding SelectedTourQuickFilter, Mode=TwoWay}"
+                                 DisplayMemberPath="Label"
+                                 Style="{StaticResource GallerySegmentListBox}"
+                                 ItemContainerStyle="{StaticResource GallerySegmentListBoxItem}"
+                                 HorizontalAlignment="Left" Margin="0,0,0,6"
+                                 AutomationProperties.Name="Touren eingrenzen"
+                                 Visibility="{Binding HasTours, Converter={StaticResource BoolToVis}}" />
+                        <TextBlock Text="Touren werden geladen…" FontSize="12"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   Visibility="{Binding IsLoadingTours, Converter={StaticResource BoolToVis}}" />
+                    </StackPanel>
+
+                    <!-- Fuß: Herkunft, Abgleich, Leeren -->
+                    <Grid DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="{Binding ToursSummaryText}" Style="{StaticResource GalleryFlyoutHint}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <ui:Button Content="Touren abgleichen" Command="{Binding SyncToursCommand}" Margin="0,0,6,0"
+                                       Visibility="{Binding HasTours, Converter={StaticResource BoolToVis}}"
+                                       AutomationProperties.Name="Touren abgleichen" />
+                            <ui:Button Content="Leeren" ToolTip="Tour-Filter aufheben" Command="{Binding ClearTourFilterCommand}" Click="OnCloseClick"
+                                       Visibility="{Binding HasTourFilter, Converter={StaticResource BoolToVis}}" Margin="0,0,6,0" />
+                            <ui:Button Content="Fertig" Appearance="Primary" Click="OnCloseClick" />
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid>
+                        <!-- Leer-Zustand -->
+                        <StackPanel Margin="4,8" Visibility="{Binding HasTours, Converter={StaticResource InvBoolToVis}}"
+                                    AutomationProperties.AutomationId="GalleryTourFilterEmpty">
+                            <TextBlock Text="Noch keine Touren" FontWeight="SemiBold" Margin="0,0,0,4" />
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       Text="Touren kommen aus dem Gipfelbuch. Verbinde es unter Einstellungen › Verbundene Apps und erlaube dort „Touren“ — Lumora holt sie dann beim nächsten Start oder mit „Touren abgleichen“." />
+                            <ui:Button Content="Verbundene Apps…" Margin="0,8,0,0" Icon="{ui:SymbolIcon Settings24}"
+                                       Command="{Binding OpenConnectedAppsCommand}" Click="OnCloseClick" />
+                        </StackPanel>
+
+                        <ItemsControl x:Name="TourList"
+                                      ItemsSource="{Binding TourFilterEntries}"
+                                      AutomationProperties.Name="Touren"
+                                      Visibility="{Binding HasTours, Converter={StaticResource BoolToVis}}"
+                                      VirtualizingStackPanel.IsVirtualizing="True"
+                                      VirtualizingStackPanel.VirtualizationMode="Recycling"
+                                      ScrollViewer.CanContentScroll="True">
+                            <ItemsControl.Template>
+                                <ControlTemplate TargetType="ItemsControl">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" CanContentScroll="True" Focusable="False">
+                                        <ItemsPresenter />
+                                    </ScrollViewer>
+                                </ControlTemplate>
+                            </ItemsControl.Template>
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <VirtualizingStackPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type local:TourFilterEntry}">
+                                    <StackPanel Visibility="{Binding IsVisible, Converter={StaticResource BoolToVis}}">
+                                        <TextBlock Text="{Binding YearText}" Style="{StaticResource GalleryFlyoutHeading}" Margin="8,8,0,2"
+                                                   Visibility="{Binding ShowYear, Converter={StaticResource BoolToVis}}" />
+                                        <Button x:Name="Row" Style="{StaticResource TourRowButton}"
+                                                AutomationProperties.Name="{Binding Name}"
+                                                Command="{Binding DataContext.SelectTourCommand, ElementName=Root}"
+                                                CommandParameter="{Binding}"
+                                                Click="OnCloseClick">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <Border Width="28" Height="28" CornerRadius="6" VerticalAlignment="Top" Margin="0,0,10,0"
+                                                        Background="{DynamicResource SubtleFillColorSecondaryBrush}">
+                                                    <ui:SymbolIcon Symbol="{Binding Symbol}" FontSize="14" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                </Border>
+                                                <StackPanel Grid.Column="1">
+                                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Text="{Binding Line}" FontSize="12" TextWrapping="Wrap"
+                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                    <TextBlock Text="{Binding PeakLine}" FontSize="12" TextWrapping="Wrap"
+                                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                               Visibility="{Binding PeakLine, Converter={StaticResource NullToVis}}" />
+                                                </StackPanel>
+                                                <TextBlock x:Name="Count" Grid.Column="2" Text="{Binding CountText}" FontSize="12" Margin="10,0,0,0"
+                                                           VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            </Grid>
+                                        </Button>
+                                    </StackPanel>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                            <Setter TargetName="Row" Property="Background" Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding HasPhotos}" Value="False">
+                                            <Setter TargetName="Count" Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Grid>
+                </DockPanel>
+            </Border>
+        </Popup>
+    </Grid>
+</UserControl>

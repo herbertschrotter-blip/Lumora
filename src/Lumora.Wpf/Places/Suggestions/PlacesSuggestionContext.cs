@@ -18,8 +18,12 @@ public sealed class PlacesSuggestionContext(
     ILibraryScope scope,
     IReverseGeocoder geocoder,
     PlaceActions? placeActions = null,
-    IExternalTrackSync? externalTracks = null)
+    IExternalTrackSync? externalTracks = null,
+    IAppTourReader? tours = null)
 {
+    /// <summary>Touren verbundener Apps (Lightbox-Abschnitt „Tour“, Mockup 24); null in Tests.</summary>
+    public IAppTourReader? Tours { get; } = tours;
+
     /// <summary>Spuren aus verbundenen Apps nachfragen (App-Verbindung Stufe 7); null in Tests.</summary>
     public IExternalTrackSync? ExternalTracks { get; } = externalTracks;
 

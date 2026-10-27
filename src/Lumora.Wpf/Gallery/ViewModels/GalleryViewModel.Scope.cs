@@ -67,8 +67,14 @@ public sealed partial class GalleryViewModel
             return false;
         }
 
+        var changed = !_scope.LibraryIds.SequenceEqual(scope.LibraryIds);
         _scope = scope;
         NotifyScopeChanged();
+        if (changed)
+        {
+            OnScopeChangedForTours(); // Fotos der aktiven Tour im neuen Bereich (GalleryViewModel.Tours.cs)
+        }
+
         return true;
     }
 

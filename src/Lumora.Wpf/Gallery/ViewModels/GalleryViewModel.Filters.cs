@@ -80,7 +80,7 @@ public sealed partial class GalleryViewModel
     /// </summary>
     public GalleryFilterState FilterState
     {
-        get => new(MediaFilter, FavoritesOnly, LocationFilter, MinRating) { Place = _placeFilter, Geo = _geoFilter, Duplicates = DuplicateFilter, LovedOnly = LovedOnly }; // Ort/Karte: ADR-0050, Doppelte: ADR-0053, Lieblinge: ADR-0072
+        get => new(MediaFilter, FavoritesOnly, LocationFilter, MinRating) { Place = _placeFilter, Geo = _geoFilter, Duplicates = DuplicateFilter, LovedOnly = LovedOnly, Tour = _tourFilter }; // Ort/Karte: ADR-0050, Doppelte: ADR-0053, Lieblinge: ADR-0072, Tour: ADR-0073
         set
         {
             var suppress = _suppressReload;
@@ -94,6 +94,7 @@ public sealed partial class GalleryViewModel
                 DuplicatesOnly = value.Duplicates is not null; // ADR-0053
                 LovedOnly = value.LovedOnly; // ADR-0072
                 SetPlaceFiltersFromState(value); // GalleryViewModel.Places.cs
+                SetTourFromState(value); // GalleryViewModel.Tours.cs
             }
             finally
             {
@@ -102,6 +103,7 @@ public sealed partial class GalleryViewModel
 
             NotifyFileFilterChanged();
             NotifyPlaceFilterChanged();
+            NotifyTourFilterChanged();
             if (!_suppressReload && _isInitialized)
             {
                 FireAndForget(ChangeQueryAsync);
@@ -194,6 +196,7 @@ public sealed partial class GalleryViewModel
             DuplicatesOnly = false; // ADR-0053
             LovedOnly = false; // ADR-0072
             ResetPlaceFilterCore(); // Ort und Kartenausschnitt (ADR-0050)
+            ResetTourFilterCore(); // Tour (ADR-0073 Stufe 7)
         }
         finally
         {
@@ -202,6 +205,7 @@ public sealed partial class GalleryViewModel
 
         NotifyFileFilterChanged();
         NotifyPlaceFilterChanged();
+        NotifyTourFilterChanged();
     }
 
     /// <summary>Knopf „Bewertung“: Eintrag gewählt.</summary>
@@ -226,6 +230,11 @@ public sealed partial class GalleryViewModel
 
     internal static string EmptyMessageForFileFilter(GalleryFilterState filter)
     {
+        if (filter.Tour is not null)
+        {
+            return "Keine Fotos aus der Zeit dieser Tour."; // ADR-0073 Stufe 7
+        }
+
         if (filter.Geo is { IsActive: true })
         {
             return "Keine Dateien in diesem Kartenausschnitt."; // ADR-0050
@@ -381,6 +390,7 @@ public sealed partial class GalleryViewModel
         }
 
         list.AddRange(PlaceConditions().Select(c => (c.Kind, c.Label, (int?)null))); // Ort, Kartenausschnitt (ADR-0050)
+        list.AddRange(TourConditions().Select(c => (c.Kind, c.Label, (int?)null))); // Tour (ADR-0073 Stufe 7)
 
         if (HasTagFilter)
         {
@@ -526,6 +536,8 @@ public sealed partial class GalleryViewModel
                 return ClearPlaceFilterAsync(); // ADR-0050
             case GalleryFilterConditionKind.MapArea:
                 return ClearMapAreaFilterAsync();
+            case GalleryFilterConditionKind.Tour:
+                return ClearTourFilterAsync(); // ADR-0073 Stufe 7
             case GalleryFilterConditionKind.Motifs:
                 return ClearMotifFilterAsync(); // ADR-0052
             case GalleryFilterConditionKind.Album:

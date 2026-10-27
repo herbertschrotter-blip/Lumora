@@ -34,6 +34,9 @@ public enum GalleryFilterConditionKind
 
     /// <summary>Nur „Lieblinge“ aus der gelernten Nutzung (ADR-0072).</summary>
     Loved,
+
+    /// <summary>Tour einer verbundenen App (ADR-0073 Stufe 7, Mockup 24).</summary>
+    Tour,
 }
 
 /// <summary>

@@ -149,8 +149,11 @@ public sealed partial class GalleryViewModel : ObservableObject
         Lumora.Removal.RemovalActions? removalActions = null,
         Lumora.Marks.MarkSettingsState? markSettings = null,
         Lumora.Services.Rotation.IPhotoRotationService? rotation = null,
-        Lumora.Enhance.EnhanceGalleryActions? enhance = null)
+        Lumora.Enhance.EnhanceGalleryActions? enhance = null,
+        Lumora.Services.Places.Tracks.IAppTourReader? tours = null,
+        Lumora.AppConnect.AppConnectRuntime? appConnect = null)
     {
+        InitTours(tours, appConnect, navigation); // Filter „Tour“ (ADR-0073 Stufe 7, Mockup 24, GalleryViewModel.Tours.cs)
         _rotation = rotation; // Rückgängig für „Drehen“ (ADR-0068, GalleryViewModel.Rotation.cs)
         InitMarks(markSettings); // Schalter „Symbole auf Galerie-Kacheln“ (Mockup 16, GalleryViewModel.Marks.cs)
         _removalActions = removalActions; // „Aus der Bibliothek entfernen“ für fehlende (ADR-0065, GalleryViewModel.MissingFiles.cs)

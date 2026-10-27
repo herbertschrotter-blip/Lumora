@@ -27,7 +27,7 @@ Lumora setzt **App-Verbindung Version 1.1** um, in sieben Stufen (Plan vom 2026-
 | 4 | 0.5.13 | Reiter „Verbundene Apps“ nach Mockup 11 |
 | 5 | 0.5.16 | Foto-Endpunkte als Anbieter (8.1) |
 | 6 | 0.5.20 | Hintergrundmodus und Start durch andere Apps (9) |
-| 7 | 0.5.24 (A) | Touren, Spuren, Gipfel nutzen (8.2) — A: Touren als Ortsquelle in 0.5.24; B: Galerie-Filter „Tour“ nach Mockup 24 |
+| 7 | 0.5.24 / 0.5.25 | Touren, Spuren, Gipfel nutzen (8.2) — A: Touren als Ortsquelle in 0.5.24; B: Galerie-Filter „Tour“ nach Mockup 24 in 0.5.25 |
 
 Lumora-eigene Entscheidungen (keine Vertragsänderung):
 
@@ -325,4 +325,53 @@ dem Filter (Teil B).
   - Vorrang in `GeoSuggestionEngine.FromTracks`; Taktung von `ExternalTrackSyncHub`.
 - `ConnectedAppsTests`: Stand und „Touren abgleichen“ in der Karte.
 - Der Rauchtest prüft Touren nicht (die Test-App ist kein Gipfelbuch). Gegen das echte Gipfelbuch prüft Herbert.
+
+## Nachtrag 0.5.25 — Stufe 7 Teil B: Galerie-Filter „Tour“ (Mockup 24)
+
+**Umfang:** Antwort B auf Frage 4: Touren als Galerie-Filter. Mockup 23 wurde als Nummer 23 entworfen und von Herbert am
+2026-10-27 abgenommen. Weil eine andere Sitzung die 23 gleichzeitig für das ComfyUI-Konzept vergeben hat, heißt es jetzt
+Mockup 24; der Inhalt ist unverändert.
+
+**Entscheidungen:**
+- **Zugehörigkeit:** Ein Foto oder Video gehört zur Tour, wenn seine Aufnahmezeit zwischen Beginn und Ende liegt, mit der
+  Toleranz aus Einstellungen › Orte (`places.tracks.toleranceSeconds`, Standard 120 s).
+  - Abgeglichen wird genau wie bei „Ungenaue Orte“; die Regel steckt jetzt gemeinsam in
+    `PhotoTimeResolver.ResolveCatalog`. Sie nutzt OffsetTimeOriginal, sonst GPS-Zeit bei genauem EXIF-Ort, sonst die
+    Zeitzone der Einstellung, und zieht danach die Kamera-Abweichung ab.
+  - Nur mit genauem Aufnahmedatum; nur im Bibliotheksbereich der Galerie, in „Alle verknüpften“ über die ganze Gruppe.
+  - Die grobe Vorauswahl in SQL läuft über `COALESCE(CapturedAt, ModifiedAtUtc)` ± 1 Tag und damit über den Index
+    `IX_Files_Library_Captured`; genau entschieden wird in C#.
+- **Filter:** Beim Wählen bestimmt `IAppTourReader.PhotosAsync` die Dateien. `GalleryTourFilter` trägt sie als Id-Liste
+  (wie die Kartengruppe, ADR-0050) und gilt UND mit allen anderen Filtern. Leer bedeutet keine Treffer. Wechselt der
+  Bereich, werden die Dateien neu bestimmt.
+- **Auswahl:**
+  - Der Chip erscheint erst, wenn es Touren gibt (`IAppTourReader.AnyAsync` beim Start, nach `GpsTracksChangedMessage` und
+    beim Öffnen), wie Alben und Kategorien. Grund: Die Zeile „Inhalt“ ist bei 1280 DIP voll. Ohne Touren bleibt sie
+    einzeilig; mit Touren und allen anderen Chips bricht sie in zwei Zeilen um (`GalleryToolbarLayoutTests`).
+  - Lädt beim Öffnen immer neu, denn ein Abgleich kann Touren bringen.
+  - Je Tour die Fotozahl im Bereich, berechnet in einer Abfrage über alle Touren.
+  - Suche über Name, Region und Gipfel; Schnellfilter „Alle Touren“, „nur mit Fotos“, Bergtour, Wandern, Radfahren
+    (inklusive Rennrad und Mountainbike) und Hochtour.
+  - „Touren abgleichen“ ruft `TourSync.SyncAllAsync` mit Starten im Hintergrund auf.
+- **Tour-Leiste:**
+  - Zahlen und Gipfel als eine Zeile.
+  - „Auf der Karte“ schickt `ShowAreaOnMapMessage` mit dem Rahmen der Tour; die Seite „Orte“ ruft dazu
+    `Viewport.FitBounds` auf. Ohne Rahmen fehlt der Knopf.
+  - „Im <App> öffnen“ startet die App normal; läuft sie schon, holt ihr zweiter Start das Fenster.
+  - Der Zeitstrahl (`TourTimeline`) zeichnet selbst, ohne ein Element je Foto.
+- **Lightbox:** `IAppTourReader.ForFileAsync` findet die Tour zur Aufnahmezeit; bei mehreren gilt die neueste. Der Link
+  schickt `ShowTourInGalleryMessage`, dann setzt die Galerie den Filter, zeigt sich, und die Lightbox schließt.
+
+**Folgen:**
+- Die Auswahl rechnet beim Öffnen für alle Touren. Bei rund 1 000 Touren und großen Bibliotheken dauert das einen
+  Augenblick („Touren werden geladen…“).
+- Touren ohne Spur zählen für den Filter genauso, sie liefern nur keine Orte (Teil A).
+
+**Tests:**
+- `AppTourReaderTests`: Toleranz am Ende, zu spät, ohne Aufnahmedatum, andere Bibliothek und „Alle verknüpften“,
+  neueste zuerst, Gipfel, Rahmen, Tour eines Fotos.
+- `GalleryPlaceFilterTests`: Tour allein, UND mit Dateiart und Ort, leere Liste.
+- `GalleryTourTests`: Texte der Auswahl, Tour-Leiste, Zeitstrahl, Zeichnen hell und dunkel.
+- Rauchtest „Galerie-Filter Tour“: Test-Tour um ein Foto; Auswahl, Filter mit Leiste und „Es gilt“ hell und dunkel;
+  Lightbox-Abschnitt und zurück in die Galerie; aufgeräumt.
 

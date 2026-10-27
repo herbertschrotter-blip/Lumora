@@ -1312,7 +1312,9 @@ Gipfelbuch (Touren, Spuren, Gipfel; Fotos nur als Verweis). Die Verbindung läuf
 - **Touren** (seit 0.5.24): Gibt das Gipfelbuch Lumora „Touren“ und „GPS-Spuren“, holt Lumora sie kurz nach dem Start, beim
   Öffnen von „Ungenaue Orte“ (startet das Gipfelbuch dafür im Hintergrund, wenn es das erlaubt) oder mit „Touren abgleichen“
   in der Karte. Die Spuren schlagen Orte vor wie eine Garmin-Spur — bei derselben Aktivität mit Vorrang.
-- **Noch offen:** Galerie-Filter „Tour“ (Mockup 24).
+- **Filter „Tour“** (seit 0.5.25): In der Galerie unter „Inhalt“ eine Tour wählen — Lumora zeigt die Fotos aus ihrer Zeit
+  (Zeitabgleich wie bei „Ungenaue Orte“), darüber eine Tour-Leiste mit Zahlen, Gipfeln, Zeitstrahl, „Auf der Karte“ und
+  „Im Gipfelbuch öffnen“. In der Lightbox steht die Tour eines Fotos mit „Alle n Fotos dieser Tour“.
 
 ## Datenablage
 

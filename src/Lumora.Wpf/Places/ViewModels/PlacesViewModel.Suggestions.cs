@@ -200,6 +200,7 @@ public sealed partial class PlacesViewModel
         _messenger.Register<PlacesViewModel, GeoAccuracyChangedMessage>(this, static (r, m) => UiThread.Post(() => r.OnSuggestionsInvalidated(m.LibraryIds)));
         _messenger.Register<PlacesViewModel, GpsTracksChangedMessage>(this, static (r, _) => UiThread.Post(() => r.OnSuggestionsInvalidated(null)));
         _messenger.Register<PlacesViewModel, ShowFileSuggestionOnMapMessage>(this, static (r, m) => UiThread.Post(() => _ = r.ShowFileSuggestionAsync(m.FileId)));
+        _messenger.Register<PlacesViewModel, ShowAreaOnMapMessage>(this, static (r, m) => UiThread.Post(() => _ = r.ShowAreaAsync(m.Bounds)));
         _ = LoadSaveToFileAsync(context);
     }
 
@@ -875,6 +876,14 @@ public sealed partial class PlacesViewModel
             _logger.LogWarning(ex, "Orte: Ort setzen fehlgeschlagen");
             ShowMessage("Ort setzen fehlgeschlagen: " + ex.Message, isError: true);
         }
+    }
+
+    /// <summary>Galerie › Tour-Leiste „Auf der Karte“ (Mockup 24): Seite „Orte“ mit diesem Gebiet.</summary>
+    public async Task ShowAreaAsync(GeoBounds bounds)
+    {
+        _navigation.NavigateTo(NavigationTags.Places);
+        await _lastLoad.ConfigureAwait(true);
+        Viewport.FitBounds(bounds);
     }
 
     /// <summary>Lightbox › „Auf der Karte zeigen“: Seite „Orte“ mit dem Foto im passenden Bereich.</summary>

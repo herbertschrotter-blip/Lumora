@@ -11,6 +11,7 @@
              xmlns:gc="clr-namespace:Lumora.Gallery.Controls"
              xmlns:marks="clr-namespace:Lumora.Marks"
              xmlns:rows="clr-namespace:Lumora.Gallery.FolderRows"
+             xmlns:tours="clr-namespace:Lumora.Gallery.Tours"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:GalleryViewModel, IsDesignTimeCreatable=False}"
              d:DesignWidth="1000"
@@ -604,6 +605,53 @@
 
         <!-- Kopfzeile (0.2.43, Mockup 06): Titel + Trefferzeile + Suche, Filterkarte, Sortier- und Ansichtsleiste -->
         <gc:GalleryToolbar x:Name="Toolbar" Grid.Row="0" Margin="0,0,0,8" IsEnabled="{Binding HasLibrary}" />
+
+        <!-- Tour-Leiste (ADR-0073 Stufe 7, Mockup 24): nur mit Filter „Tour“ -->
+        <StackPanel Grid.Row="2" Margin="0,0,0,8" Visibility="{Binding HasTourFilter, Converter={StaticResource BoolToVis}}"
+                    AutomationProperties.AutomationId="GalleryTourBar">
+            <Border Padding="14,10" CornerRadius="8" BorderThickness="1"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Border Width="36" Height="36" CornerRadius="8" Margin="0,0,14,0" VerticalAlignment="Center"
+                            Background="{DynamicResource SubtleFillColorSecondaryBrush}">
+                        <ui:SymbolIcon Symbol="Run24" FontSize="18" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                    </Border>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding ActiveTourTitle}" FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding ActiveTourFacts}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <ui:Button Content="Auf der Karte" Icon="{ui:SymbolIcon Map24}" Margin="8,0,0,0"
+                                   Command="{Binding ShowTourOnMapCommand}"
+                                   Visibility="{Binding CanShowTourOnMap, Converter={StaticResource BoolToVis}}"
+                                   AutomationProperties.Name="Tour auf der Karte" />
+                        <ui:Button Content="{Binding OpenTourAppText}" Icon="{ui:SymbolIcon Open24}" Margin="8,0,0,0"
+                                   Command="{Binding OpenTourAppCommand}"
+                                   Visibility="{Binding CanOpenTourApp, Converter={StaticResource BoolToVis}}"
+                                   AutomationProperties.Name="Tour in der App öffnen" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+            <Grid Margin="0,6,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding ActiveTourStartText}" FontSize="11" VerticalAlignment="Bottom" Margin="0,0,8,0"
+                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                <tours:TourTimeline Grid.Column="1" Marks="{Binding TourTimelineMarks}" AutomationProperties.Name="Zeitstrahl der Tour" />
+                <TextBlock Grid.Column="2" Text="{Binding ActiveTourEndText}" FontSize="11" VerticalAlignment="Bottom" Margin="8,0,0,0"
+                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+            </Grid>
+        </StackPanel>
 
         <!-- Inhalt -->
         <Border Grid.Row="3"

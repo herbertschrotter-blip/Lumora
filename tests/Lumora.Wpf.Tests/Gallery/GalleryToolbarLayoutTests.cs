@@ -51,6 +51,19 @@ public sealed class GalleryToolbarLayoutTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Mit_Touren_bricht_die_Zeile_Inhalt_bei_1280_sauber_um()
+    {
+        // Mit Tags, Personen, Motiven, Alben, Kategorien, Ort, Doppelte und Lieblinge passt „Tour“ nicht mehr dazu (Mockup 24)
+        var result = Render(1280, new ToolbarStub { ShowTourFilter = true }, "galerie-kopfzeile-1280-mit-touren");
+
+        result.Overflow.Should().BeEmpty();
+        result.HeaderLines.Should().Be(1);
+        result.FileLines.Should().Be(1);
+        result.ContentLines.Should().Be(2);
+        result.ViewLines.Should().Be(1);
+    }
+
+    [Fact]
     public void Kopfzeile_1280_mit_allen_Filtern_und_Ordner_Chip_bleibt_einzeilig()
     {
         var stub = ToolbarStub.AllActive();
@@ -489,6 +502,13 @@ public sealed class GalleryToolbarLayoutTests(ITestOutputHelper output)
         public bool HasNoTags => true;
 
         public bool ShowPersonFilter => true;
+
+        /// <summary>Chip „Tour“ (ADR-0073 Stufe 7) — erst sichtbar, wenn es Touren gibt.</summary>
+        public bool ShowTourFilter { get; set; }
+
+        public string TourFilterChipText => "Tour";
+
+        public bool HasTourFilter => false;
 
         public string PersonFilterValueText { get; set; } = "alle";
 

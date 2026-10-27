@@ -10,6 +10,7 @@
              xmlns:cats="clr-namespace:Lumora.Gallery.Categories"
              xmlns:people="clr-namespace:Lumora.Gallery.People"
              xmlns:places="clr-namespace:Lumora.Gallery.Places"
+             xmlns:tours="clr-namespace:Lumora.Gallery.Tours"
              xmlns:motifs="clr-namespace:Lumora.Gallery.Motifs"
              xmlns:vm="clr-namespace:Lumora.Gallery.ViewModels"
              xmlns:albums="clr-namespace:Lumora.Albums"
@@ -146,6 +147,9 @@
 
                 <!-- Ort-Filter (ADR-0050): Land → Region → Ort, „ohne Ort“ -->
                 <places:PlaceFilterDropDown />
+
+                <!-- Tour (ADR-0073 Stufe 7, Mockup 24): Fotos aus der Zeit einer Tour verbundener Apps -->
+                <tours:TourFilterDropDown Visibility="{Binding ShowTourFilter, Converter={StaticResource BoolToVis}}" />
 
                 <!-- Nur Doppelte (ADR-0053): Dateien mit byte-gleichem Inhalt im Bereich — Zeile „Inhalt“ (in „Datei“ bräche sie bei 1280 DIP um) -->
                 <ToggleButton x:Name="DuplicatesChip"
