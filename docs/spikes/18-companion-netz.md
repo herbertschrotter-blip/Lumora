@@ -1,7 +1,8 @@
 # Spike #18 — Companion-App: Netz-Prüfung am echten Gerät (ADR-0075, Stufe 0)
 
-- **Status:** ⬜ offen — Herbert prüft an Handy, FritzBox und PC
-- **Datum:** 2026-10-27 (v0.5.28, Prüfliste angelegt)
+- **Status:** 🟢 Grün (A4 und „nächster Tag“ bei C4 noch offen) — geprüft 2026-10-27 von Herbert am Handy und in der
+  FritzBox, Claude am PC (Test-Server, Protokoll, Aufräumen)
+- **Datum:** 2026-10-27 (v0.5.28 Prüfliste angelegt, v0.5.29 Ergebnisse)
 - **Bezogen auf:** [ADR-0075](../adr/0075-companion-app.md) (Netz, Schicht 1, Stufe 0), Mockup
   `mockups/22-companion-app.html`
 
@@ -94,16 +95,32 @@ Nur „ja / nein / Hinweis“, keine echten Adressen.
 
 | Prüfung | Ergebnis | Hinweis |
 |---|---|---|
-| A2 Absender über WireGuard ist eine Heimnetz-Adresse | | |
-| A3/A4 WireGuard-Adresse bleibt fest | | |
-| B1–B3 Getrennter Tunnel nur für eine App | | |
-| B4 Nur der PC über den Tunnel erreichbar | | |
-| C3 Feste WLAN-Adresse kommt beim PC an | | |
-| C4 WLAN-Adresse bleibt fest (Neustart, nächster Tag) | | |
-| D1 Zu Hause mit WireGuard erreichbar | | |
-| D2 Absender zu Hause mit WireGuard (WireGuard / WLAN) | | |
+| A2 Absender über WireGuard ist eine Heimnetz-Adresse | ja | gleiches Adressnetz wie der PC, kein eigenes VPN-Netz; beim PC erscheint dafür die Geräte-Adresse (MAC) der FritzBox |
+| A3/A4 WireGuard-Adresse bleibt fest | A3 ja, A4 offen | gleich nach Tunnel aus/an; FritzBox-Neustart und nächster Tag stehen aus |
+| B1–B3 Getrennter Tunnel nur für eine App | ja | erst nach Speichern und Tunnel aus/an wirksam — vorher ging der zweite Browser noch durch den Tunnel |
+| B4 Nur der PC über den Tunnel erreichbar | ja | mit `AllowedIPs` = PC-Adresse `/32`; mit der Standard-Einstellung der FritzBox war die FritzBox-Oberfläche erreichbar |
+| C3 Feste WLAN-Adresse kommt beim PC an | ja | eigene, zufällige Geräte-Adresse (MAC) des Handys, deutlich von der WireGuard-Adresse unterscheidbar |
+| C4 WLAN-Adresse bleibt fest (Neustart, nächster Tag) | ja (WLAN aus/an, Neustart), nächster Tag offen | nach festem Eintrag in der FritzBox |
+| D1 Zu Hause mit WireGuard erreichbar | ja | |
+| D2 Absender zu Hause mit WireGuard (WireGuard / WLAN) | WireGuard | mit eingeschaltetem Tunnel kommt auch zu Hause die WireGuard-Adresse an |
+
+### Befunde aus der Prüfung
+
+- **Beide Wege sind am PC sauber zu unterscheiden:** WireGuard kommt mit der festen WireGuard-Adresse an, das
+  Heim-WLAN mit der festen WLAN-Adresse. Der Adressfilter je Gerät mit zwei Adressen (ADR-0075, Schicht 1) passt.
+- **Nach einem Neustart des Handys war der Tunnel von selbst wieder an** (vermutlich „Immer aktives VPN“). Zu Hause
+  kommt die App dann über WireGuard — kein Problem, weil beide Adressen zugelassen sind; „Adresse übernehmen“ braucht
+  deshalb zuerst die WireGuard-Adresse.
+- **Getrennter Tunnel wirkt erst nach Speichern und Tunnel aus/an.** Gehört in die Einrichtungs-Anleitung der Seite
+  „Mobilgeräte“.
+- **Die FritzBox-Vorgabe für `AllowedIPs` umfasst das ganze Heimnetz.** Für Lumora auf die PC-Adresse (`/32`)
+  einschränken — wer WireGuard zusätzlich für anderes im Heimnetz nutzt, braucht dafür einen zweiten Tunnel.
+- Ein Aufruf vom PC selbst zählt nicht (Absender = PC-Adresse); getestet wird immer vom Handy.
 
 ## Folgen für ADR-0075
+
+**Ergebnis 2026-10-27:** A und C ja → Adressfilter je Gerät bleibt wie geplant; keine Änderung am ADR nötig. Offen
+nur die Langzeit-Prüfung (FritzBox-Neustart, nächster Tag) für beide Adressen.
 
 - **A und C ja:** Adressfilter je Gerät wie geplant (WireGuard- + WLAN-Adresse, „Adresse übernehmen“).
 - **A nein** (Adresse wechselt oder kommt nicht aus dem Heimnetz): Filter für WireGuard auf den Adressbereich der

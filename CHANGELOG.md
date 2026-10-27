@@ -3,6 +3,24 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.29] — 2026-10-27
+
+### Docs — Spike 18 geprüft: Netz der Companion-App grün
+Herbert hat am Handy und in der FritzBox geprüft, Claude am PC mit dem Test-Server.
+- **Über WireGuard** kommt das Handy mit einer festen Heimnetz-Adresse an.
+- **Im Heim-WLAN** kommt es mit einer eigenen, festen WLAN-Adresse an. Die Adresse hält nach WLAN aus/an und nach einem
+  Neustart.
+- **Der getrennte Tunnel** lässt nur den eingeschlossenen Browser zum PC. Andere Apps gehen normal ins Internet, die
+  FritzBox ist über den Tunnel nicht erreichbar.
+- **Zu Hause mit eingeschaltetem Tunnel** kommt die WireGuard-Adresse an.
+- **Befunde:**
+  - Der getrennte Tunnel wirkt erst nach Speichern und Tunnel aus/an.
+  - Die FritzBox-Vorgabe für die zulässigen IPs umfasst das ganze Heimnetz; für Lumora gehört dort nur die PC-Adresse
+    hin.
+  - Nach einem Neustart des Handys war der Tunnel von selbst wieder an.
+- Der Adressfilter je Gerät bleibt wie in ADR-0075 geplant. Offen sind nur FritzBox-Neustart und „nächster Tag“.
+- Spike 18 und ADR-0075 enthalten die Ergebnisse, nur als ja/nein, ohne echte Adressen.
+
 ## [0.5.28] — 2026-10-27
 
 ### Docs — Prüfliste Stufe 0 der Companion-App (Spike 18, Netz-Teil)

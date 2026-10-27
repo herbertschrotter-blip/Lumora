@@ -391,7 +391,8 @@ die PC-Oberfläche bleibt nutzbar, gespeichert wird nur im Dienst.
 
 Am echten Gerät bleibt in Stufe 0 zu prüfen: Absender-Adresse über WireGuard, feste WLAN-Adresse trotz zufälliger MAC,
 Keystore-mTLS mit beiden Schlüsseln. Prüfliste für den Netz-Teil (ohne Bauen):
-[Spike 18](../spikes/18-companion-netz.md).
+[Spike 18](../spikes/18-companion-netz.md) — **am 2026-10-27 grün**: WireGuard- und WLAN-Adresse kommen getrennt und fest
+beim PC an, der getrennte Tunnel erreicht nur den PC; offen nur FritzBox-Neustart und „nächster Tag“.
 
 ## Referenzen
 
