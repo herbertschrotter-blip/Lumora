@@ -20,7 +20,8 @@ namespace Lumora.Shell.Smoke;
 /// (Mockup 11) zeigt Code und Rechte (hell/dunkel), „Verbinden“ → Geheimnis abgeholt, <c>/info</c> mit Rechten, Trennen.
 /// Stufe 4: der Reiter „Verbundene Apps“ zeigt die gekoppelte Test-App mit ihren Rechten und meldet das Trennen.
 /// Stufe 5: ohne freigegebene Bibliothek findet die Test-App nichts; mit Häkchen im Reiter Fotos, ein echtes Vorschaubild
-/// (JPEG, ETag/304) und das Original.
+/// (JPEG, ETag/304) und das Original. Stufe 6: Schalter oben im Reiter; „Verbindungen erlauben“ aus/an schließt und öffnet
+/// die Schnittstelle (Hintergrundstart und Fenster schließen prüft die Ende-zu-Ende-Prüfung außerhalb des Rauchtests).
 /// Der echte Ordner unter <c>%LocalAppData%</c> bleibt unberührt.
 /// </summary>
 internal sealed partial class SmokeScenario
@@ -138,6 +139,18 @@ internal sealed partial class SmokeScenario
         await WaitUntilAsync(() => apps.Apps.All(a => a.AppId != "rauchtest"), ShortWait, "Test-App aus dem Reiter").ConfigureAwait(true);
         Check(apps.Message == "Die Verbindung mit Rauchtest-App ist getrennt." && apps.Summary == "Noch keine App verbunden",
             $"Verbundene Apps nach dem Trennen: „{apps.Message}“");
+
+        // Stufe 6: Schalter oben im Reiter (Mockup 11) — „Verbindungen erlauben“ aus schließt die Schnittstelle, an öffnet sie neu
+        Check(apps.HasSettings && apps.ConnectionsEnabled && apps.BackgroundStartAllowed && !apps.TrayIconEnabled,
+            "Schalter: Verbindungen an, Hintergrundstart erlaubt, Symbol im Infobereich aus (Standard)");
+        var files = new RegistrationFiles(RegistrationFiles.ResolveFolder(_paths.AppDataRoot));
+        apps.ConnectionsEnabled = false;
+        await WaitUntilAsync(() => files.Read(AppConnectContract.AppId) is { Running: false }, ShortWait, "Schnittstelle zu").ConfigureAwait(true);
+        apps.ConnectionsEnabled = true;
+        await WaitUntilAsync(() => files.Read(AppConnectContract.AppId) is { Running: true, Port: > 0 }, ShortWait, "Schnittstelle wieder offen").ConfigureAwait(true);
+        var reopened = files.Read(AppConnectContract.AppId);
+        Check(reopened is { Running: true, Mode: "window" } && reopened.Pid == Environment.ProcessId,
+            $"Verbindungen aus → abgemeldet, wieder an → angemeldet (Port {reopened?.Port}, Modus {reopened?.Mode})");
     }
 
     /// <summary>Stufe 5: Foto-Endpunkte (Vertrag 8.1) mit der Rauchtest-Bibliothek.</summary>

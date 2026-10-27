@@ -39,6 +39,7 @@ public sealed partial class AppConnectServer : IAsyncDisposable
     private readonly Lock _rateLock = new();
     private WebApplication? _app;
     private long _rateSecond = -1;
+    private long _lastRequestTicks;
     private int _rateCount;
 
     /// <param name="mode">Aktueller Modus für <c>GET /info</c> (<c>window</c> | <c>background</c>).</param>
@@ -55,6 +56,13 @@ public sealed partial class AppConnectServer : IAsyncDisposable
         _logger = logger ?? NullLogger.Instance;
         _second = second ?? (() => Environment.TickCount64 / 1000);
     }
+
+    /// <summary>Zeitpunkt der letzten angenommenen Anfrage (UTC); null, solange keine kam (Abschnitt 9: 10 Minuten ohne Anfrage).</summary>
+    public DateTimeOffset? LastRequestUtc
+        => Interlocked.Read(ref _lastRequestTicks) is var ticks and > 0 ? new DateTimeOffset(ticks, TimeSpan.Zero) : null;
+
+    /// <summary>Uhr für <see cref="LastRequestUtc"/> (Tests geben eine eigene).</summary>
+    public TimeProvider Time { get; init; } = TimeProvider.System;
 
     /// <summary>Port, auf dem die Schnittstelle Anfragen annimmt; 0 vor dem Start.</summary>
     public int Port { get; private set; }
@@ -143,6 +151,7 @@ public sealed partial class AppConnectServer : IAsyncDisposable
             return;
         }
 
+        Interlocked.Exchange(ref _lastRequestTicks, Time.GetUtcNow().UtcTicks);
         var peer = Authenticate(request);
         if (peer is not null)
         {

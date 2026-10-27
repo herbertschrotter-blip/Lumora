@@ -44,8 +44,22 @@ public sealed class AppConnectHost : IAsyncDisposable
             : rootRedirected ? AppConnectParticipation.Isolated
             : AppConnectParticipation.Normal;
 
-    /// <summary><c>window</c> bzw. <c>background</c> (Stufe 6); Stufe 1 läuft immer mit Fenster.</summary>
-    public string Mode { get; } = "window";
+    public const string WindowMode = "window";
+    public const string BackgroundMode = "background";
+    private string _mode = WindowMode;
+
+    /// <summary><c>window</c> bzw. <c>background</c> (Stufe 6); ein Wechsel schreibt die Anmeldedatei neu (Abschnitt 4).</summary>
+    public string Mode
+    {
+        get => Volatile.Read(ref _mode);
+        set
+        {
+            if (Interlocked.Exchange(ref _mode, value) != value && _startedAtUtc is not null)
+            {
+                WriteRegistration(running: true);
+            }
+        }
+    }
 
     public int Port => _server.Port;
 

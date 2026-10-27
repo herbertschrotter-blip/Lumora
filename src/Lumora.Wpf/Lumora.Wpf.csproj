@@ -6,6 +6,10 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <!-- Symbol im Infobereich (App-Verbindung Stufe 6, ADR-0073): NotifyIcon aus Windows Forms (Teil der Windows-Desktop-
+         Laufzeit, kein zusätzliches Paket). Die globalen Usings von Windows Forms sind unten entfernt — sonst kollidieren
+         Application, Color, Point … mit WPF. -->
+    <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>Lumora</RootNamespace>
     <!-- Produktname „Lumora“ seit 0.2.49 (ADR-0047): Programmdatei Lumora.exe, Produkt/Titel/Dateibeschreibung „Lumora“.
          Seit 0.4.3 heißen auch Projekte und Namespaces Lumora.* (ADR-0056); XAML verweist weiter nie per Assembly-Namen
@@ -26,6 +30,8 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Lumora.Wpf.Tests" />
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
   </ItemGroup>
 
   <!-- Einstellungen › Info → „Änderungsprotokoll“ (ADR-0042): CHANGELOG.md neben die EXE (Debug-Ausgabe und portables Paket) -->

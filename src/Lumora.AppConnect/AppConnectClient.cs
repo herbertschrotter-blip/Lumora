@@ -51,18 +51,23 @@ public sealed class AppConnectClient
     private readonly AppConnectClientIdentity _own;
     private readonly AppConnectClientTimings _timings;
     private readonly Func<string, bool> _start;
+    private readonly Func<string, string, bool> _startInBackground;
     private readonly ILogger _logger;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _held = new(StringComparer.Ordinal);
 
     /// <param name="start">Startet eine App normal (ohne Hintergrund-Schalter) über ihren <c>exePath</c>; Tests geben einen Fake.</param>
+    /// <param name="startInBackground">Startet eine App mit Befehlszeile (Hintergrundstart, Abschnitt 9); Tests geben einen Fake.</param>
     public AppConnectClient(RegistrationFiles registrations, ConnectionStore connections, HttpClient? http = null,
-        AppConnectClientIdentity? own = null, AppConnectClientTimings? timings = null, Func<string, bool>? start = null, ILogger? logger = null)
+        AppConnectClientIdentity? own = null, AppConnectClientTimings? timings = null, Func<string, bool>? start = null, ILogger? logger = null,
+        Func<string, string, bool>? startInBackground = null)
     {
+        _startInBackground = startInBackground ?? StartWith;
         _registrations = registrations;
         _connections = connections;
         _http = http ?? new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
         _own = own ?? AppConnectClientIdentity.Lumora;
         _timings = timings ?? AppConnectClientTimings.Default;
-        _start = start ?? StartNormally;
+        _start = start ?? (exe => StartWith(exe, string.Empty));
         _logger = logger ?? NullLogger.Instance;
     }
 
@@ -105,11 +110,97 @@ public sealed class AppConnectClient
         }
 
         _logger.LogInformation("App-Verbindung: {AppId} gestartet, warte auf Bereitschaft", appId);
+        return await WaitReadyAsync(registration, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Sorgt dafür, dass die Gegenseite läuft — wenn nötig im Hintergrund (Abschnitt 9): nur mit dem Recht
+    /// <c>background.start</c>, das sie Lumora gegeben hat; Befehlszeile <c>&lt;backgroundArg&gt; --started-by lumora:&lt;pid&gt;</c>.
+    /// </summary>
+    public async Task<AppRegistration> EnsureRunningInBackgroundAsync(string appId, CancellationToken ct = default)
+    {
+        var registration = _registrations.Read(appId) ?? throw new AppConnectException(ErrorCodes.NotFound, $"Keine Anmeldedatei für {appId}.");
+        if (RegistrationFiles.IsAlive(registration))
+        {
+            return registration;
+        }
+
+        if (_connections.Find(appId) is not { } connection || !connection.GrantedByPeer.Contains(Rights.BackgroundStart, StringComparer.Ordinal))
+        {
+            throw new AppConnectException(ErrorCodes.MissingRight, $"{registration.DisplayName} erlaubt Lumora keinen Hintergrundstart.");
+        }
+
+        var arguments = BackgroundLaunch.ArgumentsFor(registration.BackgroundArg, _own.AppId, Environment.ProcessId);
+        if (string.IsNullOrWhiteSpace(registration.BackgroundArg) || !_startInBackground(registration.ExePath, arguments))
+        {
+            throw new AppConnectException(ErrorCodes.Unavailable, $"{registration.DisplayName} ließ sich nicht im Hintergrund starten.");
+        }
+
+        _logger.LogInformation("App-Verbindung: {AppId} im Hintergrund gestartet, warte auf Bereitschaft", appId);
+        return await WaitReadyAsync(registration, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Fenster der Gegenseite zeigen: normal starten — läuft sie schon, holt ihr zweiter Start das Fenster nach vorn (Abschnitt 9).</summary>
+    public bool Open(string appId)
+        => _registrations.Read(appId) is { } registration && _start(registration.ExePath);
+
+    /// <summary>Hält Lumora gerade eine Zusage bei <paramref name="appId"/>?</summary>
+    public bool Holds(string appId) => _held.ContainsKey(appId);
+
+    /// <summary>
+    /// Halte-Zusage nehmen bzw. verlängern (Abschnitt 7): „Lumora braucht dich noch <paramref name="seconds"/> Sekunden“. Eine
+    /// abgelaufene Zusage wird neu genommen.
+    /// </summary>
+    public async Task<LeaseResponse> HoldAsync(string appId, int seconds, CancellationToken ct = default)
+    {
+        var peer = _registrations.Read(appId) ?? throw new AppConnectException(ErrorCodes.NotFound, $"Keine Anmeldedatei für {appId}.");
+        var body = new LeaseRequest { Seconds = seconds };
+        if (_held.TryGetValue(appId, out var leaseId))
+        {
+            using var extended = await SendAsync(peer, HttpMethod.Put, "/lease/" + Uri.EscapeDataString(leaseId), body, withSecret: true, ct).ConfigureAwait(false);
+            if (extended.StatusCode != HttpStatusCode.NotFound)
+            {
+                return await ReadAsync<LeaseResponse>(extended, peer, ct).ConfigureAwait(false);
+            }
+        }
+
+        using var created = await SendAsync(peer, HttpMethod.Post, "/lease", body, withSecret: true, ct).ConfigureAwait(false);
+        var lease = await ReadAsync<LeaseResponse>(created, peer, ct).ConfigureAwait(false);
+        _held[appId] = lease.LeaseId;
+        return lease;
+    }
+
+    /// <summary>
+    /// Zusage freigeben („Im Hintergrund beenden“, Herbert 2026-10-27): die Gegenseite beendet sich danach selbst nach ihren
+    /// Regeln (Abschnitt 9). Lumora vergisst die Zusage auch, wenn die Gegenseite nicht erreichbar ist.
+    /// </summary>
+    public async Task ReleaseAsync(string appId, CancellationToken ct = default)
+    {
+        if (!_held.TryRemove(appId, out var leaseId))
+        {
+            return;
+        }
+
+        try
+        {
+            if (_registrations.Read(appId) is { } peer && RegistrationFiles.IsAlive(peer))
+            {
+                using var response = await SendAsync(peer, HttpMethod.Delete, "/lease/" + Uri.EscapeDataString(leaseId), null, withSecret: true, ct).ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or AppConnectException)
+        {
+            _logger.LogInformation("App-Verbindung: {AppId} beim Freigeben der Zusage nicht erreichbar", appId);
+        }
+    }
+
+    private async Task<AppRegistration> WaitReadyAsync(AppRegistration registration, CancellationToken ct)
+    {
         var deadline = Stopwatch.StartNew();
         while (deadline.Elapsed < _timings.StartTimeout)
         {
             await Task.Delay(TimeSpan.FromMilliseconds(Math.Min(250, _timings.StartTimeout.TotalMilliseconds / 4)), ct).ConfigureAwait(false);
-            if (_registrations.Read(appId) is { } fresh && RegistrationFiles.IsAlive(fresh))
+            if (_registrations.Read(registration.AppId) is { } fresh && RegistrationFiles.IsAlive(fresh))
             {
                 return fresh;
             }
@@ -238,6 +329,7 @@ public sealed class AppConnectClient
             _logger.LogInformation("App-Verbindung: {AppId} beim Trennen nicht erreichbar", appId);
         }
 
+        _held.TryRemove(appId, out _);
         _connections.Remove(appId);
         _logger.LogInformation("App-Verbindung: Kopplung mit {AppId} getrennt", appId);
     }
@@ -305,8 +397,8 @@ public sealed class AppConnectClient
 
     private static bool IsBase64Url(string text) => text.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_');
 
-    /// <summary>Normal starten (mit Fenster) — nur eine vorhandene <c>.exe</c> aus der Anmeldedatei.</summary>
-    private static bool StartNormally(string exePath)
+    /// <summary>Starten mit Befehlszeile (leer = normal mit Fenster) — nur eine vorhandene <c>.exe</c> aus der Anmeldedatei.</summary>
+    private static bool StartWith(string exePath, string arguments)
     {
         if (string.IsNullOrWhiteSpace(exePath) || !exePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) || !File.Exists(exePath))
         {
@@ -315,7 +407,7 @@ public sealed class AppConnectClient
 
         try
         {
-            using var process = Process.Start(new ProcessStartInfo(exePath) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(exePath) });
+            using var process = Process.Start(new ProcessStartInfo(exePath, arguments) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(exePath) });
             return process is not null;
         }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)

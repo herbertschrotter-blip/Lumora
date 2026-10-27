@@ -1301,7 +1301,15 @@ Gipfelbuch (Touren, Spuren, Gipfel; Fotos nur als Verweis). Die Verbindung läuf
   Bibliotheken sind nie dabei.
 - **Prüfsummen** (seit 0.5.18): Lumora rechnet im Leerlauf für jedes Foto und Video die SHA-256 nach (Aktivitäts-Anzeige
   „Prüfsummen berechnen“, pausierbar) — danach findet eine App jedes Foto über die Prüfsumme wieder.
-- **Noch offen:** Hintergrundstart mit Schaltern und Symbol im Infobereich (Stufe 6), Touren in Lumora (Stufe 7).
+- **Hintergrund** (seit 0.5.20): Oben im Reiter „Verbindungen erlauben“, „Andere Apps dürfen Lumora im Hintergrund starten“
+  und „Symbol im Infobereich zeigen“ (aus).
+  - Eine App mit dem Recht „Lumora im Hintergrund starten“ kann Lumora ohne Fenster starten: nur Katalog und Schnittstelle,
+    kein Scan, keine Gesichter oder Motive.
+  - Schließt du das Fenster, während eine App Lumora noch braucht, läuft Lumora unsichtbar weiter; die
+    Hintergrund-Aufgaben ruhen dann.
+  - Lumora beendet sich selbst, wenn es niemand mehr braucht (spätestens nach 10 Minuten ohne Anfrage).
+  - „Lumora öffnen“ (erneuter Start oder Infobereich) holt das Fenster zurück.
+- **Noch offen:** Touren in Lumora (Stufe 7).
 
 ## Datenablage
 

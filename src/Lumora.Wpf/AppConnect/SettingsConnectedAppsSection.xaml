@@ -9,7 +9,7 @@
              d:DataContext="{d:DesignInstance local:ConnectedAppsViewModel}"
              d:DesignWidth="1000">
     <!-- Einstellungen › Verbundene Apps (ADR-0073 Stufe 4, Mockup 11); DataContext = ConnectedAppsViewModel (Code der SettingsPage).
-         Bibliotheken je App seit Stufe 5; Schalter für Hintergrundstart und Infobereich folgen mit Stufe 6. -->
+         Bibliotheken je App seit Stufe 5; Schalter für Verbindungen, Hintergrundstart und Infobereich seit Stufe 6. -->
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -187,7 +187,11 @@
                                 <ui:Button Icon="{ui:SymbolIcon Open24}" Content="{Binding StartLabel}" Margin="6,0,0,0"
                                            Command="{Binding StartCommand}"
                                            Visibility="{Binding CanStart, Converter={StaticResource BoolToVis}}"
-                                           AutomationProperties.Name="Starten" />
+                                           AutomationProperties.Name="Öffnen" />
+                                <ui:Button Content="Im Hintergrund beenden" Margin="6,0,0,0"
+                                           Command="{Binding StopBackgroundCommand}"
+                                           Visibility="{Binding CanStopBackground, Converter={StaticResource BoolToVis}}"
+                                           AutomationProperties.Name="Im Hintergrund beenden" />
                                 <ui:Button Icon="{ui:SymbolIcon PlugDisconnected24}" Content="Verbindung trennen…" Margin="6,0,0,0"
                                            Foreground="{DynamicResource SystemFillColorCriticalBrush}"
                                            Command="{Binding DisconnectCommand}"
@@ -220,7 +224,22 @@
                     </Grid>
                     <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0"
                                Text="Apps wie das Gipfelbuch können Lumora nach Fotos fragen, und Lumora bekommt von ihnen z. B. Touren und GPS-Spuren. Die Verbindung ist nur auf diesem PC erreichbar — nicht im Heimnetz, nicht im Internet. Fotos werden nicht kopiert, nur verwiesen." />
-                    <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0" FontWeight="SemiBold" Text="{Binding Summary}"
+                    <StackPanel Margin="0,12,0,0" Visibility="{Binding HasSettings, Converter={StaticResource BoolToVis}}">
+                        <ui:ToggleSwitch Content="Verbindungen erlauben" IsChecked="{Binding ConnectionsEnabled, Mode=TwoWay}"
+                                         AutomationProperties.Name="Verbindungen erlauben" />
+                        <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,0" Text="Aus = Lumora antwortet keiner App und fragt keine." />
+                        <ui:ToggleSwitch Margin="0,12,0,0" Content="Andere Apps dürfen Lumora im Hintergrund starten"
+                                         IsChecked="{Binding BackgroundStartAllowed, Mode=TwoWay}" IsEnabled="{Binding ConnectionsEnabled}"
+                                         AutomationProperties.Name="Andere Apps dürfen Lumora im Hintergrund starten" />
+                        <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,0"
+                                   Text="Ohne Fenster, nur für Anfragen; kein Scan, keine Gesichts- oder Motiv-Erkennung. Lumora beendet sich, wenn es niemand mehr braucht (spätestens nach 10 Minuten ohne Anfrage). Zusätzlich braucht die App das Recht „Lumora im Hintergrund starten“ in ihrer Karte." />
+                        <ui:ToggleSwitch Margin="0,12,0,0" Content="Symbol im Infobereich zeigen, solange Lumora im Hintergrund läuft"
+                                         IsChecked="{Binding TrayIconEnabled, Mode=TwoWay}" IsEnabled="{Binding ConnectionsEnabled}"
+                                         AutomationProperties.Name="Symbol im Infobereich zeigen" />
+                        <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,0"
+                                   Text="Neben der Uhr: „Lumora läuft im Hintergrund für Gipfelbuch“ mit Öffnen, Verbundene Apps und Beenden. Schließt du das Fenster, während eine App Lumora noch braucht, läuft Lumora ohne Fenster weiter." />
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Hint}" Margin="0,12,0,0" FontWeight="SemiBold" Text="{Binding Summary}"
                                Visibility="{Binding IsAvailable, Converter={StaticResource BoolToVis}}"
                                AutomationProperties.AutomationId="Summary" />
                     <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0"
@@ -234,6 +253,12 @@
                        Visibility="{Binding Message, Converter={StaticResource NullToVis}}"
                        AutomationProperties.AutomationId="Message" />
 
+            <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,12"
+                       Text="Verbindungen sind aus — Lumora antwortet keiner App und fragt keine. Die Kopplungen bleiben erhalten."
+                       Visibility="{Binding ConnectionsEnabled, Converter={StaticResource InvBoolToVis}}"
+                       AutomationProperties.AutomationId="Disabled" />
+
+            <StackPanel Visibility="{Binding ConnectionsEnabled, Converter={StaticResource BoolToVis}}">
             <ItemsControl x:Name="AppList" ItemsSource="{Binding Apps}" ItemTemplate="{StaticResource AppTemplate}"
                           AutomationProperties.Name="Apps" Focusable="False" />
 
@@ -256,6 +281,7 @@
                     </StackPanel>
                 </Grid>
             </Border>
+            </StackPanel>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

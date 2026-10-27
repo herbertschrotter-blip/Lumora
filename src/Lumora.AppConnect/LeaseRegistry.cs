@@ -1,8 +1,8 @@
 namespace Lumora.AppConnect;
 
 /// <summary>
-/// Halte-Zusagen (Abschnitt 7): „ich brauche dich noch“, 60…900 s, je Abfrager. Bestimmt in Stufe 6 die Lebensdauer im
-/// Hintergrund; bis dahin nur verwaltet.
+/// Halte-Zusagen (Abschnitt 7): „ich brauche dich noch“, 60…900 s, je Abfrager. Bestimmen seit Stufe 6 die Lebensdauer im
+/// Hintergrund (<see cref="BackgroundLifetime"/>).
 /// </summary>
 public sealed class LeaseRegistry(TimeProvider? time = null)
 {
@@ -74,6 +74,19 @@ public sealed class LeaseRegistry(TimeProvider? time = null)
             {
                 Cleanup();
                 return _leases.Count > 0;
+            }
+        }
+    }
+
+    /// <summary>Abfrager mit gültiger Zusage (Text „läuft im Hintergrund für …“).</summary>
+    public IReadOnlyList<string> Holders
+    {
+        get
+        {
+            lock (_lock)
+            {
+                Cleanup();
+                return _leases.Values.Select(l => l.AppId).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();
             }
         }
     }

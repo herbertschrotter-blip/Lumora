@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Lumora.Shell;
@@ -53,11 +54,78 @@ public sealed partial class ConnectedAppsViewModel : ObservableObject
     /// <summary>Meldung zu einer App, deren Karte verschwunden ist (getrennt und nicht mehr angemeldet).</summary>
     [ObservableProperty] private string? _message;
 
+    /// <summary>Die Schalter oben im Reiter sind verfügbar (Stufe 6, Mockup 11).</summary>
+    [ObservableProperty] private bool _hasSettings;
+
+    /// <summary>„Verbindungen erlauben“ — aus: keine Schnittstelle, keine Anfragen von Lumora.</summary>
+    [ObservableProperty] private bool _connectionsEnabled = true;
+
+    /// <summary>„Andere Apps dürfen Lumora im Hintergrund starten“.</summary>
+    [ObservableProperty] private bool _backgroundStartAllowed = true;
+
+    /// <summary>„Symbol im Infobereich zeigen, solange Lumora im Hintergrund läuft“ (Standard aus).</summary>
+    [ObservableProperty] private bool _trayIconEnabled;
+
+    private bool _loadingSettings;
+
+    partial void OnConnectionsEnabledChanged(bool value)
+    {
+        SaveSettings(s => s with { Enabled = value });
+        if (value)
+        {
+            Reload();
+        }
+    }
+
+    partial void OnBackgroundStartAllowedChanged(bool value) => SaveSettings(s => s with { AllowBackgroundStart = value });
+
+    partial void OnTrayIconEnabledChanged(bool value) => SaveSettings(s => s with { TrayIcon = value });
+
+    private void SaveSettings(Func<AppConnectSettings, AppConnectSettings> change)
+    {
+        if (_loadingSettings)
+        {
+            return;
+        }
+
+        try
+        {
+            _runtime.Settings?.Update(change);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Message = "Die Einstellung ließ sich nicht speichern.";
+            LoadSettings(); // Schalter zeigen wieder den gespeicherten Stand
+        }
+    }
+
+    private void LoadSettings()
+    {
+        if (_runtime.Settings is not { } store)
+        {
+            return;
+        }
+
+        var current = store.Current;
+        _loadingSettings = true;
+        try
+        {
+            HasSettings = true;
+            ConnectionsEnabled = current.Enabled;
+            BackgroundStartAllowed = current.AllowBackgroundStart;
+            TrayIconEnabled = current.TrayIcon;
+        }
+        finally
+        {
+            _loadingSettings = false;
+        }
+    }
+
     /// <summary>Liste neu aufbauen und bei laufenden, verbundenen Apps nachfragen, was sie Lumora erlauben.</summary>
     [RelayCommand]
     public async Task RefreshAsync()
     {
-        if (!IsAvailable || _refreshing)
+        if (!IsAvailable || !ConnectionsEnabled || _refreshing)
         {
             return;
         }
@@ -132,6 +200,12 @@ public sealed partial class ConnectedAppsViewModel : ObservableObject
     private void OnAttached()
     {
         IsAvailable = true;
+        LoadSettings();
+        if (_runtime.Settings is { } settings)
+        {
+            settings.Changed += (_, _) => Post(LoadSettings);
+        }
+
         _runtime.Connections!.Changed += (_, _) => Post(Reload);
         Reload();
     }

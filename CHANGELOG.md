@@ -3,6 +3,44 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.20] — 2026-10-27
+
+### Added — App-Verbindung Stufe 6: Hintergrundbetrieb, Schalter, Symbol im Infobereich
+- **Start ohne Fenster** (Vertrag Abschnitt 9): Eine verbundene App startet Lumora mit
+  `--background --started-by <app>:<pid>`. Das ist nur erlaubt, wenn
+  - „Verbindungen erlauben“ an ist,
+  - „Andere Apps dürfen Lumora im Hintergrund starten“ an ist und
+  - die App in ihrer Karte das Recht „Lumora im Hintergrund starten“ hat.
+
+  Sonst beendet sich Lumora sofort wieder, ohne etwas zu öffnen. Läuft Lumora schon, beendet sich der zweite Start still.
+- **Schlank im Hintergrund:** nur Katalog und Schnittstelle — kein Scan, keine Ordnerüberwachung, keine Gesichter, Motive
+  oder Grafikkarte, nie eine versteckte Bibliothek. „Lumora öffnen“ holt das Fenster im selben Prozess und startet die
+  Hintergrunddienste dann nach.
+- **Fenster schließen:** Hält eine App noch eine Halte-Zusage, läuft Lumora ohne Fenster weiter (`mode: "background"` in
+  Anmeldedatei und `/info`) und pausiert alle Hintergrund-Aufgaben, bis das Fenster wieder offen ist. Ohne Zusage beendet
+  sich Lumora wie bisher.
+- **Selbst beenden ohne Fenster**, wenn keine Zusage mehr gilt und 10 Minuten keine Anfrage kam, oder wenn die startende
+  App beendet ist und keine andere App eine Zusage hält.
+- **Symbol im Infobereich** (wahlweise, Standard aus): „Lumora läuft im Hintergrund für Gipfelbuch · seit 14:02“, Menü
+  „Lumora öffnen“, „Verbundene Apps…“, „Beenden“.
+- **Reiter „Verbundene Apps“** (Mockup 11):
+  - Schalter „Verbindungen erlauben“ (aus = keine Schnittstelle, Kopplungen bleiben), „Andere Apps dürfen Lumora im
+    Hintergrund starten“ und „Symbol im Infobereich zeigen“, gespeichert in `appconnect\settings.json`.
+  - Karte: „<App> öffnen“ (läuft die App, holt ihr zweiter Start das Fenster).
+  - Karte: „Im Hintergrund beenden“ — gibt Lumoras Halte-Zusage frei, die App beendet sich dann selbst (Herbert). Ein
+    Vorschlag für eine echte Beenden-Anfrage liegt im Vertrags-Repo (0003).
+- **Lumora als Abfrager:** andere Apps im Hintergrund starten (nur mit deren Recht `background.start`), Halte-Zusagen
+  nehmen, verlängern und freigeben. Genutzt wird das ab Stufe 7 (Touren).
+- Symbol im Infobereich über Windows Forms `NotifyIcon` (Teil der Windows-Desktop-Laufzeit, kein neues Paket).
+- **Tests und Prüfungen:**
+  - Tests: `BackgroundModeTests` (Befehlszeile, Schalter, Lebensdauer, Modus, letzte Anfrage), Client (Hintergrundstart,
+    Zusagen, Öffnen), Reiter (Schalter, „Im Hintergrund beenden“).
+  - Rauchtest: Schalter und Verbindungen aus/an.
+  - Ende-zu-Ende gegen die gebaute Lumora.exe: Hintergrundstart, Selbst-Beenden, Ablehnung, Fenster schließen mit und
+    ohne Zusage.
+
+  ADR-0073 Nachtrag 0.5.20. (refs #5)
+
 ## [0.5.19] — 2026-10-27
 
 ### Fixed — Ansicht „Ordner“: nur Ordner mit eigenen Fotos, nur deren Fotos

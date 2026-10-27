@@ -11,7 +11,8 @@ namespace Lumora.Wpf.Tests.AppConnect;
 /// <summary>
 /// Einstellungen › Verbundene Apps (ADR-0073 Stufe 4, Mockup 11) gegen eine echte zweite Schnittstelle im Test (Lumora-Code als
 /// „Gipfelbuch“): Leer-Zustand, Verbinden mit Code (angenommen, abgelehnt, abgebrochen), Rechte in beide Richtungen und ändern,
-/// von drüben getrennt, Trennen mit Rückfrage, Starten; Reiter hell/dunkel ohne Binding-Fehler.
+/// von drüben getrennt, Trennen mit Rückfrage, Starten/Öffnen; seit Stufe 6 Schalter und „Im Hintergrund beenden“; Reiter
+/// hell/dunkel ohne Binding-Fehler.
 /// </summary>
 [Collection(UiTestCollection.Name)]
 public sealed class ConnectedAppsTests : IAsyncLifetime
@@ -29,6 +30,8 @@ public sealed class ConnectedAppsTests : IAsyncLifetime
     private ConnectionStore _peerStore = null!;
     private ConnectionStore _store = null!;
     private AppConnectServer _peer = null!;
+    private LeaseRegistry _peerLeases = null!;
+    private AppConnectSettingsStore _settings = null!;
     private Func<string, bool> _start = _ => false;
 
     public async Task InitializeAsync()
@@ -36,8 +39,10 @@ public sealed class ConnectedAppsTests : IAsyncLifetime
         _registrations = new RegistrationFiles(Path.Combine(_root, "AppVerbindung", "apps"));
         _peerStore = new ConnectionStore(Path.Combine(_root, "peer", "connections.json"), new XorProtector());
         _store = new ConnectionStore(Path.Combine(_root, "lumora", "connections.json"), new XorProtector());
+        _settings = new AppConnectSettingsStore(Path.Combine(_root, "lumora", "settings.json"));
+        _peerLeases = new LeaseRegistry();
         _peer = new AppConnectServer(new AppConnectIdentity("0.6.3"), _peerStore, () => "window",
-            pairing: new PairingCoordinator(_peerStore, _prompt), leases: new LeaseRegistry());
+            pairing: new PairingCoordinator(_peerStore, _prompt), leases: _peerLeases);
         await _peer.StartAsync();
     }
 
@@ -179,7 +184,7 @@ public sealed class ConnectedAppsTests : IAsyncLifetime
         await vm.RefreshAsync();
         var app = vm.Apps.Single();
         app.StateText.Should().Be("nicht gestartet");
-        app.StartLabel.Should().Be("Gipfelbuch starten");
+        app.StartLabel.Should().Be("Gipfelbuch öffnen");
         app.CanStart.Should().BeTrue();
         app.DetailText.Should().Be("Version 0.6 · verbunden seit 22.10.2026");
 
@@ -195,9 +200,59 @@ public sealed class ConnectedAppsTests : IAsyncLifetime
         await app.StartCommand.ExecuteAsync(null);
         app.Notice.Should().BeNull();
         app.IsRunning.Should().BeTrue();
-        app.CanStart.Should().BeFalse();
+        app.CanStart.Should().BeTrue("„öffnen“ bleibt — der zweite Start holt das Fenster (Abschnitt 9)");
         app.StateText.Should().Be("läuft");
         app.IsPaired.Should().BeTrue("Gipfelbuch kennt die Kopplung");
+
+        var opened = 0;
+        _start = _ => ++opened > 0;
+        await app.StartCommand.ExecuteAsync(null);
+        opened.Should().Be(1, "läuft schon → normal starten, die App zeigt ihr Fenster");
+        app.Notice.Should().BeNull();
+    });
+
+    [Fact]
+    public Task Schalter_oben_im_Reiter_werden_gespeichert_und_Verbindungen_aus_blendet_die_Apps_aus() => OnUiAsync(async () =>
+    {
+        WritePeer(running: true);
+        var vm = AttachedViewModel();
+        await vm.RefreshAsync();
+        vm.HasSettings.Should().BeTrue();
+        (vm.ConnectionsEnabled, vm.BackgroundStartAllowed, vm.TrayIconEnabled).Should().Be((true, true, false), "Standard laut Mockup 11");
+
+        vm.TrayIconEnabled = true;
+        vm.BackgroundStartAllowed = false;
+        _settings.Current.Should().Be(new AppConnectSettings(Enabled: true, AllowBackgroundStart: false, TrayIcon: true));
+
+        vm.ConnectionsEnabled = false;
+        _settings.Current.Enabled.Should().BeFalse();
+        await vm.RefreshAsync(); // aus: keine Nachfrage bei den Apps
+
+        _settings.Update(s => s with { Enabled = true, TrayIcon = false }); // z. B. aus einer anderen Stelle
+        await WaitAsync(() => vm.ConnectionsEnabled && !vm.TrayIconEnabled);
+        vm.BackgroundStartAllowed.Should().BeFalse();
+    });
+
+    [Fact]
+    public Task Im_Hintergrund_beenden_gibt_Lumoras_Zusage_frei() => OnUiAsync(async () =>
+    {
+        WritePeer(running: true);
+        var vm = AttachedViewModel();
+        var app = await PairAsync(vm);
+        WritePeer(running: true, mode: "background");
+        await vm.RefreshAsync();
+        app.StateText.Should().Be("läuft im Hintergrund");
+        app.CanStopBackground.Should().BeFalse("Lumora hält dort keine Zusage");
+
+        await _runtime.Client!.HoldAsync("gipfelbuch", 300);
+        vm.Reload();
+        app.CanStopBackground.Should().BeTrue();
+        _peerLeases.Holders.Should().Equal("lumoratest");
+
+        await app.StopBackgroundCommand.ExecuteAsync(null);
+        _peerLeases.Holders.Should().BeEmpty();
+        app.CanStopBackground.Should().BeFalse();
+        app.Notice.Should().Be("Lumora braucht Gipfelbuch nicht mehr — es beendet sich selbst, sobald es niemand mehr braucht.");
     });
 
     [Fact]
@@ -261,7 +316,8 @@ public sealed class ConnectedAppsTests : IAsyncLifetime
             new AppConnectClient(_registrations, _store, own: AppConnectClientIdentity.Lumora with { AppId = "lumoratest" },
                 timings: new AppConnectClientTimings(TimeSpan.FromMilliseconds(20), TimeSpan.FromSeconds(10), TimeSpan.FromMilliseconds(400)),
                 start: path => _start(path)),
-            _store);
+            _store,
+            _settings);
 
     private async Task<ConnectedAppItemViewModel> PairAsync(ConnectedAppsViewModel vm)
     {
@@ -275,7 +331,7 @@ public sealed class ConnectedAppsTests : IAsyncLifetime
         return app;
     }
 
-    private void WritePeer(bool running) => _registrations.Write(new AppRegistration
+    private void WritePeer(bool running, string mode = "window") => _registrations.Write(new AppRegistration
     {
         AppId = "gipfelbuch",
         DisplayName = "Gipfelbuch",
@@ -286,7 +342,7 @@ public sealed class ConnectedAppsTests : IAsyncLifetime
         Running = running,
         Pid = running ? Environment.ProcessId : null,
         Port = running ? _peer.Port : null,
-        Mode = running ? "window" : null,
+        Mode = running ? mode : null,
         Provides = PeerProvides,
         Wants = PeerWants,
     });

@@ -27,10 +27,22 @@ public static class Program
         var participation = AppConnectHost.Decide(
             HiddenModeSwitch.IsRequested(args),
             Lumora.Shell.AppDataRootOverride.ResolveLocation().Mode == AppDataLocationMode.EnvironmentVariable);
+        // Start ohne Fenster durch eine andere App (Abschnitt 9, Stufe 6) — mit _hidden nie
+        var background = BackgroundLaunch.IsRequested(args);
+        if (background && participation == AppConnectParticipation.Off)
+        {
+            return 0;
+        }
+
         SingleInstance? single = null;
         if (participation == AppConnectParticipation.Normal)
         {
             single = SingleInstance.TryAcquire();
+            if (single is null && background)
+            {
+                return 0; // Lumora läuft schon und antwortet der App — kein Fenster nach vorn holen
+            }
+
             if (single is null)
             {
                 // Die laufende Lumora darf ihr Fenster nach vorn holen (Windows erlaubt das sonst nur dem Vordergrundprozess)
@@ -48,6 +60,8 @@ public static class Program
         }
 
         App.AppConnectStart = new AppConnectStart(participation, single);
+        App.BackgroundRequested = background;
+        App.BackgroundStart = BackgroundLaunch.Parse(args);
         var app = new App();
         app.InitializeComponent();
         return app.Run();

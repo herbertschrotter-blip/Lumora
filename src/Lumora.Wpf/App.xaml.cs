@@ -227,14 +227,39 @@ public partial class App : Application, ICatalogHostSwitcher
         {
             if (action == Lumora.AppConnect.SingleInstance.ShowWindowAction)
             {
-                Dispatcher.BeginInvoke(BringMainWindowToFront);
+                Dispatcher.BeginInvoke(() => ShowMainWindow());
             }
         });
         try
         {
-            await StartSessionAsync(prepare: null, firstStart: true);
+            // Hintergrundstart (Stufe 6, Abschnitt 9): nur mit Schalter und Recht der startenden App — sonst sofort wieder beenden
+            if (BackgroundRequested)
+            {
+                if (BackgroundRefusal() is { } refusal)
+                {
+                    Log.Information("App-Verbindung: Hintergrundstart abgelehnt — {Reason}", refusal);
+                    _exiting = true;
+                    Shutdown(0);
+                    return;
+                }
+
+                ShutdownMode = ShutdownMode.OnExplicitShutdown; // kein Fenster — Lumora endet über BackgroundLifetime bzw. Infobereich
+            }
+
+            await StartSessionAsync(prepare: null, firstStart: true, windowed: !BackgroundRequested);
             CleanUpOldDatabaseLocation();
             await StartAppConnectAsync();
+            if (BackgroundRequested)
+            {
+                if (_appConnect is null)
+                {
+                    Log.Warning("App-Verbindung: Hintergrundstart ohne Schnittstelle — Lumora beendet sich");
+                    ExitNow();
+                    return;
+                }
+
+                EnterBackground(BackgroundStart);
+            }
         }
         catch (SessionStartException startEx)
         {
@@ -265,37 +290,58 @@ public partial class App : Application, ICatalogHostSwitcher
         var factory = new SerilogLoggerFactory(Log.Logger);
         var logger = factory.CreateLogger("Lumora.AppConnect");
         var testRoot = start.Participation == Lumora.AppConnect.AppConnectParticipation.Isolated ? _paths.AppDataRoot : null;
-        // Kopplungen (Stufe 2): Geheimnis nur DPAPI-verschlüsselt unter <App-Wurzel>\appconnect, Dialog nach Mockup 11
-        AppConnections = new Lumora.AppConnect.ConnectionStore(
-            Path.Combine(_paths.AppDataRoot, "appconnect", "connections.json"), new Lumora.AppConnect.DpapiSecretProtector());
-        PairingPrompt = new Lumora.AppConnect.WindowPairingPrompt(Dispatcher, () => MainWindow);
-        var leases = new Lumora.AppConnect.LeaseRegistry();
+        // Kopplungen, Schalter und Halte-Zusagen (Stufe 2/6) — beim Hintergrundstart schon vor dem Katalog angelegt
+        PrepareAppConnect();
         var registrations = new Lumora.AppConnect.RegistrationFiles(Lumora.AppConnect.RegistrationFiles.ResolveFolder(testRoot));
-        AppConnectClient = new Lumora.AppConnect.AppConnectClient(registrations, AppConnections, logger: logger);
-        // Reiter „Verbundene Apps“ (Stufe 4); eine neue Sitzung (Host) gibt es nur mit „_hidden“, dort ist die App-Verbindung aus
-        _host.Services.GetRequiredService<Lumora.AppConnect.AppConnectRuntime>().Attach(AppConnectClient, AppConnections);
+        if (AppConnectClient is null)
+        {
+            // Kopplungsdialog nach Mockup 11; Reiter „Verbundene Apps“ (Stufe 4) — eine neue Sitzung (Host) gibt es nur mit
+            // „_hidden“, dort ist die App-Verbindung aus
+            PairingPrompt = new Lumora.AppConnect.WindowPairingPrompt(Dispatcher, () => MainWindow);
+            AppConnectClient = new Lumora.AppConnect.AppConnectClient(registrations, AppConnections!, logger: logger);
+            _host.Services.GetRequiredService<Lumora.AppConnect.AppConnectRuntime>().Attach(AppConnectClient, AppConnections!, _appConnectSettings);
+        }
+
+        // „Verbindungen erlauben“ aus (Stufe 6): keine Schnittstelle, keine Anmeldedatei als laufend
+        if (_appConnectSettings?.Current.Enabled == false)
+        {
+            Log.Information("App-Verbindung: aus (Schalter „Verbindungen erlauben“)");
+            return;
+        }
+
+        var leases = _leases!;
+        Lumora.AppConnect.AppConnectHost? hostRef = null;
+        var server = new Lumora.AppConnect.AppConnectServer(
+            new Lumora.AppConnect.AppConnectIdentity(Lumora.Settings.Info.AppInfo.Version),
+            AppConnections!,
+            () => hostRef?.Mode ?? Lumora.AppConnect.AppConnectHost.WindowMode,
+            logger,
+            pairing: new Lumora.AppConnect.PairingCoordinator(AppConnections!, PairingPrompt!, logger: logger, onPaired: leases.ReleaseAll),
+            leases: leases,
+            // Fotos für andere Apps (Stufe 5): nur aus den Bibliotheken, die der Benutzer je App freigibt
+            photos: new Lumora.AppConnect.CatalogPhotoCatalog(
+                _host.Services.GetRequiredService<Lumora.Services.Database.ILibraryContextFactory>(),
+                _host.Services.GetService<IThumbnailService>(),
+                _host.Services.GetService<IImageThumbnailRenderer>(),
+                _host.Services.GetRequiredService<IAppDataPaths>()));
         var host = new Lumora.AppConnect.AppConnectHost(
-            new Lumora.AppConnect.AppConnectServer(
-                new Lumora.AppConnect.AppConnectIdentity(Lumora.Settings.Info.AppInfo.Version),
-                AppConnections,
-                () => "window",
-                logger,
-                pairing: new Lumora.AppConnect.PairingCoordinator(AppConnections, PairingPrompt, logger: logger, onPaired: leases.ReleaseAll),
-                leases: leases,
-                // Fotos für andere Apps (Stufe 5): nur aus den Bibliotheken, die der Benutzer je App freigibt
-                photos: new Lumora.AppConnect.CatalogPhotoCatalog(
-                    _host.Services.GetRequiredService<Lumora.Services.Database.ILibraryContextFactory>(),
-                    _host.Services.GetService<IThumbnailService>(),
-                    _host.Services.GetService<IImageThumbnailRenderer>(),
-                    _host.Services.GetRequiredService<IAppDataPaths>())),
+            server,
             registrations,
             Lumora.Settings.Info.AppInfo.Version,
             Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "Lumora.exe"),
-            factory.CreateLogger("Lumora.AppConnect"));
+            factory.CreateLogger("Lumora.AppConnect"))
+        {
+            // Anmeldedatei gleich mit dem richtigen Modus (Abschnitt 4): beim Hintergrundstart „background“
+            Mode = (BackgroundRequested && MainWindow is not Lumora.MainWindow) || _lifetime?.IsBackground == true
+                ? Lumora.AppConnect.AppConnectHost.BackgroundMode
+                : Lumora.AppConnect.AppConnectHost.WindowMode,
+        };
+        hostRef = host;
         try
         {
             await host.StartAsync().ConfigureAwait(true);
             _appConnect = host;
+            _appConnectServer = server;
         }
         catch (Exception ex)
         {
@@ -332,7 +378,7 @@ public partial class App : Application, ICatalogHostSwitcher
     /// <paramref name="prepare"/> (versteckte Bibliothek anlegen), Hauptfenster. Beim ersten Start zusätzlich die Prüfung
     /// des Speicherorts (ADR-0026).
     /// </summary>
-    private async Task StartSessionAsync(Func<IServiceProvider, Task>? prepare, bool firstStart)
+    private async Task StartSessionAsync(Func<IServiceProvider, Task>? prepare, bool firstStart, bool windowed = true)
     {
         await _host.StartAsync();
         var services = _host.Services;
@@ -384,10 +430,19 @@ public partial class App : Application, ICatalogHostSwitcher
             await prepare(services).ConfigureAwait(true);
         }
 
+        if (!windowed)
+        {
+            // Hintergrundstart (ADR-0073 Stufe 6): nur Katalog und Schnittstelle — Dienste und Fenster erst mit „Lumora öffnen“
+            Log.Information("Lumora startet ohne Fenster — Katalog {Database}", paths.LibraryDatabasePath);
+            return;
+        }
+
+        _windowServicesStarted = true;
         await StartBackgroundServicesAsync();
 
         var mainWindow = services.GetRequiredService<MainWindow>();
         MainWindow = mainWindow;
+        AttachMainWindow(mainWindow);
         mainWindow.Show();
         Log.Information("Hauptfenster gezeigt — Katalog {Database}", paths.LibraryDatabasePath);
     }
@@ -682,6 +737,8 @@ public partial class App : Application, ICatalogHostSwitcher
         Log.Information("Lumora wird beendet (ExitCode {Code})", e.ApplicationExitCode);
         var wasHidden = _sessions.IsHiddenSessionActive;
         _sessions.PrepareExit();
+        _exiting = true;
+        DisposeBackground();
         StopAppConnect();
         try
         {

@@ -168,6 +168,9 @@ public sealed partial class ConnectedAppItemViewModel : ObservableObject
     [ObservableProperty] private bool _canPair;
     [ObservableProperty] private bool _canStart;
     [ObservableProperty] private bool _canDisconnect;
+
+    /// <summary>„Im Hintergrund beenden“: die App läuft ohne Fenster und Lumora hält dort eine Zusage (Stufe 6).</summary>
+    [ObservableProperty] private bool _canStopBackground;
     [ObservableProperty] private string? _notice;
     [ObservableProperty] private bool _noticeIsError;
 
@@ -191,7 +194,7 @@ public sealed partial class ConnectedAppItemViewModel : ObservableObject
         GrantedHeader = $"{DisplayName} darf von Lumora";
         ReceivedHeader = $"Lumora bekommt von {DisplayName}";
         LibrariesHeader = $"Bibliotheken, die {DisplayName} sieht";
-        StartLabel = $"{DisplayName} starten";
+        StartLabel = $"{DisplayName} öffnen";
         SyncRights();
         SyncLibraries(libraries);
         Apply();
@@ -249,13 +252,26 @@ public sealed partial class ConnectedAppItemViewModel : ObservableObject
         }
     }
 
-    /// <summary>App normal starten (mit Fenster, ohne Hintergrund-Schalter — Abschnitt 5, Ränder).</summary>
+    /// <summary>
+    /// App öffnen: läuft sie, zeigt ihr zweiter Start das Fenster (auch aus dem Hintergrund, Abschnitt 9); sonst normal starten
+    /// (mit Fenster, ohne Hintergrund-Schalter — Abschnitt 5, Ränder).
+    /// </summary>
     [RelayCommand]
     private async Task StartAsync()
     {
         SetNotice(null, false);
         try
         {
+            if (IsRunning)
+            {
+                if (!_client.Open(AppId))
+                {
+                    SetNotice($"{Name} ließ sich nicht öffnen.", true);
+                }
+
+                return;
+            }
+
             await EnsureRunningAsync(CancellationToken.None);
         }
         catch (Exception ex) when (ex is AppConnectException or HttpRequestException or TaskCanceledException)
@@ -268,6 +284,18 @@ public sealed partial class ConnectedAppItemViewModel : ObservableObject
         }
 
         await _owner.RefreshAsync();
+    }
+
+    /// <summary>
+    /// „Im Hintergrund beenden“ (Herbert, 2026-10-27): Lumora gibt seine Halte-Zusage frei; die App beendet sich danach selbst
+    /// nach ihren Regeln (Abschnitt 9) — der Vertrag 1.1 kennt keine Anfrage „beende dich“.
+    /// </summary>
+    [RelayCommand]
+    private async Task StopBackgroundAsync()
+    {
+        await _client.ReleaseAsync(AppId);
+        SetNotice($"Lumora braucht {Name} nicht mehr — es beendet sich selbst, sobald es niemand mehr braucht.", false);
+        Apply();
     }
 
     /// <summary>Trennen nach Rückfrage (Abschnitt 5, Schritt 6): die andere App erfährt es, wenn sie läuft; hier immer gelöscht.</summary>
@@ -345,7 +373,7 @@ public sealed partial class ConnectedAppItemViewModel : ObservableObject
             ConnectedAppPhase.Waiting => ("wartet auf Bestätigung", ConnectedAppTone.Caution),
             ConnectedAppPhase.Disconnecting => ("wird getrennt…", ConnectedAppTone.Neutral),
             _ when !IsPaired => ("nicht verbunden", ConnectedAppTone.Caution),
-            _ when IsRunning && reg?.Mode == "background" => ("läuft im Hintergrund", ConnectedAppTone.Accent),
+            _ when IsRunning && reg?.Mode == AppConnectHost.BackgroundMode => ("läuft im Hintergrund", ConnectedAppTone.Accent),
             _ when IsRunning => ("läuft", ConnectedAppTone.Success),
             _ => ("nicht gestartet", ConnectedAppTone.Neutral),
         };
@@ -357,7 +385,8 @@ public sealed partial class ConnectedAppItemViewModel : ObservableObject
 
         var idle = Phase == ConnectedAppPhase.Idle;
         CanPair = idle && !IsPaired && reg is not null;
-        CanStart = idle && reg is not null && !IsRunning;
+        CanStart = idle && reg is not null;
+        CanStopBackground = idle && IsRunning && reg?.Mode == AppConnectHost.BackgroundMode && _client.Holds(AppId);
         CanDisconnect = idle && IsPaired;
     }
 

@@ -26,7 +26,7 @@ Lumora setzt **App-Verbindung Version 1.1** um, in sieben Stufen (Plan vom 2026-
 | 3 | 0.5.9 | Abfrager: Apps finden, Kopplung anfragen, Geheimnis mit DPAPI, Trennen (4, 5) |
 | 4 | 0.5.13 | Reiter „Verbundene Apps“ nach Mockup 11 |
 | 5 | 0.5.16 | Foto-Endpunkte als Anbieter (8.1) |
-| 6 | geplant | Hintergrundmodus und Start durch andere Apps (9) |
+| 6 | 0.5.20 | Hintergrundmodus und Start durch andere Apps (9) |
 | 7 | geplant | Touren, Spuren, Gipfel nutzen (8.2) — Umfang A + B (siehe unten) |
 
 Lumora-eigene Entscheidungen (keine Vertragsänderung):
@@ -213,3 +213,62 @@ Lumora-eigene Entscheidungen (keine Vertragsänderung):
 - **Tests:** `ChecksumBackfillTests` (alle Fotos und Videos auch mit einmaliger Größe, geänderte und fehlende Dateien,
   kleine Stapel, Lesefehler, Pause im Planer), `BackgroundPlannerTests` (Vorrang nach Foto-Güte), `ActivityBridgeTests`;
   Rauchtest „App-Verbindung“: jeder Treffer mit `checksum`, `by-checksum` findet das Foto.
+
+## Nachtrag 0.5.20 — Stufe 6: Hintergrundbetrieb, Schalter, Symbol im Infobereich
+
+**Umfang:** Vertrag 1.1 Abschnitt 9 und die in Stufe 4 zurückgestellten Teile von Mockup 11: die drei Schalter oben im Reiter
+und „Im Hintergrund beenden“.
+
+**Entscheidungen:**
+- **Schalter** (Lumora-eigen, `appconnect\settings.json` neben den Kopplungen, weil der Hintergrundstart sie vor dem Katalog
+  prüft):
+  - „Verbindungen erlauben“ (Standard an): aus = keine Schnittstelle und keine Anmeldedatei als laufend. Die Kopplungen
+    bleiben, der Reiter blendet die Apps aus.
+  - „Andere Apps dürfen Lumora im Hintergrund starten“ (Standard an, wie Mockup 11). Zusätzlich braucht die startende App das
+    Recht `background.start` aus ihrer Karte; das ist bei der Kopplung aus.
+  - „Symbol im Infobereich“ (Standard aus, Abschnitt 9).
+- **Hintergrundstart** `--background --started-by <appId>:<pid>`:
+  - Ohne gültiges `--started-by`, ohne Schalter oder ohne Recht beendet sich Lumora sofort (Protokoll mit Grund, ohne
+    Katalog).
+  - Mit `_hidden` gibt es keinen Hintergrundstart.
+  - Läuft schon eine Lumora, endet der zweite Start still, ohne das Fenster nach vorn zu holen.
+  - Der Hintergrund-Start öffnet Katalog, Theme und Schnittstelle, aber weder Hauptfenster noch Hintergrunddienste (Scan,
+    Überwachung, Entpacken, Gesichter, Motive, Datum, Orte, Doppelte, Güte, Storys).
+  - Die Anmeldedatei steht von Anfang an auf `mode: "background"`.
+- **Fenster öffnen:** „Lumora öffnen“ — zweiter Start über die Pipe oder Infobereich — erzeugt das Hauptfenster im selben
+  Prozess. Beim ersten Mal startet es die Hintergrunddienste nach. Danach gilt Lumora als vom Benutzer geöffnet:
+  `mode: "window"`, und die Regel „startende App beendet“ gilt nicht mehr.
+- **Fenster schließen mit gültiger Halte-Zusage:**
+  - Nebenfenster (Lightbox, Diashow) schließen, Hauptfenster nur verstecken.
+  - `mode: "background"`, „Alle pausieren“ im Hintergrund-Planer (ADR-0074) — nur wenn der Benutzer nicht schon selbst
+    pausiert hatte. Beim Wiederöffnen wird das zurückgenommen.
+  - Ohne Zusage beendet Lumora sich wie bisher.
+- **Lebensdauer** (`BackgroundLifetime`, Takt 15 s): Ende, wenn keine Zusage gilt und seit dem Wechsel in den Hintergrund bzw.
+  der letzten Anfrage 10 Minuten vergangen sind, oder wenn der `--started-by`-Prozess beendet ist und kein anderer Abfrager
+  eine Zusage hält. Die Schnittstelle merkt sich dafür die Zeit der letzten angenommenen Anfrage (`LastRequestUtc`).
+- **Symbol im Infobereich:** Windows Forms `NotifyIcon` (Teil der Windows-Desktop-Laufzeit, kein zusätzliches Paket; die
+  globalen Usings von Windows Forms sind im Projekt entfernt). Text „Lumora läuft im Hintergrund für <Apps> · seit HH:mm“
+  (Namen aus den Kopplungen, alle 15 s nachgezogen), Menü Öffnen / Verbundene Apps… / Beenden.
+- **„Im Hintergrund beenden“** (Herbert, 2026-10-27): Der Vertrag 1.1 kennt keine Anfrage „beende dich“.
+  - Der Knopf gibt Lumoras Halte-Zusage frei. Die App beendet sich danach nach ihren Regeln selbst, spätestens nach 10
+    Minuten ohne Anfrage.
+  - Er erscheint nur, wenn die App im Hintergrund läuft und Lumora dort eine Zusage hält.
+  - Vorschlag 0003 im Vertrags-Repo regt `POST /av/v1/quit` an.
+- **Lumora als Abfrager:** `EnsureRunningInBackgroundAsync` startet nur mit `background.start` der Gegenseite;
+  `HoldAsync`/`ReleaseAsync` verwalten je App eine Zusage, eine abgelaufene wird neu genommen. „<App> öffnen“ startet die
+  App normal — läuft sie, holt ihr zweiter Start das Fenster. Lumora nimmt Zusagen erst ab Stufe 7 (Touren) selbst.
+
+**Folgen:** Schließt der Benutzer das Fenster, während eine App Lumora braucht, läuft Lumora unsichtbar weiter — mit Symbol
+im Infobereich nur, wenn der Schalter an ist (Vertrag: Standard aus). Die Hintergrund-Aufgaben ruhen in dieser Zeit.
+
+**Prüfungen:**
+- Tests: `BackgroundModeTests` (Befehlszeile, Schalter, Ablehnungsgründe, Lebensdauer mit gesteuerter Uhr, Modus in
+  Anmeldedatei und `/info`, letzte Anfrage) und `AppConnectClientTests` (Hintergrundstart nur mit Recht und mit
+  `--started-by`, Zusage nehmen/verlängern/neu/freigeben, Öffnen).
+- Tests: `ConnectedAppsTests` (Schalter gespeichert und von außen geändert, „Öffnen“ bei laufender App, „Im Hintergrund
+  beenden“ gibt die Zusage frei).
+- Rauchtest „App-Verbindung“: Schalter-Standard, Verbindungen aus/an meldet ab und wieder an.
+- Ende-zu-Ende-Prüfung gegen die gebaute `Lumora.exe` (abgeschirmte Wurzel): Hintergrundstart → angemeldet als
+  `background`, kein Fenster, Ende nach dem startenden Prozess; Schalter aus → sofort beendet; Fenster schließen mit Zusage →
+  Hintergrund, ohne Zusage → beendet.
+

@@ -11,13 +11,17 @@ public sealed class AppConnectRuntime
 
     public ConnectionStore? Connections { get; private set; }
 
+    /// <summary>Schalter des Reiters (Stufe 6); null in Tests ohne Schalter.</summary>
+    public AppConnectSettingsStore? Settings { get; private set; }
+
     /// <summary>App-Verbindung ist bereit (einmal je Start).</summary>
     public event EventHandler? Attached;
 
-    public void Attach(AppConnectClient client, ConnectionStore connections)
+    public void Attach(AppConnectClient client, ConnectionStore connections, AppConnectSettingsStore? settings = null)
     {
         Client = client;
         Connections = connections;
+        Settings = settings;
         Attached?.Invoke(this, EventArgs.Empty);
     }
 }

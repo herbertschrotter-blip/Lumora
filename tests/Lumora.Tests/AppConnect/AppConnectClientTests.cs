@@ -23,6 +23,7 @@ public sealed class AppConnectClientTests : IAsyncLifetime
     private ConnectionStore _peerStore = null!;
     private ConnectionStore _store = null!;
     private AppConnectServer _peer = null!;
+    private LeaseRegistry _peerLeases = null!;
     private AppConnectClient _client = null!;
 
     public async Task InitializeAsync()
@@ -30,8 +31,9 @@ public sealed class AppConnectClientTests : IAsyncLifetime
         _registrations = new RegistrationFiles(Path.Combine(_root, "AppVerbindung", "apps"));
         _peerStore = new ConnectionStore(Path.Combine(_root, "peer", "connections.json"), new XorProtector());
         _store = new ConnectionStore(Path.Combine(_root, "lumora", "connections.json"), new XorProtector());
+        _peerLeases = new LeaseRegistry(_peerTime);
         _peer = new AppConnectServer(new AppConnectIdentity("0.6.3"), _peerStore, () => "window",
-            pairing: new PairingCoordinator(_peerStore, _prompt, _peerTime), leases: new LeaseRegistry(_peerTime));
+            pairing: new PairingCoordinator(_peerStore, _prompt, _peerTime), leases: _peerLeases);
         await _peer.StartAsync();
         WritePeer(running: true);
         _registrations.Write(Registration("lumoratest", "Lumora", running: true, port: 1)); // eigene Anmeldedatei
@@ -172,6 +174,67 @@ public sealed class AppConnectClientTests : IAsyncLifetime
 
         var notRunning = () => _client.InfoAsync(_registrations.Read("gipfelbuch")!);
         (await notRunning.Should().ThrowAsync<AppConnectException>()).Which.Code.Should().Be(ErrorCodes.Unavailable);
+    }
+
+    [Fact]
+    public async Task Hintergrundstart_nur_mit_Recht_der_Gegenseite_und_mit_started_by()
+    {
+        await PairAsync();
+        _store.SetGrantedByPeer("gipfelbuch", [Rights.ToursRead]); // Gegenseite erlaubt Lumora keinen Hintergrundstart
+        WritePeer(running: false);
+        var calls = new List<(string Exe, string Args)>();
+        var client = new AppConnectClient(_registrations, _store, own: Own,
+            timings: new AppConnectClientTimings(TimeSpan.FromMilliseconds(20), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(2)),
+            startInBackground: (exe, args) =>
+            {
+                calls.Add((exe, args));
+                WritePeer(running: true);
+                return true;
+            });
+
+        var refused = () => client.EnsureRunningInBackgroundAsync("gipfelbuch");
+        (await refused.Should().ThrowAsync<AppConnectException>()).Which.Code.Should().Be(ErrorCodes.MissingRight, "ohne background.start der Gegenseite");
+        calls.Should().BeEmpty();
+
+        _store.SetGrantedByPeer("gipfelbuch", [Rights.ToursRead, Rights.BackgroundStart]);
+        var running = await client.EnsureRunningInBackgroundAsync("gipfelbuch");
+
+        RegistrationFiles.IsAlive(running).Should().BeTrue();
+        calls.Should().Equal((@"C:\Programme\Gipfelbuch\Gipfelbuch.exe", $"--background --started-by lumoratest:{Environment.ProcessId}"));
+        (await client.EnsureRunningInBackgroundAsync("gipfelbuch")).Port.Should().Be(_peer.Port);
+        calls.Should().HaveCount(1, "läuft schon — kein zweiter Start");
+    }
+
+    [Fact]
+    public async Task Halte_Zusage_nehmen_verlaengern_und_freigeben()
+    {
+        await PairAsync();
+
+        var first = await _client.HoldAsync("gipfelbuch", 120);
+        _client.Holds("gipfelbuch").Should().BeTrue();
+        _peerLeases.Holders.Should().Equal("lumoratest");
+
+        _peerTime.Advance(TimeSpan.FromSeconds(60));
+        var extended = await _client.HoldAsync("gipfelbuch", 300);
+        extended.LeaseId.Should().Be(first.LeaseId, "verlängert, nicht neu");
+        extended.ExpiresUtc.Should().BeAfter(first.ExpiresUtc);
+
+        _peerTime.Advance(TimeSpan.FromSeconds(400));
+        var renewed = await _client.HoldAsync("gipfelbuch", 120);
+        renewed.LeaseId.Should().NotBe(first.LeaseId, "abgelaufen (404) → neue Zusage");
+
+        await _client.ReleaseAsync("gipfelbuch");
+        _client.Holds("gipfelbuch").Should().BeFalse();
+        _peerLeases.Holders.Should().BeEmpty("„Im Hintergrund beenden“ gibt die Zusage frei");
+        await _client.ReleaseAsync("gipfelbuch"); // nichts mehr zu tun
+    }
+
+    [Fact]
+    public void Oeffnen_startet_die_App_normal_auch_wenn_sie_laeuft()
+    {
+        _client.Open("gipfelbuch").Should().BeTrue();
+        _started.Should().Equal(@"C:\Programme\Gipfelbuch\Gipfelbuch.exe");
+        _client.Open("unbekannt").Should().BeFalse();
     }
 
     [Fact]
