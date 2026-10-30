@@ -3,6 +3,23 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.34] — 2026-10-30
+
+### Added — Container der versteckten Bibliothek verschieben (Mockup 26, ADR-0049 Nachtrag 0.5.34)
+- **Einstellungen › Versteckte Bibliothek › „Container verschieben…“:** Assistent in drei Schritten.
+  - **Quelle:** Die BitLocker-VHDX hinter dem Laufwerk erkennt Lumora über Windows; bei VeraCrypt wählen Sie die Datei.
+  - **Ziel:** Laufwerke mit freiem Platz, Ordner und Name. Zu wenig Platz, Cloud-Ordner, der Container selbst und
+    Netzwerkpfade sind gesperrt.
+  - **Prüfen und starten:** Ablauf mit geschätzter Dauer, alte Datei behalten oder in den Papierkorb.
+- **Ablauf mit Fortschritt:** Bibliothek schließen, aushängen, kopieren und die Kopie mit Prüfsumme vergleichen (auf
+  demselben Laufwerk nur umbenennen), am neuen Ort unter demselben Laufwerksbuchstaben einhängen, Kennwort fragen und
+  wieder öffnen. Abbrechen geht beim Kopieren und Prüfen: die halbe Kopie wird gelöscht, der Container am alten Ort
+  wieder geöffnet.
+- Lumora merkt sich keinen der beiden Pfade; im Protokoll stehen keine Pfade.
+- **Technik:** `Services/HiddenLibraries/Relocation` (`ContainerRelocationRules`, `ContainerFileCopier`,
+  `VirtualDiskBackingFile`), `CatalogSessionManager.Relocation.cs`, `ContainerRelocationWindow`,
+  `ContainerRelocationProgressWindow`. 12 neue Tests.
+
 ## [0.5.33] — 2026-10-30
 
 ### Added — Orte › Ungenau: Quellen vergleichen (Mockup 25, ADR-0062 Nachtrag 0.5.33)

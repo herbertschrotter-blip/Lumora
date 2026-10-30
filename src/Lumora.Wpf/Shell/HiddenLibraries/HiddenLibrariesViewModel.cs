@@ -22,15 +22,19 @@ public sealed partial class HiddenLibrariesViewModel : ObservableObject
     private readonly IDialogService _messages;
     private readonly ILogger<HiddenLibrariesViewModel> _logger;
     private readonly IContainerAssistant? _assistant;
+    private readonly Lumora.Services.HiddenLibraries.Relocation.IContainerFileLocator _locator;
 
     /// <param name="assistant">Container-Assistent vor dem Anlegen (ADR-0061); null = direkt zum Anlegen-Dialog.</param>
+    /// <param name="locator">Datei hinter dem Laufwerk für „Container verschieben…“ (Mockup 26); null = Windows fragen.</param>
     public HiddenLibrariesViewModel(
         ICatalogSessionManager sessions,
         IHiddenLibraryDialogs dialogs,
         IDialogService messages,
         ILogger<HiddenLibrariesViewModel> logger,
-        IContainerAssistant? assistant = null)
+        IContainerAssistant? assistant = null,
+        Lumora.Services.HiddenLibraries.Relocation.IContainerFileLocator? locator = null)
     {
+        _locator = locator ?? new Lumora.Services.HiddenLibraries.Relocation.VirtualDiskBackingFile();
         _sessions = sessions;
         _dialogs = dialogs;
         _messages = messages;
@@ -207,6 +211,28 @@ public sealed partial class HiddenLibrariesViewModel : ObservableObject
         {
             await _sessions.LockAsync().ConfigureAwait(true);
         }
+    }
+
+    /// <summary>„Container verschieben…“ (Mockup 26): Assistent, dann der Ablauf in der Sitzungsverwaltung mit eigenem Fenster.</summary>
+    [RelayCommand]
+    private async Task RelocateContainerAsync()
+    {
+        if (!IsHiddenSessionActive || _sessions.ActiveLibrary is not { } library)
+        {
+            return;
+        }
+
+        var letter = char.ToUpperInvariant(library.DriveRoot[0]);
+        var isVeraCrypt = _sessions.Containers.Detect(library.DriveRoot) == ContainerKind.VeraCrypt;
+        var detected = isVeraCrypt ? null : _locator.FindVirtualDiskFile(letter);
+        var plan = _dialogs.AskRelocation(letter, isVeraCrypt, detected);
+        if (plan is null)
+        {
+            return;
+        }
+
+        // Ergebnis und Fehler zeigt das Fortschrittsfenster; diese Sitzung (samt Protokoll) ist danach schon geschlossen
+        await _sessions.RelocateContainerAsync(plan, () => _dialogs.ShowRelocationProgress(plan)).ConfigureAwait(true);
     }
 
     [RelayCommand]

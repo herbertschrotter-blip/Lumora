@@ -30,11 +30,32 @@ public interface IHiddenLibraryDialogs
     HiddenLibraryUnlockAnswer? AskUnlock(HiddenLibraryInfo library, bool canReset, Func<string, Task<bool>> verify);
 
     ContainerMountAnswer? AskMountContainer(IReadOnlyList<char> freeLetters);
+
+    /// <summary>Assistent „Container verschieben“ (Mockup 26); null = abgebrochen.</summary>
+    Lumora.Services.HiddenLibraries.Relocation.ContainerRelocationPlan? AskRelocation(char driveLetter, bool isVeraCrypt, string? detectedFile) => null;
+
+    /// <summary>Fortschrittsfenster zeigen (nach dem Schließen der versteckten Sitzung).</summary>
+    IContainerRelocationProgress ShowRelocationProgress(Lumora.Services.HiddenLibraries.Relocation.ContainerRelocationPlan plan)
+        => throw new NotSupportedException("Kein Fortschrittsfenster.");
 }
 
 /// <summary>Produktive Dialoge (modal über dem Hauptfenster).</summary>
 public sealed class HiddenLibraryDialogs : IHiddenLibraryDialogs
 {
+    public Lumora.Services.HiddenLibraries.Relocation.ContainerRelocationPlan? AskRelocation(char driveLetter, bool isVeraCrypt, string? detectedFile)
+    {
+        var viewModel = new Relocation.ContainerRelocationViewModel(driveLetter, isVeraCrypt, detectedFile, new Relocation.SystemRelocationDrives());
+        var window = new Relocation.ContainerRelocationWindow(viewModel) { Owner = Application.Current?.MainWindow };
+        return window.ShowDialog() == true ? viewModel.Result : null;
+    }
+
+    public IContainerRelocationProgress ShowRelocationProgress(Lumora.Services.HiddenLibraries.Relocation.ContainerRelocationPlan plan)
+    {
+        var window = new Relocation.ContainerRelocationProgressWindow(plan);
+        window.Show();
+        return window;
+    }
+
     public HiddenLibraryCreateAnswer? AskCreate(IReadOnlyList<string> drives, Func<string, Task<string?>> validateFolder)
     {
         var dialog = new HiddenLibraryDialog(HiddenLibraryDialog.Mode.Create) { ValidateFolder = validateFolder };

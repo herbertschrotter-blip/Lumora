@@ -29,7 +29,21 @@ internal sealed class FakeHostSwitcher : ICatalogHostSwitcher
         CurrentServices = _normal;
     }
 
-    public IServiceProvider CurrentServices { get; private set; }
+    private IServiceProvider _current = null!;
+
+    /// <summary>Dialoge, die die aktive Sitzung liefert (z. B. Kennwort nach „Container verschieben“); null = keine.</summary>
+    public IHiddenLibraryDialogs? Dialogs { get; set; }
+
+    public IServiceProvider CurrentServices
+    {
+        get => Dialogs is { } dialogs ? new WithDialogs(_current, dialogs) : _current;
+        private set => _current = value;
+    }
+
+    private sealed class WithDialogs(IServiceProvider inner, IHiddenLibraryDialogs dialogs) : IServiceProvider
+    {
+        public object? GetService(Type serviceType) => serviceType == typeof(IHiddenLibraryDialogs) ? dialogs : inner.GetService(serviceType);
+    }
 
     public List<string> Calls { get; } = new();
 

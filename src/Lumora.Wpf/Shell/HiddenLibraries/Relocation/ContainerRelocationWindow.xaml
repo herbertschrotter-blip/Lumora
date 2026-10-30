@@ -1,0 +1,174 @@
+<dialogs:AppFluentWindow x:Class="Lumora.Shell.HiddenLibraries.Relocation.ContainerRelocationWindow"
+                 xmlns:dialogs="clr-namespace:Lumora.Shell.Dialogs"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:local="clr-namespace:Lumora.Shell.HiddenLibraries.Relocation"
+                 mc:Ignorable="d"
+                 d:DataContext="{d:DesignInstance local:ContainerRelocationViewModel}"
+                 Title="Container verschieben"
+                 Width="660"
+                 SizeToContent="Height"
+                 ResizeMode="NoResize"
+                 ShowInTaskbar="False"
+                 WindowStartupLocation="CenterOwner"
+                 WindowBackdropType="Mica"
+                 ExtendsContentIntoTitleBar="True"
+                 AutomationProperties.AutomationId="ContainerRelocationWindow">
+
+    <!-- Assistent „Container verschieben“ (Mockup 26): 1 Quelle, 2 Ziel, 3 Prüfen und starten. Den Ablauf selbst zeigt
+         danach das Fortschrittsfenster (ContainerRelocationProgressWindow), weil der Wechsel alle Fenster schließt. -->
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <Style x:Key="Hint" TargetType="TextBlock">
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="LineHeight" Value="18" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        </Style>
+        <Style x:Key="Section" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Margin" Value="0,14,0,4" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+        </Style>
+        <Style x:Key="InfoBox" TargetType="Border">
+            <Setter Property="Padding" Value="12,9" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Margin" Value="0,10,0,0" />
+            <Setter Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+        </Style>
+        <Style x:Key="PlanLine" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Margin" Value="0,3,0,3" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar Grid.Row="0" Title="Lumora" ShowMaximize="False" ShowMinimize="False" />
+
+        <StackPanel Grid.Row="1" Margin="24,0,24,0">
+            <TextBlock Text="Container verschieben" FontSize="20" FontWeight="SemiBold" />
+            <TextBlock Margin="0,4,0,0" FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                       Text="1 Quelle  ›  2 Ziel  ›  3 Prüfen und starten  ›  4 Verschieben" />
+        </StackPanel>
+
+        <Grid Grid.Row="2" Margin="24,12,24,0" MinHeight="330">
+            <!-- 1 Quelle -->
+            <StackPanel Visibility="{Binding IsStep1, Converter={StaticResource BoolToVis}}">
+                <TextBlock Style="{StaticResource Hint}"
+                           Text="Lumora merkt sich die Container-Datei nicht. Sie wird nur für diesen Vorgang erkannt bzw. gewählt." />
+                <Border Margin="0,10,0,0" Padding="14,12" CornerRadius="8" BorderThickness="1"
+                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+                    <DockPanel>
+                        <ui:Button DockPanel.Dock="Right" VerticalAlignment="Center" Content="{Binding PickSourceText}"
+                                   AutomationProperties.Name="Container-Datei wählen" Click="OnPickSource" />
+                        <ui:SymbolIcon DockPanel.Dock="Left" Symbol="HardDrive24" FontSize="26" Margin="0,0,12,0" VerticalAlignment="Top"
+                                       Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                        <StackPanel>
+                            <TextBlock Text="{Binding SourceTitle}" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding SourceFile}" FontFamily="Cascadia Mono, Consolas" FontSize="12" Margin="0,2,0,0" TextWrapping="Wrap"
+                                       AutomationProperties.AutomationId="RelocationSource" />
+                            <TextBlock Style="{StaticResource Hint}" Text="{Binding SourceDetails}" Margin="0,2,0,0" />
+                        </StackPanel>
+                    </DockPanel>
+                </Border>
+                <TextBlock Style="{StaticResource Section}" Text="WAS MITWANDERT" />
+                <TextBlock Style="{StaticResource Hint}"
+                           Text="Alles im Container: Fotos auf dem Laufwerk, Katalog, Vorschaubilder, Gesichter, Sicherungen und die KI-Bearbeitung. Ordner der Bibliothek auf anderen Laufwerken bleiben, wo sie sind." />
+            </StackPanel>
+
+            <!-- 2 Ziel -->
+            <StackPanel Visibility="{Binding IsStep2, Converter={StaticResource BoolToVis}}">
+                <TextBlock Style="{StaticResource Hint}" Text="Ziel-Laufwerk" Margin="0,0,0,6" />
+                <ItemsControl ItemsSource="{Binding Drives}" AutomationProperties.Name="Ziel-Laufwerke">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Columns="2" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type local:RelocationDrive}">
+                            <ToggleButton Margin="0,0,8,8" Padding="10,8" HorizontalContentAlignment="Stretch"
+                                          IsChecked="{Binding IsSelected, Mode=OneWay}" IsEnabled="{Binding IsUsable}"
+                                          AutomationProperties.Name="{Binding Name}"
+                                          Command="{Binding DataContext.SelectDriveCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                          CommandParameter="{Binding}">
+                                <StackPanel>
+                                    <TextBlock><Run Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" /><Run Text="  " /><Run Text="{Binding Label, Mode=OneWay}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" /></TextBlock>
+                                    <ProgressBar Margin="0,6,0,4" Height="5" Maximum="100" Value="{Binding UsedPercent, Mode=OneWay}" />
+                                    <TextBlock Text="{Binding FreeText}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                </StackPanel>
+                            </ToggleButton>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Style="{StaticResource Hint}" Text="Ordner und Dateiname" Margin="0,6,0,4" />
+                <DockPanel>
+                    <ui:Button DockPanel.Dock="Right" Margin="8,0,0,0" Content="Ordner…" Click="OnPickFolder" AutomationProperties.Name="Zielordner wählen" />
+                    <ui:TextBox Text="{Binding TargetFile, UpdateSourceTrigger=PropertyChanged}" FontFamily="Cascadia Mono, Consolas" FontSize="12"
+                                AutomationProperties.AutomationId="RelocationTarget" AutomationProperties.Name="Zielpfad" />
+                </DockPanel>
+                <Border Style="{StaticResource InfoBox}" Background="{DynamicResource SystemFillColorCriticalBackgroundBrush}"
+                        Visibility="{Binding HasProblem, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Style="{StaticResource Hint}" Foreground="{DynamicResource TextFillColorPrimaryBrush}" Text="{Binding ProblemText}"
+                               AutomationProperties.AutomationId="RelocationProblem" />
+                </Border>
+                <Border Style="{StaticResource InfoBox}" Background="{DynamicResource SystemFillColorSuccessBackgroundBrush}">
+                    <TextBlock Style="{StaticResource Hint}" Foreground="{DynamicResource TextFillColorPrimaryBrush}" Text="{Binding ModeText}" />
+                </Border>
+            </StackPanel>
+
+            <!-- 3 Prüfen und starten -->
+            <StackPanel Visibility="{Binding IsStep3, Converter={StaticResource BoolToVis}}">
+                <TextBlock Style="{StaticResource Section}" Margin="0,0,0,4" Text="{Binding EstimateText}" />
+                <TextBlock Style="{StaticResource PlanLine}" Text="1  Versteckte Bibliothek schließen · laufende Arbeit stoppt, ComfyUI wird beendet" />
+                <TextBlock Style="{StaticResource PlanLine}" Text="{Binding DriveLetter, StringFormat='2  Container {0}: aushängen'}" />
+                <TextBlock Style="{StaticResource PlanLine}" Text="{Binding PlanCopyText, StringFormat='3  {0}'}" />
+                <TextBlock Style="{StaticResource PlanLine}" Text="4  Kopie prüfen · Größe und Prüfsumme" />
+                <TextBlock Style="{StaticResource PlanLine}" Text="{Binding ReopenText, StringFormat='5  {0}'}" />
+                <TextBlock Style="{StaticResource PlanLine}" Text="6  Versteckte Bibliothek wieder öffnen · Lumora fragt das Kennwort der Bibliothek" />
+                <TextBlock Style="{StaticResource Section}" Text="ALTE DATEI NACH ERFOLGREICHER PRÜFUNG" />
+                <RadioButton GroupName="OldFile" IsChecked="{Binding KeepOldFile}" AutomationProperties.Name="Alte Datei behalten">
+                    <StackPanel>
+                        <TextBlock Text="Behalten" />
+                        <TextBlock Style="{StaticResource Hint}" Text="{Binding OldFolderText}" />
+                    </StackPanel>
+                </RadioButton>
+                <RadioButton GroupName="OldFile" Margin="0,6,0,0" IsChecked="{Binding RecycleOldFile}" AutomationProperties.Name="Alte Datei in den Papierkorb">
+                    <StackPanel>
+                        <TextBlock Text="In den Papierkorb" />
+                        <TextBlock Style="{StaticResource Hint}" Text="Bei sehr großen Dateien löscht Windows sie unter Umständen sofort endgültig (Papierkorb zu klein) — Windows fragt dann nach." />
+                    </StackPanel>
+                </RadioButton>
+                <Border Style="{StaticResource InfoBox}">
+                    <TextBlock Style="{StaticResource Hint}" Text="{Binding LetterHint}" />
+                </Border>
+            </StackPanel>
+        </Grid>
+
+        <Border Grid.Row="3" Margin="0,16,0,0" Padding="24,12,24,16" BorderThickness="0,1,0,0"
+                BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                Background="{DynamicResource SubtleFillColorSecondaryBrush}">
+            <DockPanel LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" FontSize="12" Text="{Binding StepText}"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                <ui:Button DockPanel.Dock="Right" Margin="8,0,0,0" Appearance="Primary" Content="{Binding NextText}" Command="{Binding NextCommand}"
+                           AutomationProperties.AutomationId="RelocationNext" />
+                <ui:Button DockPanel.Dock="Right" Margin="8,0,0,0" Content="Abbrechen" IsCancel="True" Click="OnCancel" />
+                <ui:Button DockPanel.Dock="Right" Content="Zurück" Command="{Binding BackCommand}"
+                           Visibility="{Binding CanGoBack, Converter={StaticResource BoolToVis}}" />
+            </DockPanel>
+        </Border>
+    </Grid>
+</dialogs:AppFluentWindow>

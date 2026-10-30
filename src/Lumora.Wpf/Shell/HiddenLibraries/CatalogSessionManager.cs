@@ -132,10 +132,17 @@ public interface ICatalogSessionManager
 
     /// <summary>Beim Beenden (nach dem Schließen der Sitzung): Container aushängen, wenn eingestellt. Synchron mit Zeitgrenze.</summary>
     ContainerCommandResult? DismountAfterExit(TimeSpan timeout);
+
+    /// <summary>Container-Datei auf ein anderes Laufwerk verschieben (Mockup 26); siehe <see cref="CatalogSessionManager"/>.</summary>
+    Task<HiddenSessionResult> RelocateContainerAsync(
+        Lumora.Services.HiddenLibraries.Relocation.ContainerRelocationPlan plan,
+        Func<IContainerRelocationProgress> progressFactory,
+        Lumora.Services.Operations.IRecycleBin? recycleBin = null)
+        => Task.FromResult(HiddenSessionResult.Fail("Verschieben wird hier nicht unterstützt."));
 }
 
 /// <inheritdoc cref="ICatalogSessionManager" />
-public sealed class CatalogSessionManager : ICatalogSessionManager
+public sealed partial class CatalogSessionManager : ICatalogSessionManager
 {
     private static readonly TimeSpan IdleCheckInterval = TimeSpan.FromSeconds(10);
 

@@ -43,6 +43,9 @@
                     <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
                         <ui:Button Appearance="Primary" Content="Jetzt zusperren" Command="{Binding LockCommand}"
                                    Icon="{ui:SymbolIcon LockClosed24}" AutomationProperties.Name="Jetzt zusperren" />
+                        <ui:Button Margin="8,0,0,0" Content="Container verschieben…" Command="{Binding RelocateContainerCommand}"
+                                   Icon="{ui:SymbolIcon ArrowMove24}" AutomationProperties.Name="Container verschieben"
+                                   ToolTip="Container-Datei auf ein anderes Laufwerk verschieben — der Laufwerksbuchstabe bleibt gleich" />
                     </StackPanel>
                 </StackPanel>
             </Border>

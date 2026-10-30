@@ -177,3 +177,24 @@ einhängt (Container öffnen auch ohne VeraCrypt)“.
 **Konsequenzen:** Der echte Lauf auf Herberts PC steht aus (ob Windows beim Bereitstellen nach Administratorrechten fragt
 und ob `bdeunlock` erst nach der Eingabe zurückkehrt). Ist die Datei schon eingehängt, erscheint kein neues Laufwerk —
 dann meldet Lumora das mit dem Weg über den Explorer.
+
+## Nachtrag 0.5.34 — Container verschieben (Mockup 26, Herbert 2026-10-30)
+
+Herbert will die Container-Datei der versteckten Bibliothek auf ein anderes Laufwerk legen können.
+
+- **Weiter keine Spur:** Lumora speichert die Container-Datei auch dafür nicht. Eine BitLocker-VHDX erkennt der Assistent
+  über Windows (`GetStorageDependencyInformation`, `VirtualDiskBackingFile`), bei VeraCrypt wählt der Benutzer die Datei.
+  Pfade erscheinen in keinem Protokoll.
+- **Ablauf** (`CatalogSessionManager.RelocateContainerAsync`): versteckte Sitzung schließen, Container aushängen, warten
+  bis Windows die Datei freigibt, kopieren unter einem Zwischennamen mit SHA-256 und die Kopie noch einmal lesen und
+  vergleichen (`ContainerFileCopier`) — auf demselben Laufwerk nur umbenennen —, am neuen Ort unter **demselben
+  Buchstaben** einhängen (der Katalog kennt die Fotos unter diesem Laufwerk), alte Datei behalten oder in den Papierkorb,
+  dann das Kennwort fragen und die Bibliothek wieder öffnen.
+- **Ausnahme vom Ende des versteckten Modus (0.4.14):** Verschieben schließt die Sitzung, beendet den versteckten Modus
+  aber nicht — sonst ließe sich die Bibliothek erst nach einem Neustart wieder öffnen.
+- **Fehler:** Bis zum Einhängen am neuen Ort bleibt die alte Datei unberührt; bei Abbruch, Fehler beim Kopieren oder
+  Prüfen und wenn der Container am neuen Ort nicht unter dem Buchstaben erscheint, hängt Lumora die alte Datei wieder ein.
+  Die halbe Kopie wird gelöscht, eine geprüfte Kopie bleibt bei einem Fehler beim Einhängen liegen.
+- **Ziel-Regeln** (`ContainerRelocationRules`): nicht die Datei selbst, keine vorhandene Datei, nicht im Container, kein
+  Netzwerkpfad, gleiche Endung, kein Cloud-Ordner (OneDrive, Dropbox, Google Drive …), freier Platz = Größe + 1 GB.
+
