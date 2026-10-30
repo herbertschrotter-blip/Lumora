@@ -88,7 +88,8 @@ public sealed class FaceClusterer : IFaceClusterer
         var topIndex = new int[n][];
         var topSim = new float[n][];
         var blocks = (n + RowBlock - 1) / RowBlock;
-        Parallel.For(0, blocks, new ParallelOptions { CancellationToken = ct }, block =>
+        // halbe Kerne wie alle Hintergrund-Arbeit: sonst stehen Vorschaubilder und Galerie still (2026-10-30, 449 000 Dateien)
+        Parallel.For(0, blocks, Background.BackgroundCpu.Options(ct), block =>
         {
             var start = block * RowBlock;
             var end = Math.Min(n, start + RowBlock);

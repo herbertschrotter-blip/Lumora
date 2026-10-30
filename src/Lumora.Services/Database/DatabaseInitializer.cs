@@ -18,6 +18,22 @@ namespace Lumora.Services.Database;
 /// </summary>
 public sealed class DatabaseInitializer
 {
+    private long DatabaseBytes()
+    {
+        try
+        {
+            return new FileInfo(_factory.DatabasePath).Length;
+        }
+        catch (IOException)
+        {
+            return 0;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return 0;
+        }
+    }
+
     private readonly ILibraryContextFactory _factory;
     private readonly ILogger<DatabaseInitializer> _logger;
     private readonly ICatalogBackupService? _backup;
@@ -30,7 +46,8 @@ public sealed class DatabaseInitializer
         _backup = backup;
     }
 
-    public async Task<DatabaseInitResult> InitializeAsync(CancellationToken ct = default)
+    /// <param name="progress">Meldet Sichern und Aktualisieren (Start zeigt dafür ein kleines Fenster), null = still.</param>
+    public async Task<DatabaseInitResult> InitializeAsync(CancellationToken ct = default, IProgress<DatabaseInitStep>? progress = null)
     {
         _logger.LogInformation("Library-DB initialisieren: {Path}", _factory.DatabasePath);
 
@@ -47,6 +64,7 @@ public sealed class DatabaseInitializer
         if (pending.Length > 0 && applied.Length > 0 && _backup is not null)
         {
             // ADR-0069: bestehender Katalog → erst sichern; ohne Sicherung keine Migration
+            progress?.Report(new DatabaseInitStep(DatabaseInitStepKind.Backup, DatabaseBytes(), pending.Length));
             try
             {
                 backup = await _backup.CreateBackupAsync(CatalogBackupKind.BeforeMigration, ct).ConfigureAwait(false);
@@ -65,6 +83,7 @@ public sealed class DatabaseInitializer
             _logger.LogInformation(
                 "Migration ausstehend: {Count} ({First} → {Last}). Wende an…",
                 pending.Length, pending[0], pending[^1]);
+            progress?.Report(new DatabaseInitStep(DatabaseInitStepKind.Migrate, DatabaseBytes(), pending.Length));
             await ctx.Database.MigrateAsync(ct).ConfigureAwait(false);
             migrated = true;
             _logger.LogInformation("Migration abgeschlossen.");
@@ -112,6 +131,19 @@ public sealed class DatabaseInitializer
             RestoredFrom: restored);
     }
 }
+
+/// <summary>Was der Start gerade mit dem Katalog macht (für das Fenster beim Sichern und Aktualisieren).</summary>
+public enum DatabaseInitStepKind
+{
+    /// <summary>Sicherung vor der Migration (ADR-0069) — bei großen Katalogen eine Minute und mehr.</summary>
+    Backup,
+
+    /// <summary>Migrationen anwenden.</summary>
+    Migrate,
+}
+
+/// <param name="DatabaseBytes">Größe von <c>library.db</c> (0, wenn unbekannt).</param>
+public sealed record DatabaseInitStep(DatabaseInitStepKind Kind, long DatabaseBytes, int PendingMigrations);
 
 public sealed record DatabaseInitResult(
     string DatabasePath,

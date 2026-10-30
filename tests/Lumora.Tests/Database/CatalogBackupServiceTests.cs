@@ -118,9 +118,13 @@ public sealed class CatalogBackupServiceTests : IDisposable
         Exec(factory, InsertLibrary(1, "Bestand"));
         var backup = Backup(paths);
 
-        var result = await new DatabaseInitializer(factory, NullLogger<DatabaseInitializer>.Instance, backup).InitializeAsync();
+        var steps = new StepLog();
+        var result = await new DatabaseInitializer(factory, NullLogger<DatabaseInitializer>.Instance, backup).InitializeAsync(progress: steps);
 
         result.NewlyMigrated.Should().BeGreaterThan(0);
+        steps.Kinds.Should().Equal([DatabaseInitStepKind.Backup, DatabaseInitStepKind.Migrate], "das Startfenster zeigt erst Sichern, dann Aktualisieren");
+        steps.Items[0].DatabaseBytes.Should().BeGreaterThan(0);
+        steps.Items[1].PendingMigrations.Should().Be(result.NewlyMigrated);
         result.BackupBeforeMigration.Should().NotBeNull();
         result.BackupBeforeMigration!.Kind.Should().Be(CatalogBackupKind.BeforeMigration);
         result.BackupBeforeMigration.FileName.Should().MatchRegex(@"^library-0\.4\.40-\d{8}-\d{6}-\d{3}\.db$");
@@ -129,8 +133,10 @@ public sealed class CatalogBackupServiceTests : IDisposable
         Scalar(paths.LibraryDatabasePath, "SELECT COUNT(*) FROM __EFMigrationsHistory").Should().Be(result.AppliedMigrations);
 
         // nächster Start ohne ausstehende Migration: keine weitere Sicherung
-        var again = await new DatabaseInitializer(factory, NullLogger<DatabaseInitializer>.Instance, backup).InitializeAsync();
+        var quiet = new StepLog();
+        var again = await new DatabaseInitializer(factory, NullLogger<DatabaseInitializer>.Instance, backup).InitializeAsync(progress: quiet);
         again.BackupBeforeMigration.Should().BeNull();
+        quiet.Items.Should().BeEmpty("ohne Migration kein Fenster");
         backup.List().Should().HaveCount(1);
     }
 
@@ -140,10 +146,12 @@ public sealed class CatalogBackupServiceTests : IDisposable
         var (paths, factory) = NewCatalog();
         var backup = Backup(paths);
 
-        var result = await new DatabaseInitializer(factory, NullLogger<DatabaseInitializer>.Instance, backup).InitializeAsync();
+        var steps = new StepLog();
+        var result = await new DatabaseInitializer(factory, NullLogger<DatabaseInitializer>.Instance, backup).InitializeAsync(progress: steps);
 
         result.NewlyMigrated.Should().BeGreaterThan(0);
         result.BackupBeforeMigration.Should().BeNull("es gab noch keinen Katalog");
+        steps.Kinds.Should().Equal([DatabaseInitStepKind.Migrate], "neuer Katalog: nur Anlegen, keine Sicherung");
         Directory.Exists(backup.BackupFolder).Should().BeFalse();
     }
 
@@ -326,5 +334,15 @@ public sealed class CatalogBackupServiceTests : IDisposable
 
         CatalogBackupService.Describe(Path.Combine(_root, "library.db")).Should().BeNull();
         CatalogBackupService.Describe(Path.Combine(_root, "library-x-20261025.db")).Should().BeNull();
+    }
+
+    /// <summary>Schritte synchron mitschreiben (Progress&lt;T&gt; stellte sie erst später zu).</summary>
+    private sealed class StepLog : IProgress<DatabaseInitStep>
+    {
+        public List<DatabaseInitStep> Items { get; } = [];
+
+        public IEnumerable<DatabaseInitStepKind> Kinds => Items.Select(i => i.Kind);
+
+        public void Report(DatabaseInitStep value) => Items.Add(value);
     }
 }

@@ -3,6 +3,20 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.31] — 2026-10-30
+
+### Fixed — Galerie hängt beim Gruppieren der Gesichter, Start ohne Fenster beim Sichern des Katalogs
+- **Gesichter gruppieren** (Seite Personen) rechnet nur noch auf der Hälfte der Kerne, wie alle Hintergrund-Arbeit
+  (ADR-0074, Nachtrag 0.5.31). In einer Bibliothek mit rund 450 000 Dateien belegte es minutenlang alle Kerne; die
+  Vorschaubilder der Galerie kamen so lange nicht nach.
+- **Fenster „Katalog wird gesichert …“:** Muss eine neue Version den Katalog aktualisieren, sichert Lumora ihn vorher
+  (ADR-0069). Bei großen Katalogen dauert das eine Minute und mehr. Bisher war in dieser Zeit kein Fenster zu sehen und
+  Lumora wirkte abgestürzt. Jetzt zeigt ein kleines Fenster Schritt und Größe des Katalogs („Katalog wird gesichert …“,
+  danach „Katalog wird aktualisiert …“) und schließt sich von selbst. Gilt beim Start und beim Öffnen der versteckten
+  Bibliothek. Die Sicherung läuft dabei auf einem Hintergrund-Thread.
+- **Technik:** `DatabaseInitializer.InitializeAsync(progress:)` meldet `DatabaseInitStep` (Sichern, Aktualisieren);
+  `Shell/Dialogs/CatalogUpdateWindow`. 2 Tests erweitert, 1 neuer.
+
 ## [0.5.30] — 2026-10-27
 
 ### Added — KI-Bearbeitung Stufe 1: ComfyUI-Laufzeit, nur in der versteckten Sitzung (ADR-0076)

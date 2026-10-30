@@ -3,8 +3,9 @@ namespace Lumora.Services.Background;
 /// <summary>
 /// Kern-Obergrenze für Hintergrund-Rechnen (ADR-0074 Nachtrag 0.5.15): parallele Schleifen und ONNX-Sitzungen der
 /// Hintergrund-Aufgaben nutzen höchstens die Hälfte der Kerne, damit Bedienung, Lightbox und Galerie immer freie Kerne
-/// und freie Plätze im Thread-Pool finden. Arbeit, auf die der Benutzer wartet (Foto verbessern, Gesichter gruppieren
-/// auf der Personen-Seite), nutzt weiter alle.
+/// und freie Plätze im Thread-Pool finden. Arbeit, auf die der Benutzer wartet (Foto verbessern), nutzt weiter alle.
+/// Seit 0.5.31 gilt die Grenze auch für das Gruppieren der Gesichter auf der Personen-Seite: in großen Bibliotheken rechnet
+/// es minutenlang und hielt sonst die Vorschaubilder der Galerie an.
 /// </summary>
 public static class BackgroundCpu
 {

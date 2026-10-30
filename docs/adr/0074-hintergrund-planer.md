@@ -182,3 +182,11 @@ nimmt höchstens 256 MB je Stapel.
 - Tests: `tests/Lumora.Tests/Background/BackgroundPlannerTests.cs`, `Metadata/FileMetadataProbeTests.cs`,
   `Activity/ActivityCenterTests.cs`, `Activity/ActivityBridgeTests.cs`, `Enhance/EnhanceForegroundTests.cs`, `Background/ForegroundHoldTests.cs` (0.5.15),
   `Faces/FaceIndexServiceTests.cs` (Vorrang, 0.5.12)
+
+## Nachtrag 0.5.31 — Gesichter gruppieren unter der Kern-Obergrenze (Herbert, 2026-10-30)
+
+Das Gruppieren unbekannter Gesichter auf der Seite Personen galt in 0.5.15 als Arbeit, auf die der Benutzer wartet, und
+durfte alle Kerne nutzen. In einer großen versteckten Bibliothek (rund 450 000 Dateien) rechnete es minutenlang auf allen
+Kernen; die Galerie bekam so lange keine Vorschaubilder. Seit 0.5.31 nutzt `FaceClusterer` deshalb
+`BackgroundCpu.Options` (halbe Kerne). Das Gruppieren dauert dadurch etwas länger, die Bedienung bleibt flüssig.
+

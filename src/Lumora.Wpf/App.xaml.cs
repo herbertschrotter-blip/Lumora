@@ -404,11 +404,23 @@ public partial class App : Application, ICatalogHostSwitcher
             }
         }
 
-        // Library-DB initialisieren (Migration anwenden, Crash-Recovery)
+        // Library-DB initialisieren (Migration anwenden, Crash-Recovery). Sichern und Aktualisieren können bei großen Katalogen
+        // eine Minute dauern: dann zeigt ein kleines Fenster, was passiert, und der UI-Thread bleibt frei (Task.Run).
+        Shell.Dialogs.CatalogUpdateWindow? updateWindow = null;
+        var initDone = false;
+        var shutdownMode = ShutdownMode;
+        ShutdownMode = ShutdownMode.OnExplicitShutdown; // das Fenster ist beim ersten Start das einzige — Schließen darf Lumora nicht beenden
+        var progress = new Progress<DatabaseInitStep>(step =>
+        {
+            if (windowed && !initDone) // eine erst nach dem Ende zugestellte Meldung öffnet kein Fenster mehr
+            {
+                (updateWindow ??= new Shell.Dialogs.CatalogUpdateWindow()).ShowStep(step);
+            }
+        });
         try
         {
             var initializer = services.GetRequiredService<DatabaseInitializer>();
-            var result = await initializer.InitializeAsync().ConfigureAwait(true);
+            var result = await Task.Run(() => initializer.InitializeAsync(progress: progress)).ConfigureAwait(true);
             Log.Information(
                 "Library-DB bereit: {Path} — {Migrated} neu migriert, {Stale} Stale-Thumbnails wiederhergestellt",
                 result.DatabasePath, result.NewlyMigrated, result.StaleThumbnailsRecovered);
@@ -421,6 +433,12 @@ public partial class App : Application, ICatalogHostSwitcher
         catch (Exception dbEx)
         {
             throw new SessionStartException($"Datenbank-Initialisierung fehlgeschlagen:\n{dbEx.Message}\n\nApp wird beendet.", dbEx);
+        }
+        finally
+        {
+            initDone = true;
+            updateWindow?.Finish();
+            ShutdownMode = shutdownMode;
         }
 
         // Theme (Hell/Dunkel/System) aus der Settings-Tabelle anwenden, bevor das Hauptfenster entsteht
