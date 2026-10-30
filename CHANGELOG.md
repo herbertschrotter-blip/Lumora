@@ -3,6 +3,17 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.32] — 2026-10-30
+
+### Fixed — Ansicht „Ordner“ begann beim Aufbau immer wieder von vorn
+- Das Nachtragen des Aufnahmedatums meldet alle paar Sekunden einen Stapel von 200 Dateien. Bei Sortierung nach
+  Aufnahmedatum lud die Galerie danach jedes Mal neu, und die Ansicht „Ordner“ baute alle Zeilen von vorn auf. In großen
+  Ordnern (150 Zeilen und mehr) wurde sie dadurch nie fertig.
+- In der Ansicht „Ordner“ bauen solche Meldungen die Zeilen nicht mehr neu auf; das Datum ändert dort höchstens die
+  Reihenfolge innerhalb einer Zeile.
+- In den Kacheln lädt die Galerie sofort neu, wenn eine Datei der Seite betroffen ist; sonst höchstens alle 15 Sekunden.
+- **Technik:** `GalleryViewModel.CaptureDate.cs` (`ScheduleThrottledReload`); 2 neue Tests (`FolderRowsReloadTests`).
+
 ## [0.5.31] — 2026-10-30
 
 ### Fixed — Galerie hängt beim Gruppieren der Gesichter, Start ohne Fenster beim Sichern des Katalogs

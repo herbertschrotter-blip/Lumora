@@ -48,13 +48,57 @@ public sealed partial class GalleryViewModel
             return;
         }
 
-        if (IsSortedByCaptureDate || m.FileIds.Any(_currentItems.ContainsKey))
+        // Ansicht „Ordner“: Datumsänderungen verschieben höchstens die Reihenfolge innerhalb einer Zeile — kein Neuaufbau,
+        // sonst begann der Aufbau bei jedem Stapel des Nachtragens (200 Dateien, alle paar Sekunden) von vorn (2026-10-30)
+        if (ShowFolderRows)
+        {
+            await RefreshCanUndoAsync();
+            return;
+        }
+
+        if (m.FileIds.Any(_currentItems.ContainsKey))
         {
             ScheduleReload();
+        }
+        else if (IsSortedByCaptureDate)
+        {
+            ScheduleThrottledReload(); // Nachtragen im Hintergrund: Reihenfolge höchstens alle 15 s nachziehen
         }
 
         // „Datum setzen“ aus dem Ordnerbaum bzw. Rückgängig: Knopf „Rückgängig“ nachziehen.
         await RefreshCanUndoAsync();
+    }
+
+    /// <summary>Abstand gebündelter Neuladungen, wenn das Nachtragen nur Dateien außerhalb der Seite ändert.</summary>
+    internal static TimeSpan CaptureDateReloadInterval { get; set; } = TimeSpan.FromSeconds(15);
+
+    private bool _throttledReloadPending;
+
+    /// <summary>Höchstens ein Neuladen je <see cref="CaptureDateReloadInterval"/>; weitere Meldungen in der Zeit gehen darin auf.</summary>
+    private void ScheduleThrottledReload()
+    {
+        if (_throttledReloadPending)
+        {
+            return;
+        }
+
+        _throttledReloadPending = true;
+        FireAndForget(async () =>
+        {
+            try
+            {
+                await Task.Delay(CaptureDateReloadInterval);
+            }
+            finally
+            {
+                _throttledReloadPending = false;
+            }
+
+            if (!ShowFolderRows)
+            {
+                ScheduleReload();
+            }
+        });
     }
 
     private bool CanSetSelectionCaptureDate() => CanActOnSelection && _captureDateActions is not null;
