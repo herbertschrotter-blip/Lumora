@@ -3,6 +3,16 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.36] — 2026-10-30
+
+### Fixed — Abgleich bei jedem Start der versteckten Bibliothek
+- Liegt der Katalogordner `.lumora` in einer Wurzel, sah die Ordnerüberwachung Lumoras eigene Dateien darin (PNGs in
+  `.lumora\cache`) als neue Fotos und startete wenige Sekunden nach jedem Start einen Abgleich aller Wurzeln — ebenso beim
+  Start von ComfyUI (`.lumora-ki`). `WatchPathFilter` ignoriert beide Ordner jetzt in jeder Tiefe, wie Scan und Sortierer.
+- **Folge:** Dateien, die bei geschlossenem Lumora dazukamen, findet in der versteckten Bibliothek jetzt wie in der normalen
+  erst „Aktualisieren“ oder das nächste echte Ereignis.
+- ADR-0076: `genderage.onnx` liegt jetzt im Container.
+
 ## [0.5.35] — 2026-10-30
 
 ### Added — KI-Bearbeitung Stufe 2: Grenzen (ADR-0076 Punkt 8, Nachtrag 0.5.35)

@@ -301,7 +301,7 @@ sexualisierten Bearbeitungen echter Personen** (Unterwäsche, Lingerie, Nackthei
   geprüft (keine echten Personen, keine Nacktbilder als Testdaten); nach den ersten echten Läufen nachjustieren.
 - **Alter:** `genderage.onnx` aus dem buffalo_l-Paket (bereits freigegeben, ADR-0035), erwartet unter
   `.lumora-ki\models\lumora\`. **Fehlt es, ist jedes Alter unbekannt** — dann gelten immer die strengen Schwellen und
-  „Outfit“ ist für Fotos mit Personen gesperrt. Die Datei liegt noch nicht im Container (offen, Herberts Entscheidung).
+  „Outfit“ ist für Fotos mit Personen gesperrt. Seit 2026-10-30 liegt die Datei im Container (Herberts Freigabe).
 - **Kennzeichnung** (`EditProvenance`, `JpegXmp`): XMP mit `Iptc4xmpExt:DigitalSourceType` =
   `compositeWithTrainedAlgorithmicMedia` und `xmp:CreatorTool` „Lumora KI-Bearbeitung (Vorlage, Modell, Datum)“, ein
   vorhandenes XMP wird ersetzt; `PhotoVariants.Tools` = `ki:<vorlage>:<modell>`. Das EXIF-Feld `Software` schreibt Stufe 2

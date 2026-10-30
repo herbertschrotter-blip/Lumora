@@ -25,6 +25,30 @@ public sealed class WatchPathFilterTests
         _filter.IsRelevant(WatcherChangeTypes.Created, path).Should().Be(expected);
     }
 
+    [Theory]
+    [InlineData(@"X:\.lumora\cache\ab\17.png")]
+    [InlineData(@"X:\.LUMORA\temp\17.jpg")]
+    [InlineData(@"X:\.lumora-ki\work\ergebnis.png")]
+    [InlineData(@"X:\Fotos\.lumora\cache\17.png")]
+    public void Own_catalog_folders_in_a_hidden_library_do_not_trigger_a_scan(string path)
+    {
+        _filter.IsRelevant(WatcherChangeTypes.Created, path).Should().BeFalse();
+        _filter.IsRelevant(WatcherChangeTypes.Changed, path).Should().BeFalse();
+        _filter.IsRelevant(WatcherChangeTypes.Deleted, path).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Deleted_folder_inside_the_catalog_folder_does_not_trigger_a_scan()
+    {
+        _filter.IsRelevant(WatcherChangeTypes.Deleted, @"X:\.lumora\temp\sitzung").Should().BeFalse();
+    }
+
+    [Fact]
+    public void Medium_renamed_out_of_the_catalog_folder_still_counts()
+    {
+        _filter.IsRelevant(WatcherChangeTypes.Renamed, @"X:\Fotos\a.jpg", oldPath: @"X:\.lumora\temp\a.jpg").Should().BeTrue();
+    }
+
     [Fact]
     public void Own_thumbnail_cache_is_ignored()
     {
