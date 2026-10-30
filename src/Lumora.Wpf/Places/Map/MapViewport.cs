@@ -84,7 +84,8 @@ public sealed class MapViewport
     /// Start-Ausschnitt (ADR-0051): die Ausdehnung der Fotos plus Rand (<see cref="FitPaddingFraction"/>, mindestens
     /// <see cref="FitPaddingMinPixels"/>), höchstens <see cref="MaxFitZoom"/>; ohne Ausdehnung die ganze Welt.
     /// </summary>
-    public void FitBounds(GeoBounds? bounds)
+    /// <param name="maxZoom">Höchster Zoom (Standard <see cref="MaxFitZoom"/>; der Quellen-Vergleich geht näher heran).</param>
+    public void FitBounds(GeoBounds? bounds, double maxZoom = MaxFitZoom)
     {
         if (bounds is null)
         {
@@ -103,7 +104,7 @@ public sealed class MapViewport
         var spanX = Math.Max(maxX - minX, 1e-12);
         var spanY = Math.Max(maxY - minY, 1e-12);
         var zoom = Math.Log2(Math.Min(availableW / spanX, availableH / spanY) / MercatorProjection.TileSize);
-        zoom = Math.Clamp(zoom, MinZoomLevel, MaxFitZoom);
+        zoom = Math.Clamp(zoom, MinZoomLevel, Math.Min(maxZoom, MaxZoomLevel));
         Apply((minX + maxX) / 2, (minY + maxY) / 2, zoom);
     }
 

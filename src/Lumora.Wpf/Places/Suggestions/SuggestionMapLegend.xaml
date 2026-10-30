@@ -4,6 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:Lumora.Places.ViewModels"
+             xmlns:shell="clr-namespace:Lumora.Shell"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:PlacesViewModel}"
              IsHitTestVisible="False"
@@ -14,6 +15,7 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="PlacesSuggestionResources.xaml" />
             </ResourceDictionary.MergedDictionaries>
+            <shell:BoolToVisibilityConverter x:Key="LegendBoolToVis" />
             <Style TargetType="TextBlock">
                 <Setter Property="FontSize" Value="12" />
                 <Setter Property="VerticalAlignment" Value="Center" />
@@ -35,17 +37,26 @@
                 <RowDefinition Height="20" />
                 <RowDefinition Height="20" />
                 <RowDefinition Height="20" />
+                <RowDefinition Height="20" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
+            <!-- Quellen-Vergleich (Mockup 25): laut Foto / laut Spur / laut Zeit, Vorschlag als Ring -->
             <Border Grid.Row="0" Width="22" Height="3" CornerRadius="2" Background="{StaticResource PlacesTrackBrush}" HorizontalAlignment="Left" />
             <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding LegendTrackText}" />
-            <Ellipse Grid.Row="1" Width="8" Height="8" Margin="7,0,0,0" HorizontalAlignment="Left" Fill="{DynamicResource SystemFillColorSuccessBrush}" />
-            <TextBlock Grid.Row="1" Grid.Column="1" Text="Foto mit echtem GPS" />
-            <Ellipse Grid.Row="2" Width="12" Height="12" Margin="5,0,0,0" HorizontalAlignment="Left" Fill="{StaticResource PlacesStoredBrush}" Stroke="White" StrokeThickness="2" />
-            <TextBlock Grid.Row="2" Grid.Column="1" Text="Gespeicherte, geschätzte Position" />
-            <Ellipse Grid.Row="3" Width="12" Height="12" Margin="5,0,0,0" HorizontalAlignment="Left" Fill="{DynamicResource AccentFillColorDefaultBrush}" Stroke="White" StrokeThickness="2" />
-            <TextBlock Grid.Row="3" Grid.Column="1" Text="Vorschlag (ziehen zum Verschieben)" />
-            <Line Grid.Row="4" X1="0" X2="22" Y1="10" Y2="10" StrokeThickness="2" StrokeDashArray="3 2" Stroke="{DynamicResource AccentFillColorDefaultBrush}" />
-            <TextBlock Grid.Row="4" Grid.Column="1" Text="Korrektur" />
+            <Ellipse Grid.Row="1" Width="12" Height="12" Margin="5,0,0,0" HorizontalAlignment="Left" Fill="{StaticResource PlacesStoredBrush}" Stroke="White" StrokeThickness="2" />
+            <TextBlock Grid.Row="1" Grid.Column="1" Text="laut Foto (gespeichert, geschätzt)" />
+            <Ellipse Grid.Row="2" Width="12" Height="12" Margin="5,0,0,0" HorizontalAlignment="Left" Fill="{StaticResource PlacesTrackBrush}" Stroke="White" StrokeThickness="2" />
+            <TextBlock Grid.Row="2" Grid.Column="1" Text="laut Spur (Ort zur Aufnahmezeit)" />
+            <Ellipse Grid.Row="3" Width="12" Height="12" Margin="5,0,0,0" HorizontalAlignment="Left" Fill="{StaticResource PlacesTimeBrush}" Stroke="White" StrokeThickness="2" />
+            <TextBlock Grid.Row="3" Grid.Column="1" Text="laut Zeit (zwischen GPS-Fotos)" />
+            <Ellipse Grid.Row="4" Width="8" Height="8" Margin="7,0,0,0" HorizontalAlignment="Left" Fill="{DynamicResource SystemFillColorSuccessBrush}" />
+            <TextBlock Grid.Row="4" Grid.Column="1" Text="Foto mit echtem GPS (davor/danach)" />
+            <Ellipse Grid.Row="5" Width="16" Height="16" Margin="3,0,0,0" HorizontalAlignment="Left" Stroke="{DynamicResource AccentFillColorDefaultBrush}" StrokeThickness="2" />
+            <TextBlock Grid.Row="5" Grid.Column="1" Text="Vorschlag (ziehen zum Verschieben)" />
+            <Line Grid.Row="6" X1="0" X2="22" Y1="10" Y2="10" StrokeThickness="2" StrokeDashArray="3 2" Stroke="{DynamicResource AccentFillColorDefaultBrush}"
+                  Visibility="{Binding ShowWholeTrip, Converter={StaticResource LegendBoolToVis}}" />
+            <TextBlock Grid.Row="6" Grid.Column="1" Text="Korrektur der übrigen Fotos" Margin="0,2,0,0"
+                       Visibility="{Binding ShowWholeTrip, Converter={StaticResource LegendBoolToVis}}" />
         </Grid>
     </Border>
 </UserControl>

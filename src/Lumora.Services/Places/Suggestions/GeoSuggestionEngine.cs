@@ -94,6 +94,9 @@ public static class GeoSuggestionEngine
     /// <summary>Längste berücksichtigte Aktivität (mehrtägige Touren); begrenzt die Suche rückwärts.</summary>
     public const long MaxTrackSeconds = 14L * 86_400;
 
+    /// <summary>Uhr-Hinweis (Mockup 25): Spuren bis zu so weit vor bzw. nach der Foto-Zeit gelten als „in der Nähe“.</summary>
+    public const long NearTrackSeconds = 2 * 3600;
+
     /// <summary>Vorschläge für alle Kandidaten (Ergebnis nur für Kandidaten mit Vorschlag).</summary>
     /// <param name="anchors">Nach Zeit sortiert.</param>
     /// <param name="tracks">Nach Start sortiert.</param>
@@ -127,8 +130,71 @@ public static class GeoSuggestionEngine
         return result;
     }
 
+    /// <summary>
+    /// Alle Quellen je Kandidat nebeneinander (Mockup 25): Spur auch über lange Lücken (dann Stufe „keine“), Zeit aus den
+    /// genauen Fotos und — ohne Spur zur Aufnahmezeit — die nächste Spur als Uhr-Hinweis. Ergebnis nur für Kandidaten mit
+    /// mindestens einer Quelle.
+    /// </summary>
+    /// <param name="anchors">Nach Zeit sortiert.</param>
+    /// <param name="tracks">Nach Start sortiert.</param>
+    public static Dictionary<int, GeoSourceComparison> Compare(
+        IReadOnlyList<SuggestionCandidate> candidates,
+        IReadOnlyList<SuggestionAnchor> anchors,
+        IReadOnlyList<SuggestionTrack> tracks,
+        long toleranceSeconds)
+    {
+        var result = new Dictionary<int, GeoSourceComparison>(candidates.Count);
+        var anchorTimes = anchors.Select(a => a.Utc).ToArray();
+        var trackStarts = tracks.Select(t => t.StartUtc).ToArray();
+        foreach (var candidate in candidates)
+        {
+            var fromTrack = FromTracks(candidate, tracks, trackStarts, toleranceSeconds, anyGap: true);
+            var fromTime = FromAnchors(candidate, anchors, anchorTimes);
+            var near = fromTrack is null ? NearestTrack(candidate.Utc, tracks, trackStarts) : null;
+            if (fromTrack is not null || fromTime is not null || near is not null)
+            {
+                result[candidate.FileId] = new GeoSourceComparison(fromTrack, fromTime, near);
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>Spur, deren Anfang bzw. Ende der Zeit am nächsten liegt (höchstens <see cref="NearTrackSeconds"/>).</summary>
+    public static TrackClockHint? NearestTrack(long t, IReadOnlyList<SuggestionTrack> tracks, long[] trackStarts)
+    {
+        TrackClockHint? best = null;
+        var upper = UpperBound(trackStarts, t + NearTrackSeconds);
+        for (var i = upper - 1; i >= 0; i--)
+        {
+            var track = tracks[i];
+            if (track.StartUtc < t - MaxTrackSeconds)
+            {
+                break;
+            }
+
+            var offset = t < track.StartUtc ? track.StartUtc - t : t > track.EndUtc ? track.EndUtc - t : 0;
+            if (offset == 0 || Math.Abs(offset) > NearTrackSeconds || (best is { } b && Math.Abs(b.OffsetSeconds) <= Math.Abs(offset)))
+            {
+                continue;
+            }
+
+            var points = track.LoadPoints();
+            if (points.Length == 0)
+            {
+                continue;
+            }
+
+            var p = offset > 0 ? points[0] : points[^1];
+            best = new TrackClockHint(track.Id, offset, p.Latitude, p.Longitude);
+        }
+
+        return best;
+    }
+
     /// <summary>Bester Vorschlag aus den Spuren, die die Foto-Zeit (± Toleranz) abdecken.</summary>
-    public static GeoSuggestion? FromTracks(SuggestionCandidate candidate, IReadOnlyList<SuggestionTrack> tracks, long[] trackStarts, long toleranceSeconds)
+    /// <param name="anyGap">Auch über Lücken von mehr als 15 min geradlinig schätzen (Stufe „keine“, nur für den Vergleich).</param>
+    public static GeoSuggestion? FromTracks(SuggestionCandidate candidate, IReadOnlyList<SuggestionTrack> tracks, long[] trackStarts, long toleranceSeconds, bool anyGap = false)
     {
         if (tracks.Count == 0)
         {
@@ -153,7 +219,7 @@ public static class GeoSuggestionEngine
                 continue;
             }
 
-            var suggestion = AtTime(candidate.FileId, track, t);
+            var suggestion = AtTime(candidate.FileId, track, t, anyGap);
             if (suggestion is not null && (best is null || Better(suggestion, track.Preferred, best, bestPreferred)))
             {
                 best = suggestion;
@@ -171,7 +237,8 @@ public static class GeoSuggestionEngine
             : candidate.GapSeconds < best.GapSeconds;
 
     /// <summary>Position der Spur zur Zeit <paramref name="t"/> (interpoliert) samt Stufe; null bei zu großer Lücke.</summary>
-    public static GeoSuggestion? AtTime(int fileId, SuggestionTrack track, long t)
+    /// <param name="anyGap">Zu große Lücke trotzdem geradlinig schätzen, mit Stufe „keine“.</param>
+    public static GeoSuggestion? AtTime(int fileId, SuggestionTrack track, long t, bool anyGap = false)
     {
         var points = track.LoadPoints();
         if (points.Length == 0)
@@ -234,6 +301,10 @@ public static class GeoSuggestionEngine
         {
             var paused = a.Utc != b.Utc && GeoMath.DistanceMeters(a.Latitude, a.Longitude, b.Latitude, b.Longitude) <= TrackPauseMeters;
             level = paused ? GeoSuggestionLevel.Track : GeoSuggestionLevel.Likely;
+        }
+        else if (anyGap)
+        {
+            level = GeoSuggestionLevel.None;
         }
         else
         {

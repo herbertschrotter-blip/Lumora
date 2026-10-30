@@ -67,7 +67,79 @@
                 </Border>
             </DataTemplate>
 
+            <!-- Eine Quelle im Vergleich (Mockup 25): Punkt in der Farbe der Karte, Text, Abstand, Knopf -->
+            <DataTemplate x:Key="SourceTemplate" DataType="{x:Type local:SuggestionSourceRow}">
+                <Border x:Name="Src" Padding="6,5" CornerRadius="6" Background="Transparent" Cursor="Hand"
+                        AutomationProperties.Name="{Binding AutomationName}">
+                    <Border.InputBindings>
+                        <MouseBinding MouseAction="LeftClick"
+                                      Command="{Binding DataContext.HighlightSourceCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                      CommandParameter="{Binding}" />
+                    </Border.InputBindings>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="18" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="86" />
+                        </Grid.ColumnDefinitions>
+                        <Ellipse x:Name="Dot" Width="12" Height="12" VerticalAlignment="Top" Margin="0,3,0,0" HorizontalAlignment="Left"
+                                 Stroke="White" StrokeThickness="2" Fill="{StaticResource PlacesStoredBrush}" />
+                        <StackPanel Grid.Column="1" Margin="2,0,6,0">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock x:Name="Name" Text="{Binding Title}" FontSize="13" FontWeight="SemiBold" />
+                                <!-- eigene Plakette: der Stil SuggestionBadge bindet BadgeKind der Foto-Zeile -->
+                                <Border CornerRadius="8" Padding="7,1" Margin="6,0,0,0" VerticalAlignment="Center"
+                                        Visibility="{Binding IsChosen, Converter={StaticResource BoolToVis}}"
+                                        Background="{DynamicResource SubtleFillColorSecondaryBrush}">
+                                    <TextBlock Text="Vorschlag" FontSize="10" FontWeight="Bold" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                                </Border>
+                            </StackPanel>
+                            <TextBlock Text="{Binding Line}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            <TextBlock Text="{Binding DetailText}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                        <TextBlock x:Name="Km" Grid.Column="2" Text="{Binding DistanceText}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <Grid Grid.Column="3" VerticalAlignment="Center" HorizontalAlignment="Right">
+                            <ui:Button Content="Behalten" FontSize="12" Padding="10,3" ToolTip="Gespeicherte Position behalten (= Ablehnen)"
+                                       AutomationProperties.Name="Position laut Foto behalten"
+                                       Visibility="{Binding CanKeep, Converter={StaticResource BoolToVis}}"
+                                       Command="{Binding DataContext.RejectRowCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                       CommandParameter="{Binding Owner}" />
+                            <ui:Button Content="Nehmen" FontSize="12" Padding="10,3" ToolTip="Diese Quelle als Vorschlag nehmen"
+                                       AutomationProperties.Name="{Binding Title, StringFormat='{}{0} nehmen'}"
+                                       Visibility="{Binding CanTake, Converter={StaticResource BoolToVis}}"
+                                       Command="{Binding DataContext.ChooseSourceCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                       CommandParameter="{Binding}" />
+                            <ui:Button Appearance="Primary" Content="Übernehmen" FontSize="12" Padding="10,3"
+                                       AutomationProperties.Name="Vorschlag übernehmen"
+                                       Visibility="{Binding IsChosen, Converter={StaticResource BoolToVis}}"
+                                       Command="{Binding DataContext.ApplyRowCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                       CommandParameter="{Binding Owner}" />
+                        </Grid>
+                    </Grid>
+                </Border>
+                <DataTemplate.Triggers>
+                    <DataTrigger Binding="{Binding Kind}" Value="Track">
+                        <Setter TargetName="Dot" Property="Fill" Value="{StaticResource PlacesTrackBrush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Kind}" Value="Time">
+                        <Setter TargetName="Dot" Property="Fill" Value="{StaticResource PlacesTimeBrush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding IsChosen}" Value="True">
+                        <Setter TargetName="Src" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding IsAvailable}" Value="False">
+                        <Setter TargetName="Dot" Property="Fill" Value="Transparent" />
+                        <Setter TargetName="Dot" Property="Stroke" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+                        <Setter TargetName="Dot" Property="StrokeDashArray" Value="2 1" />
+                        <Setter TargetName="Name" Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+                        <Setter TargetName="Km" Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+                    </DataTrigger>
+                </DataTemplate.Triggers>
+            </DataTemplate>
+
             <DataTemplate DataType="{x:Type local:SuggestionItemRow}">
+                <StackPanel>
                 <Border x:Name="Row" Padding="4,6" CornerRadius="4" Background="Transparent" Cursor="Hand"
                         AutomationProperties.Name="{Binding AutomationName}">
                     <Grid>
@@ -122,11 +194,54 @@
                         </StackPanel>
                     </Grid>
                 </Border>
+                <!-- Quellen nebeneinander, nur unter der ausgewählten, offenen Zeile (Mockup 25) -->
+                <Border x:Name="Compare" Margin="4,2,4,10" Padding="8,8,8,6" CornerRadius="8" BorderThickness="1" Visibility="Collapsed"
+                        AutomationProperties.AutomationId="PlacesSourceCompare"
+                        AutomationProperties.Name="Quellen für dieses Foto"
+                        BorderBrush="{DynamicResource AccentFillColorDefaultBrush}"
+                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
+                    <StackPanel>
+                        <DockPanel Margin="6,0,6,4">
+                            <TextBlock DockPanel.Dock="Right" Text="Abstand zum Foto-Punkt" FontSize="11" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                            <TextBlock Text="QUELLEN FÜR DIESES FOTO" FontSize="11" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                        </DockPanel>
+                        <ItemsControl ItemsSource="{Binding Sources}" ItemTemplate="{StaticResource SourceTemplate}" Focusable="False" />
+                        <Border x:Name="Verdict" Margin="0,6,0,0" Padding="9,7" CornerRadius="6"
+                                Background="{DynamicResource SystemFillColorSuccessBackgroundBrush}">
+                            <DockPanel>
+                                <ui:SymbolIcon x:Name="VerdictIcon" DockPanel.Dock="Left" Symbol="Checkmark16" FontSize="13" Margin="0,1,8,0" VerticalAlignment="Top"
+                                               Foreground="{DynamicResource SystemFillColorSuccessBrush}" />
+                                <TextBlock Text="{Binding Verdict}" FontSize="12" TextWrapping="Wrap" LineHeight="17"
+                                           AutomationProperties.AutomationId="PlacesSourceVerdict" />
+                            </DockPanel>
+                        </Border>
+                        <TextBlock Margin="6,5,0,0" FontSize="11" Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                   Text="Zeile anklicken zeigt den Punkt auf der Karte · Tasten 1 2 3 wählen die Quelle" />
+                    </StackPanel>
+                </Border>
+                </StackPanel>
                 <DataTemplate.Triggers>
                     <DataTrigger Binding="{Binding IsSelected}" Value="True">
                         <Setter TargetName="Row" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
                         <Setter TargetName="Row" Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
                         <Setter TargetName="Row" Property="BorderThickness" Value="3,0,0,0" />
+                    </DataTrigger>
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding IsSelected}" Value="True" />
+                            <Condition Binding="{Binding IsApplied}" Value="False" />
+                        </MultiDataTrigger.Conditions>
+                        <Setter TargetName="Compare" Property="Visibility" Value="Visible" />
+                    </MultiDataTrigger>
+                    <DataTrigger Binding="{Binding VerdictKind}" Value="Warn">
+                        <Setter TargetName="Verdict" Property="Background" Value="{DynamicResource SystemFillColorCautionBackgroundBrush}" />
+                        <Setter TargetName="VerdictIcon" Property="Symbol" Value="Warning16" />
+                        <Setter TargetName="VerdictIcon" Property="Foreground" Value="{DynamicResource SystemFillColorCautionBrush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding VerdictKind}" Value="Info">
+                        <Setter TargetName="Verdict" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                        <Setter TargetName="VerdictIcon" Property="Symbol" Value="Info16" />
+                        <Setter TargetName="VerdictIcon" Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
                     </DataTrigger>
                     <MultiDataTrigger>
                         <MultiDataTrigger.Conditions>

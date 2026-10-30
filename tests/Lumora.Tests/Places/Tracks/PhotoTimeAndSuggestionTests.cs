@@ -167,6 +167,45 @@ public sealed class PhotoTimeAndSuggestionTests
     }
 
     [Fact]
+    public void Vergleich_zeigt_Spur_und_Zeit_nebeneinander_auch_wenn_die_Spur_gewinnt()
+    {
+        var a = new SuggestionAnchor(10, T0 + 100, 47.0, 15.010);
+        var b = new SuggestionAnchor(11, T0 + 200, 47.0, 15.020);
+        var c = GeoSuggestionEngine.Compare([new SuggestionCandidate(1, T0 + 150)], [a, b], [Track()], 120)[1];
+        c.FromTrack!.Level.Should().Be(GeoSuggestionLevel.Track);
+        c.FromTime!.Kind.Should().Be(GeoSuggestionKind.Interpolated);
+        c.FromTime.Longitude.Should().BeApproximately(15.015, 1e-9);
+        c.NearTrack.Should().BeNull("die Spur deckt die Zeit ab");
+        c.TrackToTimeMeters.Should().BeApproximately(GeoMath.DistanceMeters(47.0, 15.0015, 47.0, 15.015), 1);
+        c.Disagree.Should().BeTrue("rund 1 km zwischen Spur und Zeit");
+    }
+
+    [Fact]
+    public void Vergleich_schaetzt_die_Spur_auch_ueber_lange_Luecken()
+    {
+        One(T0 + 2000, tracks: [Track(points: 400, gap: (100, 300))]).Should().BeNull("kein Vorschlag aus der Lücke");
+        var c = GeoSuggestionEngine.Compare([new SuggestionCandidate(1, T0 + 2000)], [], [Track(points: 400, gap: (100, 300))], 120)[1];
+        c.TrackInGap.Should().BeTrue();
+        c.FromTrack!.GapSeconds.Should().Be(2000);
+        c.FromTrack.Longitude.Should().BeApproximately(15.02, 1e-7, "Mitte der Lücke zwischen Punkt 100 und 300");
+        c.FromTime.Should().BeNull();
+        c.Disagree.Should().BeFalse("ohne Zeit kein Vergleich");
+    }
+
+    [Fact]
+    public void Ohne_Spur_zur_Zeit_nennt_der_Vergleich_die_naechste_Spur_als_Uhr_Hinweis()
+    {
+        var track = Track(); // T0 … T0 + 1190 s
+        var after = GeoSuggestionEngine.Compare([new SuggestionCandidate(1, T0 + 1190 + 1320)], [], [track], 120)[1];
+        after.FromTrack.Should().BeNull();
+        after.NearTrack!.Value.OffsetSeconds.Should().Be(-1320, "22 min nach dem Ende: Kamera geht vor");
+        after.NearTrack.Value.Longitude.Should().BeApproximately(15.0119, 1e-7, "Spur-Ende");
+        var before = GeoSuggestionEngine.Compare([new SuggestionCandidate(1, T0 - 600)], [], [track], 120)[1];
+        before.NearTrack!.Value.OffsetSeconds.Should().Be(600, "10 min vor dem Start: Kamera geht nach");
+        GeoSuggestionEngine.Compare([new SuggestionCandidate(1, T0 + 1190 + 7300)], [], [track], 120).Should().BeEmpty("über 2 h weg");
+    }
+
+    [Fact]
     public void Texte_der_Vorschlaege()
     {
         GeoSuggestionText.LevelName(GeoSuggestionLevel.Track).Should().Be("Garmin-Spur");

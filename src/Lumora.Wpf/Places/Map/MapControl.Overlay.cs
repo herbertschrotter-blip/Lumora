@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -14,9 +15,9 @@ public sealed record MapCorrection(int Id, Point? Stored, Point? Suggested, bool
 /// <summary>
 /// Überlagerung „Ungenaue Orte“ (Mockup 10): Spur der Aktivität als Linie, Fotos mit echtem GPS als kleine Punkte,
 /// gespeicherte Positionen grau, Vorschläge in der Akzentfarbe, gestrichelte Korrektur-Linie dazwischen. Alles in
-/// Einheitskoordinaten (Web-Mercator 0…1).
+/// Einheitskoordinaten (Web-Mercator 0…1). <paramref name="Compare"/>: Quellen-Vergleich des ausgewählten Fotos (Mockup 25).
 /// </summary>
-public sealed record MapOverlay(IReadOnlyList<Point> Track, IReadOnlyList<Point> Anchors, IReadOnlyList<MapCorrection> Corrections)
+public sealed record MapOverlay(IReadOnlyList<Point> Track, IReadOnlyList<Point> Anchors, IReadOnlyList<MapCorrection> Corrections, MapCompare? Compare = null)
 {
     public static Point ToUnit(double latitude, double longitude)
         => new(MercatorProjection.LongitudeToX(longitude), MercatorProjection.LatitudeToY(latitude));
@@ -105,6 +106,8 @@ public sealed partial class MapControl
     {
         LastDrawnTrackPoints = 0;
         LastDrawnCorrections = 0;
+        LastDrawnCompareMarks = 0;
+        LastScaleText = null;
         if (Overlay is not { } overlay)
         {
             return;
@@ -144,13 +147,21 @@ public sealed partial class MapControl
             dc.DrawEllipse(ExactBrush, white, Screen(anchor), 4.5, 4.5);
         }
 
+        if (overlay.Compare is { } compare)
+        {
+            DrawCompareMarks(dc, compare, Screen);
+        }
+
         var thickWhite = new Pen(MarkerBorder, 2);
         thickWhite.Freeze();
         foreach (var c in overlay.Corrections)
         {
             var suggested = c.Id == _overlayDragId && _overlayDragPoint is { } drag ? drag : c.Suggested is { } s ? Screen(s) : (Point?)null;
             var stored = c.Stored is { } st ? Screen(st) : (Point?)null;
-            if (stored is { } a && suggested is { } b)
+            var compared = c.IsSelected && overlay.Compare is not null;
+            // im Vergleich zeigen die Quellen-Punkte den Weg; der Vorschlag ist ein Ring um die gewählte Quelle
+            var onSource = compared && suggested is { } sp && overlay.Compare!.Marks.Any(m => m.Kind is MapCompareKind.Track or MapCompareKind.Time && (Screen(m.Point) - sp).Length < 2);
+            if (stored is { } a && suggested is { } b && !compared)
             {
                 var dash = new Pen(AccentBrush, c.IsSelected ? 2.5 : 1.5) { DashStyle = new DashStyle([4, 3], 0) };
                 dash.Freeze();
@@ -169,17 +180,26 @@ public sealed partial class MapControl
             {
                 if (c.IsSelected)
                 {
-                    var halo = new Pen(AccentBrush, 1.5);
+                    var halo = new Pen(AccentBrush, compared ? 2.5 : 1.5);
                     halo.Freeze();
-                    dc.PushOpacity(0.5);
+                    dc.PushOpacity(compared ? 1 : 0.5);
                     dc.DrawEllipse(null, halo, q, 16, 16);
                     dc.Pop();
                 }
 
-                dc.DrawEllipse(AccentBrush, thickWhite, q, r + 1, r + 1);
+                if (!onSource)
+                {
+                    dc.DrawEllipse(AccentBrush, thickWhite, q, r + 1, r + 1);
+                }
             }
 
             LastDrawnCorrections++;
+        }
+
+        if (overlay.Compare is { } labels)
+        {
+            DrawCompareLabels(dc, labels, Screen);
+            DrawScaleBar(dc, vp);
         }
     }
 

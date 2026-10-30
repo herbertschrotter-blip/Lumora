@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lumora — Ungenau: Quellen vergleichen (Entwurf 25)</title>
+<style>
+/* =====================================================================
+   Mockup 25 · Bereich „Ungenau“ der Seite Orte: je Foto die drei Quellen nebeneinander —
+   laut Foto (gespeicherte, geschätzte Position), laut Spur (Garmin-/Tour-Spur zur Aufnahmezeit),
+   laut Zeit (zwischen den genauen GPS-Fotos davor und danach berechnet). Ergänzt Mockup 10 (abgenommen 2026-10-22);
+   Liste, Filter, Speichern und Sammel-Knöpfe bleiben wie dort. Tokens 1:1 aus Mockup 10.
+   Karte schematisch (keine echten Kacheln), Fotos als Platzhalter, Beispiel Wanderung Weinebene — Orte und
+   Abstände nur ungefähr. Hell/Dunkel über die Klasse „dark“ am body.
+   ABGENOMMEN von Herbert am 2026-10-27: Vergleich unter der ausgewählten Zeile (laut Foto / laut Spur / laut Zeit mit
+   Abstand, Knöpfe Behalten/Nehmen/Übernehmen, Bewertung darunter, Tasten 1–3), Karte mit beschrifteten Punkten je Quelle,
+   gestrichelten Abständen, GPS-Fotos davor/danach, Vorschlag als Ring, Uhr-Hinweis bei naher Spur, Maßstab, Umschalter
+   „Nur dieses Foto | Ganzer Ausflug“, Filter „Quellen uneinig“. Gebaut in 0.5.33. Bewusst weggelassen: Link
+   „Zeitabgleich prüfen…“ im Uhr-Hinweis (der Text nennt die Abweichung) und der Kamera-Glyph im grauen Punkt.
+   ===================================================================== */
+:root {
+  --mica-base:#F3F3F3; --layer-default:rgba(255,255,255,0.7); --layer-card:#FFFFFF; --layer-subtle:rgba(0,0,0,0.026);
+  --layer-secondary:rgba(0,0,0,0.04); --layer-tertiary:rgba(0,0,0,0.06);
+  --text-primary:#1A1A1A; --text-secondary:#5C5C5C; --text-tertiary:#8B8B8B; --text-disabled:#B5B5B5; --text-on-accent:#FFFFFF;
+  --stroke-default:rgba(0,0,0,0.0578); --stroke-divider:rgba(0,0,0,0.0803); --stroke-card:rgba(0,0,0,0.0578); --ctl-bottom:rgba(0,0,0,0.16);
+  --accent:#5B5FC7; --accent-light:#7579D8; --accent-dark:#4145A0; --accent-soft:rgba(91,95,199,0.08); --accent-soft-2:rgba(91,95,199,0.16);
+  --success:#107C10; --success-soft:rgba(16,124,16,0.10); --warning:#C29C00; --warning-soft:rgba(194,156,0,0.14); --danger:#C42B1C;
+  --shadow-card:0 2px 4px rgba(0,0,0,0.02), 0 1px 2px rgba(0,0,0,0.03); --shadow-flyout:0 8px 16px rgba(0,0,0,0.14);
+  --brand-indigo:#5B5FC7; --brand-violet:#8B5CF6; --brand-coral:#F97362; --brand-amber:#F5A524;
+  --page-bg:#E4E4EA;
+  --map-land:#EEF0E6; --map-forest:#D5E5CF; --map-alm:#E9E6D2; --map-line:#B9BFAE; --map-road:#FFFFFF; --map-road-edge:#D6D2C4; --map-label:#5C5C5C;
+}
+body.dark {
+  color-scheme:dark;
+  --mica-base:#202020; --layer-default:rgba(43,43,43,0.7); --layer-card:#2C2C2C; --layer-subtle:rgba(255,255,255,0.03);
+  --layer-secondary:rgba(255,255,255,0.0418); --layer-tertiary:rgba(255,255,255,0.0605);
+  --text-primary:#FFFFFF; --text-secondary:#D0D0D0; --text-tertiary:#A0A0A0; --text-disabled:#6A6A6A;
+  --stroke-default:rgba(255,255,255,0.0837); --stroke-divider:rgba(255,255,255,0.0837); --stroke-card:rgba(255,255,255,0.0578); --ctl-bottom:rgba(255,255,255,0.22);
+  --accent:#818CF8; --accent-light:#A5B0FF; --accent-dark:#6066D8; --accent-soft:rgba(129,140,248,0.12); --accent-soft-2:rgba(129,140,248,0.24);
+  --success:#6CCB5F; --success-soft:rgba(108,203,95,0.12); --warning:#FCE100; --warning-soft:rgba(252,225,0,0.14); --danger:#FF6B5E;
+  --shadow-card:0 2px 4px rgba(0,0,0,0.18), 0 1px 2px rgba(0,0,0,0.22); --shadow-flyout:0 8px 16px rgba(0,0,0,0.4);
+  --brand-indigo:#818CF8; --brand-violet:#A78BFA; --brand-coral:#FB8A7A; --brand-amber:#FBBF24;
+  --page-bg:#121214;
+  --map-land:#22262A; --map-forest:#1E2B22; --map-alm:#2A2A24; --map-line:#3A4038; --map-road:#4A4F55; --map-road-edge:#2E3236; --map-label:#A0A0A0;
+}
+* { box-sizing:border-box; } html,body { margin:0; }
+body { background:var(--page-bg); color:var(--text-primary); font-family:'Segoe UI Variable Text','Segoe UI',system-ui,sans-serif; font-size:14px; }
+button { font:inherit; color:inherit; }
+.ic { font-family:'Segoe Fluent Icons','Segoe MDL2 Assets'; font-size:16px; line-height:1; font-style:normal; }
+.ic.s { font-size:12px; }
+.hidden { display:none !important; }
+.mock-bar { position:sticky; top:0; z-index:100; display:flex; gap:16px; align-items:center; flex-wrap:wrap; padding:7px 20px; background:#2B2B33; color:#EEE; font-size:12px; }
+.mock-bar .grp { display:flex; gap:4px; align-items:center; }
+.mock-bar button { background:#44444F; color:#EEE; border:1px solid #5A5A66; border-radius:4px; padding:3px 9px; cursor:pointer; font-size:12px; }
+.mock-bar button.on { background:#5B5FC7; border-color:#7579D8; }
+.mock-bar .note { margin-left:auto; color:#AAB; }
+.stage-wrap { padding:16px 20px 32px; display:flex; justify-content:center; }
+.win-box { position:relative; flex:none; }
+.window { position:absolute; left:0; top:0; transform-origin:0 0; background:var(--mica-base); border-radius:8px; border:1px solid var(--stroke-default);
+  box-shadow:0 16px 48px rgba(0,0,0,0.22); overflow:hidden; display:grid; grid-template-columns:232px 1fr; grid-template-rows:36px 1fr 30px; }
+.titlebar { grid-column:1/-1; display:flex; align-items:center; gap:10px; padding-left:14px; font-size:12px; color:var(--text-secondary); }
+.titlebar .tile { width:16px; height:16px; border-radius:4px; background:linear-gradient(135deg,#6366F1,#4145A0); }
+.titlebar .wc { margin-left:auto; display:flex; height:100%; } .titlebar .wc span { width:46px; display:grid; place-items:center; font-family:'Segoe Fluent Icons'; font-size:10px; color:var(--text-primary); }
+.nav { padding:2px 8px 10px; display:flex; flex-direction:column; gap:2px; }
+.wbs { font-family:'Segoe UI Variable Display','Segoe UI',sans-serif; font-size:22px; padding:2px 12px 10px;
+  background:linear-gradient(100deg,var(--brand-indigo),var(--brand-violet) 45%,var(--brand-coral) 75%,var(--brand-amber)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.lib-switch { margin:0 2px 8px; padding:8px 10px; border-radius:6px; background:var(--layer-card); border:1px solid var(--stroke-card); box-shadow:var(--shadow-card); display:flex; gap:10px; align-items:center; }
+.lib-switch b { display:block; font-weight:600; } .lib-switch small { display:block; color:var(--text-tertiary); font-size:11px; }
+.nav-item { display:flex; align-items:center; gap:12px; padding:9px 12px; border-radius:4px; position:relative; white-space:nowrap; }
+.nav-item.active { background:var(--layer-secondary); }
+.nav-item.active::before { content:''; position:absolute; left:0; top:10px; bottom:10px; width:3px; border-radius:2px; background:var(--accent); }
+.nav .spacer { flex:1; }
+.content { position:relative; min-width:0; min-height:0; background:var(--layer-default); border-top-left-radius:8px; border-left:1px solid var(--stroke-default); border-top:1px solid var(--stroke-default); overflow:hidden;
+  display:grid; grid-template-rows:auto 1fr; }
+.statusbar { grid-column:1/-1; display:flex; align-items:center; gap:18px; padding:0 14px; font-size:12px; color:var(--text-secondary); border-top:1px solid var(--stroke-divider); background:var(--mica-base); }
+.statusbar .r { margin-left:auto; display:flex; gap:18px; }
+.btn-acc { background:var(--accent); color:var(--text-on-accent); border:1px solid transparent; border-radius:4px; padding:5px 14px; font-size:13px; cursor:pointer; display:inline-flex; gap:6px; align-items:center; white-space:nowrap; }
+body.dark .btn-acc { color:#111; } .btn-acc:hover { background:var(--accent-light); }
+.btn-std { background:var(--layer-card); border:1px solid var(--stroke-divider); border-bottom-color:var(--ctl-bottom); border-radius:4px; padding:5px 12px; font-size:13px; cursor:pointer; display:inline-flex; gap:6px; align-items:center; white-space:nowrap; }
+.btn-std:hover { background:var(--layer-subtle); }
+.btn-sm { padding:3px 10px; font-size:12px; }
+.ibtn { width:28px; height:28px; border-radius:4px; border:0; background:transparent; display:inline-grid; place-items:center; cursor:pointer; color:var(--text-secondary); }
+.ibtn:hover { background:var(--layer-secondary); color:var(--text-primary); }
+.seg { display:inline-flex; background:var(--layer-secondary); border-radius:6px; padding:2px; gap:2px; }
+.seg button { border:0; background:transparent; padding:5px 11px; border-radius:4px; display:inline-flex; gap:6px; align-items:center; cursor:pointer; font-size:13px; white-space:nowrap; }
+.seg button.on { background:var(--layer-card); box-shadow:0 1px 2px rgba(0,0,0,.12); color:var(--accent); font-weight:600; }
+body.dark .seg button.on { background:#3A3A3A; }
+.seg small { font-weight:400; color:var(--text-tertiary); }
+.radio { width:16px; height:16px; border-radius:50%; border:1px solid var(--text-secondary); flex:none; display:inline-block; }
+.radio.on { border:5px solid var(--accent); }
+
+/* Kopf */
+.phead { display:flex; align-items:center; gap:14px; padding:18px 24px 12px; }
+.phead h1 { font-size:28px; font-weight:600; margin:0; }
+.phead .sub { color:var(--text-secondary); font-size:13px; margin-top:4px; }
+.phead .search { margin-left:auto; width:300px; height:34px; display:flex; align-items:center; gap:8px; padding:0 12px; background:var(--layer-card); border:1px solid var(--stroke-default); border-bottom:1px solid var(--ctl-bottom); border-radius:4px; color:var(--text-tertiary); }
+.body { display:grid; grid-template-columns:1fr 430px; gap:12px; padding:0 16px 14px 24px; min-height:0; }
+
+/* Karte */
+.map { position:relative; border-radius:8px; overflow:hidden; border:1px solid var(--stroke-card); box-shadow:var(--shadow-card); background:var(--map-land); }
+.map svg { position:absolute; inset:0; width:100%; height:100%; }
+.map .tools { position:absolute; right:10px; top:10px; display:flex; flex-direction:column; gap:6px; }
+.map .tools span { width:32px; height:32px; border-radius:6px; background:var(--layer-card); box-shadow:var(--shadow-card); display:grid; place-items:center; border:1px solid var(--stroke-card); }
+.map .focus { position:absolute; left:12px; top:12px; display:flex; gap:8px; align-items:center; }
+.map .focus .seg { background:var(--layer-card); box-shadow:var(--shadow-card); border:1px solid var(--stroke-card); }
+.map .focus .seg button { font-size:12px; padding:4px 10px; }
+.map .legend { position:absolute; left:12px; bottom:12px; background:var(--layer-card); border:1px solid var(--stroke-card); border-radius:8px; box-shadow:var(--shadow-card); padding:9px 12px; font-size:12px; display:grid; gap:5px; }
+.map .legend div { display:flex; gap:8px; align-items:center; }
+.map .scale { position:absolute; right:12px; bottom:26px; font-size:11px; color:var(--map-label); display:flex; flex-direction:column; align-items:flex-end; gap:2px; }
+.map .scale i { display:block; height:6px; border:2px solid var(--map-label); border-top:0; }
+.map .attr { position:absolute; right:10px; bottom:8px; font-size:10px; color:var(--map-label); }
+.lg-dot { width:12px; height:12px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 1px rgba(0,0,0,.2); flex:none; }
+.lg-gps { width:8px; height:8px; border-radius:50%; background:var(--success); margin:0 2px; }
+.lg-trk { width:22px; border-top:3px solid var(--brand-coral); border-radius:2px; }
+.lg-ring { width:16px; height:16px; border-radius:50%; border:2px solid var(--accent); }
+.tip { position:absolute; background:var(--layer-card); border:1px solid var(--stroke-card); border-radius:8px; box-shadow:var(--shadow-flyout); padding:8px 10px; font-size:12px; pointer-events:none; width:250px; z-index:5; }
+.tip b { display:block; font-size:13px; margin-bottom:2px; }
+.tip .muted { color:var(--text-secondary); }
+.mk { cursor:pointer; }
+
+/* Seitenleiste */
+.side { display:flex; flex-direction:column; min-height:0; background:var(--layer-card); border:1px solid var(--stroke-card); border-radius:8px; box-shadow:var(--shadow-card); overflow:hidden; }
+.side .top { padding:12px 14px 10px; border-bottom:1px solid var(--stroke-divider); }
+.side .sum { font-size:12px; color:var(--text-secondary); margin-top:10px; line-height:1.5; }
+.side .sum b { color:var(--text-primary); }
+.chips { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
+.chip { height:26px; padding:0 10px; border-radius:13px; border:1px solid var(--stroke-divider); background:var(--layer-card); font-size:12px; display:inline-flex; gap:6px; align-items:center; cursor:pointer; }
+.chip.on { background:var(--accent-soft-2); border-color:var(--accent); color:var(--accent-dark); font-weight:600; }
+body.dark .chip.on { color:var(--accent-light); }
+.list { overflow:auto; flex:1; min-height:0; }
+.grp-h { display:flex; align-items:center; gap:8px; padding:10px 14px; position:sticky; top:0; background:var(--layer-card); z-index:1; border-bottom:1px solid var(--stroke-divider); }
+.grp-h .t { font-weight:600; } .grp-h .d { color:var(--text-secondary); font-size:12px; }
+.grp-h .r { margin-left:auto; }
+.row { display:grid; grid-template-columns:44px 1fr auto; gap:10px; align-items:center; padding:7px 14px; cursor:pointer; }
+.row:hover { background:var(--layer-subtle); }
+.row.sel { background:var(--accent-soft); box-shadow:inset 3px 0 0 var(--accent); }
+.thumb { width:44px; height:44px; border-radius:4px; background-size:cover; }
+.row .t1 { font-size:13px; display:flex; gap:6px; align-items:center; }
+.row .t2 { font-size:11px; color:var(--text-secondary); margin-top:2px; }
+.badge { font-size:10px; font-weight:700; border-radius:8px; padding:1px 7px; white-space:nowrap; }
+.b-sure { background:var(--success-soft); color:var(--success); }
+.b-likely { background:var(--warning-soft); color:#8A6D00; }
+body.dark .b-likely { color:var(--warning); }
+.b-garmin { background:rgba(249,115,98,0.14); color:#C2412F; }
+body.dark .b-garmin { color:var(--brand-coral); }
+.b-sug { background:var(--accent-soft-2); color:var(--accent-dark); }
+body.dark .b-sug { color:var(--accent-light); }
+.acts { display:flex; gap:2px; }
+
+/* Vergleich unter der ausgewählten Zeile */
+.cmp { margin:0 14px 10px 14px; padding:10px 12px 8px; border:1px solid var(--accent-soft-2); border-radius:8px; background:var(--layer-card); display:grid; gap:2px; }
+.cmp .h { font-size:11px; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px; display:flex; }
+.cmp .h span:last-child { margin-left:auto; text-transform:none; letter-spacing:0; }
+.src { display:grid; grid-template-columns:16px 1fr auto 74px; gap:8px; align-items:center; padding:6px 6px; border-radius:6px; cursor:pointer; }
+.src:hover, .src.hl { background:var(--layer-subtle); }
+.src.chosen { background:var(--accent-soft); }
+.src .dot { width:12px; height:12px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 1px rgba(0,0,0,.2); }
+.src .n { font-size:13px; font-weight:600; display:flex; gap:6px; align-items:center; }
+.src .x { font-size:11px; color:var(--text-secondary); margin-top:1px; line-height:1.4; }
+.src .km { font-size:12px; color:var(--text-secondary); text-align:right; white-space:nowrap; }
+.src .km b { color:var(--text-primary); font-weight:600; }
+.src.off .n, .src.off .km { color:var(--text-tertiary); }
+.src.off .dot { background:transparent !important; border:2px dashed var(--text-tertiary); box-shadow:none; }
+.src button { justify-self:end; }
+.verdict { margin-top:6px; padding:7px 9px; border-radius:6px; font-size:12px; line-height:1.45; display:flex; gap:8px; align-items:flex-start; }
+.verdict.ok { background:var(--success-soft); }
+.verdict.warn { background:var(--warning-soft); }
+.verdict .ic { margin-top:1px; }
+.verdict a { color:var(--accent); cursor:pointer; font-weight:600; }
+.keys { font-size:11px; color:var(--text-tertiary); margin-top:4px; }
+.keys kbd { font-family:inherit; font-size:10px; border:1px solid var(--stroke-divider); border-bottom-color:var(--ctl-bottom); border-radius:3px; padding:0 4px; background:var(--layer-subtle); }
+
+.foot { border-top:1px solid var(--stroke-divider); padding:10px 14px 12px; display:grid; gap:10px; background:var(--layer-subtle); }
+.foot .save { display:flex; gap:14px; font-size:12px; color:var(--text-secondary); align-items:center; flex-wrap:wrap; }
+.foot .save label { display:inline-flex; gap:6px; align-items:center; cursor:pointer; color:var(--text-primary); }
+.foot .btns { display:flex; gap:8px; }
+.toast { position:absolute; left:50%; bottom:16px; transform:translateX(-50%); background:var(--layer-card); border:1px solid var(--stroke-card); border-radius:8px; box-shadow:var(--shadow-flyout); padding:10px 14px; font-size:13px; display:flex; gap:14px; align-items:center; z-index:20; white-space:nowrap; }
+.toast a { color:var(--accent); cursor:pointer; font-weight:600; }
+</style>
+</head>
+<body>
+
+<div class="mock-bar">
+  <span><b>Mockup 25 · Ungenau: Quellen vergleichen · Entwurf</b></span>
+  <span class="grp">Design: <button id="mbLight" class="on">Hell</button><button id="mbDark">Dunkel</button></span>
+  <span class="grp">Fall: <button data-case="a" class="on">Drei Quellen</button><button data-case="b">Eng beieinander (30 m)</button><button data-case="c">Lücke in der Spur</button><button data-case="d">Keine Spur zur Zeit</button></span>
+  <span class="note">Ergänzt Mockup 10 · Karte schematisch · Fotos sind Platzhalter</span>
+</div>
+
+<div class="stage-wrap"><div class="win-box" id="winBox">
+<div class="window" id="win">
+  <div class="titlebar"><span class="tile"></span> Lumora<span class="wc"><span>&#xE921;</span><span>&#xE922;</span><span>&#xE8BB;</span></span></div>
+  <nav class="nav">
+    <div class="wbs">lumora</div>
+    <div class="lib-switch"><span class="ic">&#xE8F1;</span><div><b>Familienfotos</b><small>Bibliothek wechseln</small></div></div>
+    <div class="nav-item"><span class="ic">&#xE91B;</span>Galerie</div>
+    <div class="nav-item"><span class="ic">&#xE8B7;</span>Ordner</div>
+    <div class="nav-item"><span class="ic">&#xE8F1;</span>Alben</div>
+    <div class="nav-item"><span class="ic">&#xE786;</span>Storys</div>
+    <div class="nav-item"><span class="ic">&#xE716;</span>Personen</div>
+    <div class="nav-item active"><span class="ic">&#xE707;</span>Orte</div>
+    <div class="nav-item"><span class="ic">&#xE8C8;</span>Doppelte</div>
+    <div class="nav-item"><span class="ic">&#xE8CB;</span>Sortieren</div>
+    <div class="spacer"></div>
+    <div class="nav-item"><span class="ic">&#xE713;</span>Einstellungen</div>
+  </nav>
+
+  <main class="content">
+    <div class="phead">
+      <div><h1>Orte</h1><div class="sub">4 404 verortete Fotos und Videos · 803 ohne Ort · <b style="color:var(--warning)">158 mit geschätzter Position</b></div></div>
+      <div class="search"><span class="ic s">&#xE721;</span>Ort suchen …</div>
+    </div>
+    <div class="body">
+      <div class="map" id="map">
+        <svg viewBox="0 0 800 560" preserveAspectRatio="xMidYMid slice" id="svg"></svg>
+        <div class="focus"><div class="seg" id="focusSeg"><button data-focus="one" class="on"><span class="ic s">&#xE7B3;</span>Nur dieses Foto</button><button data-focus="trip"><span class="ic s">&#xE81E;</span>Ganzer Ausflug</button></div></div>
+        <div class="tools"><span class="ic">&#xE710;</span><span class="ic">&#xE738;</span><span class="ic" title="Auf dieses Foto zoomen">&#xE71E;</span><span class="ic">&#xE81E;</span></div>
+        <div class="legend" id="legend"></div>
+        <div class="scale" id="scale"></div>
+        <div class="attr">© OpenStreetMap-Mitwirkende · schematisch</div>
+        <div class="tip hidden" id="tip"></div>
+        <div class="toast hidden" id="toast"></div>
+      </div>
+
+      <div class="side">
+        <div class="top">
+          <div class="seg"><button>Ohne Ort <small>803</small></button><button class="on">Ungenau <small>158</small></button></div>
+          <div class="sum"><b>158 Fotos</b> mit geschätzter Position. Je Foto stehen die Quellen nebeneinander:
+            <b>laut Foto</b>, <b style="color:var(--brand-coral)">laut Spur</b> und <b style="color:var(--brand-violet)">laut Zeit</b>. Lumora schlägt die genauere vor.</div>
+          <div class="chips" id="chips">
+            <span class="chip on">Alle</span><span class="chip">Garmin-Spur 64</span><span class="chip">Sicher 38</span><span class="chip">Wahrscheinlich 20</span><span class="chip">Ohne Vorschlag 36</span><span class="chip" title="Spur und Zeit liegen weit auseinander">Quellen uneinig 9</span>
+          </div>
+        </div>
+        <div class="list" id="list"></div>
+        <div class="foot">
+          <div class="save"><span>Speichern:</span>
+            <label data-save="cat"><span class="radio on"></span>nur im Katalog</label>
+            <label data-save="file"><span class="radio"></span>auch ins Foto schreiben (EXIF)</label></div>
+          <div class="btns">
+            <button class="btn-acc"><span class="ic s">&#xE73E;</span>Garmin + sichere übernehmen (102)</button>
+            <button class="btn-std">Ausflug (4)</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div class="statusbar"><span>Familienfotos</span><span>Orte: 158 geschätzt · 122 Vorschläge · 1 284 Garmin-Aktivitäten</span><div class="r"><span>0.5.x</span></div></div>
+</div>
+</div></div>
+
+<script>
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const NS='http://www.w3.org/2000/svg';
+const thumb=(h1,h2)=>`linear-gradient(180deg, ${h1}, ${h2} 60%, #8a8f6a 61%)`;
+const C=v=>getComputedStyle(document.body).getPropertyValue(v).trim();
+const COL={foto:'#9AA0A6', spur:'--brand-coral', zeit:'--brand-violet'};
+const col=k=>k==='foto'?COL.foto:C(COL[k]);
+
+// Garmin-Spur „Wanderung Weinebene“ (schematisch, SVG-Raster 800×560)
+const TRACK=[[90,440,'09:38'],[150,405],[210,372,'09:50'],[270,342],[330,312,'10:00'],[380,292],[430,272],[455,262,'10:06'],[500,240],[545,214,'10:12'],[590,190],[640,166,'10:18'],[700,140],[760,118,'10:24']];
+
+// Fälle: je ein ausgewähltes Foto mit seinen drei Quellen
+const CASES={
+ a:{row:1, scale:['500 m',90], track:'full',
+    foto:[230,120], spur:[455,262], zeit:[474,251], anchors:[[330,312,'10:02'],[560,206,'10:14']], chosen:'spur',
+    src:{foto:['Handy-Schätzung (Mobilfunk/WLAN)','ohne GPS-Höhe und -Zeit gespeichert','—'],
+         spur:['Garmin „Wanderung Weinebene“ · 10:06:10','Spurpunkte 4 s auseinander','1,2 km'],
+         zeit:['zwischen GPS-Fotos 10:02 und 10:14','12 min Abstand, gleichmäßig gegangen','1,2 km']},
+    verdict:['ok','&#xE73E;','Spur und Zeit liegen <b>90 m</b> auseinander und stimmen überein. Die Handy-Position liegt 1,2 km daneben (Ortschaft im Tal).']},
+ b:{row:2, scale:['20 m',80], track:'zoom',
+    foto:[360,330], spur:[470,262], zeit:[500,246], anchors:[[150,400,'10:05'],[720,140,'10:07']], chosen:'spur',
+    src:{foto:['Handy-Schätzung','ohne GPS-Höhe und -Zeit gespeichert','—'],
+         spur:['Garmin „Wanderung Weinebene“ · 10:06:41','Spurpunkte 2 s auseinander','30 m'],
+         zeit:['zwischen GPS-Fotos 10:05 und 10:07','2 min Abstand','38 m']},
+    verdict:['ok','&#xE71E;','Alle drei liegen innerhalb von <b>40 m</b>, die Karte ist deshalb auf 20 m gezoomt. Übernehmen ändert kaum etwas — Ablehnen ist hier genauso gut.']},
+ c:{row:3, scale:['500 m',90], track:'gap', gap:[330,312,560,206],
+    foto:[660,430], spur:[445,259], zeit:[474,251], anchors:[[430,272,'10:08'],[520,229,'10:15']], chosen:'zeit',
+    src:{foto:['Handy-Schätzung','unmöglicher Sprung: 2,3 km in 3 min','—'],
+         spur:['Garmin-Spur hat hier eine Lücke 10:00–10:22','Uhr pausiert · gerade Linie geschätzt','2,1 km'],
+         zeit:['zwischen GPS-Fotos 10:08 und 10:15','7 min Abstand','2,0 km']},
+    verdict:['warn','&#xE7BA;','Die Spur hat um 10:11 eine <b>Lücke von 22 min</b> — dort ist sie nur geschätzt. Die GPS-Fotos davor und danach sind näher dran, deshalb ist <b>laut Zeit</b> vorgeschlagen.']},
+ d:{row:4, scale:['500 m',90], track:'before',
+    foto:[640,110], spur:null, zeit:[420,360], anchors:[[320,392,'13:12'],[520,330,'13:31']], chosen:'zeit', ghost:[700,140],
+    src:{foto:['Handy-Schätzung','ohne GPS-Höhe und -Zeit gespeichert','—'],
+         spur:['keine Spur um 13:20','die letzte Garmin-Aktivität endet um 12:58','—'],
+         zeit:['zwischen GPS-Fotos 13:12 und 13:31','19 min Abstand','3,4 km']},
+    verdict:['warn','&#xE916;','Nur eine Quelle, deshalb <b>wahrscheinlich</b>. Geht die Kamerauhr 25 min nach, läge das Foto genau auf der Spur (heller Punkt). <a>Zeitabgleich prüfen…</a>']},
+};
+const ROWS=[
+ {id:1, c:'a', time:'10:06', name:'Gipfelkreuz', conf:['b-garmin','Garmin-Spur'], t2:'ohne GPS-Höhe/-Zeit → 1,2 km korrigieren', col:['#6FB1E8','#F3F6FA']},
+ {id:2, c:'b', time:'10:06', name:'Aussicht Süd', conf:['b-garmin','Garmin-Spur'], t2:'ohne GPS-Höhe/-Zeit → 30 m korrigieren', col:['#8EC5FC','#E8EEF4']},
+ {id:3, c:'c', time:'10:11', name:'Rast am Kamm', conf:['b-sure','sicher'], t2:'Sprung 2,3 km in 3 min → 2,0 km korrigieren', col:['#9FD3F5','#DDE8D2']},
+ {id:4, c:'d', time:'13:20', name:'Hütte', conf:['b-likely','wahrscheinlich'], t2:'ohne GPS-Höhe/-Zeit → 3,4 km korrigieren', col:['#F3D9B1','#C9A27A']},
+ {id:5, c:null, time:'13:48', name:'Parkplatz', conf:['b-likely','wahrscheinlich'], t2:'ohne GPS-Höhe/-Zeit → 2,9 km korrigieren', col:['#C8D4E0','#9AA6B2']},
+];
+// übrige Fotos des Ausflugs (nur bei „Ganzer Ausflug“)
+const OTHERS=[[[250,140],[300,326]],[[260,150],[352,302]],[[240,135],[520,230]],[[640,420],[600,186]],[[250,128],[150,405]]];
+
+let cur='a', chosen=null, hl=null, focus='one', save='cat';
+
+function el(tag, a={}, p){ const e=document.createElementNS(NS,tag); for(const k in a) e.setAttribute(k,a[k]); p&&p.appendChild(e); return e; }
+function pill(s,x,y,text,color,dx=12,dy=-14){
+  const g=el('g',{},s), w=text.length*6.3+14;
+  el('rect',{x:x+dx,y:y+dy-11,width:w,height:20,rx:10,fill:C('--layer-card'),stroke:color,'stroke-width':1.5},g);
+  const t=el('text',{x:x+dx+7,y:y+dy+3,'font-size':11,'font-weight':600,fill:C('--text-primary'),'font-family':'Segoe UI'},g); t.textContent=text;
+}
+function label(s,x,y,t,size=12,b){ const e=el('text',{x,y,'font-size':size,'font-weight':b?600:400,fill:C('--map-label'),'font-family':'Segoe UI'},s); e.textContent=t; }
+function trackPath(pts){ return pts.map((p,i)=>(i?'L':'M')+p[0]+','+p[1]).join(' '); }
+
+function drawMap(){
+  const k=CASES[cur], s=$('#svg'); s.innerHTML='';
+  const ch=chosen||k.chosen;
+  el('rect',{x:0,y:0,width:800,height:560,fill:C('--map-land')},s);
+  if(k.track==='zoom'){
+    // stark gezoomt: nur Weg, Wiese und Bäume
+    el('path',{d:'M0,470 C160,420 300,360 470,262 C560,210 680,150 800,110',fill:'none',stroke:C('--map-road-edge'),'stroke-width':26},s);
+    el('path',{d:'M0,470 C160,420 300,360 470,262 C560,210 680,150 800,110',fill:'none',stroke:C('--map-alm'),'stroke-width':22},s);
+    [[120,180],[200,120],[600,380],[680,320],[560,470],[90,300],[700,440]].forEach(p=>el('circle',{cx:p[0],cy:p[1],r:22,fill:C('--map-forest')},s));
+    label(s,520,470,'Almweide');
+    el('path',{d:'M0,470 C160,420 300,360 470,262 C560,210 680,150 800,110',fill:'none',stroke:C('--brand-coral'),'stroke-width':4,'stroke-linecap':'round',opacity:.9},s);
+  } else {
+    el('path',{d:'M0,400 C120,350 220,440 360,400 C470,370 560,440 800,400 L800,560 L0,560Z',fill:C('--map-forest')},s);
+    el('path',{d:'M0,90 C140,60 260,120 380,90 C500,60 640,110 800,80 L800,0 L0,0Z',fill:C('--map-forest')},s);
+    el('ellipse',{cx:470,cy:250,rx:170,ry:90,fill:C('--map-alm')},s);
+    for(let i=0;i<5;i++) el('ellipse',{cx:500,cy:240,rx:30+i*28,ry:16+i*15,fill:'none',stroke:C('--map-line'),'stroke-width':1},s);
+    const road='M0,170 C90,150 160,130 230,125 C320,120 420,180 520,300 C580,370 650,420 800,440';
+    el('path',{d:road,fill:'none',stroke:C('--map-road-edge'),'stroke-width':7},s);
+    el('path',{d:road,fill:'none',stroke:C('--map-road'),'stroke-width':4},s);
+    label(s,180,105,'Glashütten',15,1); label(s,505,232,'▲ Handalm',15,1); label(s,690,470,'Trahütten');
+    // Spur
+    const tc=C('--brand-coral');
+    if(k.track==='full') el('path',{d:trackPath(TRACK),fill:'none',stroke:tc,'stroke-width':3.5,'stroke-linecap':'round','stroke-linejoin':'round',opacity:.85},s);
+    if(k.track==='gap'){
+      el('path',{d:trackPath(TRACK.slice(0,5)),fill:'none',stroke:tc,'stroke-width':3.5,'stroke-linecap':'round',opacity:.85},s);
+      el('path',{d:trackPath(TRACK.slice(9)),fill:'none',stroke:tc,'stroke-width':3.5,'stroke-linecap':'round',opacity:.85},s);
+      el('line',{x1:k.gap[0],y1:k.gap[1],x2:k.gap[2],y2:k.gap[3],stroke:tc,'stroke-width':2,'stroke-dasharray':'3 6',opacity:.8},s);
+      label(s,370,325,'Lücke 22 min (Uhr pausiert)',11);
+    }
+    if(k.track==='before'){
+      el('path',{d:trackPath(TRACK),fill:'none',stroke:tc,'stroke-width':3.5,'stroke-linecap':'round',opacity:.35},s);
+      label(s,700,108,'Spur endet 12:58',11);
+    }
+    if(k.track!=='before') TRACK.forEach(p=>{ if(p[2]){ el('circle',{cx:p[0],cy:p[1],r:2.5,fill:tc},s); label(s,p[0]-14,p[1]+16,p[2],10); } });
+  }
+
+  // übrige Fotos des Ausflugs
+  if(focus==='trip') OTHERS.forEach(([o,n])=>{
+    el('line',{x1:o[0],y1:o[1],x2:n[0],y2:n[1],stroke:C('--accent'),'stroke-width':1.2,'stroke-dasharray':'5 5',opacity:.3},s);
+    el('circle',{cx:o[0],cy:o[1],r:5,fill:COL.foto,stroke:'#fff','stroke-width':1.5,opacity:.5},s);
+    el('circle',{cx:n[0],cy:n[1],r:5,fill:C('--accent'),stroke:'#fff','stroke-width':1.5,opacity:.5},s);
+  });
+
+  // GPS-Fotos davor/danach und die Zeit-Linie dazwischen
+  const [a1,a2]=k.anchors, g=C('--success');
+  el('line',{x1:a1[0],y1:a1[1],x2:a2[0],y2:a2[1],stroke:C(COL.zeit),'stroke-width':1.5,'stroke-dasharray':'2 4',opacity:.8},s);
+  [a1,a2].forEach(a=>{ el('circle',{cx:a[0],cy:a[1],r:5.5,fill:g,stroke:'#fff','stroke-width':2},s); pill(s,a[0],a[1],'GPS-Foto '+a[2],g,-30,24); });
+
+  // Verbindungen vom Foto-Punkt zu den beiden anderen Quellen
+  ['spur','zeit'].forEach(q=>{ const p=k[q]; if(!p) return;
+    el('line',{x1:k.foto[0],y1:k.foto[1],x2:p[0],y2:p[1],stroke:col(q),'stroke-width':hl===q?2.5:1.5,'stroke-dasharray':'6 5',opacity:hl&&hl!==q?.3:.75},s);
+    const mx=(k.foto[0]+p[0])/2, my=(k.foto[1]+p[1])/2, t=k.src[q][2];
+    if(t!=='—'){ const w=t.length*6.6+10; el('rect',{x:mx-w/2,y:my-9,width:w,height:17,rx:4,fill:C('--layer-card'),opacity:.92},s);
+      const e=el('text',{x:mx,y:my+4,'font-size':11,'text-anchor':'middle',fill:col(q),'font-weight':700,'font-family':'Segoe UI'},s); e.textContent=t; }
+  });
+  if(k.ghost){ el('circle',{cx:k.ghost[0],cy:k.ghost[1],r:7,fill:'none',stroke:C('--brand-coral'),'stroke-width':2,'stroke-dasharray':'3 3'},s);
+    pill(s,k.ghost[0],k.ghost[1],'Spur bei Uhr +25 min',C('--brand-coral'),-150,-16); }
+
+  // die drei Punkte
+  const names={foto:'laut Foto',spur:'laut Spur',zeit:'laut Zeit'};
+  const off={a:{foto:[12,-14],spur:[-92,30],zeit:[14,-18]}, b:{foto:[-30,30],spur:[-96,-18],zeit:[14,-18]}, c:{foto:[12,-14],spur:[-92,30],zeit:[14,-18]}, d:{foto:[12,-14],zeit:[14,-18]}}[cur];
+  ['foto','spur','zeit'].forEach(q=>{ const p=k[q]; if(!p) return;
+    const isCh=q===ch, r=isCh?10:8, c=col(q);
+    if(isCh){ el('circle',{cx:p[0],cy:p[1],r:17,fill:'none',stroke:C('--accent'),'stroke-width':2.5},s); }
+    const m=el('circle',{cx:p[0],cy:p[1],r:hl===q?r+2:r,fill:c,stroke:'#fff','stroke-width':2.5,class:'mk'},s);
+    if(q==='foto'){ const t=el('text',{x:p[0],y:p[1]+4,'font-size':9,'text-anchor':'middle',fill:'#fff','font-family':'Segoe Fluent Icons','pointer-events':'none'},s); t.textContent=''; }
+    pill(s,p[0],p[1],names[q]+(isCh?' · Vorschlag':''),c,off[q][0],off[q][1]);
+    m.addEventListener('mouseenter',e=>tip(q,e)); m.addEventListener('mouseleave',()=>$('#tip').classList.add('hidden'));
+    m.addEventListener('click',()=>{ hl=q; render(); });
+  });
+  $('#scale').innerHTML=`<span>${k.scale[0]}</span><i style="width:${k.scale[1]}px"></i>`;
+  legend();
+}
+function legend(){
+  const k=CASES[cur];
+  $('#legend').innerHTML=
+    (k.track==='zoom'||k.track==='full'||k.track==='gap'||k.track==='before'?`<div><span class="lg-trk"></span>Garmin-Spur „Wanderung Weinebene“ 09:38–12:58</div>`:'')+
+    `<div><span class="lg-dot" style="background:${COL.foto}"></span>laut Foto (gespeichert, geschätzt)</div>`+
+    `<div><span class="lg-dot" style="background:${C(COL.spur)}"></span>laut Spur (Ort zur Aufnahmezeit)</div>`+
+    `<div><span class="lg-dot" style="background:${C(COL.zeit)}"></span>laut Zeit (zwischen GPS-Fotos)</div>`+
+    `<div><span class="lg-gps"></span>Foto mit echtem GPS (davor/danach)</div>`+
+    `<div><span class="lg-ring"></span>Vorschlag (ziehen zum Verschieben)</div>`;
+}
+function tip(q,e){
+  const k=CASES[cur], t=$('#tip'), r=$('#map').getBoundingClientRect(), [a,b,d]=k.src[q];
+  const head={foto:'laut Foto',spur:'laut Spur',zeit:'laut Zeit'}[q];
+  t.innerHTML=`<b>${head}${(chosen||k.chosen)===q?' · Vorschlag':''}</b><span class="muted">${a}<br>${b}${d!=='—'?'<br>'+d+' vom gespeicherten Punkt':''}</span>`;
+  t.style.left=((e.clientX-r.left)/scale+12)+'px'; t.style.top=((e.clientY-r.top)/scale+12)+'px'; t.classList.remove('hidden');
+}
+function renderList(){
+  const k=CASES[cur], ch=chosen||k.chosen; let h=`<div class="grp-h"><span class="ic s">&#xE70D;</span><div><div class="t">Sonntag, 15. März 2020</div><div class="d">Wanderung Weinebene · 5 Fotos, 5 Vorschläge</div></div><button class="btn-std btn-sm r">Übernehmen</button></div>`;
+  ROWS.forEach(r=>{
+    const sel=r.c===cur;
+    h+=`<div class="row${sel?' sel':''}" data-c="${r.c||''}"><div class="thumb" style="background:${thumb(r.col[0],r.col[1])}"></div>
+      <div><div class="t1">${r.time} · ${r.name} <span class="badge ${r.conf[0]}">${r.conf[1]}</span></div><div class="t2">${r.t2}</div></div>
+      <div class="acts"><button class="ibtn" title="Vorschlag übernehmen"><span class="ic s">&#xE73E;</span></button><button class="ibtn" title="Ablehnen (bleibt, wie es ist)"><span class="ic s">&#xE711;</span></button></div></div>`;
+    if(sel){
+      h+=`<div class="cmp"><div class="h"><span>Quellen für dieses Foto</span><span>Abstand zum Foto-Punkt</span></div>`;
+      [['foto','laut Foto',1],['spur','laut Spur',2],['zeit','laut Zeit',3]].forEach(([q,n,key])=>{
+        const [a,b,d]=k.src[q], off=q!=='foto'&&!k[q], isCh=q===ch;
+        const btn = q==='foto' ? `<button class="btn-std btn-sm" data-pick="foto" title="Gespeicherte Position behalten (= Ablehnen)">Behalten</button>`
+                  : off ? '' : isCh ? `<button class="btn-acc btn-sm" data-pick="${q}">Übernehmen</button>` : `<button class="btn-std btn-sm" data-pick="${q}">Nehmen</button>`;
+        h+=`<div class="src${isCh?' chosen':''}${off?' off':''}${hl===q?' hl':''}" data-src="${q}">
+          <span class="dot" style="background:${col(q)}"></span>
+          <div><div class="n">${n}${isCh?' <span class="badge b-sug">Vorschlag</span>':''}</div><div class="x">${a}<br>${b}</div></div>
+          <div class="km"><b>${d}</b></div>${btn}</div>`;
+      });
+      const v=k.verdict;
+      h+=`<div class="verdict ${v[0]}"><span class="ic s" style="color:${v[0]==='ok'?'var(--success)':'#8A6D00'}">${v[1]}</span><span>${v[2]}</span></div>
+        <div class="keys">Zeile anklicken zeigt den Punkt auf der Karte · <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> wählt die Quelle · <kbd>Enter</kbd> übernimmt</div></div>`;
+    }
+  });
+  $('#list').innerHTML=h;
+}
+function render(){ renderList(); drawMap(); }
+function setCase(c){ cur=c; chosen=null; hl=null; $$('[data-case]').forEach(b=>b.classList.toggle('on',b.dataset.case===c)); render(); }
+function toast(msg){ const t=$('#toast'); t.innerHTML=`<span class="ic s" style="color:var(--success)">&#xE73E;</span>${msg} — ${save==='file'?'ins Foto geschrieben':'nur im Katalog'}<a>Rückgängig</a>`;
+  t.classList.remove('hidden'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.add('hidden'),4000); }
+document.addEventListener('click',e=>{
+  const cs=e.target.closest('[data-case]'); if(cs){ setCase(cs.dataset.case); return; }
+  const pk=e.target.closest('[data-pick]'); if(pk){ const q=pk.dataset.pick, k=CASES[cur];
+    if(q==='foto'){ toast('Gespeicherte Position behalten'); return; }
+    if(q===(chosen||k.chosen)){ toast(`1 Ort übernommen (${q==='spur'?'laut Spur':'laut Zeit'})`); return; }
+    chosen=q; hl=q; render(); return; }
+  const sr=e.target.closest('[data-src]'); if(sr){ hl=sr.dataset.src; render(); return; }
+  const r=e.target.closest('.row'); if(r&&r.dataset.c){ setCase(r.dataset.c); return; }
+  const f=e.target.closest('[data-focus]'); if(f){ focus=f.dataset.focus; $$('[data-focus]').forEach(b=>b.classList.toggle('on',b===f)); drawMap(); return; }
+  const sv=e.target.closest('[data-save]'); if(sv){ save=sv.dataset.save; $$('[data-save] .radio').forEach(x=>x.classList.toggle('on',x.parentElement===sv)); return; }
+});
+document.addEventListener('keydown',e=>{ const m={'1':'foto','2':'spur','3':'zeit'}[e.key]; if(m&&CASES[cur][m]){ hl=m; if(m!=='foto') chosen=m; render(); } });
+let scale=1;
+function fit(){ const w=1280,h=800,win=$('#win'); win.style.width=w+'px'; win.style.height=h+'px'; scale=Math.min(1,(document.documentElement.clientWidth-40)/w);
+  win.style.transform=`scale(${scale})`; $('#winBox').style.width=w*scale+'px'; $('#winBox').style.height=h*scale+'px'; }
+function theme(d){ document.body.classList.toggle('dark',d); $('#mbLight').classList.toggle('on',!d); $('#mbDark').classList.toggle('on',d); render(); }
+$('#mbLight').onclick=()=>theme(false); $('#mbDark').onclick=()=>theme(true);
+window.addEventListener('resize',fit);
+fit(); theme(window.matchMedia('(prefers-color-scheme: dark)').matches);
+</script>
+</body>
+</html>

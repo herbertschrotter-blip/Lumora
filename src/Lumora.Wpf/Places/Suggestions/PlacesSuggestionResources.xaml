@@ -7,6 +7,8 @@
     <!-- Spur der Aktivität (Mockup: Markenfarbe Koralle) und gespeicherte, geschätzte Position (grau) -->
     <SolidColorBrush x:Key="PlacesTrackBrush" Color="#F97362" />
     <SolidColorBrush x:Key="PlacesStoredBrush" Color="#9AA0A6" />
+    <!-- „laut Zeit“ im Quellen-Vergleich (Mockup 25: Violett der Marke) -->
+    <SolidColorBrush x:Key="PlacesTimeBrush" Color="#8B5CF6" />
     <SolidColorBrush x:Key="PlacesGarminBadgeBackground" Color="#29F97362" />
     <SolidColorBrush x:Key="PlacesGarminBadgeForeground" Color="#E0533F" />
 

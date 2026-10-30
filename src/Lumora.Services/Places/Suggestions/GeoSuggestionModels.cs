@@ -18,6 +18,8 @@ public enum GeoSuggestionListKind
 /// <summary>Ein Foto der Liste samt Vorschlag (null = kein Vorschlag).</summary>
 /// <param name="LocalTime">Wanduhrzeit der Aufnahme (wie fotografiert), null ohne Aufnahmedatum.</param>
 /// <param name="Utc">Aufnahme nach dem Zeitabgleich (Unix-Sekunden), null ohne.</param>
+/// <param name="Track">Spur des Vorschlags, sonst die des Vergleichs bzw. des Uhr-Hinweises.</param>
+/// <param name="Sources">Alle Quellen nebeneinander (Mockup 25), null ohne Spur und genaue Fotos in der Nähe.</param>
 public sealed record GeoSuggestionItem(
     int FileId,
     int LibraryId,
@@ -30,7 +32,8 @@ public sealed record GeoSuggestionItem(
     double? StoredLongitude,
     GeoAccuracyReason Reason,
     GeoSuggestion? Suggestion,
-    GpsTrackInfo? Track)
+    GpsTrackInfo? Track,
+    GeoSourceComparison? Sources = null)
 {
     public GeoSuggestionLevel Level => Suggestion?.Level ?? GeoSuggestionLevel.None;
 

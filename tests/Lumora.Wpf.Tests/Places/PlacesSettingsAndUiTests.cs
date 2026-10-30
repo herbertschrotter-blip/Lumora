@@ -175,7 +175,10 @@ public sealed class PlacesSettingsAndUiTests
                 window.Show();
                 PumpUntil(() => !vm.IsLoading && vm.EstimatedCount == 3);
                 vm.ShowInaccurateModeCommand.Execute(null);
-                PumpUntil(() => page.MapView.LastDrawnCorrections == 3 && page.MapView.LastDrawnTrackPoints > 0);
+                // Standard „Nur dieses Foto“ (Mockup 25): eine Korrektur samt beschrifteter Quellen und Maßstab
+                PumpUntil(() => page.MapView.LastDrawnCorrections == 1 && page.MapView.LastDrawnTrackPoints > 0 && page.MapView.LastScaleText is not null);
+                vm.ShowWholeTrip = true;
+                PumpUntil(() => page.MapView.LastDrawnCorrections == 3);
                 var panel = FindChild<SuggestionPanel>(page)!;
                 panel.IsVisible.Should().BeTrue();
                 panel.RowList.Items.Count.Should().Be(4, "1 Tag + 3 Fotos");

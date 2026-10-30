@@ -221,6 +221,9 @@
                                     Overlay="{Binding MapOverlay}"
                                     TrackBrush="{StaticResource PlacesTrackBrush}"
                                     StoredBrush="{StaticResource PlacesStoredBrush}"
+                                    TimeBrush="{StaticResource PlacesTimeBrush}"
+                                    LabelForeground="{DynamicResource TextFillColorPrimaryBrush}"
+                                    LabelBackground="{DynamicResource SolidBackgroundFillColorSecondaryBrush}"
                                     ExactBrush="{DynamicResource SystemFillColorSuccessBrush}"
                                     Tiles="{Binding Tiles}"
                                     MapBackground="{DynamicResource SolidBackgroundFillColorSecondaryBrush}"
@@ -264,15 +267,30 @@
                     </Border>
 
                     <!-- Ausschnitt in der Galerie zeigen (oben links), dieselbe Leiste wie rechts -->
-                    <Grid Margin="10" HorizontalAlignment="Left" VerticalAlignment="Top">
-                        <Border Style="{StaticResource MapBarBackground}" />
-                        <ui:Button Margin="3" Appearance="Transparent" BorderThickness="0"
-                                   Icon="{ui:SymbolIcon ImageMultiple24}"
-                                   Content="{Binding VisibleText}"
-                                   ToolTip="Alle Fotos im sichtbaren Ausschnitt in der Galerie zeigen"
-                                   AutomationProperties.Name="Ausschnitt in der Galerie zeigen"
-                                   Command="{Binding ShowVisibleInGalleryCommand}" />
-                    </Grid>
+                    <StackPanel Margin="10" Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top">
+                        <Grid>
+                            <Border Style="{StaticResource MapBarBackground}" />
+                            <ui:Button Margin="3" Appearance="Transparent" BorderThickness="0"
+                                       Icon="{ui:SymbolIcon ImageMultiple24}"
+                                       Content="{Binding VisibleText}"
+                                       ToolTip="Alle Fotos im sichtbaren Ausschnitt in der Galerie zeigen"
+                                       AutomationProperties.Name="Ausschnitt in der Galerie zeigen"
+                                       Command="{Binding ShowVisibleInGalleryCommand}" />
+                        </Grid>
+                        <!-- Ungenau (Mockup 25): nur das ausgewählte Foto mit seinen Quellen oder der ganze Ausflug -->
+                        <Border Style="{StaticResource SuggestionSegment}" Margin="8,0,0,0" VerticalAlignment="Center"
+                                Background="{DynamicResource SolidBackgroundFillColorSecondaryBrush}"
+                                Visibility="{Binding IsSuggestionMode, Converter={StaticResource BoolToVis}}">
+                            <StackPanel Orientation="Horizontal">
+                                <RadioButton Style="{StaticResource SuggestionSegmentButton}" GroupName="SuggestionFocus" Content="Nur dieses Foto"
+                                             AutomationProperties.AutomationId="PlacesFocusSelected"
+                                             IsChecked="{Binding ShowSelectedOnly}" />
+                                <RadioButton Style="{StaticResource SuggestionSegmentButton}" GroupName="SuggestionFocus" Content="Ganzer Ausflug"
+                                             AutomationProperties.AutomationId="PlacesFocusTrip"
+                                             IsChecked="{Binding ShowWholeTrip}" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
 
                     <!-- Leerzustand -->
                     <Border HorizontalAlignment="Center" VerticalAlignment="Center" Padding="20,14" CornerRadius="8" MaxWidth="420"

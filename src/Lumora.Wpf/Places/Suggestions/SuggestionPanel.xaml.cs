@@ -27,6 +27,12 @@ public partial class SuggestionPanel : UserControl
             return;
         }
 
+        // Klick auf eine Quelle im Vergleich (Mockup 25): ihre MouseBinding hebt den Punkt hervor — nicht verschlucken
+        if (e.OriginalSource is FrameworkElement { DataContext: SuggestionSourceRow })
+        {
+            return;
+        }
+
         item.Focus();
         if (e.ClickCount == 2)
         {
@@ -56,6 +62,11 @@ public partial class SuggestionPanel : UserControl
             case Key.Enter:
                 _ = ViewModel?.OpenSuggestionLightboxAsync(row);
                 e.Handled = true;
+                break;
+            // Quellen-Vergleich (Mockup 25): 1 laut Foto, 2 laut Spur, 3 laut Zeit
+            case Key.D1 or Key.NumPad1 or Key.D2 or Key.NumPad2 or Key.D3 or Key.NumPad3 when row.IsSelected:
+                var key = e.Key is Key.D1 or Key.NumPad1 ? 1 : e.Key is Key.D2 or Key.NumPad2 ? 2 : 3;
+                e.Handled = ViewModel?.SourceKey(key) == true;
                 break;
         }
     }

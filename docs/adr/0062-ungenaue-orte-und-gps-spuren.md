@@ -144,3 +144,21 @@ Bibliotheken ohne Spuren außerhalb, Fotos nie beschädigen.
 - Tests: `tests/Lumora.Tests/Places/Tracks/*`, `tests/Lumora.Wpf.Tests/Places/{PlacesSuggestionViewModelTests,PlacesSettingsAndUiTests}.cs`,
   Rauchtest-Schritt „Ungenaue Orte“
 - Mockup: `mockups/10-ungenaue-orte.html`; Garmin-Datenexport: https://www.garmin.com/account/datamanagement/exportdata/
+
+## Nachtrag 0.5.33 — Quellen vergleichen (Mockup 25, Herbert 2026-10-27)
+
+Herbert konnte auf der Karte nicht erkennen, wo das Foto laut eigener Position, laut Spur und laut Zeit lag. Bisher
+rechnete die Engine je Foto nur den besten Vorschlag.
+
+- **Engine:** `GeoSuggestionEngine.Compare` liefert je Foto alle Quellen (`GeoSourceComparison`): die Spur zur
+  Aufnahmezeit auch über Lücken von mehr als 15 min (dann Stufe „keine“, nur geradlinig geschätzt), die Zeit aus den
+  genauen Fotos und — ohne Spur zur Zeit — die nächste Spur innerhalb von 2 h als Uhr-Hinweis (`TrackClockHint`,
+  Abweichung der Kamerauhr). Der Vorschlag selbst (`Suggest`) bleibt unverändert. Liegen Spur und Zeit mehr als 300 m
+  auseinander, gelten sie als uneinig (Filter „Quellen uneinig“).
+- **Seitenleiste:** Unter der ausgewählten Zeile stehen die drei Quellen mit Abstand zum Punkt laut Foto. „Nehmen“
+  macht eine Quelle zum Vorschlag (Stufe und Herkunft beim Übernehmen folgen ihr), „Behalten“ = Ablehnen, Tasten 1–3.
+  Darunter ein Satz zur Bewertung (stimmen überein, Lücke, uneinig, nur eine Quelle, Uhr-Hinweis).
+- **Karte:** Standard „Nur dieses Foto“: beschriftete Punkte je Quelle, gestrichelte Abstände, GPS-Fotos davor und
+  danach mit Uhrzeit, Vorschlag als Ring, Maßstab; Ausschnitt bis Zoom 18, damit auch 30 m sichtbar auseinanderliegen.
+  „Ganzer Ausflug“ zeigt wie bisher alle Korrekturen des Tages.
+

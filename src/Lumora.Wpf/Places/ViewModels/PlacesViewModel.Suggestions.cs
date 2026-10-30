@@ -57,8 +57,8 @@ public sealed partial class PlacesViewModel
 
     public bool IsUnlocatedMode => SideMode == PlacesSideMode.Unlocated;
 
-    /// <summary>Breite der Seitenleiste: Kacheln 300, Vorschlagsliste 400 (Mockup 10).</summary>
-    public GridLength SidePanelWidth => new(IsSuggestionMode ? 400 : 300);
+    /// <summary>Breite der Seitenleiste: Kacheln 300, Vorschlagsliste mit Quellen-Vergleich 430 (Mockup 10/25).</summary>
+    public GridLength SidePanelWidth => new(IsSuggestionMode ? 430 : 300);
 
     public bool IsInaccurateMode => SideMode == PlacesSideMode.Inaccurate;
 
@@ -112,7 +112,21 @@ public sealed partial class PlacesViewModel
         new(SuggestionFilter.Sure, "Sicher"),
         new(SuggestionFilter.Likely, "Wahrscheinlich"),
         new(SuggestionFilter.None, "Ohne Vorschlag"),
+        new(SuggestionFilter.Disagree, "Quellen uneinig"),
     ];
+
+    /// <summary>Karte: nur das ausgewählte Foto mit seinen Quellen (Standard) oder alle Fotos des Ausflugs (Mockup 25).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowSelectedOnly))]
+    private bool _showWholeTrip;
+
+    public bool ShowSelectedOnly
+    {
+        get => !ShowWholeTrip;
+        set => ShowWholeTrip = !value;
+    }
+
+    partial void OnShowWholeTripChanged(bool value) => _ = BuildOverlayAsync(fit: false);
 
     [ObservableProperty] private SuggestionFilter _currentSuggestionFilter = SuggestionFilter.All;
 
@@ -407,6 +421,7 @@ public sealed partial class PlacesViewModel
             [SuggestionFilter.Sure] = items.Count(i => i.Level == GeoSuggestionLevel.Sure),
             [SuggestionFilter.Likely] = items.Count(i => i.Level == GeoSuggestionLevel.Likely),
             [SuggestionFilter.None] = items.Count(i => i.Level == GeoSuggestionLevel.None),
+            [SuggestionFilter.Disagree] = items.Count(i => i.Sources is { Disagree: true }),
         };
         foreach (var chip in FilterChips)
         {
@@ -416,7 +431,7 @@ public sealed partial class PlacesViewModel
         SuggestionSummary = PlacesSuggestionText.Summary(SideMode, items.Count, counts[SuggestionFilter.Track], counts[SuggestionFilter.Sure], counts[SuggestionFilter.Likely], counts[SuggestionFilter.None]);
         var rows = new List<object>();
         SuggestionItemRow? selected = null;
-        foreach (var (key, title, groupItems) in PlacesSuggestionText.GroupByDay(items.Where(i => PlacesSuggestionText.Matches(CurrentSuggestionFilter, i.Level))))
+        foreach (var (key, title, groupItems) in PlacesSuggestionText.GroupByDay(items.Where(i => PlacesSuggestionText.Matches(CurrentSuggestionFilter, i))))
         {
             var group = new SuggestionGroupRow(key, title);
             rows.Add(group);
@@ -553,9 +568,58 @@ public sealed partial class PlacesViewModel
         row.Latitude = latitude;
         row.Longitude = longitude;
         row.IsMoved = true;
+        row.ChosenSource = null;
         UpdateGroup(row.Group);
         UpdateTrackAndSure();
         _ = BuildOverlayAsync(fit: false);
+    }
+
+    /// <summary>Quelle wählen (Knopf „Nehmen“ im Vergleich, Mockup 25): der Vorschlag springt auf ihren Punkt.</summary>
+    [RelayCommand]
+    private void ChooseSource(SuggestionSourceRow? source)
+    {
+        if (source?.Owner is not { } row || !row.Choose(source.Kind))
+        {
+            return;
+        }
+
+        UpdateGroup(row.Group);
+        UpdateTrackAndSure();
+        _ = BuildOverlayAsync(fit: false);
+    }
+
+    /// <summary>Quelle hervorheben (Klick auf ihre Zeile im Vergleich): ihr Punkt wird auf der Karte größer.</summary>
+    [RelayCommand]
+    private void HighlightSource(SuggestionSourceRow? source)
+    {
+        if (source?.Owner is not { } row)
+        {
+            return;
+        }
+
+        row.HighlightedSource = source.Kind;
+        _ = BuildOverlayAsync(fit: false);
+    }
+
+    /// <summary>Taste 1–3 auf der ausgewählten Zeile: wählt Spur bzw. Zeit, sonst nur hervorheben.</summary>
+    public bool SourceKey(int key)
+    {
+        if (SelectedRow is not { } row || key is < 1 or > 3)
+        {
+            return false;
+        }
+
+        var source = row.Sources[key - 1];
+        if (source.CanTake)
+        {
+            ChooseSource(source);
+        }
+        else
+        {
+            HighlightSource(source);
+        }
+
+        return true;
     }
 
     private async Task BuildOverlayAsync(bool fit)
@@ -570,7 +634,7 @@ public sealed partial class PlacesViewModel
 
         var corrections = new List<MapCorrection>();
         var bounds = new List<Point>();
-        foreach (var r in row.Group.Items.Where(r => !r.IsApplied))
+        foreach (var r in row.Group.Items.Where(r => !r.IsApplied && (ShowWholeTrip || ReferenceEquals(r, row))))
         {
             Point? stored = r.Item.HasStored ? Map.MapOverlay.ToUnit(r.Item.StoredLatitude!.Value, r.Item.StoredLongitude!.Value) : null;
             Point? suggested = r.HasSuggestion ? Map.MapOverlay.ToUnit(r.Latitude!.Value, r.Longitude!.Value) : null;
@@ -593,7 +657,8 @@ public sealed partial class PlacesViewModel
         }
 
         var anchors = new List<Point>();
-        if (row.Item.Suggestion is { } s)
+        var compare = row.IsApplied ? null : BuildCompare(row, bounds);
+        if ((row.Item.Sources?.FromTime ?? row.Item.Suggestion) is { } s)
         {
             foreach (var a in new[] { s.AnchorBefore, s.AnchorAfter })
             {
@@ -632,25 +697,76 @@ public sealed partial class PlacesViewModel
             return;
         }
 
-        Overlay = new MapOverlay(track, anchors, corrections);
+        Overlay = new MapOverlay(track, anchors, corrections, compare);
         if (fit && bounds.Count > 0)
         {
-            FitUnitPoints(bounds);
+            FitUnitPoints(bounds, compare is null ? MapViewport.MaxFitZoom : CompareMaxZoom);
         }
     }
 
-    /// <summary>Ausschnitt auf die Punkte (mit Rand; ein Punkt allein → Zoom 14).</summary>
-    private void FitUnitPoints(IReadOnlyList<Point> points)
+    /// <summary>Höchster Zoom beim Vergleich: so nah, dass auch 30 m sichtbar auseinanderliegen (Mockup 25).</summary>
+    public const double CompareMaxZoom = 18;
+
+    /// <summary>Punkte, Beschriftungen und Abstände des Vergleichs; ergänzt <paramref name="bounds"/> um die Quellen.</summary>
+    private static MapCompare BuildCompare(SuggestionItemRow row, List<Point> bounds)
+    {
+        var marks = new List<MapCompareMark>();
+        var links = new List<MapCompareLink>();
+        var stored = row.Sources[0];
+        Point? from = stored.IsAvailable ? Map.MapOverlay.ToUnit(stored.Latitude!.Value, stored.Longitude!.Value) : null;
+        if (from is { } f)
+        {
+            marks.Add(new MapCompareMark(f, MapCompareKind.Stored, stored.Title, row.HighlightedSource == SuggestionSourceKind.Stored));
+        }
+
+        foreach (var source in row.Sources.Skip(1).Where(x => x.IsAvailable))
+        {
+            var unit = Map.MapOverlay.ToUnit(source.Latitude!.Value, source.Longitude!.Value);
+            var kind = source.Kind == SuggestionSourceKind.Track ? MapCompareKind.Track : MapCompareKind.Time;
+            marks.Add(new MapCompareMark(unit, kind, source.Title + (source.IsChosen ? " · Vorschlag" : string.Empty), row.HighlightedSource == source.Kind));
+            if (from is { } a)
+            {
+                links.Add(new MapCompareLink(a, unit, kind, source.DistanceText));
+            }
+
+            bounds.Add(unit);
+        }
+
+        if (row.Item.Sources?.NearTrack is { } hint)
+        {
+            var ends = hint.OffsetSeconds < 0;
+            var at = row.Item.Track is { } info ? " " + Clock(ends ? info.EndUnix : info.StartUnix, row.DisplayOffsetMinutes) : string.Empty;
+            marks.Add(new MapCompareMark(Map.MapOverlay.ToUnit(hint.Latitude, hint.Longitude), MapCompareKind.Ghost, (ends ? "Spur endet" : "Spur beginnt") + at));
+        }
+
+        if (row.Item.Sources?.FromTime is { } time)
+        {
+            foreach (var anchor in new[] { time.AnchorBefore, time.AnchorAfter })
+            {
+                if (anchor is { } x)
+                {
+                    marks.Add(new MapCompareMark(Map.MapOverlay.ToUnit(x.Latitude, x.Longitude), MapCompareKind.Anchor, "GPS-Foto " + Clock(x.Utc, row.DisplayOffsetMinutes)));
+                }
+            }
+        }
+
+        return new MapCompare(marks, links);
+    }
+
+    /// <summary>Ausschnitt auf die Punkte (mit Rand; Punkte fast an einer Stelle → fester Zoom).</summary>
+    private void FitUnitPoints(IReadOnlyList<Point> points, double maxZoom = MapViewport.MaxFitZoom)
     {
         var lats = points.Select(p => Services.Places.Clustering.MercatorProjection.YToLatitude(p.Y)).ToList();
         var lons = points.Select(p => Services.Places.Clustering.MercatorProjection.XToLongitude(p.X)).ToList();
-        if (lats.Max() - lats.Min() < 0.002 && lons.Max() - lons.Min() < 0.002)
+        var compare = maxZoom > MapViewport.MaxFitZoom;
+        var close = compare ? 0.00005 : 0.002; // Vergleich: erst unter ~5 m ein fester Zoom
+        if (lats.Max() - lats.Min() < close && lons.Max() - lons.Min() < close)
         {
-            Viewport.CenterOn(lats.Average(), lons.Average(), 14);
+            Viewport.CenterOn(lats.Average(), lons.Average(), compare ? 17 : 14);
             return;
         }
 
-        Viewport.FitBounds(new GeoBounds(lats.Min(), lons.Min(), lats.Max(), lons.Max()));
+        Viewport.FitBounds(new GeoBounds(lats.Min(), lons.Min(), lats.Max(), lons.Max()), maxZoom);
     }
 
     // ---- Übernehmen, Ablehnen, Rückgängig ------------------------------------------------------------------------------
@@ -686,7 +802,7 @@ public sealed partial class PlacesViewModel
 
         var items = rows
             .Where(r => r.HasSuggestion && _suggestionScope.Contains(r.Item.LibraryId)) // Bibliotheks-Trennung: nur Dateien des Bereichs
-            .Select(r => new GeoSuggestionApply(r.FileId, r.Latitude!.Value, r.Longitude!.Value, r.IsMoved ? GeoSource.Manual : r.Item.SourceOnApply))
+            .Select(r => new GeoSuggestionApply(r.FileId, r.Latitude!.Value, r.Longitude!.Value, r.SourceOnApply))
             .ToList();
         if (items.Count == 0)
         {

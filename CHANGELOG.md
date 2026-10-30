@@ -3,6 +3,26 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.33] — 2026-10-30
+
+### Added — Orte › Ungenau: Quellen vergleichen (Mockup 25, ADR-0062 Nachtrag 0.5.33)
+- **Drei Quellen je Foto:** Unter der ausgewählten Zeile stehen „laut Foto“ (gespeicherte, geschätzte Position),
+  „laut Spur“ (Garmin- bzw. Tour-Spur zur Aufnahmezeit, auch in einer Lücke) und „laut Zeit“ (zwischen den GPS-Fotos
+  davor und danach), je mit Abstand zum Foto-Punkt. „Nehmen“ macht eine Quelle zum Vorschlag, „Behalten“ lehnt ab,
+  Tasten 1–3 wählen. Ein Satz darunter sagt, ob die Quellen übereinstimmen, die Spur eine Lücke hat oder die Kamerauhr
+  vermutlich falsch geht (nächste Spur innerhalb von 2 h).
+- **Karte:** Standard ist „Nur dieses Foto“ — beschriftete Punkte je Quelle, gestrichelte Abstände, GPS-Fotos davor und
+  danach mit Uhrzeit, der Vorschlag als Ring und ein Maßstab. Die Karte zoomt so weit hinein, dass auch 30 m sichtbar
+  auseinanderliegen. Umschalter „Ganzer Ausflug“ zeigt alle Korrekturen des Tages wie bisher. Die Spur der Aktivität
+  erscheint jetzt auch, wenn der Vorschlag aus den Fotos stammt.
+- **Filter „Quellen uneinig“:** Fotos, bei denen Spur und Zeit mehr als 300 m auseinanderliegen.
+- **Technik:** `GeoSuggestionEngine.Compare`, `GeoSourceComparison`, `TrackClockHint`; `SuggestionSourceRow`,
+  `MapControl.Compare.cs` (Punkte, Beschriftungen, Maßstab), `MapViewport.FitBounds(maxZoom:)`. 9 neue Tests.
+
+### Changed — Rauchtest-Skript (werkzeuge)
+- `run-smoke-v.ps1` kopiert die Testbibliothek wieder: Parameter `$Lib` und Variable `$lib` waren in PowerShell dieselbe
+  Variable, das Kopieren wurde übersprungen (außerhalb des Repos, nur vermerkt).
+
 ## [0.5.32] — 2026-10-30
 
 ### Fixed — Ansicht „Ordner“ begann beim Aufbau immer wieder von vorn

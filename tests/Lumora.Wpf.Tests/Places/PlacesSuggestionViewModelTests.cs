@@ -62,8 +62,8 @@ public sealed class PlacesSuggestionViewModelTests
 
         vm.IsInaccurateMode.Should().BeTrue();
         vm.MapMarkers.Should().BeEmpty("die Karte zeigt die Korrekturen statt der Gruppen");
-        vm.SidePanelWidth.Value.Should().Be(400);
-        vm.FilterChips.Select(c => c.Text).Should().Equal("Alle", "Garmin-Spur 3", "Sicher 1", "Wahrscheinlich 1", "Ohne Vorschlag 1");
+        vm.SidePanelWidth.Value.Should().Be(430);
+        vm.FilterChips.Select(c => c.Text).Should().Equal("Alle", "Garmin-Spur 3", "Sicher 1", "Wahrscheinlich 1", "Ohne Vorschlag 1", "Quellen uneinig 0");
         vm.SuggestionSummary.Should().Contain("3 Garmin-Spur · 1 sicher · 1 wahrscheinlich · 1 ohne Vorschlag");
         var groups = vm.SuggestionRows.OfType<SuggestionGroupRow>().ToList();
         groups.Should().HaveCount(2, "zwei Tage");
@@ -77,7 +77,9 @@ public sealed class PlacesSuggestionViewModelTests
         // erste Zeile ausgewählt → Karte mit Spur, Korrekturen des Tages, gestrichelt grau → Akzent
         vm.SelectedRow!.FileId.Should().Be(1);
         await WaitForAsync(() => vm.MapOverlay is { Track.Count: > 0 });
-        vm.MapOverlay!.Corrections.Should().HaveCount(5);
+        vm.MapOverlay!.Corrections.Should().ContainSingle("Standard „Nur dieses Foto“ (Mockup 25)").Which.Id.Should().Be(1);
+        vm.ShowWholeTrip = true;
+        await WaitForAsync(() => vm.MapOverlay is { Corrections.Count: 5 });
         vm.MapOverlay.Corrections.Single(c => c.Id == 1).IsSelected.Should().BeTrue();
         vm.MapOverlay.Corrections.Single(c => c.Id == 5).Suggested.Should().BeNull("kein Vorschlag: nur der graue Punkt");
         vm.LegendTrackText.Should().StartWith("GPS-Spur „Wanderung Weinebene“ ");

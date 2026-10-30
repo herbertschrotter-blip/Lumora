@@ -271,14 +271,19 @@ public sealed class GeoSuggestionService : IGeoSuggestionService
             var min = candidates.Min(c => c.Utc);
             var max = candidates.Max(c => c.Utc);
             anchors = await Task.Run(() => ReadAnchors(scope, min, max, zone, settings), ct).ConfigureAwait(false);
-            trackInfos = await _tracks.FindOverlappingAsync(scope.GroupId, min - settings.ToleranceSeconds, max + settings.ToleranceSeconds, ct).ConfigureAwait(false);
+            // Rand für den Uhr-Hinweis (Mockup 25): auch Spuren bis 2 h vor bzw. nach den Fotos
+            var margin = Math.Max(settings.ToleranceSeconds, GeoSuggestionEngine.NearTrackSeconds);
+            trackInfos = await _tracks.FindOverlappingAsync(scope.GroupId, min - margin, max + margin, ct).ConfigureAwait(false);
         }
 
         var tracks = trackInfos
             .Select(t => new SuggestionTrack(t.Id, t.StartUnix, t.EndUnix, () => LoadPointsSafe(t.Id), preferred: t.Source == GpsTrackSource.App))
             .ToList();
         var byTrack = trackInfos.ToDictionary(t => t.Id);
-        var suggestions = await Task.Run(() => GeoSuggestionEngine.Suggest(candidates, anchors, tracks, settings.ToleranceSeconds), ct).ConfigureAwait(false);
+        var (suggestions, comparisons) = await Task.Run(
+            () => (GeoSuggestionEngine.Suggest(candidates, anchors, tracks, settings.ToleranceSeconds),
+                   GeoSuggestionEngine.Compare(candidates, anchors, tracks, settings.ToleranceSeconds)),
+            ct).ConfigureAwait(false);
 
         var items = new List<GeoSuggestionItem>(rows.Count);
         foreach (var row in rows)
@@ -286,6 +291,8 @@ public sealed class GeoSuggestionService : IGeoSuggestionService
             times.TryGetValue(row.FileId, out var time);
             var hasTime = times.ContainsKey(row.FileId);
             suggestions.TryGetValue(row.FileId, out var suggestion);
+            comparisons.TryGetValue(row.FileId, out var sources);
+            var trackId = suggestion?.TrackId ?? sources?.FromTrack?.TrackId ?? sources?.NearTrack?.TrackId;
             DateTime? local = row.CapturedAt is { } at && row.Source is not null and not 0
                 ? DateTimeOffset.FromUnixTimeSeconds(at).UtcDateTime.AddMinutes(row.Offset ?? 0)
                 : null;
@@ -301,7 +308,8 @@ public sealed class GeoSuggestionService : IGeoSuggestionService
                 row.Longitude,
                 (GeoAccuracyReason)(row.Reason ?? 0),
                 suggestion,
-                suggestion?.TrackId is { } trackId && byTrack.TryGetValue(trackId, out var info) ? info : null));
+                trackId is { } id && byTrack.TryGetValue(id, out var info) ? info : null,
+                sources));
         }
 
         return items
