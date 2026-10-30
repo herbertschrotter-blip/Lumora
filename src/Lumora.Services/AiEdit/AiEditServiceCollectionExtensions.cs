@@ -26,6 +26,23 @@ public static class AiEditServiceCollectionExtensions
                 sp.GetRequiredService<ILogger<ComfyRuntime>>(),
                 loadIdleMinutes: async ct => (await store.LoadAsync(ct).ConfigureAwait(false)).IdleMinutes);
         });
+        // Grenzen (ADR-0076 Punkt 8, Stufe 2): Prüfmodelle aus dem Container, buffalo_l auf dem Prozessor
+        services.TryAddSingleton<Edit.IEditPolicy, Edit.EditPolicy>();
+        services.TryAddSingleton<Edit.IEditResultChecker>(sp =>
+        {
+            string? Model(string file) => containerRoot() is { } root
+                && Path.Combine(new AiEditLayout(root).ModelsRoot, Edit.EditModelFiles.Folder, file) is var path
+                && File.Exists(path) ? path : null;
+            return new Edit.EditResultChecker(
+                sp.GetRequiredService<Edit.IEditPolicy>(),
+                sp.GetRequiredService<Faces.IFaceImageLoader>(),
+                sp.GetRequiredService<Faces.IFaceAnalyzerFactory>(),
+                () => Model(Edit.EditModelFiles.NudeNet) is { } nude && Model(Edit.EditModelFiles.Vit) is { } vit
+                    ? new Edit.Onnx.OnnxEditContentScanner(nude, vit)
+                    : null,
+                () => Model(Edit.EditModelFiles.GenderAge) is { } age ? new Edit.Onnx.OnnxAgeEstimator(age) : new Edit.Onnx.UnknownAgeEstimator(),
+                sp.GetRequiredService<ILogger<Edit.EditResultChecker>>());
+        });
         services.AddHostedService<AiEditSessionHook>();
         return services;
     }

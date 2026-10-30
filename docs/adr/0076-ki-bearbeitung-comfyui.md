@@ -277,3 +277,33 @@ sexualisierten Bearbeitungen echter Personen** (Unterwäsche, Lingerie, Nackthei
 - ComfyUI: github.com/comfyanonymous/ComfyUI (Releases, `server.py` für die API-Endpunkte, `comfy/cli_args.py` für die Flags)
 - IPTC Digital Source Type (`compositeWithTrainedAlgorithmicMedia`)
 - Mockup: [`mockups/23-ki-bearbeitung.html`](../../mockups/23-ki-bearbeitung.html)
+
+## Nachtrag 0.5.35 — Stufe 2 „Grenzen“ gebaut (2026-10-30)
+
+- **Prüfmodelle** (Herbert hat beide freigegeben, 2026-10-30), in `.lumora-ki\models\lumora\`, eingetragen in `ki-install.json`:
+  - `nudenet-640m.onnx` — NudeNet v3.4 (YOLOv8m, 18 Klassen), AGPL-3.0, 103,5 MB. Lumora enthält keinen NudeNet-Code; die
+    Ausgabe [1, 22, Anker] wertet `OnnxEditContentScanner` selbst aus (höchste Sicherheit je Klasse, kein NMS nötig).
+  - `vit-nsfw-fp16.onnx` — AdamCodd/vit-base-nsfw-detector (ViT-Base 384, sfw/nsfw), Apache-2.0, 172,4 MB. Die volle
+    Graph-Optimierung von ONNX Runtime scheitert an diesem float16-Modell; es läuft mit Grundoptimierung.
+  - Beide laufen auf dem **Prozessor** — die Grafikkarte gehört während eines Auftrags ComfyUI.
+- **Vorprüfung** (`EditPolicy.CheckRequest`): nur die fünf Vorlagen; Freitext nur bei „Hintergrund“, höchstens 200 Zeichen,
+  gegen die **Begriffsliste** (`EditTerms`, deutsch/englisch, Wortanfänge, Umlaute egal; mehrdeutige kurze Wörter mit
+  Leerzeichen, damit Slipper, Butter oder Streifen nicht anschlagen); „Outfit“ nur mit einer Kleidung aus `OutfitCatalog`
+  (zehn Einträge, jede „fully clothed“) und ohne Text; gesperrt, wenn eine Person jünger als 21 sein könnte.
+- **Ergebnisprüfung** (`EditPolicy.CheckResult`, `EditResultChecker`): Personen aus Original **und** Ergebnis zählen.
+  | Lage | verworfen ab |
+  |---|---|
+  | Person, erwachsen | entblößte Intimzone ≥ 0,35 oder „nsfw“ ≥ 0,8 |
+  | Person, möglicherweise unter 21 oder Alter unbekannt | entblößt ≥ 0,2, „nsfw“ ≥ 0,5 oder bedeckte Intimzone (Unterwäsche, Bademode) ≥ 0,5 |
+  | kein Gesicht | deutliche Nacktheit (entblößt ≥ 0,6) — Ergänzung zu 8.3: ein Ausschnitt ohne Kopf kann ebenso eine echte Person zeigen |
+  Im Zweifel verwerfen: fehlende Prüfmodelle, nicht lesbares Bild, Fehler der Modelle. Ohne Gesichtserkennung gilt das
+  Bild als „eine Person unbekannten Alters“. Die Schwellen sind vorsichtig gewählt und nur mit erzeugten Bildern
+  geprüft (keine echten Personen, keine Nacktbilder als Testdaten); nach den ersten echten Läufen nachjustieren.
+- **Alter:** `genderage.onnx` aus dem buffalo_l-Paket (bereits freigegeben, ADR-0035), erwartet unter
+  `.lumora-ki\models\lumora\`. **Fehlt es, ist jedes Alter unbekannt** — dann gelten immer die strengen Schwellen und
+  „Outfit“ ist für Fotos mit Personen gesperrt. Die Datei liegt noch nicht im Container (offen, Herberts Entscheidung).
+- **Kennzeichnung** (`EditProvenance`, `JpegXmp`): XMP mit `Iptc4xmpExt:DigitalSourceType` =
+  `compositeWithTrainedAlgorithmicMedia` und `xmp:CreatorTool` „Lumora KI-Bearbeitung (Vorlage, Modell, Datum)“, ein
+  vorhandenes XMP wird ersetzt; `PhotoVariants.Tools` = `ki:<vorlage>:<modell>`. Das EXIF-Feld `Software` schreibt Stufe 2
+  nicht (kein EXIF-Umbau); angewandt wird die Kennzeichnung mit „Als Fassung speichern“ in Stufe 3.
+

@@ -3,6 +3,20 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.35] — 2026-10-30
+
+### Added — KI-Bearbeitung Stufe 2: Grenzen (ADR-0076 Punkt 8, Nachtrag 0.5.35)
+- **Nur in der versteckten Sitzung**, ohne Schalter. Noch ohne eigene Oberfläche — die Vorlagen kommen in Stufe 3.
+- **Vorprüfung:** nur feste Vorlagen; Freitext nur bei „Hintergrund“ und gegen eine Begriffsliste (deutsch/englisch);
+  „Outfit“ nur aus einer festen Liste Alltagskleidung und gesperrt, wenn eine Person jünger als 21 sein könnte.
+- **Ergebnisprüfung:** zwei Prüfmodelle im Container (NudeNet 640m, ViT-NSFW) plus Gesichtserkennung. Ist eine echte
+  Person zu sehen und das Ergebnis freizügig, wird es verworfen; bei möglicherweise jungen Personen schon bei Unterwäsche
+  oder Bademode. Im Zweifel (Modell fehlt, Fehler) wird verworfen.
+- **Kennzeichnung „KI-bearbeitet“** als XMP (IPTC DigitalSourceType, CreatorTool) und Werkzeug-Kennung der Fassung.
+- **Technik:** `Services/Edit` (`EditPolicy`, `EditTerms`, `OutfitCatalog`, `EditResultChecker`, `EditProvenance`,
+  `JpegXmp`, `Onnx/OnnxEditContentScanner`, `Onnx/OnnxAgeEstimator`), Registrierung in `AddAiEdit`. 27 neue Tests, davon
+  zwei mit den echten Modellen (nur mit `LUMORA_KI_MODELS` bzw. `LUMORA_GENDERAGE_MODEL`).
+
 ## [0.5.34] — 2026-10-30
 
 ### Added — Container der versteckten Bibliothek verschieben (Mockup 26, ADR-0049 Nachtrag 0.5.34)
