@@ -85,7 +85,7 @@
                 </Border>
                 <TextBlock Style="{StaticResource Section}" Text="WAS MITWANDERT" />
                 <TextBlock Style="{StaticResource Hint}"
-                           Text="Alles im Container: Fotos auf dem Laufwerk, Katalog, Vorschaubilder, Gesichter, Sicherungen und die KI-Bearbeitung. Ordner der Bibliothek auf anderen Laufwerken bleiben, wo sie sind." />
+                           Text="Alles im Container: Fotos auf dem Laufwerk, Katalog, Vorschaubilder, Gesichter und Sicherungen. Ordner der Bibliothek auf anderen Laufwerken bleiben, wo sie sind." />
             </StackPanel>
 
             <!-- 2 Ziel -->
@@ -132,7 +132,7 @@
             <!-- 3 Prüfen und starten -->
             <StackPanel Visibility="{Binding IsStep3, Converter={StaticResource BoolToVis}}">
                 <TextBlock Style="{StaticResource Section}" Margin="0,0,0,4" Text="{Binding EstimateText}" />
-                <TextBlock Style="{StaticResource PlanLine}" Text="1  Versteckte Bibliothek schließen · laufende Arbeit stoppt, ComfyUI wird beendet" />
+                <TextBlock Style="{StaticResource PlanLine}" Text="1  Versteckte Bibliothek schließen · laufende Arbeit stoppt" />
                 <TextBlock Style="{StaticResource PlanLine}" Text="{Binding DriveLetter, StringFormat='2  Container {0}: aushängen'}" />
                 <TextBlock Style="{StaticResource PlanLine}" Text="{Binding PlanCopyText, StringFormat='3  {0}'}" />
                 <TextBlock Style="{StaticResource PlanLine}" Text="4  Kopie prüfen · Größe und Prüfsumme" />

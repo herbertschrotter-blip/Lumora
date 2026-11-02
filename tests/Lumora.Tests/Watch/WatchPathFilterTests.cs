@@ -28,7 +28,6 @@ public sealed class WatchPathFilterTests
     [Theory]
     [InlineData(@"X:\.lumora\cache\ab\17.png")]
     [InlineData(@"X:\.LUMORA\temp\17.jpg")]
-    [InlineData(@"X:\.lumora-ki\work\ergebnis.png")]
     [InlineData(@"X:\Fotos\.lumora\cache\17.png")]
     public void Own_catalog_folders_in_a_hidden_library_do_not_trigger_a_scan(string path)
     {

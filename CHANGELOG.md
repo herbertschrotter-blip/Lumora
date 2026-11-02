@@ -3,6 +3,13 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.38] — 2026-11-02
+
+### Removed — KI-Bearbeitung mit ComfyUI
+- Herbert: Die Ergebnisse haben nicht überzeugt. Entfernt sind Laufzeit (`Services/AiEdit`), Prüfmodule (`Services/Edit`),
+  Reiter Einstellungen › KI-Bearbeitung, der Ausschluss des Ordners `.lumora-ki` und die zugehörigen Tests. ADR-0076 ist verworfen.
+- **Foto verbessern** (ADR-0071) bleibt unverändert.
+
 ## [0.5.37] — 2026-11-02
 
 ### Docs — Pfade nach dem Umzug auf `C:\Code`

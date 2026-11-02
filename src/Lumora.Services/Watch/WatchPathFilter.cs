@@ -5,7 +5,7 @@ namespace Lumora.Services.Watch;
 /// <summary>
 /// Entscheidet, ob ein Dateisystem-Ereignis einen Scan rechtfertigt: nur Medienformate aus dem Formatregister;
 /// Thumbnail-, Temp- und Teildateien (<c>.tmp</c>, <c>.part</c>, <c>~…</c>, <c>Thumbs.db</c>, Ordner <c>.thumbnails</c>,
-/// <c>@eaDir</c>, Papierkorb, der eigene Thumbnail-Cache, die Katalogordner <c>.lumora</c>/<c>.lumora-ki</c> in einer
+/// <c>@eaDir</c>, Papierkorb, der eigene Thumbnail-Cache, der Katalogordner <c>.lumora</c> in einer
 /// versteckten Bibliothek — dort schreibt die App selbst laufend Medien-Endungen) werden ignoriert. Ordner zählen bei Anlegen/Löschen/Umbenennen
 /// (eine verschobene Ordnerstruktur liefert nicht für jede Datei ein Ereignis), nicht bei „Changed“ (das feuert für jede
 /// beliebige Datei darin, auch für Nicht-Medien).
@@ -27,7 +27,7 @@ public sealed class WatchPathFilter
     private static readonly HashSet<string> IgnoredSegments = new(StringComparer.OrdinalIgnoreCase)
     {
         ".thumbnails", "@eaDir", "$RECYCLE.BIN", "System Volume Information", ".git",
-        Infrastructure.CatalogFolders.HiddenCatalogFolderName, Infrastructure.CatalogFolders.AiEditFolderName,
+        Infrastructure.CatalogFolders.HiddenCatalogFolderName,
     };
 
     private readonly IMediaFormatRegistry _formats;

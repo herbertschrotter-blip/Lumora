@@ -1,6 +1,6 @@
 # ADR-0076: KI-Bearbeitung mit ComfyUI — nur in der versteckten Sitzung
 
-- **Status:** Accepted (Konzept und Mockup 23 abgenommen von Herbert am 2026-10-27; Leerlauf 10 min, Kleiderliste und
+- **Status:** Verworfen (Herbert, 2026-11-02: Ergebnisse nicht überzeugend; Code entfernt in 0.5.38). Vorher Accepted (Konzept und Mockup 23 abgenommen von Herbert am 2026-10-27; Leerlauf 10 min, Kleiderliste und
   `<Name>_ki.jpg` wie vorgeschlagen; Stufe 1 „Laufzeit“ gebaut in 0.5.30, siehe Nachtrag)
 - **Datum:** 2026-10-27
 - **Entscheider:** Herbert Schrotter (Anforderung: lokale KI-Bildbearbeitung, nur versteckt, alles im Container,
@@ -111,28 +111,9 @@ sexualisierten Bearbeitungen echter Personen** (Unterwäsche, Lingerie, Nackthei
    Modellordner, im Repo oder im portablen Paket. Größen und Quellen werden vor jeder Freigabe frisch geprüft.
    Lizenz FLUX.1 [dev]: nur nicht-kommerziell (passt zur privaten Nutzung, wird im Eintrag angezeigt).
 
-8. **Grenzen der Bearbeitung** (`IEditPolicy`, `Lumora.Services/Edit/`) — gelten in jeder Sitzung, ohne Schalter:
-   1. *Nur Vorlagen:* kein freier Arbeitsablauf, keine eigenen LoRAs/Checkpoints. Outfit nur aus der festen Liste
-      Alltagskleidung (z. B. Jeans + Pullover, Anzug, Wanderkleidung, Winterjacke, Tracht, Sommerkleid knielang);
-      Bademode, Unterwäsche, Nachtwäsche, Lingerie, transparente oder „freizügige“ Kleidung gibt es nicht.
-   2. *Begriffsliste* (deutsch + englisch, Wortstämme) prüft jeden Freitext vor dem Senden; Treffer → nicht senden,
-      sachlicher Hinweis. Jede Vorlage hängt eine feste Negativ-Beschreibung gegen Nacktheit an.
-   3. *Ergebnisprüfung:* ein lokales Nacktheits-Erkennungsmodell (Kandidat NudeNet ONNX, Lizenz vor Freigabe prüfen)
-      prüft jedes Ergebnis, bevor es angezeigt wird. Erkennt buffalo_l ein Gesicht (= echte Person) und ist das Ergebnis
-      freizügig → **verwerfen**, nichts anzeigen, nichts speichern, Arbeitsdateien löschen. Schätzt buffalo_l
-      (genderage) eine Person auf dem Foto **unter 21** (Sicherheitsabstand zu 18), gibt es für dieses Foto **keine
-      Outfit-Vorlage**, und die Ergebnisprüfung verwirft schon bei geringerer Schwelle.
-   4. *Kennzeichnung:* jedes Ergebnis trägt „KI-bearbeitet“ — XMP `Iptc4xmpExt:DigitalSourceType` =
-      `compositeWithTrainedAlgorithmicMedia`, `xmp:CreatorTool`/EXIF `Software` = „Lumora KI-Bearbeitung (Vorlage,
-      Modell, Datum)“, dazu `PhotoVariants.Tools` = `ki:<vorlage>:<modell>`.
+8. **Grenzen der Bearbeitung**
 
-   Im ComfyUI-Fenster (Punkt 5a) gelten 8.1 und 8.2 nicht — dort sind freie Arbeitsabläufe möglich; 8.3 und 8.4
-   greifen beim Übernehmen. Lumora liefert für sexualisierte Bearbeitungen keine Arbeitsabläufe, LoRAs oder Modelle
-   und richtet keine ein.
 
-   Die Prüfungen schützen vor **Versehen und Fehlbedienung**, nicht gegen den Besitzer des PCs: Wer im ComfyUI-Fenster
-   arbeitet oder ComfyUI selbst aus dem Container startet, kommt an die Dateien in `work\output` auch ohne Lumora. Das
-   wird so offen gesagt (Einstellungen › KI-Bearbeitung, dieser ADR).
 
 9. **Ablauf eines Auftrags** (`IEditJobRunner`): Policy-Vorprüfung → Bild verkleinert auf die Arbeitsgröße der Vorlage
    (`work\input`, eindeutiger Name ohne Original-Dateinamen) → `/prompt` → Fortschritt über `/ws` → Ergebnis über
@@ -277,33 +258,4 @@ sexualisierten Bearbeitungen echter Personen** (Unterwäsche, Lingerie, Nackthei
 - ComfyUI: github.com/comfyanonymous/ComfyUI (Releases, `server.py` für die API-Endpunkte, `comfy/cli_args.py` für die Flags)
 - IPTC Digital Source Type (`compositeWithTrainedAlgorithmicMedia`)
 - Mockup: [`mockups/23-ki-bearbeitung.html`](../../mockups/23-ki-bearbeitung.html)
-
-## Nachtrag 0.5.35 — Stufe 2 „Grenzen“ gebaut (2026-10-30)
-
-- **Prüfmodelle** (Herbert hat beide freigegeben, 2026-10-30), in `.lumora-ki\models\lumora\`, eingetragen in `ki-install.json`:
-  - `nudenet-640m.onnx` — NudeNet v3.4 (YOLOv8m, 18 Klassen), AGPL-3.0, 103,5 MB. Lumora enthält keinen NudeNet-Code; die
-    Ausgabe [1, 22, Anker] wertet `OnnxEditContentScanner` selbst aus (höchste Sicherheit je Klasse, kein NMS nötig).
-  - `vit-nsfw-fp16.onnx` — AdamCodd/vit-base-nsfw-detector (ViT-Base 384, sfw/nsfw), Apache-2.0, 172,4 MB. Die volle
-    Graph-Optimierung von ONNX Runtime scheitert an diesem float16-Modell; es läuft mit Grundoptimierung.
-  - Beide laufen auf dem **Prozessor** — die Grafikkarte gehört während eines Auftrags ComfyUI.
-- **Vorprüfung** (`EditPolicy.CheckRequest`): nur die fünf Vorlagen; Freitext nur bei „Hintergrund“, höchstens 200 Zeichen,
-  gegen die **Begriffsliste** (`EditTerms`, deutsch/englisch, Wortanfänge, Umlaute egal; mehrdeutige kurze Wörter mit
-  Leerzeichen, damit Slipper, Butter oder Streifen nicht anschlagen); „Outfit“ nur mit einer Kleidung aus `OutfitCatalog`
-  (zehn Einträge, jede „fully clothed“) und ohne Text; gesperrt, wenn eine Person jünger als 21 sein könnte.
-- **Ergebnisprüfung** (`EditPolicy.CheckResult`, `EditResultChecker`): Personen aus Original **und** Ergebnis zählen.
-  | Lage | verworfen ab |
-  |---|---|
-  | Person, erwachsen | entblößte Intimzone ≥ 0,35 oder „nsfw“ ≥ 0,8 |
-  | Person, möglicherweise unter 21 oder Alter unbekannt | entblößt ≥ 0,2, „nsfw“ ≥ 0,5 oder bedeckte Intimzone (Unterwäsche, Bademode) ≥ 0,5 |
-  | kein Gesicht | deutliche Nacktheit (entblößt ≥ 0,6) — Ergänzung zu 8.3: ein Ausschnitt ohne Kopf kann ebenso eine echte Person zeigen |
-  Im Zweifel verwerfen: fehlende Prüfmodelle, nicht lesbares Bild, Fehler der Modelle. Ohne Gesichtserkennung gilt das
-  Bild als „eine Person unbekannten Alters“. Die Schwellen sind vorsichtig gewählt und nur mit erzeugten Bildern
-  geprüft (keine echten Personen, keine Nacktbilder als Testdaten); nach den ersten echten Läufen nachjustieren.
-- **Alter:** `genderage.onnx` aus dem buffalo_l-Paket (bereits freigegeben, ADR-0035), erwartet unter
-  `.lumora-ki\models\lumora\`. **Fehlt es, ist jedes Alter unbekannt** — dann gelten immer die strengen Schwellen und
-  „Outfit“ ist für Fotos mit Personen gesperrt. Seit 2026-10-30 liegt die Datei im Container (Herberts Freigabe).
-- **Kennzeichnung** (`EditProvenance`, `JpegXmp`): XMP mit `Iptc4xmpExt:DigitalSourceType` =
-  `compositeWithTrainedAlgorithmicMedia` und `xmp:CreatorTool` „Lumora KI-Bearbeitung (Vorlage, Modell, Datum)“, ein
-  vorhandenes XMP wird ersetzt; `PhotoVariants.Tools` = `ki:<vorlage>:<modell>`. Das EXIF-Feld `Software` schreibt Stufe 2
-  nicht (kein EXIF-Umbau); angewandt wird die Kennzeichnung mit „Als Fassung speichern“ in Stufe 3.
 
