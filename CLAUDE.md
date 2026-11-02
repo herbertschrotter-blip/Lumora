@@ -7,8 +7,8 @@ Verschieben von Foto- und Video-Bibliotheken (50k–500k Dateien) mit SQLite-Kat
 der PowerShell-Web-App V2 (`D:\OneDrive\Dokumente\02 Arbeit\05 Vorlagen - Scripte\03_Foto-Viewer-V2`), die bis zur
 Ablösung im Alltag läuft.
 
-- Projektordner `D:\Code\Lumora` mit `repo\` (dieses Git-Repo) und `werkzeuge\` (seit 0.4.11; 0.4.2–0.4.10 lag das Repo direkt in `D:\Code\Lumora`, davor in OneDrive); GitHub `herbertschrotter-blip/Lumora` (bis 2026-10-21 `03_Foto-Viewer-V3`, alte URL leitet weiter) ist Sicherung und Abgleich zwischen Geräten.
-- Werkzeuge außerhalb des Repos (gehören nie ins Repo): `D:\Code\Lumora\werkzeuge` — `testlib\` (Rauchtest-Testbibliothek, 43 Dateien), `scripts\run-smoke-v.ps1` (Rauchtest gegen einen Worktree, Ablage in `runs\`), Konflikt-Helfer (`conflib.py`, `resolve_cl.py`, `hunks.py`, `builderrs.py`), `scripts\brief-common.md` (gemeinsame Agenten-Regeln), `models\` (buffalo_l, SigLIP 2 nur für Tests — nie ins Repo), `geodata\` (GeoNames-Rohdaten für `build/geonames`).
+- Projektordner `C:\Code\Lumora` mit `repo\` (dieses Git-Repo) und `werkzeuge\` (seit 0.4.11, bis 2026-10-30 unter `D:\Code`; 0.4.2–0.4.10 lag das Repo direkt in `D:\Code\Lumora`, davor in OneDrive); GitHub `herbertschrotter-blip/Lumora` (bis 2026-10-21 `03_Foto-Viewer-V3`, alte URL leitet weiter) ist Sicherung und Abgleich zwischen Geräten.
+- Werkzeuge außerhalb des Repos (gehören nie ins Repo): `C:\Code\Lumora\werkzeuge` — `testlib\` (Rauchtest-Testbibliothek, 43 Dateien), `scripts\run-smoke-v.ps1` (Rauchtest gegen einen Worktree, Ablage in `runs\`), Konflikt-Helfer (`conflib.py`, `resolve_cl.py`, `hunks.py`, `builderrs.py`), `scripts\brief-common.md` (gemeinsame Agenten-Regeln), `models\` (buffalo_l, SigLIP 2 nur für Tests — nie ins Repo), `geodata\` (GeoNames-Rohdaten für `build/geonames`).
 - Plan: `PLAN.md` · Entscheidungen: `docs/adr/` · Messungen: `docs/spikes/` · Mockups: `mockups/`
 - Doku, Kommentare und Commit-Messages auf Deutsch; Code-Bezeichner auf Englisch.
 

@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.37] — 2026-11-02
+
+### Docs — Pfade nach dem Umzug auf `C:\Code`
+- `CLAUDE.md` und `README.md` nennen Projektordner und Werkzeuge jetzt unter `C:\Code\Lumora` (bis 2026-10-30 `D:\Code`).
+
 ## [0.5.36] — 2026-10-30
 
 ### Fixed — Abgleich bei jedem Start der versteckten Bibliothek
