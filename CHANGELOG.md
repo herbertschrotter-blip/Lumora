@@ -3,6 +3,13 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.39] — 2026-11-17
+
+### Docs — Spike 19: OneDrive-Platzhalter
+- Windows liefert für Fotos, die nur online liegen, Vorschaubilder (256 und 1024 px) und das Aufnahmedatum ohne
+  Download; GPS nicht. Erster Abruf 0,35–2,8 s je Bild, 8 gleichzeitig ≈ 4 Bilder/s, danach aus dem Cache 5–10 ms.
+  Grundlage, um einen OneDrive-Ordner mit „Dateien bei Bedarf“ als Bibliothek zu führen. Noch nichts gebaut.
+
 ## [0.5.38] — 2026-11-02
 
 ### Removed — KI-Bearbeitung mit ComfyUI
