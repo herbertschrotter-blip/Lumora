@@ -1,0 +1,1265 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lumora — Serien und Zusammenfügen (Entwurf 28)</title>
+<style>
+/* =====================================================================
+   Mockup 28 · Serien und Zusammenfügen — aus mehreren Fotos eines (ADR-0078).
+   ENTWURF, Abnahme durch Herbert ausstehend.
+   Umfang (17 Ansichten, oben umschaltbar; Zustände je Ansicht in der zweiten Zeile):
+    1 Galerie mit Marken („Serie · n Fotos“ nur auf dem ersten Foto, Punkt auf den übrigen, Ergebnis-Marke „aus n Fotos“)
+    2 Filter „Serien“ (Chip „Serien · 12 neu“, Flyout mit Arten/Zustand/Stand/Stapel, eine Kachel je Serie, Ein-Klick-Knopf)
+    3 Geöffnete Serie (statt Aufklappen: Bedingung + Serien-Leiste mit Gründen, Verfahren ▾, Serie anpassen)
+    4 Rechtsklick im gemeinsamen Foto-Menü: Bearbeiten ▸ „5 Fotos zusammenfügen…“, „Serie mit 26 Fotos zusammenfügen…“,
+      Marke, Suchen ▸, Listenansicht, Lightbox (auch aus einer Story geöffnet) und das Fenster danach mit den
+      Zeit-Nachbarn (noch nicht angehakt), aus einem Album, gesperrt (gemischte Bibliotheken)
+    5 Fenster „Zusammenfügen“ · Panorama mit allen Aufnahmearten (Automatisch, Kugel 360°, Zylinder, Perspektive, Vertikal,
+      Nur verschieben), Vorschau, Stufe 1 (übrige „kommt später“), HDR-Panorama
+    6 Belichtungsreihe (HDR) mit Vorher/Nachher und „Danach hochskalieren“ samt Grenzen
+    7 Serienbild: Entrauschen / mehr Details, Leute entfernen (Maske), Langzeit
+    8 Fokus-Stapel mit Schärfe-Herkunft     9 Bestes Gruppenfoto (Gesichter je Person)     10 Zeitraffer (FFmpeg)
+   11 Speichern → Rechnen → Fertig (Kennzeichnung „aus 26 Fotos zusammengefügt“, Rückgängig, auch ins Album)
+   12 Stapel „48 Panoramen zusammenfügen“   13 Aktivitäts-Anzeige (Speichern, Vorschau, Fertig-Meldung)
+   14 Lightbox mit Ergebnis   15 Einstellungen › Zusammenfügen   16 Hinweise (OneDrive, RAW, Speicher, Bibliotheken,
+      Teil einer Serie, mehrere Serien)   17 Versteckte Sitzung (gleich, alles im Container)
+   Tokens 1:1 aus Mockup 08 (dazu --warning-soft wie 10/13/14/26 und --smoke wie 13/18). Galerie-Rahmen wie 18/24/26,
+   dunkle Bühne und Lightbox mit den festen Farben aus Mockup 13, Aktivitäts-Anzeige wie 15. Alle Fotos sind
+   CSS-Verläufe und Platzhalter-Formen, Gesichter neutrale Kreise; Namen, Ordner, Alben und Dateinamen sind erfundene
+   Muster, Zahlen aus dem ADR (110 DJI-Ordner: 48 × 26, 43 × 21, 6 × 9, 3 × 3; 26 Fotos in 51 s).
+   Spike 20 (Panorama-Werkzeug) ist ausstehend — das Mockup zeigt Bedienung, nicht die Werkzeugwahl.
+   Oberflächentexte mit drei Punkten ohne Leerzeichen davor, wie alle Einträge des Foto-Menüs („Foto verbessern…“).
+   Hell/Dunkel über die Klasse „dark“ am body; beim Öffnen nach der Systemeinstellung (prefers-color-scheme) wie 08/13.
+   ===================================================================== */
+:root {
+  --mica-base:#F3F3F3; --layer-default:rgba(255,255,255,0.7); --layer-card:#FFFFFF; --layer-subtle:rgba(0,0,0,0.026);
+  --layer-secondary:rgba(0,0,0,0.04); --layer-tertiary:rgba(0,0,0,0.06);
+  --text-primary:#1A1A1A; --text-secondary:#5C5C5C; --text-tertiary:#8B8B8B; --text-disabled:#B5B5B5; --text-on-accent:#FFFFFF;
+  --stroke-default:rgba(0,0,0,0.0578); --stroke-secondary:rgba(0,0,0,0.0357); --stroke-divider:rgba(0,0,0,0.0803); --stroke-card:rgba(0,0,0,0.0578); --ctl-bottom:rgba(0,0,0,0.16);
+  --accent:#5B5FC7; --accent-light:#7579D8; --accent-dark:#4145A0; --accent-soft:rgba(91,95,199,0.08); --accent-soft-2:rgba(91,95,199,0.16);
+  --success:#107C10; --success-soft:rgba(16,124,16,0.10); --warning:#C29C00; --warning-soft:rgba(194,156,0,0.14); --danger:#C42B1C;
+  --shadow-card:0 2px 4px rgba(0,0,0,0.02), 0 1px 2px rgba(0,0,0,0.03); --shadow-flyout:0 8px 16px rgba(0,0,0,0.14); --shadow-dialog:0 32px 64px rgba(0,0,0,0.18);
+  --brand-indigo:#5B5FC7; --brand-violet:#8B5CF6; --brand-coral:#F97362; --brand-amber:#F5A524;
+  --inbox:#A8650F; --inbox-soft:rgba(245,165,36,0.18); --star:#F2B01E; --heart:#E5484D;
+  --page-bg:#E4E4EA; --smoke:rgba(0,0,0,0.3);
+}
+body.dark {
+  color-scheme:dark;
+  --mica-base:#202020; --layer-default:rgba(43,43,43,0.7); --layer-card:#2C2C2C; --layer-subtle:rgba(255,255,255,0.03);
+  --layer-secondary:rgba(255,255,255,0.0418); --layer-tertiary:rgba(255,255,255,0.0605);
+  --text-primary:#FFFFFF; --text-secondary:#D0D0D0; --text-tertiary:#A0A0A0; --text-disabled:#6A6A6A;
+  --stroke-default:rgba(255,255,255,0.0837); --stroke-secondary:rgba(255,255,255,0.0698); --stroke-divider:rgba(255,255,255,0.0837); --stroke-card:rgba(255,255,255,0.0578); --ctl-bottom:rgba(255,255,255,0.22);
+  --accent:#818CF8; --accent-light:#A5B0FF; --accent-dark:#6066D8; --accent-soft:rgba(129,140,248,0.12); --accent-soft-2:rgba(129,140,248,0.24);
+  --success:#6CCB5F; --success-soft:rgba(108,203,95,0.12); --warning:#FCE100; --warning-soft:rgba(252,225,0,0.14); --danger:#FF6B5E;
+  --shadow-card:0 2px 4px rgba(0,0,0,0.18), 0 1px 2px rgba(0,0,0,0.22); --shadow-flyout:0 8px 16px rgba(0,0,0,0.4); --shadow-dialog:0 32px 64px rgba(0,0,0,0.5);
+  --brand-indigo:#818CF8; --brand-violet:#A78BFA; --brand-coral:#FB8A7A; --brand-amber:#FBBF24;
+  --inbox:#FBBF24; --inbox-soft:rgba(251,191,36,0.14); --star:#FBBF24; --heart:#FF6B6B;
+  --page-bg:#121214; --smoke:rgba(0,0,0,0.55);
+}
+* { box-sizing:border-box; } html,body { margin:0; }
+body { background:var(--page-bg); color:var(--text-primary); font-family:'Segoe UI Variable Text','Segoe UI',system-ui,sans-serif; font-size:14px; }
+button { font:inherit; color:inherit; }
+.ic { font-family:'Segoe Fluent Icons','Segoe MDL2 Assets'; font-size:16px; line-height:1; font-style:normal; font-weight:400; }
+.ic.s { font-size:12px; }
+.ki { width:12px; height:12px; flex:none; fill:none; stroke:currentColor; stroke-width:1.3; stroke-linecap:round; stroke-linejoin:round; vertical-align:-2px; }
+.ki.l { width:16px; height:16px; }
+.hidden { display:none !important; }
+.muted { color:var(--text-secondary); font-size:12px; line-height:1.5; }
+.mono { font-family:'Cascadia Mono',Consolas,monospace; font-size:12px; }
+.link { color:var(--accent); cursor:pointer; font-size:12px; font-weight:600; white-space:nowrap; }
+
+/* ---------- Mockup-Leiste ---------- */
+.mock-bar { position:sticky; top:0; z-index:100; display:flex; gap:10px 16px; align-items:center; flex-wrap:wrap; padding:7px 20px; background:#2B2B33; color:#EEE; font-size:12px; }
+.mock-bar .grp { display:flex; gap:4px; align-items:center; flex-wrap:wrap; }
+.mock-bar button { background:#44444F; color:#EEE; border:1px solid #5A5A66; border-radius:4px; padding:3px 9px; cursor:pointer; font-size:12px; }
+.mock-bar button.on { background:#5B5FC7; border-color:#7579D8; }
+.mock-bar .row2 { width:100%; display:flex; gap:4px; align-items:center; flex-wrap:wrap; min-height:24px; color:#AAB; }
+.mock-bar .row2 button { background:#363640; }
+.mock-bar .row2 button.on { background:#4145A0; border-color:#7579D8; }
+.stage-wrap { padding:16px 20px 12px; display:flex; justify-content:center; }
+.win-box { position:relative; flex:none; }
+.caption { margin:0 auto 36px; padding:12px 16px; font-size:13px; line-height:1.6; color:var(--text-secondary); background:var(--layer-card); border:1px solid var(--stroke-card); border-radius:8px; box-shadow:var(--shadow-card); }
+.caption b { color:var(--text-primary); }
+
+/* ---------- Hauptfenster (wie 18/24/26) ---------- */
+.window { position:absolute; left:0; top:0; transform-origin:0 0; background:var(--mica-base); border-radius:8px; border:1px solid var(--stroke-default);
+  box-shadow:0 16px 48px rgba(0,0,0,0.22); overflow:hidden; display:grid; grid-template-columns:232px 1fr; grid-template-rows:36px 1fr 30px; }
+.titlebar { grid-column:1/-1; display:flex; align-items:center; gap:10px; padding-left:14px; font-size:12px; color:var(--text-secondary); }
+.titlebar .tile { width:16px; height:16px; border-radius:4px; background:linear-gradient(135deg,#6366F1,#4145A0); }
+.titlebar .wc { margin-left:auto; display:flex; height:100%; } .titlebar .wc span { width:46px; display:grid; place-items:center; font-family:'Segoe Fluent Icons'; font-size:10px; color:var(--text-primary); }
+.nav { padding:2px 8px 10px; display:flex; flex-direction:column; gap:2px; }
+.wbs { font-family:'Segoe UI Variable Display','Segoe UI',sans-serif; font-size:22px; padding:2px 12px 10px;
+  background:linear-gradient(100deg,var(--brand-indigo),var(--brand-violet) 45%,var(--brand-coral) 75%,var(--brand-amber)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.lib-switch { margin:0 2px 8px; padding:8px 10px; border-radius:6px; background:var(--layer-card); border:1px solid var(--stroke-card); box-shadow:var(--shadow-card); display:flex; gap:10px; align-items:center; }
+.lib-switch b { display:block; font-weight:600; } .lib-switch small { display:block; color:var(--text-tertiary); font-size:11px; }
+.nav-item { display:flex; align-items:center; gap:12px; padding:9px 12px; border-radius:4px; position:relative; white-space:nowrap; }
+.nav-item.active { background:var(--layer-secondary); }
+.nav-item.active::before { content:''; position:absolute; left:0; top:10px; bottom:10px; width:3px; border-radius:2px; background:var(--accent); }
+.nav .spacer { flex:1; }
+.content { position:relative; min-width:0; min-height:0; background:var(--layer-default); border-top-left-radius:8px; border-left:1px solid var(--stroke-default); border-top:1px solid var(--stroke-default); overflow:hidden; display:flex; flex-direction:column; }
+.content.scroll { overflow:auto; display:block; }
+.statusbar { grid-column:1/-1; position:relative; z-index:30; display:flex; align-items:center; gap:18px; padding:0 0 0 14px; font-size:12px; color:var(--text-secondary); border-top:1px solid var(--stroke-divider); background:var(--mica-base); }
+.btn-acc { background:var(--accent); color:var(--text-on-accent); border:1px solid transparent; border-radius:4px; padding:5px 14px; font-size:13px; cursor:pointer; display:inline-flex; gap:6px; align-items:center; white-space:nowrap; }
+body.dark .btn-acc { color:#111; } .btn-acc:hover { background:var(--accent-light); }
+.btn-acc[disabled] { background:var(--layer-tertiary); color:var(--text-disabled); cursor:default; }
+.btn-std { background:var(--layer-card); border:1px solid var(--stroke-divider); border-bottom-color:var(--ctl-bottom); border-radius:4px; padding:5px 12px; font-size:13px; cursor:pointer; display:inline-flex; gap:6px; align-items:center; white-space:nowrap; }
+.btn-std:hover { background:var(--layer-subtle); }
+.btn-std.on { background:var(--accent-soft-2); border-color:var(--accent); }
+.btn-std[disabled] { color:var(--text-disabled); cursor:default; }
+.ibtn { width:28px; height:28px; border-radius:4px; border:0; background:transparent; display:grid; place-items:center; cursor:pointer; color:var(--text-secondary); }
+.ibtn:hover { background:var(--layer-secondary); }
+.split-acc { display:inline-flex; position:relative; }
+.split-acc .btn-acc:first-child { border-radius:4px 0 0 4px; }
+.split-acc .btn-acc + .btn-acc { border-radius:0 4px 4px 0; border-left:1px solid rgba(255,255,255,.35); padding:5px 8px; }
+body.dark .split-acc .btn-acc + .btn-acc { border-left-color:rgba(0,0,0,.25); }
+
+/* ---------- Galerie ---------- */
+.ghead { display:flex; align-items:center; gap:14px; padding:16px 24px 4px; }
+.ghead h1 { margin:0; font-size:26px; font-weight:600; }
+.crumb { font-size:13px; color:var(--text-secondary); display:flex; gap:6px; align-items:center; }
+.crumb b { color:var(--text-primary); font-weight:600; }
+.fcard { margin:6px 24px 10px; background:var(--layer-card); border:1px solid var(--stroke-card); border-radius:8px; box-shadow:var(--shadow-card); position:relative; flex:none; }
+.frow { display:flex; gap:6px; align-items:center; flex-wrap:wrap; padding:8px 14px; }
+.frow + .frow { padding-top:0; }
+.frow .lbl { width:54px; font-size:11px; font-weight:700; letter-spacing:.04em; color:var(--text-tertiary); }
+.chip { display:inline-flex; gap:6px; align-items:center; height:30px; padding:0 10px; border-radius:15px; border:1px solid var(--stroke-divider); background:var(--layer-card); font-size:13px; cursor:pointer; white-space:nowrap; }
+.chip.on { background:var(--accent-soft-2); border-color:var(--accent); color:var(--accent-dark); font-weight:600; }
+body.dark .chip.on { color:var(--accent-light); }
+.chip .new { font-size:10px; font-weight:700; border-radius:7px; padding:0 5px; background:var(--accent); color:var(--text-on-accent); }
+body.dark .chip .new { color:#111; }
+.chip.sm { height:26px; font-size:12px; }
+.active-row { padding:7px 14px; border-top:1px solid var(--stroke-divider); background:var(--layer-subtle); font-size:12px; color:var(--text-secondary); border-radius:0 0 8px 8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.active-row .cond { background:var(--layer-card); border:1px solid var(--stroke-divider); border-radius:10px; padding:1px 8px; color:var(--text-primary); display:inline-flex; gap:5px; align-items:center; }
+.gal { display:grid; grid-template-columns:repeat(var(--cols,6),1fr); gap:6px; padding:2px 24px 20px; align-content:start; min-height:0; overflow:hidden; flex:1; }
+.dayh { grid-column:1/-1; font-size:13px; font-weight:600; padding:6px 0 0; display:flex; gap:10px; align-items:baseline; }
+.dayh small { font-weight:400; color:var(--text-tertiary); font-size:12px; }
+.tile { position:relative; aspect-ratio:4/3; border-radius:6px; }
+.tile .bg { position:absolute; inset:0; border-radius:inherit; overflow:hidden; }
+.tile.sel { outline:3px solid var(--accent); outline-offset:-3px; }
+.tile.dim .bg { opacity:.4; }
+.smk { position:absolute; top:6px; left:6px; height:20px; padding:0 8px 0 6px; border-radius:10px; background:rgba(0,0,0,.58); color:#fff; font-size:11px; font-weight:600; display:inline-flex; gap:5px; align-items:center; z-index:2; white-space:nowrap; }
+.smk .ok { width:14px; height:14px; border-radius:50%; background:#6CCB5F; color:#111; display:grid; place-items:center; font-family:'Segoe Fluent Icons'; font-size:8px; }
+.sdot { position:absolute; top:8px; left:8px; width:9px; height:9px; border-radius:50%; background:#fff; box-shadow:0 0 0 2px rgba(0,0,0,.45); z-index:2; }
+.rmk { position:absolute; left:6px; bottom:6px; height:20px; padding:0 8px 0 6px; border-radius:10px; background:var(--accent); color:#fff; font-size:11px; font-weight:600; display:inline-flex; gap:5px; align-items:center; z-index:2; white-space:nowrap; }
+body.dark .rmk { color:#111; }
+.pair { position:absolute; right:6px; bottom:6px; font-size:10px; font-weight:700; background:rgba(0,0,0,.6); color:#fff; border-radius:8px; padding:1px 7px; z-index:2; }
+.vlen { position:absolute; right:6px; bottom:6px; font-size:10px; font-weight:700; background:rgba(0,0,0,.6); color:#fff; border-radius:8px; padding:1px 7px; z-index:2; display:flex; gap:4px; align-items:center; }
+.tchk { position:absolute; top:6px; right:6px; width:18px; height:18px; border-radius:4px; background:rgba(255,255,255,.9); border:1px solid rgba(0,0,0,.35); display:grid; place-items:center; font-family:'Segoe Fluent Icons'; font-size:10px; color:transparent; z-index:3; }
+.tchk.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+.tip { position:absolute; z-index:30; background:var(--layer-card); border:1px solid var(--stroke-card); border-radius:6px; box-shadow:var(--shadow-flyout); padding:7px 10px; font-size:12px; line-height:1.45; white-space:nowrap; color:var(--text-primary); }
+body.dark .tip { background:#2B2B2B; }
+.abar { margin:0 24px 8px; display:flex; gap:8px; align-items:center; padding:6px 10px; border-radius:8px; background:var(--accent-soft); border:1px solid var(--accent-soft-2); font-size:13px; flex:none; }
+.abar b { margin-right:6px; }
+.abar .sp { flex:1; }
+/* Listenansicht */
+.lst td { padding:3px 8px; } .lst tr.lsel td { background:var(--accent-soft-2); }
+.lth { position:relative; display:block; width:44px; height:30px; border-radius:3px; overflow:hidden; }
+/* eine Kachel je Serie */
+.stile { position:relative; padding:8px 8px 0 0; }
+.stile .cv { position:relative; aspect-ratio:16/9; border-radius:6px; box-shadow:4px -4px 0 -1px var(--layer-card), 4px -4px 0 0 var(--stroke-divider), 8px -8px 0 -1px var(--layer-card), 8px -8px 0 0 var(--stroke-divider); }
+.stile .cv .bg { position:absolute; inset:0; border-radius:6px; overflow:hidden; }
+.stile .meta { padding:6px 2px 0; font-size:12px; color:var(--text-secondary); }
+.stile .meta b { display:flex; gap:6px; align-items:center; font-size:13px; font-weight:600; color:var(--text-primary); }
+.stile .neu { position:absolute; top:6px; right:6px; font-size:10px; font-weight:700; border-radius:7px; padding:1px 6px; background:var(--accent); color:#fff; z-index:2; }
+body.dark .stile .neu { color:#111; }
+.stile .cloud { position:absolute; top:6px; left:6px; font-size:10px; border-radius:7px; padding:1px 7px; background:rgba(0,0,0,.6); color:#fff; z-index:2; display:flex; gap:4px; align-items:center; }
+.oneclick { position:absolute; left:50%; bottom:10px; transform:translateX(-50%); display:inline-flex; border-radius:4px; overflow:hidden; box-shadow:0 4px 12px rgba(0,0,0,.35); z-index:3; }
+.oneclick span { background:var(--accent); color:#fff; padding:5px 10px; font-size:12px; display:flex; gap:6px; align-items:center; white-space:nowrap; }
+.oneclick span + span { border-left:1px solid rgba(255,255,255,.35); padding:5px 8px; }
+body.dark .oneclick span { color:#111; } body.dark .oneclick span + span { border-left-color:rgba(0,0,0,.25); }
+.stile.hov .cv { outline:2px solid var(--accent); outline-offset:1px; }
+/* Serien-Leiste */
+.serbar { margin:0 24px 8px; display:grid; grid-template-columns:auto 1fr auto; gap:10px 14px; align-items:center; padding:10px 14px; border-radius:8px; background:var(--layer-card); border:1px solid var(--stroke-card); box-shadow:var(--shadow-card); position:relative; flex:none; }
+.serbar .sp { width:38px; height:38px; border-radius:8px; display:grid; place-items:center; background:var(--accent-soft-2); color:var(--accent); }
+.serbar > div > b { font-size:15px; font-weight:600; }
+.serbar .facts { display:flex; gap:14px; flex-wrap:wrap; font-size:12px; color:var(--text-secondary); margin-top:2px; }
+.rchips { display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
+.rchip { font-size:11px; border-radius:9px; padding:1px 8px; background:var(--layer-secondary); color:var(--text-secondary); display:inline-flex; gap:4px; align-items:center; }
+.rchip::before { content:'\E73E'; font-family:'Segoe Fluent Icons'; font-size:8px; color:var(--success); }
+.serbar .acts { grid-column:2/-1; display:flex; gap:8px; align-items:center; }
+.probe { width:156px; height:52px; border-radius:4px; position:relative; overflow:hidden; }
+.probe small { position:absolute; left:4px; bottom:3px; font-size:9px; color:#fff; background:rgba(0,0,0,.55); border-radius:6px; padding:0 5px; z-index:2; }
+.hintbar { margin:0 24px 8px; display:flex; gap:10px; align-items:center; padding:8px 12px; border-radius:6px; font-size:12px; background:var(--accent-soft); flex:none; }
+.hintbar .sp { flex:1; }
+
+/* ---------- Menüs, Flyouts, Dialoge ---------- */
+.menu { position:absolute; z-index:40; min-width:250px; background:var(--layer-card); border:1px solid var(--stroke-card); border-radius:8px; box-shadow:var(--shadow-flyout); padding:4px; font-size:13px; }
+body.dark .menu { background:#2B2B2B; }
+.mi { display:grid; grid-template-columns:22px 1fr auto; gap:8px; align-items:center; padding:6px 8px; border-radius:4px; white-space:nowrap; height:30px; }
+.mi:hover, .mi.hov { background:var(--layer-secondary); }
+.mi .ic, .mi .ki { font-size:14px; color:var(--text-secondary); justify-self:center; }
+.mi .k { font-size:11px; color:var(--text-tertiary); }
+.mi.new { background:var(--accent-soft-2); font-weight:600; }
+.mi.new .ic, .mi.new .ki { color:var(--accent); }
+.mi.off { color:var(--text-disabled); } .mi.off .ic, .mi.off .ki { color:var(--text-disabled); }
+.mi .badge { font-size:10px; font-weight:700; border-radius:7px; padding:0 6px; background:var(--accent); color:var(--text-on-accent); }
+body.dark .mi .badge { color:#111; }
+.mi small { font-weight:400; color:var(--text-secondary); font-size:11px; }
+.msep { height:1px; background:var(--stroke-divider); margin:4px 6px; }
+.mhead { font-size:11px; font-weight:600; color:var(--text-tertiary); padding:6px 8px 2px; }
+.flyout { position:absolute; z-index:40; width:400px; background:var(--layer-card); border:1px solid var(--stroke-card); border-radius:8px; box-shadow:var(--shadow-flyout); overflow:hidden; font-size:13px; }
+body.dark .flyout { background:#2B2B2B; }
+.flyout .hd { padding:12px 14px 6px; display:flex; gap:8px; align-items:center; font-weight:600; }
+.flyout .hd small { margin-left:auto; font-weight:400; font-size:12px; color:var(--text-secondary); }
+.flyout .sec { padding:6px 14px 2px; font-size:11px; font-weight:700; letter-spacing:.04em; color:var(--text-tertiary); text-transform:uppercase; }
+.flyout .li { display:grid; grid-template-columns:18px 18px 1fr auto; gap:8px; align-items:center; padding:5px 14px; }
+.flyout .li.sub { padding-left:40px; grid-template-columns:18px 1fr auto; font-size:12px; color:var(--text-secondary); }
+.flyout .li .n { font-size:12px; color:var(--text-secondary); }
+.flyout .li.zero { color:var(--text-disabled); }
+.flyout .seg2 { display:flex; gap:6px; flex-wrap:wrap; padding:4px 14px 6px; }
+.flyout .ft { display:flex; gap:8px; align-items:center; padding:9px 14px; border-top:1px solid var(--stroke-divider); background:var(--layer-subtle); font-size:12px; color:var(--text-secondary); }
+.flyout .st { padding:4px 14px 8px; font-size:12px; color:var(--text-secondary); display:flex; gap:8px; align-items:center; }
+.smoke { position:absolute; inset:0; background:var(--smoke); z-index:45; display:grid; place-items:center; }
+.dlg { width:620px; max-width:calc(100% - 40px); background:var(--layer-card); border:1px solid var(--stroke-card); border-radius:8px; box-shadow:var(--shadow-dialog); overflow:hidden; color:var(--text-primary); }
+body.dark .dlg { background:#2B2B2B; }
+.dlg .in { padding:20px 24px 14px; display:grid; gap:12px; font-size:13px; }
+.dlg h2 { margin:0; font-size:20px; font-weight:600; }
+.dlg .ft { display:flex; gap:8px; justify-content:flex-end; align-items:center; padding:12px 24px; background:var(--layer-subtle); border-top:1px solid var(--stroke-divider); }
+.dlg .ft .l { margin-right:auto; font-size:12px; color:var(--text-secondary); }
+.est { background:var(--accent-soft); border-radius:6px; padding:8px 12px; font-size:12px; color:var(--text-secondary); line-height:1.55; }
+.est b { color:var(--text-primary); }
+.hint { display:flex; gap:10px; align-items:flex-start; padding:9px 12px; border-radius:6px; font-size:12px; line-height:1.5; }
+.hint.info { background:var(--accent-soft); } .hint.warn { background:var(--warning-soft); } .hint.ok { background:var(--success-soft); }
+.hint .ic { margin-top:1px; }
+.tbl { width:100%; border-collapse:collapse; font-size:12px; }
+.tbl th { text-align:left; color:var(--text-tertiary); font-weight:600; padding:6px 8px; border-bottom:1px solid var(--stroke-divider); }
+.tbl td { padding:8px; border-bottom:1px solid var(--stroke-divider); vertical-align:middle; }
+.radio-row { display:flex; gap:10px; align-items:flex-start; padding:5px 0; font-size:13px; }
+.radio-row small { display:block; color:var(--text-secondary); font-size:12px; margin-top:1px; }
+.radio { width:16px; height:16px; border-radius:50%; border:1px solid var(--text-secondary); flex:none; display:inline-block; margin-top:2px; }
+.radio.on { border:5px solid var(--accent); }
+.chk { width:16px; height:16px; border-radius:3px; border:1px solid var(--text-secondary); display:inline-grid; place-items:center; flex:none; font-family:'Segoe Fluent Icons'; font-size:10px; color:transparent; }
+.chk.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+.chk.off { border-color:var(--text-disabled); background:var(--layer-tertiary); }
+.sw { width:36px; height:18px; border-radius:9px; border:1px solid var(--text-secondary); position:relative; flex:none; display:inline-block; }
+.sw::after { content:''; position:absolute; top:3px; left:3px; width:10px; height:10px; border-radius:50%; background:var(--text-secondary); }
+.sw.on { background:var(--accent); border-color:var(--accent); } .sw.on::after { left:21px; background:#fff; }
+.seg { display:inline-flex; background:var(--layer-secondary); border-radius:6px; padding:2px; gap:2px; flex-wrap:wrap; }
+.seg button { border:0; background:transparent; padding:4px 9px; border-radius:4px; cursor:pointer; font-size:12px; }
+.seg button.on { background:var(--layer-card); box-shadow:0 1px 2px rgba(0,0,0,.12); color:var(--accent); font-weight:600; }
+body.dark .seg button.on { background:#3A3A3A; }
+.seg button[disabled] { color:var(--text-disabled); cursor:default; }
+.slider { height:4px; border-radius:2px; background:var(--layer-tertiary); position:relative; margin:8px 8px 4px; }
+.slider i { position:absolute; left:0; top:0; bottom:0; border-radius:2px; background:var(--accent); }
+.slider b { position:absolute; top:-6px; width:16px; height:16px; border-radius:50%; background:var(--layer-card); border:4px solid var(--accent); margin-left:-8px; }
+.slider.off i { background:var(--text-disabled); } .slider.off b { border-color:var(--text-disabled); }
+.dd { display:inline-flex; justify-content:space-between; align-items:center; gap:10px; padding:4px 10px; border:1px solid var(--stroke-divider); border-bottom-color:var(--ctl-bottom); border-radius:4px; background:var(--layer-card); font-size:12px; white-space:nowrap; }
+.dd::after { content:'\E70D'; font-family:'Segoe Fluent Icons'; font-size:9px; color:var(--text-secondary); }
+
+/* ---------- Aktivitäts-Anzeige (wie 15) ---------- */
+.act { margin-left:auto; display:flex; align-items:center; gap:8px; height:100%; padding:0 12px; border-left:1px solid var(--stroke-divider); white-space:nowrap; }
+.act .mini { width:90px; height:4px; border-radius:2px; background:var(--layer-tertiary); overflow:hidden; }
+.act .mini i { display:block; height:100%; background:var(--accent); }
+.act .count { font-size:10px; font-weight:700; background:var(--accent); color:#fff; border-radius:8px; padding:0 6px; }
+body.dark .act .count { color:#111; }
+.spin { width:12px; height:12px; border-radius:50%; border:2px solid var(--accent); border-right-color:transparent; animation:sp 0.9s linear infinite; flex:none; }
+@keyframes sp { to { transform:rotate(360deg); } }
+.fly { position:absolute; right:8px; bottom:36px; width:490px; background:var(--layer-card); border:1px solid var(--stroke-card); border-radius:8px; box-shadow:var(--shadow-flyout); z-index:20; color:var(--text-primary); }
+body.dark .fly { background:#2B2B2B; }
+.fly h3 { margin:0; padding:12px 14px 8px; font-size:14px; display:flex; align-items:center; gap:8px; }
+.fly h3 small { margin-left:auto; font-weight:400; color:var(--text-secondary); font-size:12px; }
+.fly .sec { padding:4px 14px 2px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--text-tertiary); }
+.job { display:grid; grid-template-columns:28px 1fr auto; gap:10px; padding:8px 14px; align-items:start; border-top:1px solid var(--stroke-divider); }
+.job > .ic, .job > .ki { margin-top:2px; color:var(--accent); }
+.job b { font-size:13px; } .job .sub { font-size:12px; color:var(--text-secondary); margin-top:2px; }
+.job .bar { height:4px; border-radius:2px; background:var(--layer-tertiary); margin-top:6px; overflow:hidden; } .job .bar i { display:block; height:100%; background:var(--accent); }
+.job .btns { display:flex; gap:2px; align-items:center; }
+.job .lnks { display:flex; flex-direction:column; gap:4px; align-items:flex-end; }
+.job.wait > .ic, .job.wait b { color:var(--text-secondary); }
+.job.done > .ic { color:var(--success); } .job.err > .ic { color:var(--danger); }
+.prio { font-size:10px; font-weight:700; border-radius:7px; padding:0 6px; background:var(--warning-soft); color:#8A6D00; }
+body.dark .prio { color:var(--warning); }
+.toast { position:absolute; right:8px; bottom:36px; width:400px; background:var(--layer-card); border:1px solid var(--stroke-card); border-radius:8px; box-shadow:var(--shadow-flyout); padding:10px 14px; display:flex; gap:10px; align-items:center; font-size:13px; z-index:19; color:var(--text-primary); }
+body.dark .toast { background:#2B2B2B; }
+
+/* ---------- Fenster „Zusammenfügen“ ---------- */
+.window.mw { grid-template-columns:1fr; grid-template-rows:36px 1fr 62px; }
+.mw .titlebar .lock { display:inline-flex; gap:6px; align-items:center; padding:2px 8px; border-radius:9px; background:var(--accent-soft-2); color:var(--text-primary); font-size:11px; }
+.mbody { display:grid; grid-template-columns:288px 1fr 312px; min-height:0; border-top:1px solid var(--stroke-divider); position:relative; }
+.mleft { padding:10px 10px 12px; overflow:auto; display:flex; flex-direction:column; gap:3px; }
+.mleft h4, .mright h4 { margin:6px 4px 2px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--text-tertiary); }
+.srcinfo { padding:2px 4px 4px; font-size:12px; color:var(--text-secondary); line-height:1.5; }
+.srcinfo b { color:var(--text-primary); font-size:13px; display:block; }
+.meth { display:grid; grid-template-columns:24px 1fr auto; gap:8px; align-items:center; padding:3px 8px; border-radius:6px; cursor:pointer; border:1px solid transparent; }
+.meth:hover { background:var(--layer-secondary); }
+.meth.on { background:var(--accent-soft-2); border-color:var(--accent); }
+.meth .mic { width:24px; height:24px; border-radius:6px; display:grid; place-items:center; background:var(--layer-secondary); color:var(--text-secondary); }
+.meth.on .mic { background:var(--accent); color:#fff; } body.dark .meth.on .mic { color:#111; }
+.meth b { font-size:13px; font-weight:600; display:flex; gap:6px; align-items:center; flex-wrap:wrap; } .meth small { display:block; font-size:11px; color:var(--text-secondary); line-height:1.25; }
+.meth.no b { font-weight:400; color:var(--text-secondary); }
+.meth.later { opacity:.62; }
+.fit { font-size:10px; font-weight:700; border-radius:8px; padding:1px 7px; white-space:nowrap; }
+.fit.ok { background:var(--success-soft); color:var(--success); }
+.fit.no { background:var(--layer-tertiary); color:var(--text-secondary); }
+.fit.later { border:1px dashed var(--stroke-divider); color:var(--text-tertiary); }
+.sg { font-size:10px; font-weight:700; border-radius:7px; padding:0 6px; background:var(--accent); color:var(--text-on-accent); }
+body.dark .sg { color:#111; }
+.why { margin-top:6px; padding:8px 10px; border-radius:8px; background:var(--accent-soft); font-size:11.5px; line-height:1.35; }
+.why h5 { margin:0 0 4px; font-size:12px; display:flex; gap:6px; align-items:center; color:var(--accent-dark); } body.dark .why h5 { color:var(--accent-light); }
+.why ul { margin:0; padding:0; } .why li { list-style:none; display:flex; gap:6px; padding:1px 0; }
+.why li::before { content:'\E73E'; font-family:'Segoe Fluent Icons'; font-size:9px; color:var(--success); margin-top:3px; }
+.locked { opacity:.45; pointer-events:none; }
+/* dunkle Bühne: feste Farben wie die Lightbox in Mockup 13 */
+.mcenter { display:grid; grid-template-rows:auto 1fr auto auto; min-width:0; min-height:0; background:#0F0F12; color:#EEE; }
+.wstrip { display:flex; gap:10px; align-items:center; padding:8px 14px; font-size:12px; line-height:1.45; background:rgba(252,225,0,.14); color:#FCE100; border-bottom:1px solid #26262C; }
+.wstrip.info { background:rgba(129,140,248,.14); color:#A5B0FF; }
+.wstrip.ok { background:rgba(108,203,95,.14); color:#6CCB5F; }
+.wstrip.bad { background:rgba(255,107,94,.14); color:#FF6B5E; }
+.wstrip .lk { margin-left:auto; font-weight:600; color:#A5B0FF; cursor:pointer; white-space:nowrap; }
+.mstage { position:relative; display:grid; place-items:center; min-height:0; overflow:hidden; }
+.sbar { display:flex; gap:6px; align-items:center; padding:6px 12px; font-size:12px; color:#AAA; border-top:1px solid #26262C; white-space:nowrap; }
+.sbar .tg { padding:3px 9px; border-radius:12px; background:#26262C; display:inline-flex; gap:5px; align-items:center; color:#CCC; }
+.sbar .tg.on { background:#2C2C3A; color:#A5B0FF; box-shadow:inset 0 0 0 1px #818CF8; }
+.sbar .mid { margin:0 auto; display:flex; gap:8px; align-items:center; }
+.sbar .pr { font-size:10px; font-weight:700; border-radius:7px; padding:1px 7px; background:rgba(252,225,0,.14); color:#FCE100; }
+.sbar .zm { display:flex; gap:4px; align-items:center; } .sbar .zm span { padding:2px 7px; border-radius:4px; background:#26262C; color:#CCC; }
+.film { display:flex; gap:6px; align-items:flex-start; padding:8px 12px 10px; border-top:1px solid #26262C; overflow:hidden; background:#1E1E22; }
+.film .fl { flex:none; width:84px; font-size:11px; color:#AAA; line-height:1.35; padding-top:1px; }
+.film .fl b { display:block; color:#EEE; font-size:12px; }
+.fth { flex:none; width:56px; }
+.fth .im { position:relative; width:56px; height:40px; border-radius:3px; overflow:hidden; outline:2px solid transparent; outline-offset:-1px; }
+.fth.ref .im { outline-color:#818CF8; }
+.fth .c { position:absolute; top:2px; left:2px; width:13px; height:13px; border-radius:3px; background:#818CF8; color:#111; font-family:'Segoe Fluent Icons'; font-size:8px; display:grid; place-items:center; z-index:2; }
+.fth.off .c { background:rgba(0,0,0,.55); color:transparent; border:1px solid #AAA; }
+.fth.off .im > .scene, .fth.off .im > .ph { opacity:.4; }
+.fth small { display:block; font-size:10px; color:#AAA; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.fth .wm { position:absolute; left:0; right:0; bottom:0; font-size:8.5px; line-height:12px; background:rgba(252,225,0,.85); color:#111; text-align:center; z-index:2; }
+.fth .cb { height:3px; border-radius:2px; margin-top:3px; }
+.mright .seg button { padding:4px 7px; }
+.mright { padding:12px 14px; overflow:auto; display:flex; flex-direction:column; gap:9px; border-left:1px solid var(--stroke-divider); background:var(--layer-default); }
+.mright h3 { margin:0; font-size:16px; font-weight:600; display:flex; gap:8px; align-items:center; }
+.osec { display:grid; gap:6px; }
+.orow { display:flex; gap:10px; align-items:center; justify-content:space-between; font-size:13px; }
+.onote { font-size:11px; color:var(--text-secondary); line-height:1.4; }
+.onote.off { color:var(--text-tertiary); }
+.projs { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+.proj { position:relative; text-align:left; padding:5px 8px; border-radius:6px; border:1px solid var(--stroke-divider); background:var(--layer-card); cursor:pointer; display:grid; gap:2px; }
+.proj:hover { background:var(--layer-subtle); }
+.proj.on { border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); background:var(--accent-soft); }
+.proj b { font-size:12px; font-weight:600; } .proj small { font-size:10px; color:var(--text-secondary); line-height:1.25; }
+.proj .sg { position:absolute; top:6px; right:6px; }
+.psk { height:24px; display:flex; align-items:center; }
+.psk i { display:block; background:linear-gradient(180deg,#7FB0DC 0 45%,#8193B3 45% 62%,#5E7B44 62%); }
+.psk .auto { width:36px; height:22px; border-radius:4px; border:1px dashed var(--text-tertiary); background:none; display:grid; place-items:center; font-size:10px; font-weight:700; color:var(--text-secondary); font-style:normal; }
+.upbox { border:1px solid var(--stroke-divider); border-radius:8px; padding:9px 10px; display:grid; gap:6px; background:var(--layer-card); }
+.upbox.off { background:var(--layer-subtle); }
+.upbox .h { display:flex; gap:8px; align-items:center; font-size:13px; font-weight:600; }
+.upbox.off .h { color:var(--text-tertiary); }
+.mfoot { display:flex; gap:10px; align-items:center; padding:0 16px; border-top:1px solid var(--stroke-divider); background:var(--mica-base); font-size:12px; color:var(--text-secondary); }
+.mfoot .file { font-family:'Cascadia Mono',Consolas,monospace; font-size:12px; color:var(--text-primary); background:var(--layer-card); border:1px solid var(--stroke-divider); border-radius:4px; padding:4px 8px; white-space:nowrap; }
+.mfoot label { display:flex; gap:6px; align-items:center; white-space:nowrap; color:var(--text-primary); }
+.mfoot .est2 { margin-left:auto; text-align:right; line-height:1.35; max-width:250px; font-size:11px; }
+.mfoot .est2 b { color:var(--text-primary); font-weight:600; }
+.estpop { position:absolute; right:14px; bottom:8px; width:360px; background:var(--layer-card); border:1px solid var(--stroke-card); border-radius:8px; box-shadow:var(--shadow-flyout); padding:12px 14px; font-size:12px; line-height:1.6; z-index:10; color:var(--text-primary); }
+body.dark .estpop { background:#2B2B2B; }
+.estpop .kv { display:grid; grid-template-columns:130px 1fr; gap:2px 10px; }
+.estpop .kv span:nth-child(odd) { color:var(--text-secondary); }
+
+/* Bild-Platzhalter (keine Fotos) */
+.scene { position:absolute; inset:0; overflow:hidden; border-radius:inherit; }
+.scene .in { position:absolute; inset:0; }
+.scene.w .in { left:calc(var(--x) * -200%); right:auto; width:300%; top:calc(var(--y) * -80%); bottom:auto; height:180%; }
+.scene .sk { position:absolute; inset:0; background:linear-gradient(180deg,#5D97CF 0%,#A9CDEB 40%,#E3EEF5 56%); }
+.scene .m1 { position:absolute; left:0; right:0; top:30%; height:30%; background:#8193B3; clip-path:polygon(0 70%,4% 40%,9% 58%,14% 22%,20% 50%,26% 30%,31% 55%,37% 15%,43% 48%,49% 28%,55% 60%,61% 20%,67% 50%,73% 32%,79% 58%,85% 18%,91% 46%,96% 30%,100% 52%,100% 100%,0 100%); }
+.scene .m2 { position:absolute; left:0; right:0; top:42%; height:24%; background:#506C8A; clip-path:polygon(0 50%,6% 30%,12% 60%,19% 25%,26% 55%,33% 35%,40% 65%,47% 30%,54% 58%,61% 38%,68% 66%,75% 28%,82% 55%,89% 35%,95% 60%,100% 40%,100% 100%,0 100%); }
+.scene .g { position:absolute; left:0; right:0; top:63%; bottom:0; background:linear-gradient(180deg,#7C9A55,#4A6534 55%,#3A4F2A); }
+.scene .sun { position:absolute; left:68%; top:12%; width:9%; aspect-ratio:1; border-radius:50%; background:radial-gradient(#FFF7D6,#FFE08A 55%,rgba(255,224,138,0) 72%); }
+.scene .cl { position:absolute; height:9%; border-radius:50%; background:rgba(255,255,255,.85); filter:blur(2px); }
+.scene .c1 { left:8%; top:9%; width:22%; } .scene .c2 { left:42%; top:18%; width:16%; } .scene .c3 { left:70%; top:7%; width:20%; }
+.scene.night .in { filter:brightness(.45) saturate(.7); }
+.scene.nadir .sk, .scene.nadir .m1, .scene.nadir .m2 { display:none; }
+.scene.nadir .g { top:0; background:radial-gradient(circle at 40% 45%,#8FA868 0 12%,transparent 13%),repeating-linear-gradient(35deg,#5E7B44 0 8px,#54703C 8px 16px); }
+.ph { position:absolute; inset:0; border-radius:inherit; }
+.noise { position:absolute; inset:0; background-image:radial-gradient(rgba(255,255,255,.55) .7px,transparent 1.3px),radial-gradient(rgba(0,0,0,.55) .7px,transparent 1.3px); background-size:3px 3px,4px 4px; background-position:0 0,1px 2px; opacity:.8; }
+.water { position:absolute; left:0; right:0; bottom:0; height:30%; }
+.water.rough { background:repeating-linear-gradient(172deg,#5E86A8 0 5px,#9CC1DA 5px 7px,#46708F 7px 12px); }
+.water.soft { background:linear-gradient(180deg,#A9C7DC,#D9E7F0 40%,#9FBCD1); filter:blur(1.5px); }
+.fig { position:absolute; width:2.6%; background:#5A5560; border-radius:40% 40% 10% 10%; }
+.fig::before { content:''; position:absolute; left:50%; top:-36%; width:90%; aspect-ratio:1; transform:translateX(-50%); border-radius:50%; background:#C9C3BD; }
+.fig.ghost { opacity:.35; }
+.gaps { position:absolute; left:0; right:0; display:grid; place-items:center; font-size:11px; color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.6); background:repeating-linear-gradient(45deg,rgba(255,255,255,.22) 0 6px,rgba(255,255,255,.05) 6px 12px); border:1px dashed rgba(255,255,255,.6); }
+.cbox { position:relative; background:repeating-linear-gradient(45deg,rgba(255,255,255,.07) 0 6px,transparent 6px 12px); border-radius:2px; }
+.cimg { position:absolute; inset:0; overflow:hidden; }
+.crop { position:absolute; border:2px dashed #A5B0FF; box-shadow:0 0 0 2000px rgba(0,0,0,.28); pointer-events:none; }
+.clbl { position:absolute; left:0; top:-26px; font-size:12px; color:#CCC; white-space:nowrap; }
+.clbl b { color:#EEE; }
+.seams { position:absolute; inset:0; width:100%; height:100%; }
+/* Vorher/Nachher (wie 13) */
+.pic { position:relative; border-radius:4px; overflow:hidden; }
+.pic .layer { position:absolute; inset:0; }
+.pic .after { clip-path:inset(0 0 0 50%); }
+.pic .split { position:absolute; top:0; bottom:0; left:50%; width:2px; background:#fff; box-shadow:0 0 6px rgba(0,0,0,.5); z-index:3; }
+.pic .split::after { content:'\E76B  \E76C'; font-family:'Segoe Fluent Icons'; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:38px; height:38px; border-radius:50%; background:#fff; color:#333; display:grid; place-items:center; font-size:10px; }
+.pic .lbl { position:absolute; top:10px; padding:3px 8px; border-radius:4px; background:rgba(0,0,0,.55); font-size:11px; color:#fff; z-index:4; }
+.mask { position:absolute; border-radius:40% 50% 45% 55%; background:rgba(249,115,98,.35); outline:2px dashed #F97362; z-index:2; }
+.mask.y { background:rgba(252,225,0,.25); outline-color:#FCE100; }
+.mask small { position:absolute; left:100%; top:-4px; margin-left:6px; white-space:nowrap; font-size:10px; background:rgba(0,0,0,.6); color:#fff; padding:1px 6px; border-radius:6px; }
+/* Gruppenfoto */
+.gp { position:absolute; bottom:0; width:11%; height:50%; border-radius:40% 40% 6% 6%; }
+.gp .hd { position:absolute; left:50%; top:-32%; width:64%; aspect-ratio:1; transform:translateX(-50%); border-radius:50%; background:#D9D4CF; }
+.gp .fr { position:absolute; left:50%; top:-38%; width:88%; aspect-ratio:1; transform:translateX(-50%); border:2px solid #fff; border-radius:6px; }
+.gp .fr b { position:absolute; top:-11px; left:-11px; width:20px; height:20px; border-radius:50%; background:#818CF8; color:#111; font-size:11px; display:grid; place-items:center; }
+.gp .fr.sw2 { border-color:#6CCB5F; } .gp .fr.sw2 b { background:#6CCB5F; }
+.gp .fr.uns { border-style:dashed; border-color:#FCE100; } .gp .fr.uns b { background:#FCE100; }
+.faces { border-top:1px solid #26262C; background:#1E1E22; padding:8px 12px 10px; display:grid; gap:4px; }
+.frw { display:grid; grid-template-columns:120px repeat(6,62px) 1fr; gap:6px; align-items:center; font-size:12px; color:#CCC; }
+.frw.hdr { font-size:10px; color:#AAA; }
+.frw .who { display:flex; gap:6px; align-items:center; }
+.frw .who b { width:18px; height:18px; border-radius:50%; background:#818CF8; color:#111; display:grid; place-items:center; font-size:10px; }
+.fc { position:relative; height:40px; border-radius:6px; background:#26262C; display:grid; place-items:center; border:2px solid transparent; }
+.fc i { width:26px; height:26px; border-radius:50%; background:#D9D4CF; display:block; }
+.fc.on { border-color:#818CF8; background:#2C2C3A; }
+.fc.blur i { filter:blur(2px); } .fc.turn i { background:linear-gradient(90deg,#D9D4CF 45%,#8E8781 46%); }
+.fc em { position:absolute; left:2px; right:2px; bottom:-1px; font-style:normal; font-size:8.5px; text-align:center; background:rgba(0,0,0,.65); color:#EEE; border-radius:3px; }
+.fc.on em { background:#818CF8; color:#111; }
+.frw .nt { font-size:11px; color:#AAA; }
+/* Fortschritt / Fertig im Fenster */
+.prog { width:560px; display:grid; gap:10px; color:#EEE; }
+.prog h2 { margin:0; font-size:20px; font-weight:600; }
+.prog .m2 { font-size:12px; color:#AAA; line-height:1.5; }
+.pl { display:grid; grid-template-columns:24px 1fr auto; gap:10px; align-items:center; padding:5px 0; font-size:13px; }
+.pl .d { width:20px; height:20px; border-radius:50%; display:grid; place-items:center; font-family:'Segoe Fluent Icons'; font-size:10px; background:#26262C; color:#AAA; }
+.pl.done .d { background:#6CCB5F; color:#111; } .pl.run .d { background:#818CF8; color:#111; }
+.pl.run { font-weight:600; } .pl small { color:#AAA; font-size:12px; font-weight:400; }
+.bigbar { height:8px; border-radius:4px; background:#26262C; overflow:hidden; } .bigbar i { display:block; height:100%; background:#818CF8; }
+.prog .btns { display:flex; gap:8px; }
+.prog .btn-std { background:#26262C; border-color:#3A3A44; color:#EEE; }
+.donecard { display:grid; gap:8px; }
+.kenn { display:inline-flex; gap:6px; align-items:center; font-size:12px; font-weight:600; padding:3px 10px; border-radius:11px; background:var(--accent-soft-2); color:var(--accent-dark); }
+body.dark .kenn { color:var(--accent-light); }
+.kv { display:grid; grid-template-columns:118px 1fr; gap:4px 10px; font-size:12px; }
+.kv span:nth-child(odd) { color:var(--text-secondary); }
+.vbtns { display:grid; gap:6px; }
+.vbtns .btn-std, .vbtns .btn-acc { justify-content:flex-start; }
+/* Lightbox (wie 13) */
+.lb { position:absolute; inset:0; background:#0F0F12; display:grid; grid-template-columns:1fr 320px; color:#EEE; z-index:5; }
+.lb .stg { position:relative; display:grid; grid-template-rows:44px 1fr auto 74px; min-width:0; }
+.lb .top { display:flex; align-items:center; gap:10px; padding:0 14px; font-size:13px; color:#CCC; }
+.lb .top .r { margin-left:auto; display:flex; gap:6px; }
+.lb .top .r span { padding:5px 10px; border-radius:4px; background:#26262C; font-size:12px; }
+.lb .mrow { display:flex; gap:10px; align-items:center; justify-content:center; padding:8px 14px; font-size:13px; color:#DDD; }
+.lb .mrow .a { color:#A5B0FF; font-weight:600; }
+.lb .strip { display:flex; gap:4px; align-items:center; padding:8px 14px; overflow:hidden; border-top:1px solid #26262C; }
+.lb .strip .t { flex:none; width:44px; height:44px; border-radius:3px; position:relative; overflow:hidden; opacity:.75; }
+.lb .strip .t.res { width:96px; opacity:1; outline:2px solid #818CF8; outline-offset:-2px; }
+.lb .side { background:#1E1E22; padding:14px 16px; display:flex; flex-direction:column; gap:10px; overflow:hidden; font-size:13px; }
+.lb .side h3 { margin:0; font-size:15px; display:flex; gap:8px; align-items:center; }
+.lb .side h4 { margin:6px 0 0; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:#AAA; }
+.lb .kv span:nth-child(odd) { color:#AAA; }
+.lb .side .muted { color:#AAA; }
+/* Einstellungen */
+.phead { padding:18px 24px 6px; } .phead h1 { font-size:28px; font-weight:600; margin:0; }
+.tabs { display:flex; gap:2px; padding:4px 24px 10px; border-bottom:1px solid var(--stroke-divider); flex-wrap:wrap; }
+.tabs span { padding:6px 10px; border-radius:4px; color:var(--text-secondary); font-size:13px; }
+.tabs span.on { color:var(--text-primary); font-weight:600; box-shadow:inset 0 -3px 0 var(--accent); }
+.sbody { padding:14px 24px 24px; display:grid; grid-template-columns:1fr 1fr; gap:12px; align-items:start; }
+.scol { display:grid; gap:12px; }
+.card { background:var(--layer-card); border:1px solid var(--stroke-card); border-radius:8px; box-shadow:var(--shadow-card); padding:14px 16px; }
+.card h2 { font-size:15px; margin:0 0 4px; display:flex; gap:10px; align-items:center; }
+.srow { display:grid; grid-template-columns:1fr auto; gap:12px; align-items:center; padding:9px 0; border-top:1px solid var(--stroke-divider); font-size:13px; }
+.srow:first-of-type { border-top:0; }
+.srow b { display:block; font-weight:600; } .srow small { display:block; color:var(--text-secondary); font-size:12px; margin-top:1px; }
+.inp { display:inline-block; min-width:64px; padding:4px 8px; border:1px solid var(--stroke-divider); border-bottom-color:var(--ctl-bottom); border-radius:4px; background:var(--layer-card); font-size:12px; text-align:right; }
+.kinds { display:flex; gap:6px 14px; flex-wrap:wrap; font-size:12px; }
+.kinds label { display:flex; gap:6px; align-items:center; }
+.sfx { display:grid; grid-template-columns:1fr auto; gap:4px 10px; font-size:12px; }
+.sfx span:nth-child(odd) { color:var(--text-secondary); }
+.state { font-size:11px; font-weight:700; border-radius:9px; padding:2px 8px; white-space:nowrap; }
+.s-ok { background:var(--success-soft); color:var(--success); } .s-miss { background:var(--layer-tertiary); color:var(--text-secondary); }
+.where { position:absolute; right:20px; top:150px; width:400px; z-index:20; }
+</style>
+</head>
+<body>
+
+<div class="mock-bar">
+  <span><b>Mockup 28 · Serien und Zusammenfügen · Entwurf</b></span>
+  <span class="grp">Design: <button id="mbLight">Hell</button><button id="mbDark">Dunkel</button></span>
+  <span class="grp" id="vbar"></span>
+  <div class="row2" id="sbar2"></div>
+</div>
+
+<div class="stage-wrap"><div class="win-box" id="winBox">
+
+<!-- Hauptfenster -->
+<div class="window" id="win">
+  <div class="titlebar"><span class="tile"></span> Lumora<span class="wc"><span>&#xE921;</span><span>&#xE922;</span><span>&#xE8BB;</span></span></div>
+  <nav class="nav">
+    <div class="wbs">lumora</div>
+    <div class="lib-switch" id="lib"></div>
+    <div class="nav-item" data-nav="gal"><span class="ic">&#xE91B;</span>Galerie</div>
+    <div class="nav-item" data-nav="alb"><span class="ic">&#xE8F1;</span>Alben</div>
+    <div class="nav-item"><span class="ic">&#xE786;</span>Storys</div>
+    <div class="nav-item"><span class="ic">&#xE716;</span>Personen</div>
+    <div class="nav-item"><span class="ic">&#xE707;</span>Orte</div>
+    <div class="spacer"></div>
+    <div class="nav-item" data-nav="set"><span class="ic">&#xE713;</span>Einstellungen</div>
+  </nav>
+  <main class="content" id="content"></main>
+  <div class="statusbar" id="sb"></div>
+</div>
+
+<!-- Fenster „Zusammenfügen“ (eigenes, nicht modales Fenster) -->
+<div class="window mw hidden" id="mwin">
+  <div class="titlebar"><span class="tile"></span><span id="mwTitle">Zusammenfügen – Lumora</span><span class="wc"><span>&#xE921;</span><span>&#xE922;</span><span>&#xE8BB;</span></span></div>
+  <div class="mbody" id="mbody"></div>
+  <div class="mfoot" id="mfoot"></div>
+</div>
+
+</div></div>
+<div class="caption" id="cap"></div>
+
+<script>
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const ph=['#9EC9E8,#3F7FB2','#F7D99A,#C78F2B','#C8E0B5,#5E8B47','#E6B8C8,#A0567A','#D8D3EC,#6E64A8','#F3B9A8,#B4553F','#BFD9DA,#3E8287'];
+const PH=i=>`<div class="ph" style="background:linear-gradient(160deg,${ph[i%7]})"></div>`;
+
+/* Art-Symbole als Inline-SVG (keine externen Dateien) */
+const KI={
+ pano:'<path d="M1 3.5Q6 2 11 3.5V8.5Q6 7 1 8.5Z"/>',
+ hdr:'<circle cx="6" cy="6" r="4.5"/><path d="M6 1.5A4.5 4.5 0 0 1 6 10.5Z" fill="currentColor"/>',
+ stack:'<rect x="1" y="4" width="7" height="6.5" rx="1"/><path d="M3 2h7.5v6.5"/>',
+ denoise:'<path d="M6 1v2.5M6 8.5V11M1 6h2.5M8.5 6H11M2.6 2.6l1.6 1.6M7.8 7.8l1.6 1.6M9.4 2.6L7.8 4.2M4.2 7.8L2.6 9.4"/>',
+ people:'<circle cx="6" cy="3.4" r="1.8"/><path d="M2.6 10.6c.5-3.2 6.3-3.2 6.8 0M1.4 1.4l9.2 9.2"/>',
+ long:'<path d="M1 4q2.5-2 5 0t5 0M1 8q2.5-2 5 0t5 0"/>',
+ focus:'<circle cx="6" cy="6" r="1.7" fill="currentColor"/><path d="M1 4V1h3M8 1h3v3M11 8v3H8M4 11H1V8"/>',
+ interval:'<circle cx="6" cy="6" r="4.6"/><path d="M6 3.2V6l2 1.3"/>',
+ panohdr:'<path d="M1 3.5Q6 2 11 3.5V8.5Q6 7 1 8.5Z"/><path d="M4 6h4M6 4.2v3.6"/>',
+ group:'<circle cx="4" cy="4.4" r="1.8"/><circle cx="8.3" cy="4.4" r="1.8"/><path d="M1 10.6c.5-2.2 5.5-2.2 6 0M5.4 10.6c.5-2.2 5.5-2.2 6 0"/>',
+ merge:'<path d="M1.5 2.5h3l3 3.5h3M1.5 9.5h3l3-3.5"/><path d="M9 4.4L10.6 6 9 7.6"/>'};
+const ki=(k,c='')=>`<svg class="ki ${c}" viewBox="0 0 12 12">${KI[k]}</svg>`;
+
+function scene(o={}){
+  const {x=0,y=0,cls='',f='',extra='',sun=false,clouds=false}=o;
+  return `<div class="scene ${cls}" style="--x:${x};--y:${y};${f?`filter:${f};`:''}"><div class="in"><i class="sk"></i>${sun?'<i class="sun"></i>':''}${clouds?'<i class="cl c1"></i><i class="cl c2"></i><i class="cl c3"></i>':''}<i class="m1"></i><i class="m2"></i><i class="g"></i></div>${extra}</div>`;
+}
+/* 26 Drohnen-Fotos: 8 Richtungen × 3 Reihen + 2 steil nach unten */
+const ROWS=['+13°','−17°','−47°'];
+function droneShot(i){ if(i>=24) return {nadir:true,label:`−75° · ${i-23}`}; const r=Math.floor(i/8), d=i%8; return {x:d/7,y:[0,.45,.9][r],label:`R${r+1} · ${d*45}°`}; }
+function droneScene(i){ const s=droneShot(i); return s.nadir?scene({cls:'nadir'}):scene({cls:'w',x:s.x,y:s.y}); }
+
+/* ---------- Hauptfenster: Bausteine ---------- */
+const LIB_NORMAL='<span class="ic">&#xE8F1;</span><div><b>Familienfotos</b><small>Bibliothek wechseln</small></div>';
+const LIB_HIDDEN='<span class="ic">&#xE72E;</span><div><b>Privat</b><small>versteckte Bibliothek · X:</small></div>';
+function fcard({serOn=false,cond='<span class="cond">alle Fotos</span>',count='5 212 Dateien',neu='12'}={}){
+  return `<div class="fcard">
+   <div class="frow"><span class="lbl">DATEI</span><span class="chip">Alle</span><span class="chip"><span class="ic s">&#xEB9F;</span>Bilder</span><span class="chip"><span class="ic s">&#xEB52;</span>Nur Favoriten</span><span class="chip">Bewertung: egal</span><span class="chip">Ablage: Überall</span></div>
+   <div class="frow"><span class="lbl">INHALT</span><span class="chip">Tags</span><span class="chip">Personen</span><span class="chip">Motive</span><span class="chip">Ort</span><span class="chip">Tour</span><span class="chip">Doppelte</span>
+     <span class="chip ${serOn?'on':''}" data-go="filter:fly">${ki('stack')}Serien <span class="new">${neu} neu</span> ▾</span><span class="chip">Lieblinge</span></div>
+   <div class="active-row">Es gilt: ${cond}<span style="margin-left:auto">${count}</span></div></div>`;
+}
+const ghead=(crumb='')=>`<div class="ghead"><h1>Galerie</h1><div class="crumb">${crumb}</div></div>`;
+const dayh=(t,s='')=>`<div class="dayh">${t}<small>${s}</small></div>`;
+function tile(o={}){
+  const bg=o.scene||PH(o.i||0);
+  return `<div class="tile ${o.sel?'sel':''} ${o.dim?'dim':''}"${o.attr||''}><div class="bg"${o.f?` style="filter:${o.f}"`:''}>${bg}</div>
+    ${o.smk?`<span class="smk">${o.smk}</span>`:''}${o.dot?'<span class="sdot"></span>':''}${o.rmk?`<span class="rmk">${o.rmk}</span>`:''}
+    ${o.pair?`<span class="pair">${o.pair}</span>`:''}${o.vlen?`<span class="vlen"><span class="ic s">&#xE714;</span>${o.vlen}</span>`:''}
+    ${o.chk!==undefined?`<span class="tchk ${o.chk?'on':''}">&#xE73E;</span>`:''}${o.tip||''}</div>`;
+}
+function stile(o){
+  return `<div class="stile ${o.hov?'hov':''}"><div class="cv"><div class="bg">${o.cover}</div>
+     ${o.neu?'<span class="neu">neu</span>':''}${o.cloud?`<span class="cloud"><span class="ic s">&#xE753;</span>${o.cloud}</span>`:''}
+     ${o.hov?`<span class="oneclick"><span>${ki(o.k)}${o.btn}</span><span>▾</span></span>`:''}</div>
+     <div class="meta"><b>${ki(o.k)}${o.t}</b>${o.n}</div></div>`;
+}
+const SB=(info,act)=>`<span><span class="ic s">&#xE8F1;</span> Familienfotos</span><span>${info}</span><div class="act">${act}</div>`;
+const ACT_SERIES='<span class="spin"></span><span>Serien erkennen · 12 400 / 48 000</span><span class="mini"><i style="width:26%"></i></span>';
+const ACT_IDLE='<span class="ic s" style="color:var(--text-tertiary)">&#xE73E;</span><span style="color:var(--text-tertiary)">Keine Aktivität</span>';
+
+/* Serien-Kacheln (eine Kachel je Serie) */
+function seriesTiles(hov=true){
+  return dayh('Sa, 14. Juni 2025','3 Serien')+
+   stile({k:'pano',t:'Panorama · Kugel 360°',n:'26 Fotos · 51 s',neu:true,hov,btn:'Panorama 360° zusammenfügen',cover:scene({cls:'w',x:.15,y:.3})})+
+   stile({k:'pano',t:'Panorama · Zylinder',n:'21 Fotos · 38 s',neu:true,cover:scene({cls:'w',x:.5,y:.35,sun:true})})+
+   stile({k:'pano',t:'Panorama · Perspektive',n:'9 Fotos · 14 s',neu:true,cover:scene({cls:'w',x:.8,y:.2,clouds:true})})+
+   dayh('So, 15. Juni 2025','4 Serien')+
+   stile({k:'pano',t:'Panorama · Kugel 360°',n:'26 Fotos · 49 s',cloud:'3 nur in OneDrive',cover:scene({cls:'w',x:.3,y:.4})})+
+   stile({k:'pano',t:'Panorama · Vertikal',n:'3 Fotos · 5 s',cover:scene({cls:'w',x:.65,y:.1})})+
+   stile({k:'pano',t:'Panorama · Automatisch',n:'14 Fotos · 30 s · kein sicherer Vorschlag',cover:scene({cls:'w',x:.9,y:.5,sun:true})})+
+   stile({k:'pano',t:'Panorama · Zylinder',n:'21 Fotos · 40 s',cover:scene({cls:'w',x:.05,y:.25,clouds:true})});
+}
+
+/* ---------- Fenster „Zusammenfügen“: Bausteine ---------- */
+const METHODS=[
+ {k:'pano',n:'Panorama',i:'pano',st:1,go:'pano:kugel'},
+ {k:'hdr',n:'Belichtungsreihe (HDR)',i:'hdr',st:4,go:'hdr:nat'},
+ {k:'denoise',n:'Entrauschen / mehr Details',i:'denoise',st:4,go:'burst:denoise'},
+ {k:'people',n:'Leute entfernen',i:'people',st:4,go:'burst:people'},
+ {k:'long',n:'Langzeitbelichtung',i:'long',st:4,go:'burst:long'},
+ {k:'focus',n:'Fokus-Stapel',i:'focus',st:5,go:'focus'},
+ {k:'tl',n:'Zeitraffer',i:'interval',st:5,go:'tl'},
+ {k:'hdrpano',n:'HDR-Panorama',i:'panohdr',st:5,go:'pano:hdrpano'},
+ {k:'group',n:'Bestes Gruppenfoto',i:'group',st:6,go:'group'}];
+const NO=r=>['no',r];
+const FIT={
+ pano:{pano:['ok','überlappend ≈ 35 % · Gimbal 8 × 3 + 2'],hdr:NO('Belichtung überall gleich'),denoise:NO('Kamera schwenkt'),people:NO('Kamera schwenkt'),long:NO('Kamera schwenkt'),focus:NO('Fokus überall gleich'),tl:NO('kein gleichmäßiger Abstand'),hdrpano:NO('keine Belichtungsstufen'),group:NO('keine Gesichter')},
+ hdrpano:{pano:['ok','geht auch: nur mittlere Belichtung'],hdr:NO('Kamera schwenkt'),denoise:NO('Kamera schwenkt'),people:NO('Kamera schwenkt'),long:NO('Kamera schwenkt'),focus:NO('Fokus überall gleich'),tl:NO('kein gleichmäßiger Abstand'),hdrpano:['ok','26 Positionen × 3 Belichtungen'],group:NO('keine Gesichter')},
+ hdr:{pano:NO('gleicher Bildausschnitt'),hdr:['ok','5 Stufen · −2 … +2 EV'],denoise:NO('Belichtung gestuft'),people:NO('nur 1,2 s'),long:NO('Belichtung gestuft'),focus:NO('Fokus gleich'),tl:NO('nur 5 Fotos'),hdrpano:NO('kein Schwenk'),group:NO('keine Gesichter')},
+ burst:{pano:NO('Kamera steht'),hdr:NO('Belichtung überall gleich'),denoise:['ok','ISO 1600 · 16 Fotos'],people:['ok','16 Fotos über 24 s'],long:['ok','Kamera steht'],focus:NO('Fokus gleich'),tl:NO('nur 16 Fotos'),hdrpano:NO('kein Schwenk'),group:NO('keine Gesichter')},
+ focus:{pano:NO('Kamera steht'),hdr:NO('Belichtung gleich'),denoise:NO('Fokus wandert'),people:NO('nur 6 s'),long:NO('Fokus wandert'),focus:['ok','Fokus 0,21 → 0,34 m'],tl:NO('nur 8 Fotos'),hdrpano:NO('kein Schwenk'),group:NO('keine Gesichter')},
+ group:{pano:NO('Kamera steht'),hdr:NO('Belichtung gleich'),denoise:NO('ISO 200 · kaum Rauschen'),people:NO('Personen sind das Motiv'),long:NO('Personen bewegen sich'),focus:NO('Fokus gleich'),tl:NO('nur 6 Fotos'),hdrpano:NO('kein Schwenk'),group:['ok','5 Gesichter je Foto']},
+ tl:{pano:NO('Kamera steht'),hdr:NO('Belichtung gleich'),denoise:NO('Licht wechselt (40 min)'),people:NO('Licht wechselt'),long:['ok','Kamera steht · nur Ausschnitt'],focus:NO('Fokus gleich'),tl:['ok','480 Fotos · alle 5 s'],hdrpano:NO('kein Schwenk'),group:NO('keine Gesichter')}};
+FIT.one=Object.fromEntries(METHODS.map(m=>[m.k,NO('nur 1 Foto angehakt')]));
+
+function mleft(o){
+  return `<div class="mleft ${o.lock?'locked':''}"><div class="srcinfo">${o.src}</div><h4>Verfahren</h4>
+   ${METHODS.map(m=>{const f=FIT[o.fit][m.k]; const later=o.stufe1&&m.k!=='pano';
+     return `<div class="meth ${m.k===o.sel?'on':''} ${f[0]==='no'?'no':''} ${later?'later':''}" data-go="${m.go}"><span class="mic">${ki(m.i)}</span><div><b>${m.n}${m.k===o.sugg?'<span class="sg">Vorschlag</span>':''}</b><small>${later?'kommt in Stufe '+m.st:f[1]}</small></div><span class="fit ${later?'later':f[0]}">${later?'kommt später':(f[0]==='ok'?'passt':'eher nicht')}</span></div>`;}).join('')}
+   <div class="why"><h5><span class="ic s">&#xE946;</span>${o.whyTitle||'Warum dieser Vorschlag'}</h5><ul>${o.why.map(w=>`<li>${w}</li>`).join('')}</ul></div></div>`;
+}
+const sbarHtml=(toggles,mid,zoom=true)=>`<div class="sbar">${toggles.map(t=>`<span class="tg ${t[1]?'on':''}">${t[0]}</span>`).join('')}<span class="mid">${mid}</span>${zoom?'<span class="zm"><span>−</span><span>Einpassen</span><span>+</span></span>':''}</div>`;
+const PRIO='<span class="pr">Vorrang</span>';
+function film(label,items){ return `<div class="film"><div class="fl">${label}</div>${items.join('')}</div>`; }
+const fth=(im,lab,o={})=>`<div class="fth ${o.off?'off':''} ${o.ref?'ref':''}"><div class="im">${im}<span class="c">&#xE73E;</span>${o.wm?`<span class="wm">${o.wm}</span>`:''}</div>${o.cb?`<div class="cb" style="background:${o.cb}"></div>`:''}<small>${lab}</small></div>`;
+function foot({file,album=null,est,primary='Als neue Datei speichern',tags=true,place='neben dem ersten Einzelbild'}){
+  return `<span class="file">${file}</span><span class="dd">${place}</span>
+   ${album?`<label><span class="chk on">&#xE73E;</span>auch ins Album „${album}“</label>`:''}
+   ${tags?'<label title="nur Tags, die alle Quellen tragen; keine Sterne, kein Favorit"><span class="chk on">&#xE73E;</span>gemeinsame Tags</label>':''}
+   <span class="est2">${est}</span><button class="btn-std">Verwerfen</button><button class="btn-acc">${primary}</button>`;
+}
+function upscaleBox({on=false,dis=false,reason='',mp='',x2=true,x4=false}){
+  return `<div class="osec"><h4>Ergebnis</h4><div class="upbox ${dis?'off':''}">
+    <div class="h"><span class="chk ${dis?'off':(on?'on':'')}">&#xE73E;</span>Danach hochskalieren<span style="margin-left:auto" class="seg"><button class="${on&&x2?'on':''}" ${dis||!x2?'disabled':''}>2×</button><button ${dis||!x4?'disabled':''}>4×</button></span></div>
+    ${dis?`<div class="onote off">${reason}</div>`:`<div class="orow"><span class="onote">Modell (aus „Foto verbessern“)</span><span class="dd">Real-ESRGAN x4plus</span></div><div class="onote">${mp}</div>`}
+    ${dis?'':'<div class="onote off">Nur nach dem Zusammenfügen. Grenzen wie „Foto verbessern“ (≤ 64 MP, Ladekante ≤ 10 000 px, JPEG ≤ 65 535 px): 2× bis 16 MP, 4× bis 4 MP.</div>'}</div></div>`;
+}
+
+/* Panorama-Aufnahmearten */
+const PROJ={
+ kugel:{n:'Kugel 360°',s:'2 : 1 · für 360°-Betrachter',w:660,h:330,gaps:true,size:['Klein ≈ 40 MP','16K · 134 MP','Voll ≈ 450 MP'],dims:'16 384 × 8 192'},
+ zyl:{n:'Zylinder',s:'Schwenk bis ≈ 180° und mehr',w:680,h:200,clip:'polygon(0 10%,8% 4%,17% 9%,26% 2%,36% 8%,47% 1%,58% 7%,69% 2%,80% 8%,90% 3%,100% 9%,100% 90%,91% 97%,80% 92%,69% 98%,58% 93%,47% 99%,36% 92%,26% 98%,17% 91%,8% 96%,0 90%)',crop:'11% 0 11% 0',size:['Klein ≈ 40 MP','Vorschlag · 118 MP','Voll ≈ 310 MP'],dims:'≈ 21 800 × 5 400'},
+ persp:{n:'Perspektive',s:'wenige Bilder · Weitwinkel 3 × 3',w:600,h:340,clip:'polygon(0 0,30% 12%,70% 12%,100% 0,100% 100%,70% 88%,30% 88%,0 100%)',crop:'14% 6% 14% 6%',size:['Klein ≈ 40 MP','Vorschlag · 96 MP','Voll ≈ 380 MP'],dims:'≈ 12 000 × 8 000'},
+ vert:{n:'Vertikal',s:'senkrechter Schwenk',w:220,h:470,clip:'polygon(6% 0,94% 2%,100% 34%,96% 66%,100% 100%,2% 98%,0 66%,4% 33%)',crop:'3% 7% 3% 7%',size:['Klein ≈ 40 MP','Vorschlag · 64 MP','Voll ≈ 120 MP'],dims:'≈ 5 300 × 12 000'},
+ shift:{n:'Nur verschieben',s:'Scans, flache Vorlagen',w:560,h:340,clip:'polygon(0 0,40% 0,40% 6%,72% 6%,72% 12%,100% 12%,100% 100%,60% 100%,60% 94%,28% 94%,28% 88%,0 88%)',crop:'12% 0 12% 0',size:['Klein ≈ 40 MP','Vorschlag · 88 MP','Voll ≈ 300 MP'],dims:'≈ 11 500 × 7 700'}};
+function seamsSvg(){
+  let p=''; for(let i=1;i<8;i++){const x=i*12.5; p+=`<path d="M${x} 0C${x+1.6} 20 ${x-1.6} 40 ${x} 50S${x+1.6} 80 ${x} 100"/>`;}
+  p+='<path d="M0 38C20 36 40 40 60 37S85 39 100 38"/><path d="M0 64C25 66 50 62 75 65S90 63 100 64"/>';
+  return `<svg class="seams" viewBox="0 0 100 100" preserveAspectRatio="none" fill="none" stroke="rgba(255,255,255,.75)" stroke-width=".35" stroke-dasharray="1.2 1">${p}</svg>`;
+}
+function panoStage(p,{seams=false,label='',hdr=false}={}){
+  const P=PROJ[p];
+  return `<div class="cbox" style="width:${P.w}px;height:${P.h}px">
+    <div class="cimg" style="${P.clip?`clip-path:${P.clip};`:''}">${scene({sun:true,clouds:true,f:hdr?'contrast(1.08) saturate(1.15)':''})}
+      ${P.gaps?'<div class="gaps" style="top:0;height:11%">Zenit · Lücke wird gefüllt (weicher Verlauf)</div><div class="gaps" style="bottom:0;height:11%">Nadir · Lücke wird gefüllt</div>':''}
+      ${seams?seamsSvg():''}</div>
+    ${P.crop?`<div class="crop" style="inset:${P.crop}"></div>`:''}
+    <div class="clbl">${label}</div></div>`;
+}
+function projSketch(k){
+  if(k==='auto') return '<i class="auto">A</i>';
+  const P=PROJ[k]; const s=Math.min(60/P.w,28/P.h); const w=Math.round(P.w*s), h=Math.round(P.h*s);
+  return `<i style="width:${w}px;height:${h}px;${P.clip?`clip-path:${P.clip};`:''}"></i>`;
+}
+function projTiles(cur,sugg='kugel'){
+  const L=[['auto','Automatisch','übernimmt den Vorschlag'],...['kugel','zyl','persp','vert','shift'].map(k=>[k,PROJ[k].n,PROJ[k].s])];
+  return `<div class="projs">${L.map(([k,n,s])=>`<button class="proj ${k===cur?'on':''}" data-proj="${k}"><span class="psk">${projSketch(k)}</span><b>${n}</b><small>${s}</small>${k===sugg?'<span class="sg">Vorschlag</span>':''}</button>`).join('')}</div>`;
+}
+const PANO_SRC='<b>26 Fotos · Serie „Panorama“</b>Sa, 14.06.2025 · 51 s<br>Drohne (DJI) · je DNG + JPEG';
+const PANO_WHY=['DJI-Panorama-Ordner (Name NNN_NNNN)','Gimbal: 8 Richtungen × 3 Reihen + 2 steil nach unten','Gier 360°, Neigung +13° bis −75° → Kugel 360°','26 Fotos in 51 s, gleiche Kamera (EXIF)','Überlappung ≈ 35 % (Vorschaubilder)'];
+function panoFilm(){ return film('Quellen<b>26 von 26</b>angehakt',Array.from({length:26},(_,i)=>fth(droneScene(i),droneShot(i).label))); }
+function panoOpts(p,{hdrpano=false}={}){
+  const k=(p==='auto'||p==='s1'||p==='hdrpano')?'kugel':p, P=PROJ[k];
+  const crop = k==='kugel' ? ['2 : 1, Lücken füllen','Gerade Kanten (≈ 5 : 1)','Ungeschnitten'] : ['Gerade Kanten','Lücken füllen','Ungeschnitten'];
+  return `<h3>${ki(hdrpano?'panohdr':'pano','l')}${hdrpano?'HDR-Panorama':'Panorama'}</h3>
+   ${hdrpano?`<div class="osec"><h4>Gruppen</h4><div class="upbox"><div class="h">26 Positionen × 3 Belichtungen</div><div class="onote">je Position −2 / 0 / +2 EV erkannt (wiederkehrende Gimbal-Stellung) · erst je Position fusionieren, dann Panorama</div></div>
+     <div class="orow"><span>HDR-Stil</span><span class="seg"><button class="on">Natürlich</button><button>Kräftig</button></span></div><div class="orow"><span>Geister entfernen</span><span class="sw on"></span></div></div>`:''}
+   <div class="osec"><h4>Aufnahmeart</h4>${projTiles(p==='auto'?'auto':k)}
+     <div class="onote">Vorschlag aus Bildzahl und Gimbal-Winkeln · Umschalten rechnet nur die Projektion neu.</div></div>
+   <div class="osec"><h4>Zuschnitt</h4><span class="seg">${crop.map((c,i)=>`<button class="${i===0?'on':''}">${c}</button>`).join('')}</span></div>
+   <div class="osec"><div class="orow"><span>Belichtung ausgleichen</span><span class="sw on"></span></div><div class="orow"><span>Horizont gerade (Wellenkorrektur)</span><span class="sw on"></span></div></div>
+   <div class="osec"><h4>Quelle</h4><span class="seg"><button>JPEG</button><button class="on">RAW (DNG) · 16 bit</button></span>
+     <div class="onote">Raw-Bilderweiterung gefunden · Vorschau aus den JPEG-Geschwistern · <span class="chk" style="width:12px;height:12px;vertical-align:-2px"></span> Farben an JPEG angleichen</div></div>
+   <div class="osec"><h4>Größe</h4><span class="seg"><button>${P.size[0]}</button><button class="on">${P.size[1]}</button><button disabled>${P.size[2]}</button></span>
+     <div class="onote">${P.dims}. „Voll“ braucht ≈ 12 GB Arbeitsspeicher, frei sind 9 GB. Keine Kante über 65 535 px (JPEG-Grenze).</div></div>
+   ${upscaleBox({dis:true,reason:'Panorama hat 134 MP — Hochskalieren geht nur bis 16 MP (2×) bzw. 4 MP (4×). Für mehr Pixel bei „Größe“ mehr wählen.'})}`;
+}
+
+/* ---------- Ansichten ---------- */
+const V={};
+
+/* 1 Galerie mit Marken */
+V.marks=()=>{
+  const t=[dayh('Sa, 14. Juni 2025','Ordner „Ausflüge 2025“ (Beispiel) · 3 Serien, 1 Ergebnis')];
+  t.push(tile({scene:scene({sun:true,clouds:true}),rmk:`${ki('pano')}Panorama · aus 26 Fotos`}));
+  t.push(tile({i:0}),tile({i:2,pair:'2 Fassungen'}));
+  t.push(tile({scene:scene({f:'brightness(.45)'}),smk:`${ki('hdr')}Serie · 5 Fotos`}));
+  [.7,1,1.4,1.9].forEach((b,i)=>t.push(tile({scene:scene({f:`brightness(${b})`}),dot:true,tip:i===0?'<div class="tip" style="left:10px;top:24px">Teil einer Serie mit 5 Fotos<br><span class="muted">Belichtungsreihe · Marke auf dem ersten Foto</span></div>':''})));
+  t.push(dayh('So, 15. Juni 2025','Serie noch offen · Serie schon zusammengefügt'));
+  t.push(tile({scene:scene({cls:'w',x:0,y:.35}),smk:`${ki('pano')}Serie · 21 Fotos`}));
+  [1,2,3].forEach(i=>t.push(tile({scene:scene({cls:'w',x:i/20,y:.35}),dot:true})));
+  t.push(tile({i:4,vlen:'0:12'}));
+  t.push(tile({scene:scene({cls:'night'}),smk:`${ki('stack')}Serie · 16 Fotos<span class="ok">&#xE73E;</span>`}));
+  [1,2,3,4,5].forEach(()=>t.push(tile({scene:scene({cls:'night'}),dot:true})));
+  t.push(tile({i:5}));
+  return ghead('Bibliotheksordner › <b>Ausflüge 2025</b>')+fcard({cond:'<span class="cond"><span class="ic s">&#xE8B7;</span>Ordner: Ausflüge 2025 ✕</span>',count:'64 von 5 212 Dateien · 26 Quellen eingeklappt'})+`<div class="gal" style="--cols:6">${t.join('')}</div>`;
+};
+/* 2 Filter Serien */
+V.filter=(s)=>{
+  const fly = s==='fly' ? `<div class="flyout" style="right:24px;top:150px">
+    <div class="hd">${ki('stack','l')}Serien<small>Erkennung aktuell</small></div>
+    <div class="sec">Arten</div>
+    <div class="li"><span class="chk on">&#xE73E;</span>${ki('pano')}<span>Panorama</span><span class="n">110</span></div>
+    ${[['Kugel 360°',48],['Zylinder',43],['Perspektive',6],['Vertikal',3],['andere Bildzahl (Art aus Gimbal)',10]].map(([n,c])=>`<div class="li sub"><span class="chk on">&#xE73E;</span><span>${n}</span><span class="n">${c}</span></div>`).join('')}
+    <div class="li"><span class="chk">&#xE73E;</span>${ki('hdr')}<span>Belichtungsreihe</span><span class="n">14</span></div>
+    <div class="li"><span class="chk">&#xE73E;</span>${ki('stack')}<span>Serienbild</span><span class="n">37</span></div>
+    <div class="li"><span class="chk">&#xE73E;</span>${ki('focus')}<span>Fokusreihe</span><span class="n">2</span></div>
+    <div class="li"><span class="chk">&#xE73E;</span>${ki('interval')}<span>Intervall</span><span class="n">3</span></div>
+    <div class="li zero"><span class="chk">&#xE73E;</span>${ki('panohdr')}<span>Panorama-Belichtungsreihe</span><span class="n">0</span></div>
+    <div class="sec">Zustand</div>
+    <div class="seg2"><span class="chip sm">Neu · 12</span><span class="chip sm on">Offen</span><span class="chip sm">Alle</span><span class="chip sm">Zusammengefügt · 2</span><span class="chip sm">Verworfene · 1</span></div>
+    <div class="li" style="grid-template-columns:1fr auto"><span>Eine Kachel je Serie</span><span class="sw on"></span></div>
+    <div class="st"><span class="ic s">&#xE753;</span>3 Ordner nur in OneDrive — nur mit Katalogdaten erkannt, nichts heruntergeladen</div>
+    <div class="ft"><button class="btn-std" data-go="batch">${ki('merge')}Alle 108 sichtbaren zusammenfügen…</button><span style="margin-left:auto">im Album speicherbar</span></div></div>` : '';
+  return ghead()+fcard({serOn:true,cond:`<span class="cond">${ki('stack')}Serien: Panoramen, offen ✕</span><span class="cond">eine Kachel je Serie</span>`,count:'108 Serien · über 2 200 Fotos'})
+   +`<div class="gal" style="--cols:4;gap:10px 14px">${seriesTiles(true)}</div>`+fly;
+};
+/* 3 Geöffnete Serie */
+V.series=(s)=>{
+  const adj=s==='adjust';
+  const drop = s==='drop' ? `<div class="menu" style="left:0;top:calc(100% + 4px);min-width:330px">
+     <div class="mhead">Aus dieser Serie</div>
+     <div class="mi hov">${ki('pano')}<span>Panorama · Kugel 360° <span class="badge">Vorschlag</span></span><span class="k">passt</span></div>
+     <div class="mi">${ki('pano')}<span>Panorama · andere Aufnahmeart…</span><span class="k">passt</span></div>
+     <div class="mi">${ki('panohdr')}<span>HDR-Panorama <small>· keine Belichtungsstufen</small></span><span class="k">eher nicht</span></div>
+     <div class="mi">${ki('interval')}<span>Zeitraffer <small>· kein gleichmäßiger Abstand</small></span><span class="k">eher nicht</span></div>
+     <div class="mi">${ki('denoise')}<span>Entrauschen <small>· Kamera schwenkt</small></span><span class="k">eher nicht</span></div>
+     <div class="msep"></div><div class="mi">${ki('merge')}<span>Alle Verfahren im Fenster…</span><span class="k"></span></div></div>` : '';
+  const tiles=Array.from({length:26},(_,i)=>tile({scene:droneScene(i),smk:i===0&&!adj?`${ki('pano')}Serie · 26 Fotos`:'',dot:i>0&&!adj,chk:adj?!(i===24||i===25):undefined,dim:adj&&(i===24||i===25)}));
+  return ghead('Bibliotheksordner › Ausflüge 2025 › <b>Serie</b>')+fcard({cond:`<span class="cond">${ki('pano')}Serie: Panorama · 26 Fotos ✕</span>`,count:'26 von 5 212 Dateien'})
+   +`<div class="serbar"><div class="sp">${ki('pano','l')}</div>
+      <div><b>Panorama · Kugel 360° · 26 Fotos</b>
+       <div class="facts"><span>Sa, 14.06.2025 · 10:42:05–10:42:56 (51 s)</span><span>Drohne (DJI)</span><span>Sicherheit hoch</span></div>
+       <div class="rchips"><span class="rchip">DJI-Panorama-Ordner</span><span class="rchip">Gimbal 8 × 3 + 2</span><span class="rchip">Gier 360°</span><span class="rchip">gleiche Kamera</span><span class="rchip">Überlappung ≈ 35 %</span></div></div>
+      <div class="probe">${scene({sun:true,clouds:true})}<small>Probe-Vorschau</small></div>
+      <div class="acts"><span class="split-acc"><button class="btn-acc" data-go="pano:kugel">${ki('pano')}Panorama 360° zusammenfügen</button><button class="btn-acc" data-go="series:drop">▾</button>${drop}</span>
+       <button class="btn-std">Alle auswählen</button><button class="btn-std ${adj?'on':''}" data-go="series:adjust">Serie anpassen</button><button class="btn-std">Keine Serie</button></div></div>`
+   +(adj?`<div class="hintbar"><span class="ic s">&#xE70F;</span><span><b>Serie anpassen:</b> Haken entfernen nimmt ein Foto heraus (2 herausgenommen). Fotos von außerhalb: auswählen › Rechtsklick › Bearbeiten › Zur Serie hinzufügen ▸. Bleibt beim erneuten Erkennen gemerkt.</span><span class="sp"></span><button class="btn-acc" data-go="series:open">Fertig</button></div>`:'')
+   +`<div class="gal" style="--cols:8;gap:6px">${tiles.join('')}</div>`;
+};
+/* 4 Rechtsklick */
+function menuHtml(items,left,top,min=262){
+  return `<div class="menu" style="left:${left}px;top:${top}px;min-width:${min}px">${items.map(it=>{
+    if(it==='-') return '<div class="msep"></div>';
+    const [ic,tx,k='',cls='']=it; return `<div class="mi ${cls}">${ic.startsWith('<svg')?ic:`<span class="ic">${ic}</span>`}<span>${tx}</span><span class="k">${k}</span></div>`;}).join('')}</div>`;
+}
+/* wie PhotoContextMenuBuilder: bei Mehrfachauswahl ohne Öffnen, Personen, Titelbild, Suchen, Eigenschaften;
+   in der Lightbox ohne Öffnen und Suchen (kein Host dafür), Diashow mit „S“ */
+function photoMenu(open,single,left,top,lb=false){
+  const it=[...(single&&!lb?[['&#xE8A7;','Öffnen','Enter']]:[]),['&#xE768;','Diashow',lb?'S':''],'-',['&#xE734;','Bewerten','▸'],['&#xE8EC;','Tags','▸'],['&#xE8A9;','Kategorien','▸'],
+   ...(single?[['&#xE716;','Personen','▸']]:[]),['&#xE8F1;','Alben','▸'],['&#xE786;','Story','▸'],...(single?[['&#xEB9F;','Als Titelbild für','▸']]:[]),'-',
+   ['&#xE70F;','Bearbeiten','▸',open==='edit'?'hov':''],...(single&&!lb?[['&#xE721;','Suchen','▸',open==='search'?'hov':'']]:[]),'-',['&#xE7C3;','Datei','▸'],...(single?[['&#xE946;','Eigenschaften','']]:[])];
+  let y=top+4, subTop=top;
+  for(const i of it){ if(i==='-'){y+=9;continue;} if((open==='edit'&&i[1]==='Bearbeiten')||(open==='search'&&i[1]==='Suchen')){subTop=y-4;break;} y+=30; }
+  return {html:menuHtml(it,left,top), subTop, subLeft:left+258};
+}
+function listView(){
+  const r=[]; for(let i=0;i<14;i++){ const sel=i>=3&&i<=7; const t=new Date(2025,5,21,10,13,20+i*7); const p2=n=>String(n).padStart(2,'0');
+    r.push(`<tr class="${sel?'lsel':''}"><td><span class="lth">${sel?scene({cls:'w',x:(i-3)/9,y:.3}):PH(i)}</span></td><td class="mono">IMG_${String(405+i).padStart(4,'0')}.jpg</td><td>Sa, 21.06.2025 ${p2(t.getHours())}:${p2(t.getMinutes())}:${p2(t.getSeconds())}</td><td>Handy</td><td>${(2.6+((i*37)%10)/10).toFixed(1).replace('.',',')} MB</td></tr>`); }
+  return ghead('Bibliotheksordner › <b>Ausflüge 2025</b> · Listenansicht')+fcard({count:'212 von 5 212 Dateien'})
+   +`<div class="abar"><b>5 ausgewählt</b><button class="btn-std">${ki('merge')}Zusammenfügen…</button><button class="btn-std"><span class="ic s">&#xE945;</span>Verbessern…</button><button class="btn-std"><span class="ic s">&#xE8F1;</span>Zu Album ▸</button><span class="sp"></span></div>`
+   +`<div style="padding:0 24px;overflow:hidden;flex:1;min-height:0"><table class="tbl lst"><tr><th style="width:60px"></th><th>Name</th><th>Aufnahme</th><th>Kamera</th><th>Größe</th></tr>${r.join('')}</table></div>`;
+}
+function lbSingle(){
+  const strip=Array.from({length:16},(_,i)=>`<span class="t"${i===6?' style="width:66px;opacity:1;outline:2px solid #818CF8;outline-offset:-2px"':''}>${i>=3&&i<=10?scene({cls:'w',x:(i-3)/9,y:.3}):PH(i)}</span>`).join('');
+  return ghead()+`<div class="lb"><div class="stg">
+    <div class="top"><span class="ic s">&#xE72B;</span> Story „Sommer am See“ (Beispiel) · Foto 7 von 48<div class="r"><span>Verbessern</span><span>Info</span></div></div>
+    <div style="display:grid;place-items:center;min-height:0"><div class="pic" style="width:600px;height:400px">${scene({cls:'w',x:.35,y:.3,clouds:true})}</div></div>
+    <div class="mrow" style="color:#AAA">aus einer Story geöffnet · dieselbe Lightbox und dasselbe Foto-Menü wie aus Galerie und Liste</div>
+    <div class="strip">${strip}</div></div>
+    <div class="side"><h3>IMG_0412.jpg</h3><div class="muted">4 032 × 3 024 · 12 MP · Handy</div>
+     <h4>Aufnahme</h4><div class="kv"><span>Datum</span><span>Sa, 21.06.2025 10:15:08</span><span>Serie</span><span>keine erkannt</span><span>Ordner</span><span>Ausflüge 2025 (Beispiel)</span></div></div></div>`;
+}
+V.menu=(s)=>{
+  let tiles=[], head=ghead(), fc=fcard(), abar='', menus='', single=true, open='edit', body=null, lb=false;
+  if(s==='multi'||s==='off'){
+    single=false; tiles=[dayh('Sa, 14. Juni 2025','aus der Hand, keine erkannte Serie')];
+    for(let i=0;i<18;i++) tiles.push(tile({scene:i>=1&&i<=5?scene({cls:'w',x:(i-1)/9,y:.3}):PH(i),sel:i>=1&&i<=5||(s==='off'&&i===6)}));
+    abar=`<div class="abar"><b>${s==='off'?'6':'5'} ausgewählt</b><button class="btn-std" ${s==='off'?'disabled':''}>${ki('merge')}Zusammenfügen…</button><button class="btn-std"><span class="ic s">&#xE945;</span>Verbessern…</button><button class="btn-std"><span class="ic s">&#xE8F1;</span>Zu Album ▸</button><span class="sp"></span><button class="btn-std"><span class="ic s">&#xE74D;</span>Papierkorb</button><button class="ibtn"><span class="ic s">&#xE711;</span></button></div>`;
+    if(s==='off'){ fc=fcard({cond:'<span class="cond"><span class="ic s">&#xE71B;</span>Alle verknüpften Bibliotheken ✕</span>',count:'2 Bibliotheken'}); }
+  } else if(s==='list'){
+    single=false; body=listView();
+  } else if(s==='lb'){
+    lb=true; body=lbSingle();
+  } else if(s==='album'){
+    head=ghead('Alben › <b>Ausflüge</b> (Beispiel)'); fc=fcard({cond:'<span class="cond"><span class="ic s">&#xE8F1;</span>Album „Ausflüge“ ✕</span>',count:'9 von 148 im Album'});
+    single=false; tiles=[dayh('Sa, 21. Juni 2025','Weitwinkel 3 × 3')]; for(let i=0;i<9;i++) tiles.push(tile({scene:scene({cls:'w',x:(i%3)/2,y:Math.floor(i/3)*.45}),sel:true}));
+    for(let i=0;i<9;i++) tiles.push(tile({i:i+2}));
+  } else if(s==='series'||s==='mark'){
+    tiles=[dayh('Sa, 14. Juni 2025','Ordner „Ausflüge 2025“')]; tiles.push(tile({i:0}),tile({i:1}));
+    tiles.push(tile({scene:droneScene(0),smk:`${ki('pano')}Serie · 26 Fotos`,sel:s==='series'})); for(let i=1;i<10;i++) tiles.push(tile({scene:droneScene(i),dot:true}));
+    for(let i=0;i<6;i++) tiles.push(tile({i:i+3}));
+  } else if(s==='search'){
+    tiles=[dayh('Sa, 14. Juni 2025','Quellen sichtbar (Einklappen aus)')]; tiles.push(tile({scene:scene({sun:true,clouds:true}),rmk:`${ki('pano')}Panorama · aus 26 Fotos`}));
+    tiles.push(tile({scene:droneScene(0),smk:`${ki('pano')}Serie · 26 Fotos<span class="ok">&#xE73E;</span>`})); for(let i=1;i<10;i++) tiles.push(tile({scene:droneScene(i),dot:true,sel:i===3}));
+    for(let i=0;i<6;i++) tiles.push(tile({i:i+1}));
+  }
+  const L=470, T=200;
+  if(s==='mark'){
+    menus=menuHtml([['<svg class="ki" viewBox="0 0 12 12">'+KI.merge+'</svg>','Serie mit 26 Fotos zusammenfügen…','','new'],['&#xE8A7;','Fotos der Serie zeigen',''],'-',['&#xE711;','Keine Serie','']],L+20,T+40,280)
+      +`<div class="tip" style="left:${L+20}px;top:${T+170}px">Rechtsklick auf die Marke „Serie · 26 Fotos“ — die Kachel bleibt ein Automation-Blatt,<br>dieselben Aktionen gibt es im Foto-Menü und per Tastatur.</div>`;
+  } else {
+    if(s==='search') open='search';
+    const [ml,mt] = s==='list' ? [430,250] : s==='lb' ? [330,110] : [L,T-40];
+    const m=photoMenu(open,single&&s!=='album',ml,mt,lb);
+    let sub;
+    if(open==='search') sub=[['&#xEE6F;','Ähnliche Fotos'],['&#xE787;','Gleicher Tag'],['&#xE707;','Gleicher Ort'],['&#xE8C8;','Doppelte zeigen'],['&#xE716;','Gleiche Person(en)'],'-',[ki('stack'),'Gleiche Serie (26 Fotos)','neu','new'],[ki('pano'),'Zusammengefügtes Ergebnis','neu','new']];
+    else {
+      const merge = s==='multi'||s==='list' ? [ki('merge'),'5 Fotos zusammenfügen…','neu','new']
+        : s==='album' ? [ki('merge'),'9 Fotos zusammenfügen…','neu','new']
+        : s==='off' ? [ki('merge'),'6 Fotos zusammenfügen…','','off']
+        : s==='lb' ? [ki('merge'),'Zusammenfügen…','neu','new']
+        : [ki('merge'),'Serie mit 26 Fotos zusammenfügen…','neu','new'];
+      const enh = (s==='series'||s==='lb') ? 'Foto verbessern…' : (s==='album'?'9':s==='off'?'6':'5')+' Fotos verbessern…';
+      sub=[['&#xE787;','Datum setzen…'],['&#xE707;','Ort setzen…'],'-',['&#xE7AD;','Nach links drehen'],['&#xE7AD;','Nach rechts drehen'],'-',['&#xE945;',enh],merge,...(s==='multi'||s==='list'?[[ki('stack'),'Zur Serie hinzufügen','▸']]:[])];
+    }
+    menus=m.html+menuHtml(sub,m.subLeft,m.subTop,300);
+    if(s==='off') menus+=`<div class="tip" style="left:${m.subLeft-220}px;top:${m.subTop+272}px">Fotos aus verschiedenen Bibliotheken lassen sich nicht zusammenfügen.<br><span class="muted">Ebenso gesperrt: nur Videos, Archiv-Einträge, fehlende Dateien, OpenCV nicht geladen.</span></div>`;
+    if(s==='lb') menus+=`<div class="tip" style="left:${m.subLeft+10}px;top:${m.subTop+222}px">Ein Foto ohne Serie: das Fenster zeigt die Zeit-Nachbarn<br>(gleicher Ordner, gleiche Kamera, ± 2 min) — noch nicht angehakt.<br><span class="link" data-go="menu:nb">Fenster ansehen ›</span></div>`;
+  }
+  if(body) return body+menus;
+  return head+fc+abar+`<div class="gal" style="--cols:6">${tiles.join('')}</div>`+menus;
+};
+
+/* Fenster: Panorama (5) */
+function panoWin(p){
+  const hp=p==='hdrpano', s1=p==='s1', k=(p==='auto'||s1||hp)?'kugel':p;
+  const warn={auto:'<div class="wstrip info"><span class="ic s">&#xE946;</span>Automatisch → Kugel 360° (Gier-Spanne 360°, Neigung bis −75°). Lumora nimmt den Vorschlag; jede Art lässt sich wählen.</div>',
+    zyl:'<div class="wstrip info"><span class="ic s">&#xE946;</span>Zylinder: oben und unten wird gerade beschnitten (≈ 4 : 1). Die steil nach unten gerichteten 2 Fotos werden nicht gebraucht.<span class="lk">Zurück zu Kugel 360°</span></div>',
+    persp:'<div class="wstrip"><span class="ic s">&#xE7BA;</span>Perspektive passt für wenige Bilder bis ≈ 120°. Diese Serie deckt 360° ab — die Ränder würden stark gedehnt.<span class="lk">Zurück zu Kugel 360°</span></div>',
+    vert:'<div class="wstrip"><span class="ic s">&#xE7BA;</span>Vertikal passt zu einem senkrechten Schwenk. Diese Serie schwenkt seitlich (Gier 360°) — eher nicht.<span class="lk">Zurück zu Kugel 360°</span></div>',
+    shift:'<div class="wstrip"><span class="ic s">&#xE7BA;</span>Nur verschieben ist für Scans und flache Vorlagen: Drehungen der Kamera werden nicht ausgeglichen.<span class="lk">Zurück zu Kugel 360°</span></div>',
+    s1:'<div class="wstrip info"><span class="ic s">&#xE946;</span>Stufe 1: nur Panorama aktiv, die übrigen Verfahren kommen in den Stufen 4–6. Ohne Serien-Erkennung (Stufe 2) bewertet Lumora die freie Auswahl.</div>',
+    hdrpano:'<div class="wstrip info"><span class="ic s">&#xE946;</span>78 Fotos = 26 Positionen × 3 Belichtungen. Erst wird je Position fusioniert, dann zusammengesetzt.</div>'}[p]||'';
+  const lbl = `<b>${hp?'HDR-Panorama · ':''}${PROJ[k].n}${p==='auto'?' (automatisch)':''}</b> · Vorschau 4,6 MP aus Vorschaubildern`;
+  const filmHtml = hp ? film('Quellen<b>78 von 78</b>26 × 3',Array.from({length:26},(_,i)=>fth(droneScene(i),droneShot(i).label+' · ×3',{wm:i%5===0?'−2 0 +2':''})))
+                      : film('Quellen<b>'+(p==='zyl'?'24 von 26':'26 von 26')+'</b>angehakt',Array.from({length:26},(_,i)=>fth(droneScene(i),droneShot(i).label,{off:p==='zyl'&&i>=24,wm:p==='zyl'&&i>=24?'nicht gebraucht':''})));
+  return {title:'Zusammenfügen · '+(hp?'HDR-Panorama':'Panorama')+' – Lumora',
+   body:mleft({src:hp?'<b>78 Fotos · Serie „Panorama-Belichtungsreihe“</b>Sa, 14.06.2025 · 2 min 30 s<br>Drohne (DJI) · DNG + JPEG':PANO_SRC,fit:hp?'hdrpano':'pano',sel:hp?'hdrpano':'pano',sugg:hp?'hdrpano':'pano',stufe1:s1,
+     why:hp?['DJI-Panorama-Ordner','wiederkehrende Gimbal-Stellungen','Zyklus aus 3 Belichtungen (−2 / 0 / +2 EV)','gleiche Kamera, 2 min 30 s']:PANO_WHY})
+    +`<div class="mcenter">${warn||'<div></div>'}<div class="mstage">${panoStage(k,{seams:p==='kugel'||s1,label:lbl,hdr:hp})}</div>`
+    +sbarHtml([['Nähte',p==='kugel'||s1],['Lücken',k==='kugel'],['Zuschnitt',true],['Raster',false]],`Vorschau aktuell · 3,1 s ${PRIO}`)+filmHtml+'</div>'
+    +`<div class="mright">${panoOpts(p,{hdrpano:hp})}</div>`,
+   foot:foot({file:hp?'DJI_0001_hdr-panorama.jpg':'DJI_0001_panorama.jpg',est:`<b>≈ ${hp?'9':'3'} min</b> mit Vorrang · ${PROJ[k].dims} · ≈ ${k==='kugel'?48:40} MB<br>Arbeitsspeicher ≈ 5 GB von 9 GB frei`})};
+}
+/* 6 Belichtungsreihe */
+function hdrWin(s){
+  const strong=s==='strong';
+  const ev=['−2 EV','−1 EV','0 EV','+1 EV','+2 EV'], br=[.45,.7,1,1.4,1.9];
+  return {title:'Zusammenfügen · Belichtungsreihe – Lumora',
+   body:mleft({src:'<b>5 Fotos · Serie „Belichtungsreihe“</b>So, 15.06.2025 · 1,2 s<br>Kamera · automatische Reihe',fit:'hdr',sel:'hdr',sugg:'hdr',
+     why:['EXIF: automatische Belichtungsreihe (ExposureMode 2)','5 Stufen im Abstand 1 EV','gleiche Brennweite, Lücke ≤ 2 s','aus der Hand → ausrichten']})
+    +`<div class="mcenter"><div></div><div class="mstage"><div class="pic" style="width:640px;height:427px">
+       <div class="layer">${scene({sun:true,clouds:true,f:'brightness(1.3) contrast(.72) saturate(.65)'})}</div>
+       <div class="layer after">${scene({sun:true,clouds:true,f:strong?'contrast(1.3) saturate(1.45)':'contrast(1.08) saturate(1.15)'})}</div>
+       <div class="mask y" style="left:62%;top:58%;width:9%;height:16%"><small>Geist entfernt (Bewegung)</small></div>
+       <div class="split"></div><span class="lbl" style="left:10px">Vorher · 0 EV (mittlere Belichtung)</span><span class="lbl" style="right:10px">Nachher · ${strong?'Kräftig':'Natürlich'}</span></div></div>`
+    +sbarHtml([['Vorher/Nachher',true],['Geister',true]],`Vorschau aktuell · 1,4 s ${PRIO}`)
+    +film('Quellen<b>5 von 5</b>Bezug: 0 EV',ev.map((e,i)=>fth(scene({sun:true,clouds:true,f:`brightness(${br[i]})`}),e+(i===2?' · Bezug':''),{ref:i===2})))+'</div>'
+    +`<div class="mright"><h3>${ki('hdr','l')}Belichtungsreihe</h3>
+       <div class="osec"><h4>Stil</h4><span class="seg"><button class="${strong?'':'on'}">Natürlich (Exposure Fusion)</button><button class="${strong?'on':''}">Kräftig (HDR + Tonung)</button></span>
+         <div class="orow"><span class="onote">Tonung</span></div><div class="slider ${strong?'':'off'}"><i style="width:55%"></i><b style="left:55%"></b></div></div>
+       <div class="osec"><h4>Ausrichten</h4><span class="seg"><button class="on">aus der Hand</button><button>Stativ</button></span></div>
+       <div class="osec"><div class="orow"><span>Geister entfernen</span><span class="sw on"></span></div><div class="orow"><span class="onote">Bezugsbild</span><span class="dd">0 EV (Mitte)</span></div>
+         <div class="orow"><span class="onote">Vorher/Nachher gegen</span><span class="dd">mittlere Belichtung</span></div></div>
+       ${upscaleBox({on:true,x2:true,x4:false,mp:'12 MP → 48 MP · + ≈ 35 s auf der Grafikkarte · 4× nur bis 4 MP (ausgegraut)'})}</div>`,
+   foot:foot({file:'IMG_0001_hdr.jpg',est:'<b>≈ 20 s</b> + Hochskalieren ≈ 35 s · 48 MP · ≈ 14 MB<br>mit Vorrang, solange gerechnet wird'})};
+}
+/* 7 Serienbild */
+function burstWin(s){
+  const why=['Serienbild: 16 Fotos in 24 s, Lücke ≤ 2 s (SubSec)','gleiche Einstellungen, gleiche Kamera','ISO 1600 → Entrauschen','≥ 5 Fotos über ≥ 10 s → auch Leute entfernen','Kamera steht (Bildprüfung) → auch Langzeit'];
+  let stage, opts, file, est, toggles;
+  if(s==='denoise'){
+    stage=`<div class="pic" style="width:640px;height:427px"><div class="layer">${scene({cls:'night'})}<div class="noise"></div></div><div class="layer after">${scene({cls:'night',f:'contrast(1.05)'})}</div>
+      <div class="split"></div><span class="lbl" style="left:10px">Vorher · schärfstes Einzelbild (Foto 7)</span><span class="lbl" style="right:10px">Nachher · aus 16 Fotos</span></div>`;
+    toggles=[['Vorher/Nachher',true],['Ausreißer',false]];
+    opts=`<h3>${ki('denoise','l')}Entrauschen / mehr Details</h3>
+      <div class="osec"><h4>Stärke</h4><div class="slider"><i style="width:60%"></i><b style="left:60%"></b></div><div class="onote">Ausreißer verwerfen (Sigma-Clipping) — bewegte Stellen nimmt Lumora aus dem Bezugsbild.</div></div>
+      <div class="osec"><div class="orow"><span class="onote">Bezugsbild</span><span class="dd">schärfstes (Foto 7)</span></div></div>
+      <div class="osec"><h4>Mehr Details aus der Serie</h4><span class="seg"><button>Aus</button><button class="on">1,5×</button><button>2×</button></span>
+        <div class="onote">Ab 8 Fotos aus der Hand: rechnet auf feinerem Gitter (12 MP → 27 MP). Die echte Alternative zum Hochskalieren.</div></div>
+      ${upscaleBox({dis:true,reason:'Mit „Mehr Details 1,5×“ hat das Ergebnis 27 MP — Hochskalieren 2× geht nur bis 16 MP. Ohne „Mehr Details“: 12 MP → 48 MP.'})}`;
+    file='IMG_0001_entrauscht.jpg'; est='<b>≈ 45 s</b> · 27 MP · ≈ 9 MB<br>mit Vorrang, solange gerechnet wird';
+  } else if(s==='people'){
+    const figs=[[18,20,22],[34,16,18],[52,22,24],[71,18,20],[83,24,26]].map(([l,b,h])=>`<i class="fig ghost" style="left:${l}%;bottom:${b}%;height:${h}%"></i>`).join('');
+    stage=`<div class="pic" style="width:640px;height:427px"><div class="layer">${scene({clouds:true,extra:figs})}</div>
+      <div class="mask" style="left:15%;top:52%;width:11%;height:32%"></div><div class="mask" style="left:31%;top:58%;width:9%;height:28%"></div>
+      <div class="mask" style="left:49%;top:50%;width:10%;height:32%"><small>verändert</small></div><div class="mask" style="left:68%;top:56%;width:9%;height:30%"></div>
+      <div class="mask y" style="left:80%;top:48%;width:11%;height:34%"><small style="left:auto;right:100%;margin:0 6px 0 0">nicht oft genug frei — bleibt wie im Bezugsbild</small></div>
+      <span class="lbl" style="left:10px">Ergebnis · Median über 16 Fotos · Maske „veränderte Stellen“</span></div>`;
+    toggles=[['Maske',true],['Vorher/Nachher',false]];
+    opts=`<h3>${ki('people','l')}Leute entfernen</h3>
+      <div class="osec"><div class="orow"><span class="onote">Bezugsbild</span><span class="dd">Foto 1</span></div><div class="orow"><span>Maske „veränderte Stellen“</span><span class="sw on"></span></div></div>
+      <div class="hint info"><span class="ic s">&#xE946;</span><span>Jede Stelle muss in den meisten Fotos frei sein. 4 Stellen ersetzt, 1 Stelle (gelb) war zu selten frei.</span></div>
+      <div class="osec"><h4>Pinsel</h4><button class="btn-std" disabled>Aus Foto n übernehmen…</button><div class="onote off">kommt später (Ausblick)</div></div>
+      ${upscaleBox({on:false,mp:'12 MP → 48 MP (2×) · + ≈ 30 s'})}`;
+    file='IMG_0001_ohne-leute.jpg'; est='<b>≈ 30 s</b> · 12 MP · ≈ 5 MB<br>mit Vorrang, solange gerechnet wird';
+  } else {
+    stage=`<div class="pic" style="width:640px;height:427px"><div class="layer">${scene({clouds:true,extra:'<div class="water rough"></div>'})}</div><div class="layer after">${scene({clouds:true,extra:'<div class="water soft"></div>'})}</div>
+      <div class="split"></div><span class="lbl" style="left:10px">Vorher · Foto 1</span><span class="lbl" style="right:10px">Nachher · Weich (Mittel aus 16)</span></div>`;
+    toggles=[['Vorher/Nachher',true]];
+    opts=`<h3>${ki('long','l')}Langzeitbelichtung</h3>
+      <div class="osec"><h4>Wirkung</h4><span class="seg"><button class="on">Weich (Mittel: Wasser, Wolken)</button><button>Lichtspuren (Hellste)</button></span></div>
+      <div class="osec"><div class="orow"><span>Stativ (nicht ausrichten)</span><span class="sw on"></span></div><div class="onote">16 Fotos über 24 s — wirkt wie eine Belichtung von 24 s.</div></div>
+      ${upscaleBox({on:false,mp:'12 MP → 48 MP (2×) · + ≈ 30 s'})}`;
+    file='IMG_0001_langzeit.jpg'; est='<b>≈ 10 s</b> · 12 MP · ≈ 5 MB<br>mit Vorrang, solange gerechnet wird';
+  }
+  return {title:'Zusammenfügen · Serienbild – Lumora',
+   body:mleft({src:'<b>16 Fotos · Serie „Serienbild“</b>So, 15.06.2025 · 24 s<br>Kamera · ISO 1600 · gleiche Einstellungen',fit:'burst',sel:s,sugg:'denoise',why})
+    +`<div class="mcenter"><div></div><div class="mstage">${stage}</div>${sbarHtml(toggles,`Vorschau aktuell · 2,2 s ${PRIO}`)}`
+    +film('Quellen<b>16 von 16</b>Serienbild',Array.from({length:16},(_,i)=>fth(s==='denoise'?scene({cls:'night'}):scene({clouds:true,extra:s==='long'?'<div class="water rough"></div>':''}),'Foto '+(i+1),{ref:(s==='denoise'&&i===6)||(s!=='denoise'&&i===0)})))+'</div>'
+    +`<div class="mright">${opts}</div>`,
+   foot:foot({file,est})};
+}
+/* 8 Fokus-Stapel */
+const FC=['#F97362','#F5A524','#E5D84A','#6CCB5F','#3FB8AF','#5B9BD5','#818CF8','#C084FC'];
+function focusWin(){
+  const bands=FC.map((c,i)=>`${c} ${i*12.5}% ${(i+1)*12.5}%`).join(',');
+  const obj=`<div style="position:absolute;left:50%;top:50%;width:46%;aspect-ratio:1;transform:translate(-50%,-46%);border-radius:50%;background:radial-gradient(circle,#F5D27A 0 18%,#E58A5B 19% 36%,#C9566A 37% 60%,rgba(201,86,106,0) 61%)"></div><div style="position:absolute;left:49%;top:68%;width:2%;height:32%;background:#3E6B3A"></div>`;
+  return {title:'Zusammenfügen · Fokus-Stapel – Lumora',
+   body:mleft({src:'<b>8 Fotos · Serie „Fokusreihe“</b>So, 15.06.2025 · 6 s<br>Kamera · Makro · Stativ',fit:'focus',sel:'focus',sugg:'focus',why:['wandernder Fokusabstand 0,21 → 0,34 m (EXIF)','gleiche Belichtung, gleiche Brennweite','8 Fotos in 6 s','Kamera steht (Bildprüfung)']})
+    +`<div class="mcenter"><div class="wstrip"><span class="ic s">&#xE7BA;</span>An Kanten mit starkem Kontrast können helle Säume (Halos) entstehen — dann Glättung erhöhen.</div>
+      <div class="mstage"><div class="pic" style="width:600px;height:400px"><div class="layer" style="background:radial-gradient(circle at 30% 30%,#9DBA7A,#4F6E3C 70%)">${obj}</div>
+        <div class="layer" style="background:linear-gradient(0deg,${bands});opacity:.42;mix-blend-mode:hard-light"></div>
+        <span class="lbl" style="left:10px">Überlagerung „Schärfe-Herkunft“ · Farbe = Quellfoto</span></div></div>`
+    +sbarHtml([['Schärfe-Herkunft',true],['Vorher/Nachher',false]],`Vorschau aktuell · 4,0 s ${PRIO}`)
+    +film('Quellen<b>8 von 8</b>nah → fern',FC.map((c,i)=>fth(`<div class="ph" style="background:radial-gradient(circle at 50% 50%,#E58A5B 0 22%,#4F6E3C 60%);filter:blur(${Math.abs(i-3.5)*.5}px)"></div>`,`${(0.21+i*0.019).toFixed(2).replace('.',',')} m`,{cb:c})))+'</div>'
+    +`<div class="mright"><h3>${ki('focus','l')}Fokus-Stapel</h3>
+      <div class="osec"><div class="orow"><span>Ausrichten mit Maßstab</span><span class="sw on"></span></div><div class="onote">gleicht das „Atmen“ des Fokus aus (der Bildausschnitt wächst mit dem Fokusabstand)</div></div>
+      <div class="osec"><h4>Glättung</h4><div class="slider"><i style="width:35%"></i><b style="left:35%"></b></div></div>
+      <div class="osec"><div class="orow"><span>Rand beschneiden</span><span class="sw on"></span></div><div class="onote">≈ 3 % — dort fehlen nach dem Ausrichten Bildteile</div>
+        <div class="orow"><span>Überlagerung „Schärfe-Herkunft“</span><span class="sw on"></span></div></div>
+      ${upscaleBox({on:false,mp:'24 MP — Hochskalieren erst bis 16 MP möglich',dis:true,reason:'Ergebnis hat 24 MP — Hochskalieren 2× geht nur bis 16 MP.'})}</div>`,
+   foot:foot({file:'IMG_0001_fokus.jpg',est:'<b>≈ 50 s</b> · 24 MP · ≈ 10 MB<br>mit Vorrang, solange gerechnet wird'})};
+}
+/* 9 Gruppenfoto */
+function groupWin(){
+  const P=[['Anna','#A0567A'],['Paul','#3E8287'],['Unbekannt 1','#C78F2B'],['Lena','#6E64A8'],['Unbekannt 2','#5E8B47']];
+  const figs=P.map(([n,c],i)=>`<div class="gp" style="left:${10+i*17}%;background:${c};height:${44+(i%2)*6}%"><i class="hd"></i><span class="fr ${i===2||i===3?'sw2':''} ${i===4?'uns':''}"><b>${i+1}</b></span></div>`).join('');
+  const rows=P.map(([n],pi)=>{
+    const pick=[2,2,3,1,2][pi];
+    const marks=Array.from({length:6},(_,fi)=>{ const on=fi===pick; const m = (pi===2&&fi===2)?['','Augen zu']:(pi===3&&fi===2)?['blur','unscharf']:(pi===1&&fi===5)?['turn','abgewandt']:(pi===4&&fi===1)?['blur','unscharf']:['',''];
+      return `<span class="fc ${on?'on':''} ${m[0]}"><i></i>${on?'<em>Vorschlag</em>':(m[1]?`<em>${m[1]}</em>`:'')}</span>`;}).join('');
+    const nt = pi===2?'aus Foto 4 (Foto 3: Augen zu)':pi===3?'aus Foto 2':pi===4?'unsicher — wird nicht getauscht':'aus dem Grundbild';
+    return `<div class="frw"><span class="who"><b>${pi+1}</b>${n}</span>${marks}<span class="nt">${nt}</span></div>`;}).join('');
+  return {title:'Zusammenfügen · Bestes Gruppenfoto – Lumora',
+   body:mleft({src:'<b>6 Fotos · Serie „Serienbild“</b>So, 15.06.2025 · 8 s<br>Kamera · 5 Gesichter je Foto',fit:'group',sel:'group',sugg:'group',why:['Serienbild: 6 Fotos in 8 s','≥ 2 Gesichter je Foto (5)','Gesichter vorhanden (Gesichtserkennung)','gleiche Belichtung']})
+    +`<div class="mcenter" style="grid-template-rows:auto 1fr auto auto"><div></div><div class="mstage"><div class="pic" style="width:600px;height:330px">${scene({clouds:true,extra:figs})}<span class="lbl" style="left:10px">Grundbild: Foto 3 · 2 Gesichter getauscht (grün), 1 unsicher (gelb)</span></div></div>`
+    +sbarHtml([['Gesichtsrahmen',true],['Vorher/Nachher',false]],`Vorschau aktuell · 2,8 s ${PRIO}`)
+    +`<div class="faces"><div class="frw hdr"><span>Person</span>${[1,2,3,4,5,6].map(i=>`<span>Foto ${i}${i===3?' · Grund':''}</span>`).join('')}<span></span></div>${rows}</div></div>`
+    +`<div class="mright"><h3>${ki('group','l')}Bestes Gruppenfoto</h3>
+      <div class="osec"><div class="orow"><span class="onote">Grundbild</span><span class="dd">Foto 3 · beste Foto-Güte</span></div>
+        <div class="onote">Vorgeschlagen wird je Person das beste Gesicht nach Schärfe, Gesichtsgüte und Frontalität. Klick auf ein Gesicht tauscht.</div></div>
+      <div class="osec"><h4>Übergang</h4><div class="slider"><i style="width:45%"></i><b style="left:45%"></b></div><div class="onote">Maske um das Gesicht erweitern (weicher Rand)</div></div>
+      <div class="hint info"><span class="ic s">&#xE946;</span><span>Getauscht wird nur das Gesicht derselben Person. Ist die Zuordnung unsicher, bleibt das Grundbild.</span></div>
+      <div class="osec"><h4>Gesichtserkennung</h4><div class="onote">6 Fotos · Gesichter vorhanden · 1 Foto wurde eben mit Vorrang erkannt (Grafikkarte)</div>
+        <div class="orow"><span class="onote">„Augen zu“ (2d106det)</span><span class="state s-ok">geladen</span></div><div class="onote off">ohne das Modell fehlt nur die Marke „Augen zu“ · Modelle &amp; Daten</div></div>
+      ${upscaleBox({on:false,mp:'12 MP → 48 MP (2×) · + ≈ 30 s'})}</div>`,
+   foot:foot({file:'IMG_0001_gruppenfoto.jpg',est:'<b>≈ 15 s</b> · 12 MP · ≈ 5 MB<br>Personen erkennt Lumora danach neu'})};
+}
+/* 10 Zeitraffer */
+function tlWin(){
+  const th=Array.from({length:12},(_,i)=>fth(scene({clouds:true,f:`brightness(${1.1-i*.05}) hue-rotate(${i*-3}deg)`}),`${String(Math.floor(i*40*5/60)).padStart(2,'0')}:${String((i*40*5)%60).padStart(2,'0')}`));
+  return {title:'Zusammenfügen · Zeitraffer – Lumora',
+   body:mleft({src:'<b>480 Fotos · Serie „Intervall“</b>So, 15.06.2025 · 40 min<br>Kamera · alle 5 s',fit:'tl',sel:'tl',sugg:'tl',why:['Intervall: 480 Fotos, Abstand 5 s (Streuung 2 %)','gleiche Kamera, gleiche Einstellungen','Kamera steht (Bildprüfung)']})
+    +`<div class="mcenter"><div></div><div class="mstage"><div style="display:grid;gap:8px;justify-items:center">
+       <div class="pic" style="width:640px;height:360px">${scene({clouds:true})}<div class="crop" style="inset:0;box-shadow:none;border-color:transparent"></div>
+         <span class="lbl" style="left:10px">Abspielfläche aus den Vorschaubildern · Ausschnitt 16 : 9</span></div>
+       <div style="width:640px;display:flex;gap:10px;align-items:center;font-size:12px;color:#CCC"><span class="ic" style="color:#EEE">&#xE769;</span>
+         <div style="flex:1;height:4px;border-radius:2px;background:#3A3A44;position:relative"><i style="position:absolute;left:0;top:0;bottom:0;width:44%;background:#818CF8;border-radius:2px"></i></div><span>Bild 212 / 480 · 0:08 / 0:19</span></div></div></div>`
+    +sbarHtml([['Ausschnitt',true],['Flimmern',false]],'Vorschau aus Vorschaubildern · kein Rechnen nötig')
+    +film('Quellen<b>480</b>jedes 40.',th)+'</div>'
+    +`<div class="mright"><h3>${ki('interval','l')}Zeitraffer</h3>
+      <div class="osec"><h4>Bilder je Sekunde</h4><span class="seg"><button>24 · 20,0 s</button><button class="on">25 · 19,2 s</button><button>30 · 16,0 s</button></span></div>
+      <div class="osec"><h4>Auflösung</h4><span class="seg"><button class="on">1080p</button><button>4K</button></span><div class="orow"><span class="onote">Ausschnitt 16 : 9</span><span class="dd">Mitte</span></div></div>
+      <div class="osec"><div class="orow"><span>Ausrichten</span><span class="sw on"></span></div><div class="orow"><span>Flimmern ausgleichen</span><span class="sw on"></span></div></div>
+      <div class="osec"><h4>Video</h4><div class="orow"><span class="onote">FFmpeg</span><span class="state s-ok">gefunden</span></div>
+        <div class="onote">libx264, Qualität CRF 18 · Bilder gehen direkt an FFmpeg, keine Einzelbild-Dateien · Ergebnis kommt als Video in die Bibliothek</div></div>
+      ${upscaleBox({dis:true,reason:'Nur für Fotos — ein Video lässt sich hier nicht hochskalieren.'})}</div>`,
+   foot:foot({file:'IMG_0001_zeitraffer.mp4',est:'<b>≈ 2 min</b> · 1920 × 1080 · 19,2 s · ≈ 60 MB<br>mit Vorrang, solange gerechnet wird',tags:true})};
+}
+/* 11 Speichern → Rechnen → Fertig */
+function saveWin(s){
+  const base=panoWin('kugel');
+  const albumFoot=foot({file:'DJI_0001_panorama.jpg',album:'Ausflüge',est:'<b>≈ 3 min</b> mit Vorrang · 134 MP · ≈ 48 MB<br>Arbeitsspeicher ≈ 5 GB von 9 GB frei'});
+  if(s==='before'){
+    return {title:base.title,body:base.body+`<div class="estpop"><b>Speichern in voller Auflösung</b><div class="kv" style="margin-top:6px">
+       <span>Größe</span><span>16 384 × 8 192 (134 MP), JPEG Q92</span><span>Quelle</span><span>RAW (DNG) 16 bit, 26 Fotos</span><span>Zeit</span><span>≈ 3 min mit Vorrang (≈ 6 min nebenbei)</span>
+       <span>Arbeitsspeicher</span><span>≈ 5 GB von 9 GB frei</span><span>Platz</span><span>≈ 48 MB neben dem ersten Einzelbild</span><span>Album</span><span>„Ausflüge“ (gestartet aus dem Album)</span></div>
+       <div class="muted" style="margin-top:6px">Ausgerichtet wird nicht neu: das Rezept aus der Vorschau gilt. Die 26 Einzelbilder bleiben unverändert.</div></div>`,foot:albumFoot};
+  }
+  if(s==='run'){
+    const steps=[['done','Quellen lesen (RAW, 26 / 26)','1 min 02 s'],['done','Projizieren (Kugel 360°) — Ausrichtung aus der Vorschau','14 s'],['done','Belichtung ausgleichen','9 s'],['done','Nähte suchen','21 s'],['run','Überblenden (5/6) · Band 4 von 7','läuft'],['','Speichern und eintragen (Datei, Katalog, Album „Ausflüge“)','']];
+    return {title:base.title,
+      body:mleft({src:PANO_SRC,fit:'pano',sel:'pano',sugg:'pano',why:PANO_WHY,lock:true})
+       +`<div class="mcenter"><div></div><div class="mstage"><div class="prog"><h2>Panorama zusammenfügen · 26 Fotos</h2><div class="m2">Kugel 360° · 16K · aus RAW (DNG) · mit Vorrang (Hintergrund pausiert)</div>
+          <div>${steps.map(([c,t,r])=>`<div class="pl ${c}"><span class="d">${c==='done'?'&#xE73E;':c==='run'?'&#xE768;':''}</span><span>${t}</span><small>${r}</small></div>`).join('')}</div>
+          <div class="bigbar"><i style="width:78%"></i></div><div class="m2">78 % · noch ≈ 2 min · Arbeitsspeicher 4,6 GB</div>
+          <div class="btns"><button class="btn-std">Im Hintergrund weiterrechnen</button><button class="btn-std">Abbrechen</button></div>
+          <div class="m2">„Im Hintergrund weiterrechnen“ schließt das Fenster und rechnet ohne Vorrang mit halben Kernen weiter — Fortschritt dann in der Aktivitäts-Anzeige. Abbrechen wirkt zwischen Schritten, Bildern und Bändern.</div></div></div><div></div><div></div></div>`
+       +`<div class="mright locked">${panoOpts('kugel')}</div>`,
+      foot:'<span class="file">DJI_0001_panorama.jpg</span><span>neben dem ersten Einzelbild · Album „Ausflüge“</span><span class="est2">rechnet…</span><button class="btn-std" disabled>Verwerfen</button><button class="btn-acc" disabled>Als neue Datei speichern</button>'};
+  }
+  return doneWin(false);
+}
+/* Fertig-Ansicht; versteckt mit den Zahlen aus Ansicht 17 (Zylinder, 21 Fotos aus der Hand) */
+FIT.panoH={...FIT.pano,pano:['ok','überlappend ≈ 30 % · seitlicher Schwenk']};
+function doneWin(hidden){
+  const D = hidden
+    ? {src:'<b>21 Fotos · Serie „Panorama“</b>Sa, 05.07.2025 · 40 s<br>Kamera · JPEG',fit:'panoH',why:['Handserie: 21 Fotos in 40 s, gleiche Kamera (EXIF)','Überlappung ≈ 30 %, Bewegung seitlich (Vorschaubilder)','Bildwinkel aus Brennweite + Schwenk ≈ 170° → Zylinder'],
+       n:21,w:680,h:170,dims:'≈ 21 800 × 5 400',file:'IMG_0001_panorama.jpg',size:'118 MP · 41 MB',art:'Zylinder',time:'2 min 40 s'}
+    : {src:PANO_SRC,fit:'pano',why:PANO_WHY,n:26,w:660,h:330,dims:'16 384 × 8 192',file:'DJI_0001_panorama.jpg',size:'134 MP · 46 MB',art:'Kugel 360°',time:'3 min 12 s'};
+  return {title:hidden?'Zusammenfügen – Privat':'Zusammenfügen · Panorama – Lumora',
+   body:mleft({src:D.src,fit:D.fit,sel:'pano',sugg:'pano',why:D.why,lock:true})
+    +`<div class="mcenter"><div class="wstrip ok"><span class="ic s">&#xE73E;</span>Panorama gespeichert · ${hidden?'im Container, neben dem ersten Einzelbild':'neben dem ersten Einzelbild, auch in Album „Ausflüge“'}</div>
+      <div class="mstage"><div class="pic" style="width:${D.w}px;height:${D.h}px">${scene({sun:true,clouds:true,f:'contrast(1.05)'})}<span class="lbl" style="left:10px">Ergebnis · ${D.art} · ${D.dims}</span>
+        <span class="rmk" style="left:10px;bottom:10px">${ki('pano')}Panorama · aus ${D.n} Fotos</span></div></div><div></div><div></div></div>`
+    +`<div class="mright"><h3><span class="ic" style="color:var(--success)">&#xE73E;</span>Fertig</h3>
+      <span class="kenn">${ki('merge')}aus ${D.n} Fotos zusammengefügt</span>
+      <div class="kv"><span>Datei</span><span class="mono">${D.file}</span><span>Größe</span><span>${D.size}</span><span>Aufnahme</span><span>Datum und Kamera vom ersten Bild, Ort samt Höhe vom ersten mit Ort</span>
+        <span>Tags</span><span>2 gemeinsame übernommen</span><span>Sterne</span><span>keine (neues Bild)</span><span>Quellen</span><span>unverändert · in der Galerie eingeklappt</span>
+        ${hidden?'<span>Ablage</span><span>im Container</span>':'<span>Album</span><span>„Ausflüge“ (Verknüpfung)</span>'}</div>
+      <div class="vbtns"><button class="btn-acc"><span class="ic s">&#xE8A7;</span>Öffnen</button><button class="btn-std"><span class="ic s">&#xE91B;</span>In der Galerie zeigen</button>
+        <button class="btn-std"><span class="ic s">&#xE7A7;</span>Rückgängig</button><button class="btn-std"><span class="ic s">&#xE945;</span>Danach verbessern…</button>
+        <button class="btn-std" ${hidden?'disabled title="in der versteckten Sitzung gesperrt"':''}><span class="ic s">&#xE838;</span>Im Explorer zeigen${hidden?' — gesperrt':''}</button></div>
+      <div class="onote">Rückgängig legt die neue Datei in den Papierkorb und nimmt Katalogzeile und Verknüpfungen mit. Die Serie ist danach wieder „offen“.</div></div>`,
+   foot:`<span class="muted">Zusammenfügen fertig · ${D.time}</span><span class="est2"></span><button class="btn-std">Neues Zusammenfügen</button><button class="btn-acc">Schließen</button>`};
+}
+
+/* 4 › Lightbox → Fenster: ein Foto ohne Serie, Zeit-Nachbarn noch nicht angehakt */
+function nbWin(){
+  const NB=[['−1:40',0],['−1:12',.11],['−0:31',.22],['gestartet',.33],['+0:09',.44],['+0:22',.55],['+0:48',.66],['+1:55',.77]];
+  return {title:'Zusammenfügen – Lumora',
+   body:mleft({src:'<b>1 Foto angehakt</b>Sa, 21.06.2025 10:15:08 · aus der Lightbox<br>7 Zeit-Nachbarn im Filmstreifen',fit:'one',sel:'',sugg:'',whyTitle:'Noch kein Vorschlag',
+     why:['gestartet mit einem Foto ohne erkannte Serie','Zeit-Nachbarn: gleicher Ordner, gleiche Kamera (EXIF), ± 2 min','ab 2 Haken bewertet Lumora die Auswahl wie eine Serie']})
+    +`<div class="mcenter"><div class="wstrip info"><span class="ic s">&#xE946;</span>Gestartet aus der Lightbox mit einem Foto. Die 7 Zeit-Nachbarn sind noch nicht angehakt.<span class="lk">Alle 7 anhaken</span></div>
+      <div class="mstage"><div style="display:grid;gap:10px;justify-items:center;text-align:center;color:#AAA;font-size:13px;line-height:1.5">
+        <div style="width:300px;height:200px;border-radius:4px;position:relative;overflow:hidden;opacity:.9">${scene({cls:'w',x:.35,y:.3,clouds:true})}</div>
+        <b style="color:#EEE;font-size:15px">Mindestens 2 Fotos anhaken</b>
+        <span>Dann zeigt Lumora, welche Verfahren passen, und rechnet die Vorschau — mit Vorrang, solange gerechnet wird.</span></div></div>`
+    +sbarHtml([],'keine Vorschau · 1 Foto angehakt',false)
+    +film('Quellen<b>1 von 8</b>angehakt',NB.map(([l,x])=>fth(scene({cls:'w',x,y:.3,clouds:true}),l,{off:l!=='gestartet',ref:l==='gestartet'})))+'</div>'
+    +`<div class="mright"><h3>${ki('merge','l')}Zusammenfügen</h3>
+      <div class="hint info"><span class="ic s">&#xE946;</span><span>Haken im Filmstreifen setzen, welche Fotos dazugehören. Lumora schlägt erst ab 2 Fotos ein Verfahren vor.</span></div>
+      <div class="osec"><h4>Zeit-Nachbarn</h4><div class="orow"><span class="onote">Bereich</span><span class="dd">± 2 min</span></div>
+        <div class="onote">gleicher Ordner · gleiche Kamera (EXIF) · Videos, Archiv-Einträge und fehlende Dateien bleiben draußen</div></div>
+      <div class="osec"><h4>Auch so erreichbar</h4><div class="onote">Galerie und Liste: Rechtsklick auf ein Foto ohne Serie › Bearbeiten › Zusammenfügen… · aus einer Story über deren Lightbox</div></div></div>`,
+   foot:'<span class="file">IMG_0412_….jpg</span><span class="dd">neben dem ersten Einzelbild</span><span class="est2">noch nichts zu rechnen</span><button class="btn-std">Verwerfen</button><button class="btn-acc" disabled>Als neue Datei speichern</button>'};
+}
+
+/* 12 Stapel */
+V.batch=()=>ghead()+fcard({serOn:true,cond:`<span class="cond">${ki('stack')}Serien: Panorama · Kugel 360°, offen ✕</span><span class="cond">eine Kachel je Serie</span>`,count:'48 Serien · 1 248 Fotos'})
+  +`<div class="gal" style="--cols:4;gap:10px 14px">${seriesTiles(false)}</div>`
+  +`<div class="smoke"><div class="dlg" style="width:660px"><div class="in"><h2>48 Panoramen zusammenfügen</h2>
+    <table class="tbl"><tr><th>Gruppe</th><th>Verfahren</th><th>Aufnahmeart</th><th>Größe</th></tr>
+      <tr><td><b>48 Serien</b> · je 26 Fotos</td><td>Panorama</td><td><span class="dd">Kugel 360° (Vorschlag)</span></td><td><span class="dd">16K · 134 MP</span></td></tr></table>
+    <div class="est"><b>Zeit</b> ≈ 2 h 30 min mit Vorrang · ≈ 5 h nebenbei &nbsp;·&nbsp; <b>Platz</b> ≈ 2,2 GB &nbsp;·&nbsp; <b>Arbeitsspeicher</b> ≈ 5 GB je Lauf<br>Ablage je Serie neben dem ersten Einzelbild · gemeinsame Tags übernehmen</div>
+    <div class="hint warn"><span class="ic s">&#xE7BA;</span><span><b>Ohne Einzelvorschau.</b> Unsichere Ergebnisse (Quellen nicht eingebunden, zu wenig Überlappung) werden nicht gespeichert, sondern unter „Details“ zum einzelnen Öffnen genannt. Jedes Ergebnis wird sofort gespeichert und ist einzeln rückgängig.</span></div>
+    <div class="hint info"><span class="ic s">&#xE753;</span><span>3 Serien liegen nur in OneDrive (≈ 1,1 GB). <span class="chk" style="vertical-align:-3px"></span> herunterladen — sonst werden sie übersprungen.</span></div>
+    <div><div class="radio-row"><span class="radio on"></span><div>Nebenbei<small>halbe Kerne, Hintergrund läuft weiter — Standard ab 3 Serien</small></div></div>
+      <div class="radio-row"><span class="radio"></span><div>Mit Vorrang<small>schneller; Galerie und Lightbox werden langsamer</small></div></div></div></div>
+    <div class="ft"><span class="l">Ein Vorgang in der Aktivitäts-Anzeige, mit Pause</span><button class="btn-std">Abbrechen</button><button class="btn-acc" data-go="act:save">48 Panoramen zusammenfügen</button></div></div></div>`;
+
+/* 13 Aktivitäten — Galerie dahinter ohne Serien-Filter (die Zahlen der Serien stehen in Ansicht 2) */
+V.act=()=>{ const t=[dayh('Sa, 14. Juni 2025','Ordner „Ausflüge 2025“ (Beispiel)')]; for(let i=0;i<18;i++) t.push(tile({i}));
+  return ghead()+fcard()+`<div class="gal" style="--cols:6">${t.join('')}</div>`; };
+const WAITFG='wartet — Vorrang für „Zusammenfügen“';
+const waitJob=(ic,title,sub,extra='')=>`<div class="job wait">${ic}<div><b>${title}</b><div class="sub">${sub}</div>${extra}</div><div class="btns"><button class="ibtn" title="Pause"><span class="ic s">&#xE769;</span></button></div></div>`;
+function actStatus(s){
+  if(s==='prev') return {act:'<span class="spin"></span><span>Zusammenfügen – Vorschau · Ausrichten</span><span class="mini"><i style="width:40%"></i></span><span class="count">+3</span>',
+    fly:`<div class="fly"><h3><span class="ic">&#xE9D9;</span>Aktivitäten<small>1 läuft · 3 warten</small></h3><div class="sec">Läuft</div>
+     <div class="job">${ki('merge','l')}<div><b>Zusammenfügen – Vorschau · Panorama · 26 Fotos</b> <span class="prio">Vorrang</span><div class="sub">Ausrichten (2/5) · aus Vorschaubildern</div><div class="bar"><i style="width:40%"></i></div></div><div class="btns"><button class="ibtn" title="Abbrechen"><span class="ic s">&#xE711;</span></button></div></div>
+     <div class="sec">Wartet</div>
+     ${waitJob(ki('stack','l'),'Serien erkennen · 12 400 / 48 000',WAITFG+' · Vorrang 3')}
+     ${waitJob('<span class="ic">&#xE8FB;</span>','Prüfsummen',WAITFG+' · danach Vorrang 4')}
+     ${waitJob('<span class="ic">&#xE91B;</span>','Vorschaubilder auf Vorrat',WAITFG+' · danach Vorrang 5')}
+     <div class="sec">Zuletzt fertig</div><div class="job done"><span class="ic">&#xE73E;</span><div><b>Einlesen „Familienfotos“</b><div class="sub">vor 12 min · 52 neu</div></div><span class="link">Details</span></div>
+     <div style="padding:8px 14px;font-size:12px;color:var(--text-secondary);border-top:1px solid var(--stroke-divider)">Die Vorschau erscheint nicht unter „Zuletzt fertig“. Ist sie fertig und rechnet nichts mehr, gibt Lumora den Vorrang nach 2 s zurück — auch wenn das Fenster offen bleibt.</div></div>`};
+  if(s==='toast') return {act:'<span class="ic s" style="color:var(--success)">&#xE73E;</span><span>Alles erledigt</span>',
+    fly:`<div class="toast"><span class="ic" style="color:var(--success)">&#xE73E;</span><div style="flex:1"><b>Panorama gespeichert</b><div class="muted">aus 26 Fotos · Kugel 360° · neben dem ersten Einzelbild</div></div><span class="link">Öffnen</span><span class="link">Rückgängig</span></div>`};
+  return {act:'<span class="spin"></span><span>Panorama zusammenfügen · Überblenden (5/6)</span><span class="mini"><i style="width:78%"></i></span><span class="count">+4</span>',
+    fly:`<div class="fly"><h3><span class="ic">&#xE9D9;</span>Aktivitäten<small>1 läuft · 4 warten</small></h3><div class="sec">Läuft</div>
+     <div class="job">${ki('pano','l')}<div><b>Panorama zusammenfügen · 26 Fotos</b> <span class="prio">Vorrang</span><div class="sub">Überblenden (5/6) · noch ≈ 2 min · aus dem Album „Ausflüge“</div><div class="bar"><i style="width:78%"></i></div></div><div class="btns"><button class="ibtn" title="Abbrechen"><span class="ic s">&#xE711;</span></button></div></div>
+     <div class="sec">Wartet</div>
+     <div class="job wait">${ki('merge','l')}<div><b>Zusammenfügen · 12 / 48</b><div class="sub">Stapel Kugel-Panoramen, nebenbei · ${WAITFG} · ein schwerer Lauf zur Zeit, geht danach mit dem nächsten Ergebnis weiter</div><div class="bar"><i style="width:25%"></i></div></div><div class="btns"><button class="ibtn" title="Pause"><span class="ic s">&#xE769;</span></button><button class="ibtn" title="Abbrechen (Fertige bleiben, Rückgängig möglich)"><span class="ic s">&#xE711;</span></button></div></div>
+     ${waitJob(ki('stack','l'),'Serien erkennen · 12 400 / 48 000',WAITFG+' · Vorrang 3')}
+     ${waitJob('<span class="ic">&#xE8FB;</span>','Prüfsummen',WAITFG+' · danach Vorrang 4')}
+     ${waitJob('<span class="ic">&#xE91B;</span>','Vorschaubilder auf Vorrat',WAITFG+' · danach Vorrang 5')}
+     <div class="sec">Zuletzt fertig</div>
+     <div class="job done"><span class="ic">&#xE73E;</span><div><b>39 Panoramen gespeichert</b><div class="sub">vor 1 h · Stapel Zylinder · 2 übersprungen (zu wenig Überlappung)</div></div><div class="lnks"><span class="link">Ergebnisse zeigen</span><span class="link">Rückgängig</span><span class="link">Details</span></div></div>
+     <div class="job done"><span class="ic">&#xE73E;</span><div><b>Belichtungsreihe gespeichert</b><div class="sub">vor 2 h · aus 5 Fotos</div></div><div class="lnks"><span class="link">Öffnen</span><span class="link">Rückgängig</span></div></div></div>`};
+}
+
+/* 14 Lightbox */
+V.lb=()=>{
+  const strip=`<span class="t res">${scene({sun:true,clouds:true})}</span>`+Array.from({length:22},(_,i)=>`<span class="t">${droneScene(i)}</span>`).join('');
+  return ghead()+`<div class="lb"><div class="stg">
+    <div class="top"><span class="ic s">&#xE72B;</span> Panorama · Ergebnis zuerst · 1 von 27<div class="r"><span>Verbessern</span><span>Info</span></div></div>
+    <div style="display:grid;place-items:center;min-height:0"><div class="pic" style="width:700px;height:350px">${scene({sun:true,clouds:true})}<span class="lbl" style="right:10px">360° flach (2 : 1) — Rundum-Ansicht später</span></div></div>
+    <div class="mrow">${ki('pano')}<span>Zusammengefügt aus <b>26 Fotos</b> · Panorama, Kugel 360°</span>·<span class="a">Quellen zeigen</span>·<span class="a">Neu berechnen…</span></div>
+    <div class="strip">${strip}</div></div>
+    <div class="side"><h3>${ki('pano','l')}DJI_0001_panorama.jpg</h3><div class="muted">16 384 × 8 192 · 134 MP · 46 MB</div>
+     <h4>Aufnahme</h4><div class="kv"><span>Datum</span><span>Sa, 14.06.2025 10:42 (erstes Bild)</span><span>Ort</span><span>mit Höhe, aus Bild 1 (erstes mit Ort)</span><span>Kamera</span><span>DJI (erstes Bild)</span></div>
+     <h4>Zusammengefügt</h4><div class="kv"><span>Verfahren</span><span>Panorama</span><span>Aufnahmeart</span><span>Kugel 360° · Lücken gefüllt</span><span>Größe</span><span>16K</span><span>Quelle</span><span>RAW (DNG) 16 bit</span>
+       <span>Quellen</span><span>26 · alle vorhanden</span><span>Erstellt</span><span>17.11.2026 mit Lumora</span><span>360°-Betrachter</span><span>GPano-Angaben gesetzt</span></div>
+     <h4>Zuordnung</h4><div class="kv"><span>Tags</span><span>2 gemeinsame</span><span>Sterne</span><span>—</span><span>Personen</span><span>werden neu erkannt</span></div>
+     <div class="muted">„Neu berechnen…“ öffnet das Fenster mit dem gespeicherten Rezept und speichert als weitere Datei. „Verbessern“ am Ergebnis ergibt eine normale Fassung.</div></div></div>`;
+};
+
+/* 15 Einstellungen */
+V.set=()=>`<div class="phead"><h1>Einstellungen</h1></div>
+ <div class="tabs"><span>Bibliotheken &amp; Eingänge</span><span>Tags</span><span>Kategorien</span><span>Gesichter</span><span>Motive</span><span>Verbessern</span><span class="on">Zusammenfügen</span><span>Archive</span><span>Darstellung</span><span>Storys</span><span>Assistent</span><span>Orte</span><span>Modelle &amp; Daten</span><span>Speicher &amp; Wartung</span><span>Verbundene Apps</span><span>Info</span></div>
+ <div class="sbody"><div class="scol">
+  <section class="card"><h2>${ki('stack','l')}Serien erkennen</h2>
+   <div class="srow"><div><b>Serien erkennen</b><small>still im Hintergrund · wartet, sobald du auf etwas wartest · Datei-Spur Vorrang 3 (nach Datum/Orte, Doppelten, Foto-Güte; vor Prüfsummen und Vorschaubildern auf Vorrat) · lädt nie aus OneDrive herunter</small></div><span class="sw on"></span></div>
+   <div class="srow" style="grid-template-columns:1fr"><div><b>Arten</b><div class="kinds" style="margin-top:6px">${[['pano','Panorama'],['hdr','Belichtungsreihe'],['stack','Serienbild'],['focus','Fokusreihe'],['interval','Intervall'],['panohdr','Panorama-Belichtungsreihe']].map(([k,n])=>`<label><span class="chk on">&#xE73E;</span>${ki(k)}${n}</label>`).join('')}</div></div></div>
+   <div class="srow"><div><b>Zeitlücke Serienbild</b><small>höchster Abstand zwischen zwei Fotos</small></div><span class="inp">2 s</span></div>
+   <div class="srow"><div><b>Zeitlücke Panorama</b><small>Handserien; DJI-Panorama-Ordner zählen immer</small></div><span class="inp">15 s</span></div>
+   <div class="srow"><div><b>Mindestens</b></div><span class="inp">3 Fotos</span></div>
+   <div class="srow"><div><b>Verworfene Serien zeigen</b></div><span class="sw"></span></div>
+   <div class="srow"><div><b>Stand</b><small>aktuell · 110 Panoramen, 14 Belichtungsreihen, 37 Serienbilder, 2 Fokusreihen, 3 Intervalle · 3 Ordner nur in OneDrive ausgelassen</small></div><button class="btn-std">Serien neu erkennen</button></div></section>
+  <section class="card"><h2>${ki('merge','l')}Standard-Arten</h2>
+   <div class="srow"><div><b>Panorama-Aufnahmeart</b><small>gilt, wenn kein sicherer Vorschlag da ist</small></div><span class="dd">Automatisch (Vorschlag)</span></div>
+   <div class="srow"><div><b>Größe Kugel 360°</b></div><span class="dd">16K · 134 MP</span></div>
+   <div class="srow"><div><b>Größe andere Aufnahmearten</b></div><span class="dd">Vorschlag ≤ 150 MP</span></div>
+   <div class="srow"><div><b>Belichtungsreihe</b></div><span class="dd">Natürlich</span></div>
+   <div class="srow"><div><b>Langzeitbelichtung</b></div><span class="dd">Weich (Mittel)</span></div>
+   <div class="srow"><div><b>Zeitraffer</b></div><span class="dd">25 Bilder/s · 1080p</span></div></section>
+ </div><div class="scol">
+  <section class="card"><h2><span class="ic">&#xE8B7;</span>Ergebnis</h2>
+   <div class="srow" style="grid-template-columns:1fr"><div><b>Ablage</b><div class="radio-row"><span class="radio on"></span>neben dem ersten Einzelbild</div><div class="radio-row" style="padding-top:0"><span class="radio"></span>im Unterordner „zusammengefügt“</div></div></div>
+   <div class="srow"><div><b>Drohnen-Panorama-Ordner: eine Ebene höher ablegen</b></div><span class="sw"></span></div>
+   <div class="srow" style="grid-template-columns:1fr"><div><b>Dateinamen-Zusätze</b><div class="sfx" style="margin-top:6px">${[['Panorama','_panorama'],['Belichtungsreihe','_hdr'],['Entrauschen','_entrauscht'],['Leute entfernen','_ohne-leute'],['Langzeit','_langzeit'],['Fokus-Stapel','_fokus'],['HDR-Panorama','_hdr-panorama'],['Gruppenfoto','_gruppenfoto'],['Zeitraffer','_zeitraffer']].map(([n,v])=>`<span>${n}</span><span class="mono">${v}</span>`).join('')}</div></div></div>
+   <div class="srow"><div><b>JPEG-Qualität</b></div><span class="inp">92</span></div>
+   <div class="srow"><div><b>TIFF 16 bit bei RAW-Quellen</b></div><span class="sw"></span></div>
+   <div class="srow"><div><b>Gemeinsame Tags übernehmen</b><small>Sterne und Favorit nicht — neues Bild</small></div><span class="sw on"></span></div>
+   <div class="srow"><div><b>Quellen zusammengefügter Serien einklappen</b><small>nur, wenn das Ergebnis im Bereich liegt</small></div><span class="sw on"></span></div></section>
+  <section class="card"><h2><span class="ic">&#xE9D9;</span>Rechnen</h2>
+   <div class="srow"><div><b>Stapel nebenbei ab</b><small>halbe Kerne, Hintergrund läuft weiter</small></div><span class="inp">3 Serien</span></div>
+   <div class="muted">Vorrang nur, solange das Fenster eine Vorschau rechnet oder speichert (danach 2 s Nachlauf); der Hintergrund wartet so lange. Ein offenes Fenster, das nichts rechnet, hält den Hintergrund nicht an.</div></section>
+  <section class="card"><h2><span class="ic">&#xE90F;</span>Werkzeuge</h2>
+   <table class="tbl"><tr><td><b>OpenCV</b><div class="muted">eingebaut · Version aus Spike 20</div></td><td><span class="state s-ok">geladen</span></td></tr>
+    <tr><td><b>Raw-Bilderweiterung</b><div class="muted">volle RAW-Auflösung (DNG); fehlt sie: JPEG mit Hinweis · Microsoft Store</div></td><td><span class="state s-ok">gefunden</span></td></tr>
+    <tr><td><b>FFmpeg</b><div class="muted">für Zeitraffer</div></td><td><span class="state s-ok">gefunden</span></td></tr>
+    <tr><td><b>Hugin</b><div class="muted">nur, falls Spike 20 es vorsieht (ausstehend)</div></td><td><span class="state s-miss">offen</span></td></tr></table></section>
+ </div></div>`;
+
+/* 16 Hinweise */
+function hintDlg(title,body,btns){ return `<div class="smoke"><div class="dlg" style="width:560px"><div class="in"><h2>${title}</h2>${body}</div><div class="ft">${btns}</div></div></div>`; }
+function hintWin(s){
+  const w=panoWin('kugel');
+  if(s==='cloud') return {...w,body:w.body+hintDlg('Fotos nur in OneDrive','<div>5 von 26 Fotos liegen nur in OneDrive (≈ 120 MB). Zum Zusammenfügen braucht Lumora die Pixel.</div><div class="muted">Die Serien-Erkennung lädt nie herunter; das passiert nur hier, nach Bestätigung. Nicht erreichbare Dateien auf Offline-Laufwerken werden genannt, nie als „fehlt“ gewertet.</div>','<button class="btn-std">Abbrechen</button><button class="btn-std">Ohne diese Fotos</button><button class="btn-acc">Herunterladen und fortfahren</button>')};
+  if(s==='part') return {...w,body:w.body+hintDlg('Teil einer Serie','<div>Diese 8 Fotos gehören zu einer Serie mit 26 Fotos — alle 26 nehmen?</div><div class="muted">Panorama · Kugel 360° · DJI-Panorama-Ordner</div>','<button class="btn-std">Nur die 8</button><button class="btn-acc">Alle 26 nehmen</button>')};
+  if(s==='multi') return {...w,body:w.body+hintDlg('Mehrere Serien','<div>Die Auswahl enthält 2 Serien (26 + 21 Fotos) — getrennt zusammenfügen oder als ein Bild?</div><div class="muted">Getrennt: 2 Ergebnisse, jedes einzeln rückgängig.</div>','<button class="btn-std">Als ein Bild</button><button class="btn-acc">Getrennt (2 Ergebnisse)</button>')};
+  const strip = s==='raw' ? '<div class="wstrip"><span class="ic s">&#xE7BA;</span>RAW nur als eingebettete Vorschau (960 × 640): die Raw-Bilderweiterung fehlt. Lumora nimmt die JPEG-Geschwister.<span class="lk">Im Microsoft Store zeigen</span></div>'
+    : s==='mem' ? '<div class="wstrip"><span class="ic s">&#xE7BA;</span>„Voll“ (≈ 30 000 × 15 000, 450 MP) braucht ≈ 12 GB Arbeitsspeicher, frei sind 9 GB. 16K (134 MP) ist gewählt.<span class="lk">Speicher freigeben und neu prüfen</span></div>'
+    : '<div class="wstrip bad"><span class="ic s">&#xE783;</span>Die Auswahl stammt aus 2 Bibliotheken („Alle verknüpften“). Zusammenfügen geht nur innerhalb einer Bibliothek.<span class="lk">Nur „Familienfotos“ nehmen</span></div>';
+  return {...w,body:w.body.replace('<div class="mcenter"><div></div>','<div class="mcenter">'+strip)};
+}
+
+/* 17 Versteckt */
+/* eigene Zahlen der versteckten Bibliothek: 7 Serien, 74 Fotos, 3 neu; der Container ist ein eingehängtes Laufwerk — keine OneDrive-Platzhalter */
+function hiddenSeriesTiles(){
+  return dayh('Sa, 5. Juli 2025','3 Serien')+
+   stile({k:'pano',t:'Panorama · Zylinder',n:'21 Fotos · 40 s',neu:true,hov:true,btn:'Panorama zusammenfügen',cover:scene({cls:'w',x:.4,y:.3,clouds:true})})+
+   stile({k:'hdr',t:'Belichtungsreihe',n:'5 Fotos · 1,2 s',neu:true,cover:scene({sun:true,f:'brightness(.8)'})})+
+   stile({k:'stack',t:'Serienbild',n:'16 Fotos · 24 s',neu:true,cover:scene({cls:'night'})})+
+   dayh('So, 6. Juli 2025','4 Serien')+
+   stile({k:'pano',t:'Panorama · Perspektive',n:'9 Fotos · 14 s',cover:scene({cls:'w',x:.7,y:.2})})+
+   stile({k:'stack',t:'Serienbild',n:'12 Fotos · 9 s',cover:PH(3)})+
+   stile({k:'hdr',t:'Belichtungsreihe',n:'3 Fotos · 0,8 s',cover:scene({clouds:true,f:'brightness(1.2)'})})+
+   stile({k:'focus',t:'Fokusreihe',n:'8 Fotos · 6 s',cover:PH(4)});
+}
+V.hidden=()=>ghead('Privat')+fcard({serOn:true,neu:'3',cond:`<span class="cond">${ki('stack')}Serien: alle Arten, offen ✕</span><span class="cond">eine Kachel je Serie</span>`,count:'7 Serien · 74 Fotos'})
+  +`<div class="gal" style="--cols:4;gap:10px 14px">${hiddenSeriesTiles()}</div>`
+  +`<div class="where card"><h2><span class="ic">&#xE72E;</span>Versteckte Sitzung — alles bleibt im Container</h2>
+    <table class="tbl"><tr><td>Serien, Erkennung, Dateiköpfe, Verknüpfungen</td><td>Katalog im Container</td></tr>
+     <tr><td>Vorschau-Zwischenstände, FFmpeg-Ausgabe</td><td>Temp im Container, beim Schließen gelöscht</td></tr>
+     <tr><td>Probe-Vorschauen</td><td>Vorschaubilder im Container</td></tr><tr><td>Ergebnis</td><td>neben dem ersten Einzelbild</td></tr>
+     <tr><td>OpenCL-Cache</td><td>aus</td></tr><tr><td>Protokoll</td><td>nur Verfahren und Id</td></tr>
+     <tr><td>Im Explorer zeigen · Hugin</td><td>gesperrt</td></tr></table></div>`;
+
+/* ---------- Ansichten-Liste, Zustände, Erläuterungen ---------- */
+const VIEWS=[
+ ['g','marks','1 Marken',null],['g','filter','2 Filter „Serien“',[['fly','Flyout offen'],['grid','nur Kacheln']]],
+ ['g','series','3 Geöffnete Serie',[['open','Serien-Leiste'],['drop','Verfahren ▾'],['adjust','Serie anpassen']]],
+ ['g','menu','4 Rechtsklick',[['multi','Mehrere Fotos'],['series','Foto einer Serie'],['mark','Marke'],['search','Suchen ▸'],['list','Liste'],['lb','Lightbox'],['nb','Lightbox → Fenster'],['album','Aus einem Album'],['off','Gesperrt']]],
+ ['w','pano','5 Panorama',[['auto','Automatisch'],['kugel','Kugel 360°'],['zyl','Zylinder'],['persp','Perspektive'],['vert','Vertikal'],['shift','Nur verschieben'],['s1','Stufe 1'],['hdrpano','HDR-Panorama']]],
+ ['w','hdr','6 Belichtungsreihe',[['nat','Natürlich'],['strong','Kräftig']]],
+ ['w','burst','7 Serienbild',[['denoise','Entrauschen'],['people','Leute entfernen'],['long','Langzeit']]],
+ ['w','focus','8 Fokus-Stapel',null],['w','group','9 Gruppenfoto',null],['w','tl','10 Zeitraffer',null],
+ ['w','save','11 Speichern → Fertig',[['before','Vor dem Speichern'],['run','Rechnet'],['done','Fertig']]],
+ ['x','batch','12 Stapel',null],['x','act','13 Aktivitäten',[['save','Speichern läuft'],['prev','Vorschau'],['toast','Fertig-Meldung']]],
+ ['x','lb','14 Lightbox',null],['x','set','15 Einstellungen',null],
+ ['x','hint','16 Hinweise',[['cloud','OneDrive'],['raw','RAW nur Vorschau'],['mem','Speicher'],['mixed','Bibliotheken gemischt'],['part','Teil einer Serie'],['multi','Mehrere Serien']]],
+ ['x','hidden','17 Versteckt',[['gal','Galerie'],['done','Fertig']]]];
+const WIN={pano:panoWin,hdr:hdrWin,burst:burstWin,focus:focusWin,group:groupWin,tl:tlWin,save:saveWin,hint:hintWin};
+const CAP={
+ marks:'<b>Ansicht 1 · Galerie mit Marken</b> (ADR-0078 Punkt 9). Die Marke „Serie · n Fotos“ mit Art-Symbol sitzt nur auf dem <b>ersten</b> Foto einer Serie, die übrigen tragen einen Punkt mit Tooltip. Klick auf die Marke öffnet die Serie (Ansicht 3), Rechtsklick auf die Marke siehe Ansicht 4 › Marke. Nach dem Zusammenfügen trägt die Marke ein Häkchen. Die <b>Ergebnis-Marke</b> „Panorama · aus 26 Fotos“ öffnet Ergebnis und Quellen in der Lightbox (Ansicht 14); die 26 Quellen sind eingeklappt, weil das Ergebnis im Bereich liegt (Einstellung, Standard an). Marken kommen je Seite gebündelt wie „2 Fassungen“, Kacheln bleiben Automation-Blätter. Unten rechts läuft die Erkennung still im Hintergrund-Planer (Punkt 4: Datei-Spur Vorrang 3, dahinter Prüfsummen 4 und Vorschaubilder auf Vorrat 5; wartet, sobald du auf etwas wartest).',
+ filter:'<b>Ansicht 2 · Filter „Serien“</b> (Punkt 9). Chip „Serien · 12 neu“ in der Zeile „Inhalt“ neben „Doppelte“, mit allen Filtern kombinierbar (ADR-0041). Flyout: Arten mit Zahlen (Panorama 110 nach Aufnahmeart: 48 Kugel, 43 Zylinder, 6 Perspektive, 3 Vertikal, 10 andere), Zustand Neu | Offen | Alle | Zusammengefügt | Verworfene — 2 Panoramen sind schon zusammengefügt, also zeigt „Panoramen, offen“ <b>108 Serien</b>; „Eine Kachel je Serie“, Stand der Erkennung (OneDrive-Platzhalter nur mit Katalogdaten, nie heruntergeladen) und der Stapel „Alle 108 sichtbaren zusammenfügen…“ (Ansicht 12). Eine Kachel je Serie: Titelbild mit Stapel-Rand, Art, Zahl, Dauer, „neu“; beim Darüberfahren der <b>Ein-Klick-Knopf</b> — öffnet das Fenster mit vorausgewähltem Verfahren und vorausgewählter Art, die Vorschau startet sofort. Serien mit Sicherheit 0,5–0,7 zeigen keinen Ein-Klick-Knopf. <b>Offen bei der Abnahme:</b> Klick auf die Kachel-Marke zeigt die Serie (Entwurf) oder öffnet gleich das Fenster?',
+ series:'<b>Ansicht 3 · Geöffnete Serie</b> (Punkt 9) — das „Aufklappen“: Klick oder Enter öffnet die Serie als Bedingung „Serie: …“ plus <b>Serien-Leiste</b> (verträglich mit der virtualisierten, seitenweisen Galerie). Leiste: Art, Titel, Zeitspanne, Kamera, Gründe als Chips, Probe-Vorschau (Stufe 3), [Panorama 360° zusammenfügen ▾] mit den übrigen Verfahren „passt“/„eher nicht“, Alle auswählen, Serie anpassen, Keine Serie. Beim Öffnen gilt die Serie als gesehen, der Zähler am Chip sinkt. <b>Serie anpassen:</b> Haken entfernen nimmt ein Foto heraus, „Zur Serie hinzufügen ▸“ holt gewählte Fotos dazu; „Keine Serie“ verwirft (im Flyout unter „Verworfene“ wieder herstellbar). Der Benutzerzustand bleibt beim erneuten Erkennen.',
+ menu:'<b>Ansicht 4 · Rechtsklick</b> (Punkte 7 und 8) im gemeinsamen Foto-Menü (<span class="mono">PhotoContextMenuBuilder</span>, heute gebaut in Galerie-Kachel, Listenzeile und Lightbox) unter „Bearbeiten ▸“ direkt nach „Foto verbessern…“ bzw. „5 Fotos verbessern…“: ab 2 Fotos „5 Fotos zusammenfügen…“, bei einem Foto einer Serie „Serie mit 26 Fotos zusammenfügen…“, dazu die Aktionsleiste ab 2 gewählten Fotos. Bei Mehrfachauswahl fehlen wie im Code Öffnen, Personen, Titelbild, Suchen und Eigenschaften. Rechtsklick auf die <b>Marke</b>: Serie zusammenfügen, Fotos der Serie zeigen, Keine Serie. <b>Suchen ▸</b> „Gleiche Serie“, bei einer Quelle „Zusammengefügtes Ergebnis“, bei einem Ergebnis „Quellen“. <b>Liste</b>: dasselbe Menü in der Listenansicht. <b>Lightbox</b>: dasselbe Menü (ohne Öffnen und Suchen, Diashow „S“), bei einem Foto ohne Serie „Zusammenfügen…“ — auch wenn die Lightbox aus einer <b>Story</b> geöffnet wurde; die Story-Seite selbst hat das Menü nicht (Ausblick). <b>Lightbox → Fenster</b>: das Fenster zeigt die Zeit-Nachbarn (gleicher Ordner, gleiche Kamera, ± 2 min) im Filmstreifen, noch nicht angehakt; erst ab 2 Haken gibt es Verfahren und Vorschau. <b>Aus einem Album:</b> ein eigenes Album ist eine gefilterte Galerie, also dieselben Wege; das Fenster setzt dann im Fuß „auch ins Album „…““ (Ansicht 11); bei intelligenten Alben gibt es den Haken nicht. <b>Gesperrt</b> mit Tooltip: gemischte Bibliotheken, nur Videos, Archiv-Einträge, fehlende Dateien, OpenCV nicht geladen. Kein eigenes Tastenkürzel in Stufe 1 (Strg+M ist „In die Bibliothek…“).',
+ pano:'<b>Ansicht 5 · Fenster „Zusammenfügen“ · Panorama</b> (Punkte 6 und 8). Eigenes, nicht modales Fenster: links die neun Verfahren mit „passt“/„eher nicht“ und Grund, der Vorschlag hervorgehoben, darunter „Warum dieser Vorschlag“ (Belege aus Ordner, Gimbal-XMP, Zeit, Kamera, Überlappung). Mitte die Vorschau (≈ 4–6 MP aus Vorschaubildern) mit Zuschnitt-Rahmen, schraffierten Lücken und Überlagerung „Nähte“, unten der Filmstreifen der Quellen mit Rolle („R2 · 45°“). Rechts die <b>Aufnahmearten wie in Photoshop</b> als Kacheln mit Skizze: Automatisch, Kugel 360° (2 : 1, Lücken füllen, GPano), Zylinder, Perspektive, Vertikal, Nur verschieben — umschalten rechnet nur die Projektion neu. Zuschnitt, Belichtung, Quelle JPEG/RAW (DNG, Raw-Bilderweiterung), Größe (16K Standard, „Voll“ nur wenn der Speicher reicht). „Danach hochskalieren“ ist hier ausgegraut (134 MP über der Grenze). Zustand <b>Stufe 1</b>: nur Panorama aktiv, Rest „kommt später“. <b>HDR-Panorama</b>: Gruppen „26 Positionen × 3 Belichtungen“, HDR- und Panorama-Optionen. Werkzeug hinter der Vorschau: offen bis Spike 20.',
+ hdr:'<b>Ansicht 6 · Belichtungsreihe (HDR)</b> (Punkte 5 und 15). Vorher/Nachher-Regler gegen die mittlere Belichtung (wie die Verbessern-Bühne), Überlagerung „Geister“. Stil Natürlich (Exposure Fusion) oder Kräftig (HDR + Tonung), Ausrichten aus der Hand/Stativ, Geister entfernen mit Bezugsbild. <b>Danach hochskalieren</b> mit dem Modell aus „Foto verbessern“: 12 MP → 48 MP (2×), 4× ausgegraut (nur bis 4 MP); Grenzen 64 MP, Ladekante 10 000 px, JPEG 65 535 px. Es entsteht eine Datei.',
+ burst:'<b>Ansicht 7 · Serienbild</b> (Punkt 5): dieselbe Serie, drei Verfahren. <b>Entrauschen / mehr Details</b> (Vorschlag bei ISO ≥ 800): Stärke, Bezugsbild = schärfstes, „Mehr Details aus der Serie“ 1,5×/2× ab 8 Fotos aus der Hand. <b>Leute entfernen</b>: Median über die Serie, Maske „veränderte Stellen“, gelb = zu selten frei (bleibt wie im Bezugsbild); Pinsel kommt später. <b>Langzeit</b>: Weich (Mittel) oder Lichtspuren (Hellste), Stativ = nicht ausrichten.',
+ focus:'<b>Ansicht 8 · Fokus-Stapel</b> (Punkt 5, Stufe 5). Überlagerung „Schärfe-Herkunft“: jede Farbe steht für das Quellfoto (Farbbalken im Filmstreifen, nah → fern). Ausrichten mit Maßstab gegen das „Atmen“ des Fokus, Glättung, Rand beschneiden, Hinweis auf Halos. Hochskalieren hier ausgegraut (24 MP über 16 MP).',
+ group:'<b>Ansicht 9 · Bestes Gruppenfoto</b> (Punkt 5, Stufe 6, zuletzt). Grundbild mit nummerierten Gesichtsrahmen; darunter je Person eine Leiste mit dem Gesicht aus jedem Foto, Marken „Vorschlag“, „unscharf“, „abgewandt“, „Augen zu“ (nur mit dem Landmarken-Modell 2d106det aus „Modelle & Daten“). Klick tauscht; getauscht wird nur dieselbe Person, unsichere Zuordnung (gelb) bleibt. Nutzt die vorhandene Gesichtserkennung (ADR-0035/0036), fehlende Gesichter mit Vorrang. Gesichter sind neutrale Kreise, Namen erfunden.',
+ tl:'<b>Ansicht 10 · Zeitraffer</b> (Punkt 5, Stufe 5). Abspielfläche aus den Vorschaubildern mit Play/Pause und Zeitleiste, Bilder je s mit Länge, 1080p/4K, Ausschnitt 16 : 9, Ausrichten, Flimmern ausgleichen, Zustand von FFmpeg. Ergebnis ist ein Video in der Bibliothek; Hochskalieren gibt es dafür nicht.',
+ save:'<b>Ansicht 11 · Speichern → Rechnen → Fertig</b> (Punkte 7, 8, 10, 12) — hier aus dem Album „Ausflüge“ gestartet, deshalb im Fuß „auch ins Album „Ausflüge““ gesetzt (Verknüpfung über <span class="mono">IAlbumService.AddFilesAsync</span>, ADR-0054). <b>Vor dem Speichern</b>: Schätzung von Größe, Zeit, Arbeitsspeicher und Platz; volle Auflösung aus dem Rezept, keine zweite Ausrichtung. <b>Rechnet</b>: Schrittliste, Restzeit, Vorrang vom Klick auf „Speichern“ bis zum Eintrag im Katalog (nicht für die Lebensdauer des Fensters); „Im Hintergrund weiterrechnen“ gibt den Vorrang zurück, schließt das Fenster und rechnet mit halben Kernen weiter. <b>Fertig</b>: Ergebnis als neue Datei neben dem ersten Einzelbild, Kennzeichnung „aus 26 Fotos zusammengefügt“, Datum/Ort/Kamera vom ersten Bild, gemeinsame Tags, keine Sterne; Öffnen, In der Galerie zeigen, Rückgängig (Papierkorb + Verknüpfungen), Danach verbessern… (öffnet „Foto verbessern“ mit dem Ergebnis).',
+ batch:'<b>Ansicht 12 · Stapel</b> (Punkt 12, Stufe 2). Aus dem Flyout „Alle n sichtbaren zusammenfügen…“ (die Zahl folgt dem Filter, hier Kugel 360° offen → 48) oder mehreren gewählten Serien-Kacheln: Anzahl, Verfahren und Aufnahmeart je Gruppe (aus dem Vorschlag, umstellbar), Größe, Zeit-, Platz- und Speicherschätzung, Hinweis „ohne Einzelvorschau“ (bewusste Ausnahme, offener Punkt bei der Abnahme), OneDrive-Platzhalter, Nebenbei (Standard ab 3 Serien) oder Mit Vorrang. Jedes Ergebnis wird sofort in einem eigenen Batch gespeichert; „Rückgängig“ am Vorgang nimmt alle zurück. Nebenbei wartet der Stapel, solange ein Zusammenfügen mit Vorrang rechnet (ein schwerer Lauf zur Zeit, Ansicht 13).',
+ act:'<b>Ansicht 13 · Aktivitäts-Anzeige</b> (Punkte 4 und 12, ADR-0067/0074). <b>Speichern läuft</b>: „Panorama zusammenfügen · 26 Fotos · Überblenden (5/6) · noch ≈ 2 min · Vorrang“ ist der <b>einzige</b> laufende Vorgang. Alles andere steht unter „Wartet — Vorrang für „Zusammenfügen““: der Stapel „Zusammenfügen · 12 / 48“ (ein Vorgang mit Pause; <span class="mono">OpenCvRuntime</span> lässt nur einen schweren Lauf zur Zeit zu), Serien erkennen (Vorrang 3), Prüfsummen (4) und Vorschaubilder auf Vorrat (5). Zuletzt fertig: ein früherer Stapel „39 Panoramen gespeichert“ (Zylinder) mit Ergebnisse zeigen, Rückgängig, Details (übersprungene). <b>Vorschau</b>: eigener Vorgang mit Abbrechen, nicht unter „Zuletzt fertig“; der Hintergrund wartet nur, solange gerechnet wird (2 s Nachlauf), nicht solange das Fenster offen ist. <b>Fertig-Meldung</b>: „Panorama gespeichert“ mit Öffnen und Rückgängig. Die Galerie dahinter ist ohne Serien-Filter.',
+ lb:'<b>Ansicht 14 · Lightbox mit Ergebnis</b> (Punkt 10). Über die Ergebnis-Marke geöffnet: Ergebnis zuerst, dahinter die Quellen im Filmstreifen. Zeile „Zusammengefügt aus 26 Fotos · Panorama, Kugel 360° · Quellen zeigen · Neu berechnen…“ („Neu berechnen“ öffnet das Fenster mit dem gespeicherten Rezept und speichert als weitere Datei). Info-Abschnitt „Zusammengefügt“ (Verfahren, Aufnahmeart, Größe, Quelle, Quellenzahl, davon nicht mehr vorhanden). Kugel 360° vorerst flach in 2 : 1; die Rundum-Ansicht ist Ausblick.',
+ set:'<b>Ansicht 15 · Einstellungen › Zusammenfügen</b> (Punkte 4, 12, 17), neuer Reiter nach „Verbessern“. Serien erkennen an/aus (still, Datei-Spur Vorrang 3, wartet, sobald du wartest), Arten, Zeitlücke Serienbild (2 s) und Panorama (15 s), mindestens 3 Fotos, Verworfene zeigen, Stand und „Serien neu erkennen“ (Benutzerzustand bleibt); Standard-Arten je Verfahren; Ergebnis (Ablage, Drohnen-Ordner eine Ebene höher, Dateinamen-Zusätze, JPEG 92, TIFF 16 bit, gemeinsame Tags, Quellen einklappen); Rechnen (Stapel nebenbei ab 3; Vorrang nur, solange Vorschau oder Speichern rechnen); Werkzeuge (OpenCV, Raw-Bilderweiterung, FFmpeg, Hugin nur falls Spike 20 es vorsieht).',
+ hint:'<b>Ansicht 16 · Hinweise</b> (Punkte 7, 8, 14). <b>OneDrive</b>: Zusammenfügen braucht die Pixel — fragt vor dem Herunterladen („Ohne diese Fotos“ geht auch). <b>RAW nur Vorschau</b>: ohne Raw-Bilderweiterung liefert Windows nur 960 × 640, Lumora nimmt die JPEG-Geschwister. <b>Speicher</b>: „Voll“ ausgegraut mit Zahl, 16K bleibt. <b>Bibliotheken gemischt</b>: gesperrt (ADR-0048). <b>Teil einer Serie</b> und <b>mehrere Serien</b>: Rückfrage beim Start.',
+ hidden:'<b>Ansicht 17 · Versteckte Sitzung</b> (Punkt 13, ADR-0049). Alles funktioniert gleich — Serien, Ein-Klick, Fenster, Stapel — mit den eigenen Zahlen der versteckten Bibliothek (7 Serien, 74 Fotos, 3 neu; keine OneDrive-Marke, der Container ist ein eingehängtes Laufwerk ohne Platzhalter) und bleibt im Container: Katalog, Dateiköpfe, Verknüpfungen, Zwischenstände (Temp im Container, beim Schließen gelöscht), Probe-Vorschauen, Ergebnis neben der ersten Quelle. OpenCL aus (kein Kernel-Cache außerhalb), FFmpeg mit TEMP im Container und ohne Bericht, Protokoll nur mit Verfahren und Id. In der Fertig-Ansicht (hier das Zylinder-Panorama aus 21 Fotos) ist „Im Explorer zeigen“ gesperrt; ein externes Werkzeug (Hugin) bliebe gesperrt, bis belegt ist, dass es nichts außerhalb schreibt.'};
+
+let cur='marks', SUB={};
+VIEWS.forEach(v=>{ if(v[3]) SUB[v[1]]=v[3][v[1]==='pano'?1:0][0]; });
+SUB.save='before';
+
+function renderBar(){
+  const grp={g:'Galerie:',w:'Fenster:',x:'Weiteres:'}; let h='';
+  ['g','w','x'].forEach(g=>{ h+=`<span style="margin-left:${g==='g'?0:8}px;color:#AAB">${grp[g]}</span>`+VIEWS.filter(v=>v[0]===g).map(v=>`<button data-v="${v[1]}" class="${v[1]===cur?'on':''}">${v[2]}</button>`).join(''); });
+  $('#vbar').innerHTML=h;
+  const v=VIEWS.find(x=>x[1]===cur);
+  $('#sbar2').innerHTML = v[3] ? 'Zustand: '+v[3].map(([k,n])=>`<button data-sub="${k}" class="${SUB[cur]===k?'on':''}">${n}</button>`).join('') : '<span>Ansicht ohne weitere Zustände</span>';
+}
+function show(view,sub){
+  cur=view; if(sub) SUB[view]=sub; const s=SUB[view];
+  const isWin = (WIN[view] && !(view==='hint'&&s==='mixed')) || (view==='hidden'&&s==='done') || (view==='menu'&&s==='nb');
+  $('#win').classList.toggle('hidden',isWin); $('#mwin').classList.toggle('hidden',!isWin);
+  if(isWin){
+    const w = view==='hidden' ? doneWin(true) : view==='menu' ? nbWin() : WIN[view](s);
+    $('#mwTitle').innerHTML = w.title + (view==='hidden'?' <span class="lock"><span class="ic s">&#xE72E;</span>versteckte Sitzung</span>':'');
+    $('#mbody').innerHTML=w.body; $('#mfoot').innerHTML=w.foot;
+  } else {
+    const hidden=view==='hidden';
+    $('#lib').innerHTML = hidden?LIB_HIDDEN:LIB_NORMAL;
+    $$('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.nav===(view==='set'?'set':(view==='menu'&&s==='album'?'alb':'gal'))));
+    const c=$('#content'); c.classList.toggle('scroll',view==='set');
+    let sbInfo='212 von 5 212 Fotos', act=ACT_IDLE, extra='';
+    if(view==='hint'){ c.innerHTML=V.menu('off'); sbInfo='6 ausgewählt'; }
+    else c.innerHTML=V[view](s);
+    if(view==='marks'||view==='filter'||view==='series') act=ACT_SERIES;
+    if(view==='act'){ const a=actStatus(s); act=a.act; extra=a.fly; }
+    if(view==='batch') act=ACT_SERIES;
+    $('#sb').innerHTML = hidden ? `<span><span class="ic s">&#xE72E;</span> Privat · versteckte Bibliothek</span><span>7 Serien · 3 neu</span><div class="act">${ACT_IDLE}</div>` : SB(sbInfo,act)+extra;
+  }
+  $('#cap').innerHTML = CAP[view] + (view==='hint'&&s==='mixed' ? ' <i>(Zustand „Bibliotheken gemischt“ zeigt den gesperrten Menüeintrag aus Ansicht 4.)</i>' : '');
+  renderBar();
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-v]'); if(b){ show(b.dataset.v); return; }
+  const sb=e.target.closest('[data-sub]'); if(sb){ show(cur,sb.dataset.sub); return; }
+  const p=e.target.closest('[data-proj]'); if(p){ show('pano',p.dataset.proj); return; }
+  const g=e.target.closest('[data-go]'); if(g){ const [v,s]=g.dataset.go.split(':'); show(v,s); }
+});
+function fit(){ const w=1280,h=800; const s=Math.min(1,(document.documentElement.clientWidth-40)/w);
+  ['#win','#mwin'].forEach(id=>{ const el=$(id); el.style.width=w+'px'; el.style.height=h+'px'; el.style.transform=`scale(${s})`; });
+  $('#winBox').style.width=w*s+'px'; $('#winBox').style.height=h*s+'px'; $('#cap').style.maxWidth=w*s+'px'; }
+function theme(d){ document.body.classList.toggle('dark',d); $('#mbLight').classList.toggle('on',!d); $('#mbDark').classList.toggle('on',d); }
+$('#mbLight').onclick=()=>theme(false); $('#mbDark').onclick=()=>theme(true);
+window.addEventListener('resize',fit); fit(); theme(window.matchMedia('(prefers-color-scheme: dark)').matches); show('marks');
+</script>
+</body>
+</html>

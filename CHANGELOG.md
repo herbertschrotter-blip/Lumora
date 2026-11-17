@@ -3,6 +3,33 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.43] — 2026-11-17
+
+### Docs — ADR-0078: Zeit, Ort und Höhe des Ergebnisses
+- Ein zusammengefügtes Foto übernimmt die Aufnahmezeit von der frühesten Quelle mit Zeit und den Ort von der ersten Quelle
+  mit Ort (echtes GPS vor geschätztem), nicht mehr starr beides vom ersten Bild — Handys haben beim ersten Bild oft noch
+  keinen GPS-Fix. Ohne Angabe in allen Quellen bleiben Zeit bzw. Ort leer, nie das Erstelldatum.
+- Katalog sofort beim Anlegen, damit Gipfelbuch über die App-Verbindung das Ergebnis derselben Tour zuordnet; in der Datei der
+  ganze GPS-Block samt Höhe und GPS-Zeit (sonst stufte das Nachlesen den Ort als „geschätzt“ ein). Tests dazu in Punkt 18,
+  Mockup 28 zeigt die Herkunft im Ergebnis und im Eigenschaften-Fenster.
+
+## [0.5.42] — 2026-11-17
+
+### Docs — Konzept „Serien“ und „Zusammenfügen“ (ADR-0078, Mockup 28)
+- Neues ADR-0078 (Proposed) und Mockup 28 (Entwurf, 17 Ansichten): aus mehreren Fotos eines — Panorama mit Aufnahmeart wie
+  in Photoshop (Automatisch, Kugel 360°, Zylinder, Perspektive, Vertikal, Nur verschieben), Belichtungsreihe, Entrauschen/mehr
+  Details, Leute entfernen, Langzeit, Fokus-Stapel, Zeitraffer, HDR-Panorama und zuletzt Bestes Gruppenfoto; Hochskalieren nur
+  danach, mit den Grenzen von „Foto verbessern“. Noch nichts gebaut, **Abnahme durch Herbert ausstehend**.
+- Serien erkennt Lumora still im Hintergrund-Planer (Vorrang 3 vor Prüfsummen und Vorschaubildern auf Vorrat, zur
+  Bestätigung offen), ohne OneDrive-Platzhalter herunterzuladen; Galerie-Filter „Serien“, Marke „Serie · n Fotos“ und
+  Ein-Klick aus einer Serie.
+- Start über „Zusammenfügen…“ im gemeinsamen Foto-Menü (Galerie, Liste, Lightbox; Alben über die gefilterte Galerie, Storys
+  über die Lightbox). Das Ergebnis ist eine neue, verknüpfte Datei neben dem ersten Einzelbild mit Rückgängig; Vorrang nur,
+  solange Vorschau oder Speichern rechnen.
+- Neues Projekt `Lumora.Imaging` (OpenCvSharp) mit eigenem Testprojekt; das Panorama-Werkzeug bleibt bis zum Bericht von
+  Spike 20 offen (OpenCV-Bausteine bevorzugt, Hugin als Option). `docs/adr/README.md` und PLAN Kap. 7 nachgezogen; 0077
+  und Mockup 27 sind die OneDrive-Bibliothek (0.5.41, parallel entstanden).
+
 ## [0.5.41] — 2026-11-17
 
 ### Added — OneDrive-Bibliothek (ADR-0077 Proposed, Mockup 27 Entwurf, Spike 19)
