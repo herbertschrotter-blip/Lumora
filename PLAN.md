@@ -249,7 +249,8 @@ FilesFts           -- FTS5 virtual table (Files.Name, Extension)
   (`UserDataCarryOver.Faces.cs`); Face-Ids bleiben.
 - Aufnahmedatum — umgesetzt in 0.2.48 (Migration `AddCapturedAt`, ADR-0046): `Files.CapturedAt` (Unix-Sekunden UTC,
   NULL = unbekannt), `Files.CapturedAtSource` (NULL = noch nicht gelesen, 0 unbekannt, 1 EXIF, 2 Video, 3 Dateiname,
-  4 manuell), `Files.CapturedAtPrecision` (0 genau, 1 Tag, 2 Monat, 3 Jahr — ungefähre Angaben in der Mitte des
+  4 manuell, 5 OneDrive vorläufig — seit 0.5.41, ADR-0077/ADR-0046 Nachtrag: aus dem Eigenschaftsspeicher, neu gelesen
+  sobald die Datei lokal ist), `Files.CapturedAtPrecision` (0 genau, 1 Tag, 2 Monat, 3 Jahr — ungefähre Angaben in der Mitte des
   Zeitraums), `Files.CapturedAtOffset` (Minuten Ortszeit − UTC, Anzeige als Wanduhrzeit). Ausdrucks-Index
   `IX_Files_Library_Captured ON Files(LibraryId, COALESCE(CapturedAt, ModifiedAtUtc) DESC, Id DESC)` (Raw-SQL in der
   Migration, EF kennt ihn nicht — `DatabaseInitializer` legt ihn bei jedem Start idempotent an,

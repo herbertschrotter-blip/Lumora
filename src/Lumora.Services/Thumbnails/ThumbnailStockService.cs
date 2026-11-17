@@ -636,12 +636,12 @@ public sealed class ThumbnailStockService : IThumbnailStockService, IDisposable
     /// <summary>
     /// Offen = nicht „fehlt“ und kein gültiges Vorschaubild der aktuellen Größe: keine Zeile, „Generated“ für eine andere
     /// Dateiversion, oder Pending/Stale/Failed — außer endgültig gescheitert (<see cref="ThumbnailService.MaxAttempts"/>,
-    /// wie die Galerie); dazu nicht als nicht lokal gemerkt und (<paramref name="withOffline"/>) nicht unter einer nicht
+    /// wie die Galerie; <c>cloud_unavailable</c> nie, 0.5.41); dazu nicht als nicht lokal gemerkt und (<paramref name="withOffline"/>) nicht unter einer nicht
     /// erreichbaren Wurzel. Alias f = Files, d = Folders, t = Thumbnails.
     /// </summary>
     private static string OpenFilter(bool withOffline)
         => "f.Missing = 0 AND (t.FileId IS NULL OR (t.Status = 2 AND t.SourceModifiedAtUtc IS NOT f.ModifiedAtUtc)" +
-           " OR (t.Status <> 2 AND NOT (t.Status = 3 AND t.AttemptCount >= $maxAttempts)))" +
+           " OR (t.Status <> 2 AND NOT (t.Status = 3 AND t.AttemptCount >= $maxAttempts AND t.ErrorCode IS NOT '" + ThumbnailErrorCodes.CloudUnavailable + "')))" +
            " AND NOT " + NotLocalFunction + "(f.Id, f.ModifiedAtUtc)" +
            (withOffline ? " AND NOT " + OfflineFunction + "(d.Path)" : string.Empty);
 

@@ -1144,8 +1144,7 @@ public sealed partial class GalleryViewModel : ObservableObject
         var requests = new List<ThumbnailRequest>(items.Count);
         foreach (var it in items)
         {
-            // Cache je Bibliothek der Datei (ADR-0048: in „Alle verknüpften“ nicht immer die aktive)
-            requests.Add(new ThumbnailRequest(it.LibraryId != 0 ? it.LibraryId : _libraryId, it.Id, it.SourcePath, it.MediaType, it.SourceModifiedAtUtc));
+            requests.Add(ToThumbnailRequest(it));
         }
 
         try
@@ -1158,6 +1157,10 @@ public sealed partial class GalleryViewModel : ObservableObject
             _logger.LogWarning(ex, "Thumbnail-Anforderung fehlgeschlagen");
         }
     }
+
+    /// <summary>Cache je Bibliothek der Datei (ADR-0048: in „Alle verknüpften“ nicht immer die aktive).</summary>
+    private ThumbnailRequest ToThumbnailRequest(GalleryItem it)
+        => new(it.LibraryId != 0 ? it.LibraryId : _libraryId, it.Id, it.SourcePath, it.MediaType, it.SourceModifiedAtUtc);
 
     /// <summary>Läuft auf einem Worker-Thread des ThumbnailService — nur den unveränderlichen Id-Schnappschuss lesen.</summary>
     private void OnThumbnailReady(ThumbnailReadyEventArgs args)

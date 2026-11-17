@@ -52,6 +52,17 @@ public interface IThumbnailService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Meldet nur, was schon gültig im Cache liegt (auch ein Vorschaubild älterer Größe), über <see cref="ThumbnailReady"/> —
+    /// ohne etwas einzureihen und ohne die Datei anzufassen. Für OneDrive-Platzhalter der ganzen Galerie-Seite (ADR-0077,
+    /// Nachbesserung 0.5.41): fehlende entstehen nur für sichtbare Kacheln (Shell-Abruf), vorhandene erscheinen sofort.
+    /// Standard: keine Wirkung.
+    /// </summary>
+    Task ReportCachedThumbnailsAsync(
+        IReadOnlyList<ThumbnailRequest> requests,
+        CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
+
+    /// <summary>
     /// Verwirft den In-Memory-Zustand (erledigt/fehlgeschlagen) für diese Dateien, sodass der nächste
     /// Request wieder gegen DB und Cache prüft — z. B. nach Papierkorb, Rescan oder wenn der Benutzer
     /// einen erneuten Versuch wünscht. Laufende Aufträge bleiben unberührt. Standard: keine Wirkung.

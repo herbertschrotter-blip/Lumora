@@ -33,6 +33,9 @@ public sealed class FolderEnumerator
         _logger = logger;
     }
 
+    /// <summary>Nur für Tests: listet die Dateien eines Ordners statt <see cref="Directory.EnumerateFiles(string, string, EnumerationOptions)"/>.</summary>
+    internal Func<string, IEnumerable<string>>? FileLister { get; init; }
+
     /// <summary>
     /// Yield-Stream über alle gefundenen MediaFiles unterhalb von rootPath.
     /// Berücksichtigt Cancellation pro Folder.
@@ -40,7 +43,9 @@ public sealed class FolderEnumerator
     /// <param name="onIoError">
     /// Optionaler Hook für IO-Fehler (nicht für fehlende Berechtigungen): wird mit Pfad und Ausnahme aufgerufen,
     /// bevor der Ordner bzw. die Datei übersprungen wird. Der Incremental-Scan prüft darin den Root erneut
-    /// (PLAN Kap. 12: IOException → Root-Recheck) und darf den Scan durch eine Ausnahme beenden.
+    /// (PLAN Kap. 12: IOException → Root-Recheck) und darf den Scan durch eine Ausnahme beenden. Ohne Hook (voller Scan,
+    /// „Neu aufbauen“) beendet ein IO-Fehler mitten im Auflisten eines Ordners das Aufzählen wie vor 0.5.41 — sonst
+    /// schriebe der Scan einen Katalog ohne den Rest des Ordners (ADR-0028: alles oder nichts).
     /// </param>
     /// <param name="exclusions">
     /// Ausschlüsse beim Einlesen (ADR-0066): ausgeschlossene Unterordner (Name aus der allgemeinen Liste in jeder Tiefe bzw.
@@ -66,7 +71,7 @@ public sealed class FolderEnumerator
             IEnumerable<string> files;
             try
             {
-                files = Directory.EnumerateFiles(folder, "*", Options);
+                files = FileLister?.Invoke(folder) ?? Directory.EnumerateFiles(folder, "*", Options);
             }
             catch (UnauthorizedAccessException ex)
             {
@@ -85,8 +90,9 @@ public sealed class FolderEnumerator
             {
                 ct.ThrowIfCancellationRequested();
 
-                // Auflisten kann mittendrin scheitern (z. B. OneDrive-Ordner, Verbindung weg): Ordner als nicht lesbar
-                // melden (UnreadablePaths, ADR-0077) statt den ganzen Scan abzubrechen
+                // Auflisten kann mittendrin scheitern (z. B. OneDrive-Ordner, Verbindung weg): mit Hook den Ordner als nicht
+                // lesbar melden (Abgleich: UnreadablePaths, ADR-0077) statt den ganzen Scan abzubrechen; ohne Hook (voller
+                // Scan) weiterwerfen — der Scan bricht ab, statt einen unvollständigen Katalog zu schreiben (ADR-0028)
                 string filePath;
                 try
                 {
@@ -97,10 +103,10 @@ public sealed class FolderEnumerator
 
                     filePath = fileEnumerator.Current;
                 }
-                catch (IOException ex)
+                catch (IOException ex) when (onIoError is not null)
                 {
                     _logger.LogWarning(ex, "IO-Fehler beim Auflisten von Folder: {Path}", folder);
-                    onIoError?.Invoke(folder, ex);
+                    onIoError(folder, ex);
                     break;
                 }
                 catch (UnauthorizedAccessException ex)

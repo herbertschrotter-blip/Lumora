@@ -5,8 +5,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
+using Microsoft.Extensions.Logging;
 using Lumora.Services.Cloud;
 using Lumora.Services.Messaging;
+using Lumora.Services.Thumbnails;
 
 namespace Lumora.Gallery.ViewModels;
 
@@ -15,9 +17,10 @@ namespace Lumora.Gallery.ViewModels;
 /// <list type="bullet">
 /// <item><b>Wolken-Marke</b>: nach dem Laden einer Seite liest die Galerie die Attribute ihrer Dateien (kein Download) und
 /// setzt <see cref="GalleryItem.IsCloudOnly"/>.</item>
-/// <item><b>Vorschaubilder</b>: lokale Dateien wie bisher die ganze Seite; Platzhalter nur die sichtbaren Kacheln plus
-/// <see cref="CloudLookahead"/> davor und danach (ein Shell-Abruf dauert bis zu Sekunden). Ändert sich der sichtbare
-/// Bereich, fordert die Galerie nach kurzer Ruhe (<see cref="CloudRangeDelay"/>) die neu sichtbaren nach.</item>
+/// <item><b>Vorschaubilder</b>: lokale Dateien wie bisher die ganze Seite; Platzhalter zuerst die sichtbaren Kacheln plus
+/// <see cref="CloudLookahead"/> davor und danach (fehlende per Shell-Abruf, der dauert bis zu Sekunden), alle übrigen der
+/// Seite nur aus dem Cache (kein Shell-Abruf, nichts eingereiht — Nachbesserung 0.5.41). Ändert sich der sichtbare Bereich,
+/// fordert die Galerie nach kurzer Ruhe (<see cref="CloudRangeDelay"/>) die neu sichtbaren nach.</item>
 /// <item><b>Rechtsklick</b> „Immer auf diesem Gerät behalten“ / „Speicherplatz freigeben“ für die ausgewählten Dateien in
 /// OneDrive, mit Statusmeldung; die Marke folgt, sobald Windows fertig ist (<see cref="CloudFilesChangedMessage"/>).</item>
 /// </list>
@@ -65,13 +68,35 @@ public sealed partial class GalleryViewModel
         await RequestThumbnailsAsync(onlineOnly.Count == 0 ? ordered : ordered.Where(i => !onlineOnly.Contains(i.Id)).ToList());
         if (onlineOnly.Count > 0)
         {
-            await RequestVisibleCloudThumbnailsAsync();
+            // sichtbare zuerst (fehlende per Shell-Abruf); alle übrigen der Seite nur aus dem Cache — sofort zeigen, ohne
+            // Shell-Abruf und ohne Warteschlange, sonst blitzen bei jedem Besuch leere Kacheln auf (Nachbesserung 0.5.41)
+            var visible = await RequestVisibleCloudThumbnailsAsync();
+            await ReportCachedThumbnailsAsync(ordered.Where(i => onlineOnly.Contains(i.Id) && !visible.Contains(i.Id)).ToList());
         }
 
         if (underRoots.Count < ordered.Count)
         {
             var rest = ordered.Except(underRoots).ToList();
             await ApplyCloudStatesAsync(ClassifyCloud(cloud, rest)); // nur noch die Marke
+        }
+    }
+
+    /// <summary>Nur Cache-Treffer melden lassen (<see cref="IThumbnailService.ReportCachedThumbnailsAsync"/>).</summary>
+    private async Task ReportCachedThumbnailsAsync(IReadOnlyList<GalleryItem> items)
+    {
+        if (items.Count == 0)
+        {
+            return;
+        }
+
+        var requests = items.Select(ToThumbnailRequest).ToList();
+        try
+        {
+            await _thumbnails.ReportCachedThumbnailsAsync(requests);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Vorschaubilder aus dem Cache: Abfrage fehlgeschlagen");
         }
     }
 
@@ -126,7 +151,8 @@ public sealed partial class GalleryViewModel
         });
     }
 
-    private async Task RequestVisibleCloudThumbnailsAsync()
+    /// <returns>Ids der angeforderten Platzhalter.</returns>
+    private async Task<HashSet<int>> RequestVisibleCloudThumbnailsAsync()
     {
         List<GalleryItem> wanted = [];
         await DispatchAsync(() => wanted = CloudItemsInView(CurrentPage, _visibleFirstIndex, _visibleLastIndex, CloudLookahead));
@@ -134,6 +160,8 @@ public sealed partial class GalleryViewModel
         {
             await Task.Run(() => RequestThumbnailsAsync(wanted));
         }
+
+        return wanted.Select(i => i.Id).ToHashSet();
     }
 
     /// <summary>

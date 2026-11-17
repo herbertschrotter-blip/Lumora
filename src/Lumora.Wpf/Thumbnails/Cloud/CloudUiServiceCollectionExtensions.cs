@@ -14,8 +14,10 @@ public static class CloudUiServiceCollectionExtensions
     public static IServiceCollection AddCloudUi(this IServiceCollection services)
     {
         services.TryAddSingleton<ShellThumbnailExtractor>();
-        services.TryAddSingleton<ICloudPreviewSource>(sp => sp.GetRequiredService<ShellThumbnailExtractor>());
-        services.TryAddSingleton<ICloudThumbnailRenderer>(sp => new ShellCloudThumbnailRenderer(sp.GetRequiredService<ICloudPreviewSource>()));
+
+        // Lightbox auf eigenen STA-Threads, Galerie auf den übrigen — die Vorschau wartet nie hinter der Galerie (0.5.41)
+        services.TryAddSingleton<ICloudPreviewSource>(sp => sp.GetRequiredService<ShellThumbnailExtractor>().Lightbox);
+        services.TryAddSingleton<ICloudThumbnailRenderer>(sp => new ShellCloudThumbnailRenderer(sp.GetRequiredService<ShellThumbnailExtractor>()));
         return services;
     }
 }

@@ -15,9 +15,11 @@ namespace Lumora.Services.Thumbnails;
 /// <para>
 /// Ein Abruf dauert 0,35–2,8 s (Spike 19). Deshalb gilt in der Warteschlange: zuletzt angeforderte Kacheln zuerst (Rang je
 /// Anforderung, innerhalb einer Anforderung deren Reihenfolge — die Galerie schickt sichtbare zuerst), höchstens
-/// <see cref="MaxCloudBacklog"/> warten; ältere verfallen und werden beim nächsten Sichtbarwerden neu angefordert. Ohne
-/// Shell-Weg (Tests, versteckte Sitzung) scheitert der Auftrag mit <see cref="ThumbnailErrorCodes.CloudUnavailable"/>,
-/// ohne einen Versuch zu verbrauchen.
+/// <see cref="MaxCloudBacklog"/> warten; ältere verfallen und werden beim nächsten Sichtbarwerden neu angefordert. Die
+/// jüngste Anforderung in der Warteschlange verfällt erst über <see cref="MaxCloudQueue"/>, auch wenn sie allein mehr als
+/// <see cref="MaxCloudBacklog"/> Platzhalter hat (Nachbesserung 0.5.41: sonst blieben sichtbare Kacheln leer, bis der
+/// Benutzer scrollt). Ohne Shell-Weg (Tests, versteckte Sitzung) scheitert
+/// der Auftrag mit <see cref="ThumbnailErrorCodes.CloudUnavailable"/>, ohne einen Versuch zu verbrauchen.
 /// </para>
 /// </summary>
 public sealed partial class ThumbnailService
@@ -25,8 +27,17 @@ public sealed partial class ThumbnailService
     /// <summary>Gleichzeitige Shell-Abrufe (Spike 19: 8 gleichzeitig ≈ 4 Bilder/s).</summary>
     public const int CloudWorkerCount = 8;
 
-    /// <summary>Höchstens so viele Platzhalter warten auf ihr Vorschaubild; die am längsten nicht mehr angeforderten verfallen.</summary>
+    /// <summary>
+    /// Höchstens so viele Platzhalter warten auf ihr Vorschaubild; die am längsten nicht mehr angeforderten verfallen — die
+    /// der jüngsten Anforderung erst über <see cref="MaxCloudQueue"/> (<see cref="CloudJobQueue"/>).
+    /// </summary>
     public const int MaxCloudBacklog = 96;
+
+    /// <summary>
+    /// Harte Obergrenze der Warteschlange, auch für die jüngste Anforderung (die Galerie fordert sichtbar ± 12 an; Alben,
+    /// Orte, Storys oder die App-Verbindung können mehr schicken) — darüber verfallen deren hintere.
+    /// </summary>
+    public const int MaxCloudQueue = 512;
 
     /// <summary>Abstand der Ränge zweier Anforderungen (größer als jede Anforderung lang ist).</summary>
     private const long RankStride = 1_000_000;
@@ -163,24 +174,34 @@ public sealed partial class ThumbnailService
 
 /// <summary>
 /// Warteschlange der Platzhalter (ADR-0077): <see cref="TryTake"/> liefert den Auftrag mit dem höchsten Rang (zuletzt
-/// angefordert, innerhalb einer Anforderung der vordere); über <see cref="MaxBacklog"/> verfallen die mit dem niedrigsten.
-/// Der Rang kommt aus dem Zustand des Dienstes und kann sich ändern (erneute Anforderung) — deshalb wird beim Nehmen gesucht
-/// (höchstens <see cref="MaxBacklog"/> Einträge). Thread-sicher.
+/// angefordert, innerhalb einer Anforderung der vordere); über <see cref="MaxBacklog"/> verfallen die mit dem niedrigsten —
+/// aber nie Aufträge der jüngsten Anforderung, die in der Warteschlange liegt (eine Anforderung = ein Rang-Block der Breite
+/// <c>rankStride</c>). Eine große Anforderung (viele sichtbare Kacheln) wird so bis <see cref="HardLimit"/> nicht gekürzt;
+/// erst die nächste Anforderung lässt die übrigen auf <see cref="MaxBacklog"/> schrumpfen. Der Rang kommt aus dem Zustand
+/// des Dienstes und kann sich ändern (erneute Anforderung) — deshalb wird beim Nehmen gesucht. Thread-sicher.
 /// </summary>
 internal sealed class CloudJobQueue
 {
     private readonly Lock _lock = new();
     private readonly List<ThumbnailRequest> _items = new();
     private readonly Func<int, long> _rank;
+    private readonly long _rankStride;
 
-    public CloudJobQueue(int maxBacklog, Func<int, long> rank)
+    /// <param name="rankStride">Breite eines Rang-Blocks je Anforderung (1 = jeder Rang eine eigene Anforderung).</param>
+    /// <param name="hardLimit">Obergrenze auch für die jüngste Anforderung (Standard: <paramref name="maxBacklog"/>).</param>
+    public CloudJobQueue(int maxBacklog, Func<int, long> rank, long rankStride = 1, int? hardLimit = null)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(maxBacklog, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(rankStride, 1);
         MaxBacklog = maxBacklog;
+        HardLimit = Math.Max(maxBacklog, hardLimit ?? maxBacklog);
         _rank = rank;
+        _rankStride = rankStride;
     }
 
     public int MaxBacklog { get; }
+
+    public int HardLimit { get; }
 
     public int Count
     {
@@ -193,7 +214,7 @@ internal sealed class CloudJobQueue
         }
     }
 
-    /// <summary>Reiht ein; liefert die Aufträge, die dafür verfallen (niedrigster Rang).</summary>
+    /// <summary>Reiht ein; liefert die Aufträge, die dafür verfallen (niedrigster Rang, aus der jüngsten Anforderung erst über <see cref="HardLimit"/>).</summary>
     public IReadOnlyList<ThumbnailRequest> Add(ThumbnailRequest request)
     {
         lock (_lock)
@@ -204,16 +225,36 @@ internal sealed class CloudJobQueue
                 return [];
             }
 
+            var newest = NewestRequest();
             var dropped = new List<ThumbnailRequest>();
             while (_items.Count > MaxBacklog)
             {
                 var index = IndexOf(lowest: true);
+                if (RequestOf(_rank(_items[index].FileId)) >= newest && _items.Count <= HardLimit)
+                {
+                    break; // nur noch Aufträge der jüngsten Anforderung — die verfallen nicht (Nachbesserung 0.5.41)
+                }
+
                 dropped.Add(_items[index]);
                 _items.RemoveAt(index);
             }
 
             return dropped;
         }
+    }
+
+    /// <summary>Nummer der Anforderung eines Rangs (Ränge einer Anforderung liegen in (k − 1)·Breite … k·Breite); 0 = unbekannt.</summary>
+    private long RequestOf(long rank) => rank <= 0 ? 0 : ((rank - 1) / _rankStride) + 1;
+
+    private long NewestRequest()
+    {
+        var newest = 0L;
+        foreach (var item in _items)
+        {
+            newest = Math.Max(newest, RequestOf(_rank(item.FileId)));
+        }
+
+        return newest;
     }
 
     public bool TryTake(out ThumbnailRequest request)

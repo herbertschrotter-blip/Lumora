@@ -64,11 +64,43 @@ public sealed partial class LightboxViewModel
         => _cloudHydrator is not null && item.IsImage && CloudStateOf(item).IsOnlineOnly;
 
     /// <summary>
-    /// Zustand nur aus den Attributen; Netzwerkpfade nie (dort gibt es keine Platzhalter, und ein getrenntes Netzlaufwerk
-    /// soll den UI-Thread nicht aufhalten).
+    /// Zustand nur aus den Attributen, und nur unter einer bekannten Cloud-Wurzel (<see cref="ICloudFileService.MayBeCloud"/>)
+    /// oder auf einem lokalen Laufwerk (<see cref="LocalDriveCheck"/>) — beides ohne Dateizugriff entschieden: Läuft auf dem
+    /// UI-Thread bei jedem Fotowechsel und für jeden Nachbarn; ein Netzlaufwerk zu einem nicht erreichbaren NAS (UNC oder
+    /// mit Laufwerksbuchstaben) darf ihn nicht aufhalten (Nachbesserung 0.5.41). Platzhalter gibt es nur auf lokalen
+    /// NTFS-Laufwerken; ein OneDrive-Ordner, der nicht als Wurzel bekannt ist, wird so trotzdem erkannt.
     /// </summary>
     private CloudFileState CloudStateOf(LightboxItem item)
-        => _cloudFiles is { } cloud && !item.Path.StartsWith(@"\\", StringComparison.Ordinal) ? cloud.GetState(item.Path) : CloudFileState.NotCloud;
+        => _cloudFiles is { } cloud && (cloud.MayBeCloud(item.Path) || LocalDriveCheck(item.Path))
+            ? cloud.GetState(item.Path)
+            : CloudFileState.NotCloud;
+
+    /// <summary>Liegt der Pfad auf einem lokalen Laufwerk (fest oder wechselbar)? Austauschbar für Tests.</summary>
+    internal Func<string, bool> LocalDriveCheck { get; set; } = IsOnLocalDrive;
+
+    /// <summary>
+    /// Laufwerksart über <c>GetDriveType</c> — liest die Zuordnung des Laufwerksbuchstabens, ohne das Laufwerk anzusprechen
+    /// (auch ein getrenntes Netzlaufwerk antwortet sofort). UNC-Pfade und alles ohne Laufwerksbuchstaben: nein.
+    /// </summary>
+    internal static bool IsOnLocalDrive(string path)
+    {
+        if (path.Length < 3 || path[1] != ':' || !char.IsAsciiLetter(path[0]) || (path[2] != '\\' && path[2] != '/'))
+        {
+            return false;
+        }
+
+        try
+        {
+            return new System.IO.DriveInfo(path[..1]).DriveType is System.IO.DriveType.Fixed or System.IO.DriveType.Removable;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Für Tests: liegt das Foto im Bild-Cache der Lightbox (angezeigt oder vorab geladen)?</summary>
+    internal bool IsInImageCache(int fileId) => _cache.Contains(fileId);
 
     /// <summary>Beim Wechsel des Fotos: laufendes Laden abbrechen, Hinweis weg, Cloud-Zustand für das Menü.</summary>
     private void ResetCloud(LightboxItem item)

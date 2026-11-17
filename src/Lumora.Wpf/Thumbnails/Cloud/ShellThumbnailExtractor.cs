@@ -27,8 +27,11 @@ public interface ICloudPreviewSource
 /// <c>IShellItemImageFactory::GetImage</c> mit <c>SIIGBF_THUMBNAILONLY</c> (nie ein Symbol, nie das Original). Für einen
 /// Platzhalter holt OneDrive das Bild aus der Cloud — die Datei bleibt dabei online. Solange die Shell
 /// <c>WTS_E_EXTRACTIONPENDING</c> meldet, wird alle 100 ms erneut gefragt, höchstens <see cref="ExtractionTimeout"/>.
-/// Alles läuft auf <see cref="MaxConcurrency"/> STA-Threads (Shell-COM braucht STA; 8 gleichzeitig ≈ 4 Bilder/s). In der
-/// versteckten Sitzung nie (der Vorschaubild-Cache von Windows bekäme Spuren; Cloud-Ordner sind dort ohnehin gesperrt).
+/// Die Vorschaubilder der Galerie laufen auf <see cref="MaxConcurrency"/> STA-Threads (Shell-COM braucht STA; 8 gleichzeitig
+/// ≈ 4 Bilder/s), die Vorschau der Lightbox auf eigenen <see cref="LightboxConcurrency"/> STA-Threads (<see cref="Lightbox"/>,
+/// Nachbesserung 0.5.41) — sie wartet so nie hinter Abrufen der Galerie, die offline bis zu
+/// <see cref="ExtractionTimeout"/> dauern. In der versteckten Sitzung nie (der Vorschaubild-Cache von Windows bekäme
+/// Spuren; Cloud-Ordner sind dort ohnehin gesperrt).
 /// <para>
 /// Im App-Container der Claude-App liefert die Shell für Platzhalter keine Bilder (Spike 19); Lumora läuft nativ. Die Suite
 /// prüft den Weg deshalb mit Fakes, die echte Prüfung läuft nativ (<c>OneDriveNativeProbeTests</c>, nur mit
@@ -37,8 +40,11 @@ public interface ICloudPreviewSource
 /// </summary>
 public sealed class ShellThumbnailExtractor : ICloudPreviewSource, IDisposable
 {
-    /// <summary>Gleichzeitige Shell-Abrufe (Spike 19).</summary>
+    /// <summary>Gleichzeitige Shell-Abrufe der Galerie (Spike 19).</summary>
     public const int MaxConcurrency = 8;
+
+    /// <summary>Eigene STA-Threads für die Vorschau der Lightbox (ein Foto zugleich, einer für das abgelöste beim Blättern).</summary>
+    public const int LightboxConcurrency = 2;
 
     /// <summary>So lange wird bei „Erzeugung läuft noch“ erneut gefragt.</summary>
     public static readonly TimeSpan ExtractionTimeout = TimeSpan.FromSeconds(30);
@@ -48,22 +54,39 @@ public sealed class ShellThumbnailExtractor : ICloudPreviewSource, IDisposable
     private const int ThumbnailOnly = 0x08; // SIIGBF_THUMBNAILONLY
 
     private readonly StaWorkerPool _pool = new(MaxConcurrency, "Lumora.Cloud.Vorschau");
+    private readonly StaWorkerPool _lightboxPool = new(LightboxConcurrency, "Lumora.Cloud.Lightbox");
     private readonly ICatalogContext? _catalog;
+    private readonly Func<string, int, CancellationToken, BitmapSource?> _extract;
 
     public ShellThumbnailExtractor(ICatalogContext? catalog = null)
+        : this(catalog, Extract)
+    {
+    }
+
+    /// <summary>Für Tests: <paramref name="extract"/> statt der Shell (läuft auf denselben STA-Threads).</summary>
+    internal ShellThumbnailExtractor(ICatalogContext? catalog, Func<string, int, CancellationToken, BitmapSource?> extract)
     {
         _catalog = catalog;
+        _extract = extract;
+        Lightbox = new LightboxLane(this);
     }
 
     /// <summary>False in der versteckten Sitzung.</summary>
     public bool IsAvailable => _catalog?.IsHidden != true;
 
+    /// <summary>Vorschau für die Lightbox auf eigenen STA-Threads — nie hinter den Abrufen der Galerie (Nachbesserung 0.5.41).</summary>
+    public ICloudPreviewSource Lightbox { get; }
+
+    /// <summary>Vorschaubilder der Galerie (über <see cref="ShellCloudThumbnailRenderer"/>).</summary>
     public Task<BitmapSource?> GetPreviewAsync(string path, int boxSize, CancellationToken ct)
+        => Run(_pool, path, boxSize, ct);
+
+    private Task<BitmapSource?> Run(StaWorkerPool pool, string path, int boxSize, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
         ArgumentOutOfRangeException.ThrowIfLessThan(boxSize, 16);
         return IsAvailable
-            ? _pool.RunAsync(token => Extract(path, boxSize, token), ct)
+            ? pool.RunAsync(token => _extract(path, boxSize, token), ct)
             : Task.FromResult<BitmapSource?>(null);
     }
 
@@ -120,7 +143,18 @@ public sealed class ShellThumbnailExtractor : ICloudPreviewSource, IDisposable
         return cached;
     }
 
-    public void Dispose() => _pool.Dispose();
+    public void Dispose()
+    {
+        _pool.Dispose();
+        _lightboxPool.Dispose();
+    }
+
+    /// <summary>Die Spur der Lightbox: dieselbe Shell, eigene Threads.</summary>
+    private sealed class LightboxLane(ShellThumbnailExtractor owner) : ICloudPreviewSource
+    {
+        public Task<BitmapSource?> GetPreviewAsync(string path, int boxSize, CancellationToken ct)
+            => owner.Run(owner._lightboxPool, path, boxSize, ct);
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     private struct NativeSize

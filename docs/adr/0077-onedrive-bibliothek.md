@@ -44,17 +44,23 @@ Kachel hätte ihr Original heruntergeladen.
    1024-px-Vorschau auf die normale Vorschaubild-Größe und schreibt sie atomar in dieselbe Cache-Datei
    `{fileId}_400_still.jpg` mit demselben DB-Status).
    - Rang: zuletzt angeforderte Kacheln zuerst, innerhalb einer Anforderung deren Reihenfolge; höchstens 96 warten, die
-     am längsten nicht mehr angeforderten verfallen und werden beim nächsten Sichtbarwerden neu angefordert.
+     am längsten nicht mehr angeforderten verfallen und werden beim nächsten Sichtbarwerden neu angefordert — Aufträge der
+     jüngsten Anforderung erst über der harten Obergrenze von 512 (Nachbesserung 0.5.41).
    - Fehlschlag (keine Verbindung, Zeitgrenze, kein Shell-Weg) ist eine äußere Ursache (`cloud_unavailable`): kein Versuch
-     verbraucht, nach 5 min erneut.
+     verbraucht, nach 5 min erneut. Auch ein abgebrochener Abruf (App beendet) verbraucht keinen; nur ein echter Fehler der
+     Datei (Schreiben scheitert) zählt.
+   - Die Lightbox holt ihre Vorschau auf eigenen STA-Threads (2), nie hinter den 8 der Galerie.
    - Bildmaße bleiben leer, bis die Datei lokal ist (die Galerie nimmt das Seitenverhältnis des Vorschaubilds).
 4. **Nur bei Bedarf:** Die Galerie fordert für Platzhalter nur die **sichtbaren Kacheln plus 12 davor und danach** an und
-   beim Scrollen nach 150 ms Ruhe die neu sichtbaren; lokale Dateien wie bisher die ganze Seite. Der **Vorrat** (0.5.40)
-   lässt Platzhalter aus.
+   beim Scrollen nach 150 ms Ruhe die neu sichtbaren; lokale Dateien wie bisher die ganze Seite. Für die übrigen Platzhalter
+   der Seite meldet sie Vorschaubilder, die schon im Cache liegen („nur Cache“,
+   `IThumbnailService.ReportCachedThumbnailsAsync`, nichts eingereiht). Der **Vorrat** (0.5.40) lässt Platzhalter aus.
 5. **Aufnahmedatum ohne Download:** Das Nachtragen fragt für Platzhalter den Eigenschaftsspeicher
    (`SHGetPropertyStoreFromParsingName`, `GPS_DEFAULT`, `System.Photo.DateTaken`) über `ICloudPropertyReader` — Herkunft
-   EXIF, Zeitzone dieses PCs. Liefert er nichts, bleibt die Datei offen und wird in der Sitzung nicht erneut gefragt, bis
-   sie lokal ist. GPS bleibt leer, bis die Datei lokal ist.
+   **5 „OneDrive, vorläufig“** (`CaptureDateSource.Cloud`, Nachbesserung 0.5.41; Windows übergeht `OffsetTimeOriginal`),
+   Zeitzone dieses PCs. Sobald die Datei lokal ist, liest das Nachtragen das Datum aus der Datei (ADR-0046 Nachtrag); nennt
+   die Datei selbst keins, bleibt das vorläufige. Liefert der Eigenschaftsspeicher nichts, bleibt die Datei offen und wird
+   in der Sitzung nicht erneut gefragt, bis sie lokal ist. GPS bleibt leer, bis die Datei lokal ist.
 6. **Analysen lassen Platzhalter aus** und holen sie nach, sobald sie lokal sind:
    - Gesichter laden das Original nicht und vermerken die Datei nicht; Gesichts-Ausschnitte entstehen für freigegebene
      Dateien erst wieder, wenn sie lokal sind.
@@ -67,16 +73,35 @@ Kachel hätte ihr Original heruntergeladen.
    Fortschritt, dann das Original (`ICloudFileHydrator` liest die Datei in 1-MB-Blöcken, Windows lädt sie dabei) und danach
    die normale Anzeige. „Abbrechen“ schließt die Datei sofort, die Vorschau bleibt, „Erneut laden“ versucht es noch einmal.
    Ohne Internet eine Meldung („OneDrive ist gerade nicht erreichbar …“) — nie „fehlt“. Nachbarn, die nur online liegen,
-   werden nie vorab geladen.
+   werden nie vorab geladen. Attribute liest die Lightbox (UI-Thread) nur unter bekannten Cloud-Wurzeln oder auf lokalen
+   Laufwerken (Laufwerksart ohne Zugriff), nie auf Netzlaufwerken.
 8. **Kachel und Rechtsklick:** Wolken-Marke („nur online“) neben der Endung bzw. in der Collage unten links. Im Menü
    „Datei ▸“ für Dateien in OneDrive „Immer auf diesem Gerät behalten“ (+P −U) und „Speicherplatz freigeben“ (+U −P) über
    `SetFileAttributes` — wie im Explorer, auch in der Lightbox — mit Statusmeldung. Der Dienst beobachtet die Dateien, bis
    Windows fertig ist (behalten bis 30 min, freigeben bis 5 min), und meldet es; die Marke folgt.
 9. **Offline-vs-Missing:** Ein Platzhalter gilt nie als fehlend. Liefert ein Ordner beim Abgleich einen IO-Fehler, obwohl
    die Wurzel erreichbar ist (etwa OneDrive ohne Verbindung), markiert der Abgleich darin nichts als fehlend
-   (`UnreadablePaths`).
+   (`UnreadablePaths`). Der volle Scan bricht bei einem Fehler mitten im Auflisten ab wie vor 0.5.41; „Neu aufbauen“
+   bricht bei jedem nicht lesbaren, aber vorhandenen Ordner ab, der Katalog bleibt unverändert (ADR-0028) — eine einzelne
+   nicht lesbare Datei überspringt es wie bisher.
 10. **Versteckte Bibliothek:** keine Änderung — Cloud-Ordner bleiben dort gesperrt; Shell-Vorschau und Eigenschaftsspeicher
     sind in der versteckten Sitzung zusätzlich abgeschaltet (keine Spuren im Vorschaubild-Cache von Windows).
+
+## Nachbesserung nach der Prüfung (0.5.41)
+
+| Befund | Entscheidung |
+|--------|--------------|
+| Eine Anforderung mit mehr als 96 Platzhaltern (großer Bildschirm, kleine Kacheln) ließ auch sichtbare Kacheln verfallen; sie blieben leer, bis gescrollt wurde | `CloudJobQueue` kürzt die jüngste Anforderung in der Warteschlange erst über 512 (Rang-Block je Anforderung, harte Obergrenze für Alben, Orte, Storys, App-Verbindung); die nächste lässt ältere von hinten auf 96 schrumpfen |
+| Ein IO-Fehler mitten im Auflisten wurde auch im vollen Scan geschluckt — „Neu aufbauen“ schrieb einen Katalog ohne den Rest des Ordners | Ohne Hook wirft `FolderEnumerator` weiter (wie vor 0.5.41); „Neu aufbauen“ übergibt einen Hook, der bei einem vorhandenen, nicht lesbaren Ordner abbricht; einzelne Dateien und inzwischen gelöschte Pfade überspringt er wie bisher |
+| Das Shell-Datum wurde als EXIF gespeichert und nie korrigiert | Eigene Herkunft 5 „OneDrive, vorläufig“; neu gelesen, sobald die Datei lokal ist, nennt die Datei keins, bleibt es. Nativ geprüft (300 lokale Fotos, 280 mit Datum): Wanduhrzeit 280 von 280 gleich, UTC 266 von 280 — die 14 mit abweichendem Zeitversatz lagen genau um den Zonenabstand daneben |
+| „Pending“ zählte für Platzhalter vor dem Abruf einen Versuch; drei abgebrochene Abrufe sperrten die Datei für immer | Platzhalter: „Pending“ ohne Versuch, nur ein echter Fehler zählt; Zeilen mit `cloud_unavailable` sperrt `MaxAttempts` nie (Galerie und Vorrat) |
+| Lightbox-Vorschau wartete hinter den 8 Galerie-Abrufen (offline bis 30 s) | Eigene Spur `ShellThumbnailExtractor.Lightbox` mit 2 STA-Threads |
+| Lightbox las Attribute auf dem UI-Thread auch auf Netzlaufwerken mit Buchstaben | nur unter bekannten Cloud-Wurzeln (`ICloudFileService.MayBeCloud`) oder auf lokalen Laufwerken (`GetDriveType`, ohne Zugriff auf das Laufwerk) |
+| Gecachte Vorschaubilder von Platzhaltern außerhalb von sichtbar ± 12 erschienen erst nach dem Scrollen | sichtbare zuerst anfordern, die übrigen Platzhalter der Seite „nur Cache“ |
+
+Nicht umgesetzt: Shell-Abrufe der Galerie beim Pausieren (Katalog-Umzug, „Cache leeren“) abbrechen und neu einreihen —
+ein Abruf dauert nativ 0,35–4,3 s, nur ohne Verbindung bis 30 s; die Pause des Umzugs scheitert dann mit ihrer Zeitgrenze
+und lässt den Dienst laufen (0.5.40).
 
 ## Begründung
 

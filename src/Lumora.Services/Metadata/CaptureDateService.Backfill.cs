@@ -137,7 +137,8 @@ public sealed partial class CaptureDateService
     private static bool IsCatalogUnavailable(Exception ex)
         => ex is DatabaseSuspendedException || ex.InnerException is DatabaseSuspendedException || SqliteBusyRetry.IsBusy(ex);
 
-    private readonly record struct PendingRow(int FileId, int LibraryId, string Path, long ModifiedAt);
+    /// <param name="Provisional">Datum schon gesetzt (vorläufiges OneDrive-Datum, zum Neulesen freigegeben, 0.5.41).</param>
+    private readonly record struct PendingRow(int FileId, int LibraryId, string Path, long ModifiedAt, bool Provisional = false);
 
     private readonly record struct ReadResult(int FileId, int LibraryId, long ModifiedAt, CaptureDateValue? Value);
 
@@ -146,6 +147,7 @@ public sealed partial class CaptureDateService
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, _stop.Token);
         var token = linked.Token;
         await WaitWhileSuspendedAsync(token).ConfigureAwait(false);
+        await ReopenLocalCloudDatesAsync(token).ConfigureAwait(false); // vorläufige OneDrive-Daten lokal gewordener Dateien (0.5.41)
         var total = await Task.Run(CountPending, token).ConfigureAwait(false);
         if (total == 0)
         {
@@ -218,6 +220,10 @@ public sealed partial class CaptureDateService
                     read1[i] = new ReadResult(row.FileId, row.LibraryId, row.ModifiedAt, _reader.Read(row.Path));
                 });
                 var results = read1.ToList();
+                var provisionalIds = readable.Where(r => r.Provisional).Select(r => r.FileId).ToHashSet();
+                var kept = provisionalIds.Count == 0 ? [] : await KeepProvisionalAsync(results, provisionalIds, token).ConfigureAwait(false);
+                read += kept.Count; // gelesen, vorläufiges Datum bleibt (die Datei selbst nannte keins)
+                withDate += kept.Count;
                 skipped += ReadPlaceholders(placeholders, results, token);
 
                 cursor = batch[^1].FileId;
@@ -322,7 +328,7 @@ public sealed partial class CaptureDateService
         using var connection = _factory.OpenSqliteConnection();
         using var cmd = connection.CreateCommand();
         cmd.CommandText = """
-            SELECT f.Id, f.LibraryId, d.Path, f.Name, f.ModifiedAtUtc
+            SELECT f.Id, f.LibraryId, d.Path, f.Name, f.ModifiedAtUtc, f.CapturedAt IS NOT NULL
             FROM Files f JOIN Folders d ON d.Id = f.FolderId
             WHERE f.Id > $after AND f.CapturedAtSource IS NULL AND f.Missing = 0
             ORDER BY f.Id
@@ -334,7 +340,7 @@ public sealed partial class CaptureDateService
         using var reader = cmd.ExecuteReader();
         while (reader.Read())
         {
-            rows.Add(new PendingRow(reader.GetInt32(0), reader.GetInt32(1), Path.Combine(reader.GetString(2), reader.GetString(3)), reader.GetInt64(4)));
+            rows.Add(new PendingRow(reader.GetInt32(0), reader.GetInt32(1), Path.Combine(reader.GetString(2), reader.GetString(3)), reader.GetInt64(4), reader.GetInt64(5) != 0));
         }
 
         return rows;

@@ -156,6 +156,22 @@ public sealed class ScanService : IScanService
         }
     }
 
+    /// <summary>
+    /// IO-Fehler beim „Neu aufbauen“ (ADR-0028, Nachbesserung 0.5.41): Ein vorhandener Ordner ist gerade nicht lesbar —
+    /// abbrechen, der bisherige Katalog bleibt unverändert (kein Commit); sein Inhalt samt Benutzerdaten fiele sonst weg.
+    /// Eine einzelne Datei (gesperrt, kaputt) oder ein inzwischen gelöschter Pfad wird übersprungen wie bisher — sonst
+    /// verhinderte eine Datei jeden Neuaufbau.
+    /// </summary>
+    private static void AbortRebuildOnIoError(string path, Exception ex)
+    {
+        if (!Directory.Exists(path))
+        {
+            return;
+        }
+
+        throw new IOException($"„Neu aufbauen“ abgebrochen: Ein Ordner ist gerade nicht lesbar ({ex.Message}). Der Katalog bleibt unverändert.", ex);
+    }
+
     // ---- Incremental ----------------------------------------------------------------------------
 
     private async Task<ScanResult> RunIncrementalScanAsync(int libraryId, ScanOptions options, ScanProgressReporter reporter, CancellationToken ct)
@@ -348,7 +364,11 @@ public sealed class ScanService : IScanService
                 return id;
             }
 
-            foreach (var df in _enumerator.Enumerate(rootPath, ct, exclusions: exclusions))
+            // „Neu aufbauen“ ersetzt den Katalog (ADR-0028): ein nicht lesbarer Ordner (z. B. OneDrive ohne Verbindung) bricht
+            // ab, statt ihn samt Benutzerdaten wegfallen zu lassen (Nachbesserung 0.5.41). Fresh ohne Hook: ein Fehler mitten
+            // im Auflisten bricht ab wie vor 0.5.41, ein Ordner, der sich gar nicht öffnen lässt, wird übersprungen wie bisher
+            Action<string, Exception>? onIoError = mode == ScanMode.ClearAndRescan ? AbortRebuildOnIoError : null;
+            foreach (var df in _enumerator.Enumerate(rootPath, ct, onIoError, exclusions))
             {
                 var folderId = GetOrCreateFolderId(df.FolderPath);
 

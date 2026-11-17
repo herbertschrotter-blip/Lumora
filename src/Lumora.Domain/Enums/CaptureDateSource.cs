@@ -21,4 +21,11 @@ public enum CaptureDateSource
 
     /// <summary>Vom Benutzer gesetzt („Datum setzen…“) — genau oder ungefähr (siehe <see cref="CaptureDatePrecision"/>).</summary>
     Manual = 4,
+
+    /// <summary>
+    /// Vorläufig aus dem Eigenschaftsspeicher von Windows, solange die Datei nur online liegt (OneDrive-Platzhalter,
+    /// ADR-0077): Windows liefert UTC ohne den Zeitversatz der Aufnahme (<c>OffsetTimeOriginal</c>), Lumora rechnet mit der
+    /// Zeitzone dieses PCs. Sobald die Datei lokal ist, liest das Nachtragen das Datum aus der Datei selbst.
+    /// </summary>
+    Cloud = 5,
 }

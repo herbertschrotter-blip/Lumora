@@ -50,12 +50,51 @@ Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Form
 ### Tests
 - 41 neue Tests (30 Services, 11 Wpf, davon die native OneDrive-Prüfung nur mit `LUMORA_ONEDRIVE_PROBE`).
 
+### Fixed — Nachbesserung nach der Prüfung
+- **Sichtbare Kacheln blieben leer:** Die Cloud-Warteschlange hält höchstens 96 Platzhalter. War eine einzelne Anforderung
+  der Galerie größer (großer Bildschirm, kleine Kacheln), verfielen auch sichtbare Kacheln und kamen erst nach dem Scrollen.
+  Jetzt verfällt ein Auftrag der jüngsten Anforderung erst über der harten Obergrenze von 512 (Alben, Orte, Storys oder die
+  App-Verbindung können mehr schicken); erst die nächste Anforderung lässt ältere von hinten auf 96 schrumpfen.
+- **„Neu aufbauen“ bricht ab statt Ordner wegzulassen (ADR-0028):** Ein IO-Fehler mitten im Auflisten wurde seit 0.5.41
+  auch im vollen Scan geschluckt. Ohne Hook wirft der Scanner wieder wie vorher; „Neu aufbauen“ bricht bei einem
+  vorhandenen, aber nicht lesbaren Ordner (etwa OneDrive ohne Verbindung) ab, der Katalog bleibt unverändert. Einzelne
+  nicht lesbare Dateien überspringt es wie bisher. Der Abgleich markiert darin weiter nichts als fehlend.
+- **Aufnahmedatum aus der Shell nur vorläufig:** neue Herkunft 5 „OneDrive, vorläufig“ (`CaptureDateSource.Cloud`) statt
+  EXIF. Ist die Datei lokal (Meldung von Lumora, sonst einmal je Sitzung über die Attribute geprüft), liest das Nachtragen
+  das Datum aus der Datei — mit `OffsetTimeOriginal`; nennt die Datei keins (etwa ein Format, das Lumora nicht liest),
+  bleibt das vorläufige. Vorläufige Daten zählen nicht als offen. Nativ gemessen (300 lokale
+  Fotos, 280 mit Datum, keine Dateinamen): Wanduhrzeit der Shell 280 von 280 gleich, UTC 266 von 280 — Windows übergeht
+  den Zeitversatz; die 14 Fotos aus anderen Zeitzonen lagen um den Zonenabstand daneben.
+- **Kein Versuch für abgebrochene Shell-Abrufe:** „Pending“ zählt für Platzhalter keinen Versuch mehr (der Abruf dauert
+  offline bis 30 s); nur ein echter Fehler der Datei zählt. Zeilen mit `cloud_unavailable` sperrt `MaxAttempts` nie — in
+  Galerie und Vorrat, auch solche, die vorher so stehen geblieben sind.
+- **Lightbox-Vorschau ohne Warten:** eigene STA-Threads (2) für die Vorschau der Lightbox (`ShellThumbnailExtractor.Lightbox`),
+  die 8 der Galerie bleiben für die Kacheln.
+- **Kein Dateizugriff auf Netzlaufwerken im UI-Thread:** Die Lightbox liest Attribute nur unter bekannten Cloud-Wurzeln
+  oder auf lokalen Laufwerken (Laufwerksart über `GetDriveType`, ohne Zugriff) — ein Netzlaufwerk mit Buchstaben zu einem
+  nicht erreichbaren NAS hält den Fotowechsel nicht mehr auf.
+- **Keine leeren Kacheln beim erneuten Besuch:** Die Galerie fordert sichtbare Platzhalter ± 12 zuerst an; für alle
+  übrigen der Seite meldet sie Vorschaubilder, die schon im Cache liegen (`IThumbnailService.ReportCachedThumbnailsAsync`,
+  „nur Cache“, nichts eingereiht, kein Shell-Abruf).
+- **Tests:** 28 neue (20 Services, einer ersetzt den bisherigen Rückstau-Test; 8 Wpf, davon die native Datums-Prüfung
+  nur mit `LUMORA_ONEDRIVE_PROBE`): jüngste Anforderung verfällt nicht, harte Obergrenze, ältere schrumpft von hinten,
+  abgebrochener Abruf ohne Versuch, alte gesperrte Zeile in Galerie und Vorrat, echter Fehler zählt, „nur Cache“; Scanner
+  mit Fehler mitten im Auflisten (ohne/mit Hook), Abgleich ohne „fehlt“, „Neu aufbauen“ bricht bei einem Ordner ab und
+  überspringt eine einzelne Datei; vorläufiges Datum nach Meldung, in der nächsten Sitzung und ohne Datum in der Datei;
+  Motive und Gesichts-Ausschnitte lassen Platzhalter aus und holen sie nach; versteckte Sitzung (Shell-Datum,
+  Shell-Vorschau); Lightbox-Spur, Nachbar nur online nicht vorab geladen, keine Attribute auf Netzlaufwerken, Platzhalter
+  außerhalb bekannter Wurzeln, Laufwerksart; Galerie: sichtbare zuerst, übrige „nur Cache“. Native Prüfung `Shell_Datum_im_Vergleich_zum_EXIF_Datum_lokaler_Fotos`
+  (nur mit `LUMORA_ONEDRIVE_PROBE`).
+
 ### Offen
 - Mockup 27 und ADR-0077 warten auf Herberts Abnahme.
 - Dateien, die außerhalb von Lumora lokal werden (Explorer), holen die Analysen erst beim nächsten Einlesen bzw. Start nach.
 - Videos, die nur online liegen: Vorschaubild über die Shell; Abspielen lädt wie bisher über LibVLC (kein eigener Hinweis).
 - „Ordner übernehmen“ (`FolderAdoptionSourceReader`) überspringt Reparse-Ordner weiterhin — für OneDrive-Ordner als Quelle
   noch nicht angepasst.
+- Shell-Abrufe der Galerie laufen beim Pausieren (Katalog-Umzug, „Cache leeren“) zu Ende; ohne Verbindung (bis 30 s) kann
+  die Pause des Umzugs an ihrer Zeitgrenze scheitern (der Dienst läuft dann weiter, 0.5.40).
+- Vorläufige Aufnahmedaten von Dateien, die nie lokal werden, behalten den Zeitversatz dieses PCs (Wanduhrzeit stimmt).
 
 ## [0.5.40] — 2026-11-17
 

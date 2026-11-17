@@ -51,9 +51,12 @@ public sealed record DuplicateMember(
     /// <summary>Pixelzahl (0 = unbekannt).</summary>
     public long Pixels => Width is > 0 && Height is > 0 ? (long)Width.Value * Height.Value : 0;
 
-    /// <summary>Aufnahmedatum aus der Datei (EXIF/Video) oder von Hand gesetzt — nicht aus dem Dateinamen geraten.</summary>
+    /// <summary>
+    /// Aufnahmedatum aus der Datei (EXIF/Video, bei OneDrive-Platzhaltern vorläufig über Windows) oder von Hand gesetzt — nicht
+    /// aus dem Dateinamen geraten.
+    /// </summary>
     public bool HasCaptureDate => CapturedAtUtc is not null
-                                  && CapturedAtSource is CaptureDateSource.Exif or CaptureDateSource.Video or CaptureDateSource.Manual;
+                                  && CapturedAtSource is CaptureDateSource.Exif or CaptureDateSource.Video or CaptureDateSource.Manual or CaptureDateSource.Cloud;
 
     /// <summary>Bewertung, Favorit, Tags, Kategorien, Personen als eine Zahl (für die Behalten-Regel).</summary>
     public int UserDataScore => (Rating ?? 0) * 2 + (IsFavorite ? 3 : 0) + TagCount + CategoryCount + PersonCount;

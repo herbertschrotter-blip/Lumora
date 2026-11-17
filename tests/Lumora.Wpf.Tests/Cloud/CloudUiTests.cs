@@ -215,6 +215,9 @@ public sealed class CloudUiTests
 
         public List<CloudFileRef> BecameLocal { get; } = new();
 
+        /// <summary>Bekannte Cloud-Wurzeln (<see cref="MayBeCloud"/>).</summary>
+        public List<string> Roots { get; } = [@"C:\OneDrive"];
+
         public CloudFileState GetState(string path)
         {
             lock (Asked)
@@ -225,7 +228,7 @@ public sealed class CloudUiTests
             return States.TryGetValue(path, out var state) ? state : CloudFileState.NotCloud;
         }
 
-        public bool MayBeCloud(string path) => path.StartsWith(@"C:\OneDrive", StringComparison.OrdinalIgnoreCase);
+        public bool MayBeCloud(string path) => Roots.Any(root => path.StartsWith(root, StringComparison.OrdinalIgnoreCase));
 
         public CloudPinResult SetPinState(IReadOnlyList<CloudFileRef> files, CloudPinAction action)
         {

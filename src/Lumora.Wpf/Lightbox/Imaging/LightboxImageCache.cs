@@ -76,6 +76,15 @@ internal sealed class LightboxImageCache : IDisposable
         }
     }
 
+    /// <summary>Läuft oder liegt ein Decode für diese Datei vor (Tests: Vorabladen der Nachbarn)?</summary>
+    public bool Contains(int fileId)
+    {
+        lock (_gate)
+        {
+            return _entries.ContainsKey(fileId);
+        }
+    }
+
     public bool TryGetCompleted(int fileId, out DecodedImage? image)
     {
         lock (_gate)

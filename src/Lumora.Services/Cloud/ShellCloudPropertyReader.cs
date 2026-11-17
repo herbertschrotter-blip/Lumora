@@ -20,7 +20,9 @@ public interface ICloudPropertyReader
 /// <summary>
 /// Liest das Aufnahmedatum eines OneDrive-Platzhalters über <c>SHGetPropertyStoreFromParsingName</c> mit Standard-Flags
 /// (<c>GPS_DEFAULT</c>; Spike 19: Datum 30 von 30, GPS 0 von 30, kein Download). Die Shell liefert es als UTC — umgerechnet
-/// wie ein Video-Datum in die Zeitzone dieses PCs (<see cref="CaptureDateValue.FromUtc"/>). Läuft auf zwei eigenen
+/// wie ein Video-Datum in die Zeitzone dieses PCs (<see cref="CaptureDateValue.FromUtc"/>), Herkunft
+/// <see cref="CaptureDateSource.Cloud"/> (vorläufig: ohne <c>OffsetTimeOriginal</c>, wird aus der Datei neu gelesen, sobald
+/// sie lokal ist). Läuft auf zwei eigenen
 /// STA-Threads mit Zeitgrenze. In der versteckten Bibliothek nie (keine Spuren in der Shell; Cloud-Ordner sind dort ohnehin
 /// gesperrt). Die Schnittstelle ist nur bis <c>GetValue</c> deklariert: Lumora schreibt keine Eigenschaften.
 /// </summary>
@@ -57,7 +59,7 @@ public sealed class ShellCloudPropertyReader : ICloudPropertyReader, IDisposable
                 return null;
             }
 
-            return task.Result is { } utc && CaptureDateValue.IsPlausible(utc) ? CaptureDateValue.FromUtc(utc, CaptureDateSource.Exif) : null;
+            return task.Result is { } utc && CaptureDateValue.IsPlausible(utc) ? CaptureDateValue.FromUtc(utc, CaptureDateSource.Cloud) : null;
         }
         catch (Exception ex) when (ex is AggregateException or COMException or InvalidCastException or ObjectDisposedException)
         {

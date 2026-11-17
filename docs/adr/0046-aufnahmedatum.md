@@ -85,3 +85,15 @@ werden. Domain/Data/Services dürfen kein WPF kennen (WIC lebt im Wpf-Projekt).
   daneben. AVI, MKV, MTS, WMV, Canon CR3 und Dateien nur in der Cloud bekommen vorerst nur das Dateinamen-Datum bzw.
   bleiben offen.
 - − Manuelle Daten stehen nur im Katalog, nicht in der Datei (bewusst bis „Orte“).
+
+## Nachtrag 0.5.41 — Herkunft 5 „OneDrive, vorläufig“ (ADR-0077)
+
+`CapturedAtSource` bekommt den Wert **5 (`CaptureDateSource.Cloud`)**: das Aufnahmedatum eines OneDrive-Platzhalters aus dem
+Eigenschaftsspeicher von Windows (ohne Download, [ADR-0077](0077-onedrive-bibliothek.md)). Windows liest
+`DateTimeOriginal` als Ortszeit dieses PCs und übergeht `OffsetTimeOriginal` (nativ gemessen an 280 lokalen Fotos:
+Wanduhrzeit 280 von 280 gleich, UTC bei den 14 Fotos mit abweichendem Zeitversatz 0 von 14). Der Wert gilt deshalb nur
+vorläufig: Sobald die Datei lokal ist (Meldung `CloudFilesChangedMessage`, sonst einmal je Sitzung über die Attribute
+geprüft), setzt das Nachtragen die Herkunft auf NULL — das Datum bleibt bis dahin stehen — und liest es aus der Datei;
+nennt die Datei selbst keins (oder nur eins aus dem Dateinamen), bleibt das vorläufige.
+Vorläufige Daten zählen beim Nachtragen nicht als offen. Anzeige „(OneDrive, vorläufig)“; Doppelte werten sie wie EXIF.
+Keine Schema-Änderung (die Spalte ist eine Zahl).

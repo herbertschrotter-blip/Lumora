@@ -120,4 +120,89 @@ public sealed class OneDriveNativeProbeTests(ITestOutputHelper output)
         hydrated.Should().BeEmpty("der Shell-Weg lädt nichts herunter");
         scanned.Should().Be(direct, "der Scanner liest Cloud-Dateien ein");
     }
+
+    /// <summary>
+    /// Nachbesserung 0.5.41: Entspricht das Aufnahmedatum der Shell (Eigenschaftsspeicher, für Platzhalter vorläufig) dem
+    /// EXIF-Datum, das Lumora selbst liest? Verglichen wird an LOKALEN Fotos im Ordner (nichts wird geladen): Wanduhrzeit
+    /// und UTC getrennt, dazu wie viele Dateien einen Zeitversatz nennen, der von der Zeitzone dieses PCs abweicht.
+    /// Ausgabe nur Zahlen.
+    /// </summary>
+    [OneDriveProbeFact]
+    public void Shell_Datum_im_Vergleich_zum_EXIF_Datum_lokaler_Fotos()
+    {
+        var root = Environment.GetEnvironmentVariable(OneDriveProbeFactAttribute.Variable)!;
+        var count = Math.Clamp(int.TryParse(Environment.GetEnvironmentVariable(OneDriveProbeFactAttribute.Variable + "_DATES"), out var c) ? c : 300, 20, 2000);
+        var report = new StringBuilder();
+        void Line(string text)
+        {
+            report.AppendLine(text);
+            output.WriteLine(text);
+        }
+
+        var options = new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = 0 };
+        var local = Directory.EnumerateFiles(root, "*", options)
+            .Where(f => Extensions.Contains(Path.GetExtension(f), StringComparer.OrdinalIgnoreCase) && CloudFiles.IsLocallyAvailable(f))
+            .Take(50_000)
+            .ToList();
+        var step = Math.Max(1, local.Count / count);
+        var picked = local.Where((_, i) => i % step == 0).Take(count).ToList();
+        Line($"Lokale Fotos gefunden (bis 50 000): {local.Count}, verglichen: {picked.Count}");
+
+        var exifReader = new Lumora.Services.Metadata.CaptureDateReader();
+        using var shellReader = new ShellCloudPropertyReader(NullLogger<ShellCloudPropertyReader>.Instance);
+        int both = 0, onlyExif = 0, onlyShell = 0, none = 0, wallEqual = 0, utcEqual = 0, foreignOffset = 0, foreignWallEqual = 0, foreignUtcEqual = 0;
+        var wallDiffs = new List<double>();
+        foreach (var path in picked)
+        {
+            var exif = exifReader.Read(path);
+            var shell = shellReader.ReadCaptureDate(path);
+            if (exif is null || exif.Value.Source != Lumora.Domain.Enums.CaptureDateSource.Exif)
+            {
+                none += shell is null ? 1 : 0;
+                onlyShell += shell is null ? 0 : 1;
+                continue;
+            }
+
+            if (shell is null)
+            {
+                onlyExif++;
+                continue;
+            }
+
+            both++;
+            var e = exif.Value;
+            var s = shell.Value;
+            var sameWall = Math.Abs((e.Local - s.Local).TotalSeconds) < 1;
+            var sameUtc = Math.Abs((e.Utc - s.Utc).TotalSeconds) < 1;
+            wallEqual += sameWall ? 1 : 0;
+            utcEqual += sameUtc ? 1 : 0;
+            if (!sameWall)
+            {
+                wallDiffs.Add((s.Local - e.Local).TotalMinutes);
+            }
+
+            var pcOffset = (int)Math.Round(TimeZoneInfo.Local.GetUtcOffset(e.Local).TotalMinutes);
+            if (e.OffsetMinutes != pcOffset)
+            {
+                foreignOffset++;
+                foreignWallEqual += sameWall ? 1 : 0;
+                foreignUtcEqual += sameUtc ? 1 : 0;
+            }
+        }
+
+        Line($"Datum aus EXIF und Shell: {both}; nur EXIF: {onlyExif}; nur Shell: {onlyShell}; keins: {none}");
+        Line($"  Wanduhrzeit gleich: {wallEqual} von {both}; UTC gleich: {utcEqual} von {both}");
+        Line($"  Zeitversatz der Datei weicht von der Zone dieses PCs ab: {foreignOffset} (davon Wanduhrzeit gleich {foreignWallEqual}, UTC gleich {foreignUtcEqual})");
+        foreach (var group in wallDiffs.GroupBy(d => Math.Round(d)).OrderByDescending(g => g.Count()).Take(5))
+        {
+            Line($"  Abweichung der Wanduhrzeit {group.Key:+0;-0} min: {group.Count()}");
+        }
+
+        if (Environment.GetEnvironmentVariable(OneDriveProbeFactAttribute.Variable + "_OUT") is { Length: > 0 } outFile)
+        {
+            File.WriteAllText(outFile, report.ToString());
+        }
+
+        both.Should().BeGreaterThan(0, "lokale Fotos mit Datum zum Vergleich");
+    }
 }

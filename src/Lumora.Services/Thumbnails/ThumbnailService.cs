@@ -127,7 +127,7 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
         ICloudThumbnailRenderer? cloudRenderer = null)
     {
         _cloudRenderer = cloudRenderer; // OneDrive-Platzhalter über die Shell (ADR-0077, ThumbnailService.Cloud.cs)
-        _cloudQueue = new CloudJobQueue(MaxCloudBacklog, RankOf);
+        _cloudQueue = new CloudJobQueue(MaxCloudBacklog, RankOf, RankStride, MaxCloudQueue);
         _hold = foreground is null ? null : new Background.ForegroundHold(foreground, Background.ForegroundNeed.Cpu, "Vorschaubilder");
         _factory = factory;
         _paths = paths;
@@ -289,15 +289,26 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
         CancellationToken cancellationToken = default)
         => RequestCoreAsync(requests, background: false, cancellationToken);
 
+    /// <inheritdoc />
+    public Task ReportCachedThumbnailsAsync(
+        IReadOnlyList<ThumbnailRequest> requests,
+        CancellationToken cancellationToken = default)
+        => RequestCoreAsync(requests, background: false, cancellationToken, cacheOnly: true);
+
     /// <param name="background">
     /// Auftrag der Pflege (<c>Maintenance</c>): meldet keine Treffer und keine Vorschaubilder älterer Größe (niemand
     /// wartet darauf), nur neu erzeugte; der Zustand wird nach Erfolg verworfen.
+    /// </param>
+    /// <param name="cacheOnly">
+    /// Nur melden, was schon im Cache liegt (<see cref="ReportCachedThumbnailsAsync"/>, OneDrive-Platzhalter der ganzen Seite,
+    /// Nachbesserung 0.5.41): nichts einreihen, kein Rang, bei Pause nichts zurückstellen.
     /// </param>
     /// <returns>false, wenn ein Pflege-Auftrag wegen Pause nicht angenommen wurde (die Pflege versucht ihn später).</returns>
     private async Task<bool> RequestCoreAsync(
         IReadOnlyList<ThumbnailRequest> requests,
         bool background,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool cacheOnly = false)
     {
         if (requests.Count == 0 || Volatile.Read(ref _disposed) != 0)
         {
@@ -309,7 +320,12 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
             return false; // nicht zurückstellen: Resume reichte sie sonst als Galerie-Anforderungen nach
         }
 
-        if (TryDefer(requests))
+        if (cacheOnly && IsPaused)
+        {
+            return true; // nicht zurückstellen: Resume reichte sie sonst als echte Anforderungen nach (Shell-Abrufe)
+        }
+
+        if (!cacheOnly && TryDefer(requests))
         {
             // Katalog-DB zieht um (ADR-0026): sie ist gesperrt. Nach einer Rücknahme reicht Resume die Anforderungen
             // nach; nach Erfolg startet die App neu und die Galerie fordert ohnehin neu an.
@@ -317,11 +333,15 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
             return true;
         }
 
-        EnsureStarted();
+        if (!cacheOnly)
+        {
+            EnsureStarted();
+        }
 
         // 1) Schon bekannte Files direkt behandeln, Rest sammeln. Rang: spätere Anforderung vor früheren, innerhalb einer
-        //    Anforderung ihre Reihenfolge (nur die Warteschlange der OneDrive-Platzhalter nutzt ihn, ADR-0077).
-        var rankBase = NextRankBase();
+        //    Anforderung ihre Reihenfolge (nur die Warteschlange der OneDrive-Platzhalter nutzt ihn, ADR-0077). „Nur Cache“
+        //    hat keinen Rang — sie darf wartende Platzhalter nicht nach vorn holen.
+        var rankBase = cacheOnly ? 0 : NextRankBase();
         var ranks = new Dictionary<int, long>(requests.Count);
         var toCheck = new List<ThumbnailRequest>(requests.Count);
         for (var i = 0; i < requests.Count; i++)
@@ -333,7 +353,7 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
                 continue;
             }
 
-            var rank = rankBase - Math.Min(i, RankStride - 1);
+            var rank = cacheOnly ? 0 : rankBase - Math.Min(i, RankStride - 1);
             ranks.TryAdd(req.FileId, rank);
             if (TryHandleKnown(req, announce: !background, rank))
             {
@@ -411,7 +431,14 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
                 }
             }
 
-            if (row is { Status: ThumbnailStatus.Failed } && row.AttemptCount >= MaxAttempts)
+            if (cacheOnly)
+            {
+                continue; // nur melden, was da ist — nicht einreihen (Platzhalter: Shell-Abruf erst, wenn sichtbar)
+            }
+
+            // Endgültig gescheitert nach MaxAttempts — außer „cloud_unavailable“: das verbraucht nie einen Versuch, eine so
+            // stehengebliebene Zeile (vor der Nachbesserung 0.5.41 möglich) bleibt nicht für immer gesperrt
+            if (row is { Status: ThumbnailStatus.Failed } && row.AttemptCount >= MaxAttempts && row.ErrorCode != ThumbnailErrorCodes.CloudUnavailable)
             {
                 if (!background)
                 {
@@ -676,7 +703,9 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
                 videoLocked = true;
             }
 
-            await UpsertStatusAsync(req, ThumbnailStatus.Pending, cachePath, null, attemptDelta: +1).ConfigureAwait(false);
+            // Platzhalter: der Shell-Abruf dauert Sekunden (offline bis 30 s) — wird die App dabei beendet, darf kein Versuch
+            // stehen bleiben; nur ein echter Fehler der Datei zählt (unten, Nachbesserung 0.5.41)
+            await UpsertStatusAsync(req, ThumbnailStatus.Pending, cachePath, null, attemptDelta: cloud ? 0 : +1).ConfigureAwait(false);
 
             ThumbnailRenderResult result = cloud
                 ? await RenderCloudAsync(req, cachePath).ConfigureAwait(false)
@@ -717,7 +746,8 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
             }
 
             var retryable = IsRetryable(result.ErrorCode);
-            await UpsertStatusAsync(req, ThumbnailStatus.Failed, cachePath, result, attemptDelta: retryable ? -1 : 0).ConfigureAwait(false);
+            var failedDelta = cloud ? (retryable ? 0 : +1) : (retryable ? -1 : 0); // Platzhalter: Versuch erst hier gezählt
+            await UpsertStatusAsync(req, ThumbnailStatus.Failed, cachePath, result, attemptDelta: failedDelta).ConfigureAwait(false);
             SetState(req, JobOutcome.Failed, retryable);
             _logger.LogDebug(
                 "Thumb fehlgeschlagen: File={FileId} {Code}: {Msg}",

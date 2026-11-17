@@ -144,7 +144,7 @@ public sealed partial class ThumbnailService
         {
             null => false,
             { Status: ThumbnailStatus.Generated } => row.SourceModifiedAtUtc == request.SourceModifiedAtUtc && File.Exists(row.CachePath),
-            { Status: ThumbnailStatus.Failed } => row.AttemptCount >= MaxAttempts,
+            { Status: ThumbnailStatus.Failed } => row.AttemptCount >= MaxAttempts && row.ErrorCode != ThumbnailErrorCodes.CloudUnavailable, // wie die Galerie (0.5.41)
             _ => false,
         };
     }

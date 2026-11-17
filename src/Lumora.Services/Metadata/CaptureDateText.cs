@@ -35,6 +35,7 @@ public static class CaptureDateText
         CaptureDateSource.Video => "Video",
         CaptureDateSource.FileName => "Dateiname",
         CaptureDateSource.Manual => "manuell",
+        CaptureDateSource.Cloud => "OneDrive, vorläufig",
         CaptureDateSource.Unknown => "unbekannt",
         _ => "noch nicht gelesen",
     };
