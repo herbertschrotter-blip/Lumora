@@ -19,7 +19,8 @@
   [ADR-0062](0062-ungenaue-orte-und-gps-spuren.md) (Ortsgenauigkeit), [ADR-0073](0073-app-verbindung.md) (App-Verbindung,
   Gipfelbuch), [ADR-0070](0070-modelle-und-daten.md)
   (Modelle & Daten), [ADR-0012](0012-operation-logging.md) (Protokoll), [ADR-0069](0069-katalog-sicherung-und-portabler-modus.md)
-  (Sicherung vor Migrationen), [Spike 19](../spikes/19-onedrive-platzhalter.md) (OneDrive-Platzhalter), Spike 20 (Panorama, ausstehend)
+  (Sicherung vor Migrationen), [Spike 19](../spikes/19-onedrive-platzhalter.md) (OneDrive-Platzhalter), [Spike 20](../spikes/20-panorama.md) (Panorama, gelb;
+  Folgen im Nachtrag am Ende)
 - **Mockup:** `mockups/28-serien-zusammenfuegen.html` (Entwurf, Abnahme durch Herbert ausstehend; 17 Ansichten, siehe Punkt 21)
 
 ## Kontext
@@ -40,13 +41,15 @@ Domain/Data/Services; das Repo ist öffentlich (keine Dateinamen, Pfade oder Inh
   ≈ 45°-Schritten, Neigung +13°/−17°/−47°/−75°. 26 Bilder = 8 Richtungen × 3 Reihen + 2 steil nach unten, aufgenommen in 51 s.
 - XMP-Datum und XMP-Kameramodell weichen vom EXIF ab → Zeit und Kamera gelten nur aus EXIF.
 - Der eingebaute DNG-Decoder von Windows liefert nur die eingebettete Vorschau 960 × 640. Die Raw-Bilderweiterung (WIC
-  „Microsoft Raw Image Decoder“) liefert die volle Auflösung 5 472 × 3 648 in 16 bit in 2,3 s bei 343 MB Spitze.
+  „Microsoft Raw Image Decoder“) liefert die volle Auflösung 5 472 × 3 648 in 2,3 s bei 343 MB Spitze — laut Spike 20 aber
+  nativ nur 8 bit (`24bppRGB`, 16 bit nur hochgerechnet), siehe Nachtrag.
 - In Handy-Serien wechselt die EXIF-Ausrichtung innerhalb einer Serie (1/3/6).
 - OpenCvSharp 4.13 bindet vom OpenCV-Detail-Modul nur die Merkmale (`computeImageFeatures`) und `BestOf2NearestMatcher` an.
   Der Spike baut deshalb Startwerte, Bündelausgleich, Wellenkorrektur, Projektion, Belichtungsausgleich, Graph-Cut-Naht und
   Mehrband-Überblendung nach dem Muster `stitching_detailed` in C# nach.
-- **Spike 20 ausstehend:** Der Bericht (`werkzeuge\runs\panorama-spike\bericht.md`: Bildvergleich gegen Herberts
-  Photoshop-Ergebnisse, Laufzeit, Speicherspitze bei voller Auflösung) liegt noch nicht vor. Die Werkzeugwahl bleibt offen (Punkt 3).
+- **Spike 20 liegt vor** ([`docs/spikes/20-panorama.md`](../spikes/20-panorama.md), gelb): Bildvergleich gegen Herberts
+  Photoshop-Ergebnisse, Laufzeit, Speicherspitze. Die Folgen für Werkzeug, RAW und Hochskalieren stehen als Vorschlag im
+  Nachtrag am Ende; bis zur Abnahme gilt Punkt 3 unverändert.
 
 **Zwei Entwürfe** wurden unabhängig erstellt und hier zusammengeführt:
 
@@ -230,7 +233,8 @@ Je Verfahren eine `IMergeEngine` (`Method`, `Check(MergeInput) → Eignung + Gru
   Nahtsuche (Graph-Cut), Mehrband-Überblendung, volle Auflösung aus dem Rezept. EXIF-Ausrichtung wird vor dem Ausrichten
   angewandt.
 - **RAW (DNG) als Quelle** über die Raw-Bilderweiterung in 16 bit (Vorschau aus den JPEG-Geschwistern bzw. kleiner dekodiert);
-  fehlt die Erweiterung, Rückfall auf JPEG mit Hinweis. Wahlweise „Farben an JPEG angleichen“.
+  fehlt die Erweiterung, Rückfall auf JPEG mit Hinweis. Wahlweise „Farben an JPEG angleichen“. *(Spike 20: die Erweiterung
+  liefert nur 8 bit; Vorschlag im Nachtrag: eigene 16-bit-Entwicklung für DNG, Erweiterung nur Rückfall.)*
 - **Größe:** Kugel 360° Standard 16K (16 384 × 8 192 ≈ 134 MP), sonst Vorschlag ≤ 150 MP; „Voll“ (DJI-Kugel rechnerisch
   ≈ 30 000 × 15 000 ≈ 450 MP, ein 16-bit-Puffer allein ≈ 2,7 GB) nur, wenn `MergeMemoryBudget` reicht — sonst ausgegraut mit
   Zahl; „Klein“ ≈ 40 MP. Keine Kante über 65 535 px (JPEG-Grenze).
@@ -710,9 +714,9 @@ Entwurf; sie sind bei der Abnahme zu bestätigen.
 
 ## Offene Punkte (vor dem Bau)
 
-- **Spike 20 (ausstehend):** Reicht die eigene Kette auf OpenCV-Bausteinen gegen die Photoshop-Ergebnisse (Kugel mit Zenit/Nadir
-  und Parallaxe der Drohne, Handy-Schwenk, 3 × 3, Vertikal)? Laufzeit und Speicherspitze bei 16K und voller Auflösung auf
-  Herberts Rechner? Sonst Hugin oder nativer Baustein; Hilfsprozess ja/nein. Entscheidung als Nachtrag hier.
+- **Spike 20 (liegt vor, gelb):** Herberts Urteil über die Vergleichsbilder und Abnahme der Vorschläge im Nachtrag
+  (eigene Kette, eigene DNG-Entwicklung, Hochskalieren gedämpft, Hilfsprozess). Nicht gemessen: 3 × 3, Vertikal und 21er
+  Drohnen-Schwenk; die Kugel nur als Horizontstreifen.
 - **Vorrang der Serien-Erkennung:** Herbert wünschte „niedrigen Vorrang“. Entwurf: niedrigste Arbeit gegenüber allem, worauf er
   wartet, aber Vorrang 3 in der Datei-Spur **vor** Prüfsummen (4) und Vorschaubildern auf Vorrat (5), weil sie nur Dateiköpfe
   liest. Bestätigen — oder Vorrang 5 hinter beide (Serien erscheinen dann erst nach deren Erstlauf)?
@@ -737,8 +741,8 @@ Entwurf; sie sind bei der Abnahme zu bestätigen.
 
 ## Referenzen
 
-- Mockup `mockups/28-serien-zusammenfuegen.html` (Entwurf, Abnahme ausstehend), Spike 20 `docs/spikes/20-panorama.md` (ausstehend; Probe-Lauf und
-  Spike-Code außerhalb des Repos in `werkzeuge\runs\panorama-spike`)
+- Mockup `mockups/28-serien-zusammenfuegen.html` (Entwurf, Abnahme ausstehend), Spike 20 `docs/spikes/20-panorama.md` (Spike-Code und
+  Vergleichsbilder außerhalb des Repos in `werkzeuge\runs\panorama-spike`)
 - Vorlagen im Code: `src/Lumora.Wpf/PhotoMenu/PhotoContextMenuBuilder.cs` (Bearbeiten ▸, Suchen ▸),
   `src/Lumora.Wpf/PhotoMenu/PhotoMenuModels.cs` (`PhotoMenuSource`, `PhotoMenuGestures`), `src/Lumora.Wpf/Gallery/Views/GalleryView.PhotoMenu.cs`,
   `src/Lumora.Wpf/Lightbox/LightboxWindow.PhotoMenu.cs`, `src/Lumora.Services/Albums/IAlbumService.cs` (`AddFilesAsync`),
@@ -749,3 +753,28 @@ Entwurf; sie sind bei der Abnahme zu bestätigen.
   10 000 px), `src/Lumora.Services/Faces/` (Gesichter), `ThumbnailService.IsLocallyAvailable` (Platzhalter)
 - Mockups als Designvorlage: `mockups/08-lumora-app.html`, `13-foto-verbessern.html`, `18-galerie-ordnerleiste.html`,
   `26-container-verschieben.html`
+
+## Nachtrag 0.5.44 — Ergebnis von Spike 20 (Vorschlag, Abnahme durch Herbert ausstehend)
+
+[Spike 20](../spikes/20-panorama.md) ist gelb: Die eigene Kette erreicht die Geometrie von Photoshop; nach zwei Runden sind
+Handy-1, Handy-2 und Drohne-A nahe gleichwertig, Handy-3 (Felsen in 1–3 m) und Drohne-B (Gegenlicht) etwas schlechter. Runde 2
+ist nicht unabhängig nachgeprüft; Herberts Urteil über die Vergleichsbilder steht aus. Vorschläge, die Punkt 3, 6 und 15
+ändern würden — sie gelten erst mit der Abnahme:
+
+1. **Werkzeug:** eigene Kette auf OpenCV-Bausteinen (Punkt 3, Option 1). Hugin bleibt nur als Ausweg für den Nahbereich
+   im Blick, nicht als Baustein für Stufe 1.
+2. **RAW:** Die Raw-Bilderweiterung liefert nativ nur 8 bit und hat keine Entwicklungs-Schnittstelle. Für DNG (die DJI-DNG
+   sind unkomprimiert, RGGB) eine eigene 16-bit-Entwicklung in `Lumora.Imaging` ohne neues Paket (Weißabgleich der Serie,
+   Demosaik, GainMap, ColorMatrix, Lichter-Rekonstruktion, gemeinsame Belichtung); später das DNG-Kameraprofil. Die
+   Raw-Bilderweiterung bleibt Rückfall für andere Rohformate. Stufe 3 in Punkt 19 („RAW/DNG über die
+   Raw-Bilderweiterung“) wird damit zu „DNG über die eigene Entwicklung“.
+3. **Kugel 360°:** Standard-Ausgabe der Drohne als Horizontstreifen (wie Herberts bisherige Panoramen); 2 : 1 mit gefülltem
+   Zenit/Nadir als Wahl. Spitze heute 5–6 GB je Drohnen-Kugel.
+4. **Hochskalieren** (Punkt 15): nur nach dem Zusammenfügen, gedämpft gemischt (Modellanteil höchstens 60 % nach lokaler
+   Schärfe, weiche Bereiche bikubisch), standardmäßig aus, ClearReality als Standardmodell. Nötig ist ein Kachel-Strom ohne
+   Gesamtpuffer, weil `EnhanceImage` bei 10 000 px / 64 MP endet; Obergrenze JPEG 65 535 px je Seite (Drohne 2× geht, 4× nicht).
+5. **Hilfsprozess:** OpenCV rechnet in einem eigenen Prozess (native Abstürze in OpenCvSharp, Spitzen von 5–6 GB). Die eigene
+   DNG-Entwicklung macht ihn WIC-frei; damit entfällt der Grund, aus dem die Alternative „OpenCV in einem Hilfsprozess“
+   zurückgestellt war.
+6. **Prüfung des Ergebnisses:** feste Startwerte für RANSAC und eine Plausibilitätsprüfung (Restfehler, Nahtgüte,
+   Zuschnitthöhe) vor dem Speichern; ein gekippter Lauf wird wiederholt statt gespeichert.

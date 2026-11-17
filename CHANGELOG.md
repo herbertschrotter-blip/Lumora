@@ -3,6 +3,17 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.44] — 2026-11-17
+
+### Docs — Spike 20: Panorama gegen Photoshop
+- Neuer Bericht `docs/spikes/20-panorama.md` (gelb): Die eigene Kette auf OpenCV-Bausteinen trifft die Geometrie von
+  Photoshop; nach zwei Runden sind drei von fünf Serien nahe gleichwertig, der Handy-Schwenk mit Felsen im Nahbereich und
+  eine Drohnen-Kugel im Gegenlicht etwas schlechter. Drohnen-Kugel 1,5–2 min und 5–6 GB, Handy-Schwenk 0,5–3 min.
+- Die Raw-Bilderweiterung liefert DNG nur in 8 bit; eine eigene 16-bit-Entwicklung der DJI-DNG behebt Cyanstich und
+  schwarze Gegenlichtseiten. Hochskalieren geht nach dem Zusammenfügen, gedämpft gemischt (Drohne 161 → 642 MP in 75 s).
+- ADR-0078: Nachtrag 0.5.44 mit den Folgen als Vorschlag (eigene Kette, eigene DNG-Entwicklung, Horizontstreifen als
+  Standard, Hochskalieren gedämpft, Hilfsprozess, Ergebnisprüfung); Herberts Urteil und Abnahme stehen aus.
+
 ## [0.5.43] — 2026-11-17
 
 ### Docs — ADR-0078: Zeit, Ort und Höhe des Ergebnisses
