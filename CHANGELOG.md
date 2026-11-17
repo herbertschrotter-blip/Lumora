@@ -3,6 +3,16 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.43] — 2026-11-17
+
+### Docs — ADR-0078: Zeit, Ort und Höhe des Ergebnisses
+- Ein zusammengefügtes Foto übernimmt die Aufnahmezeit von der frühesten Quelle mit Zeit und den Ort von der ersten Quelle
+  mit Ort (echtes GPS vor geschätztem), nicht mehr starr beides vom ersten Bild — Handys haben beim ersten Bild oft noch
+  keinen GPS-Fix. Ohne Angabe in allen Quellen bleiben Zeit bzw. Ort leer, nie das Erstelldatum.
+- Katalog sofort beim Anlegen, damit Gipfelbuch über die App-Verbindung das Ergebnis derselben Tour zuordnet; in der Datei der
+  ganze GPS-Block samt Höhe und GPS-Zeit (sonst stufte das Nachlesen den Ort als „geschätzt“ ein). Tests dazu in Punkt 18,
+  Mockup 28 zeigt die Herkunft im Ergebnis und im Eigenschaften-Fenster.
+
 ## [0.5.42] — 2026-11-17
 
 ### Docs — Konzept „Serien“ und „Zusammenfügen“ (ADR-0078, Mockup 28)

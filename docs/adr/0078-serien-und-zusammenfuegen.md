@@ -3,7 +3,7 @@
 - **Status:** Proposed — Abnahme durch Herbert (mit Mockup 28)
 - **Datum:** 2026-11-17
 - **Entscheider:** Herbert Schrotter (Wünsche, Namen „Serien“ und „Zusammenfügen …“, Projekt `Lumora.Imaging`, Reihenfolge der Verfahren;
-  Gespräch 2026-11-17), Claude (Konzept: zwei unabhängige Entwürfe bewertet und zu diesem zusammengeführt, Detailentscheidungen
+  Zeit und Ort von der ersten Quelle mit Angabe samt GPS-Höhe, Punkt 10; Gespräch 2026-11-17), Claude (Konzept: zwei unabhängige Entwürfe bewertet und zu diesem zusammengeführt, Detailentscheidungen
   ohne Rückfrage, begründet unten)
 - **Bezogen auf:** [ADR-0071](0071-foto-verbessern.md) (Fassungen, `CreateVariantsAsync`, Hochskalieren),
   [ADR-0074](0074-hintergrund-planer.md) (Datei-Spur, `IForegroundWork`, `ForegroundHold`, `BackgroundCpu`; Nachtrag 0.5.40
@@ -14,7 +14,9 @@
   [ADR-0049](0049-versteckte-bibliotheken.md) (versteckte Sitzung), [ADR-0035](0035-gesichtserkennung-buffalo-l-directml.md)/
   [ADR-0036](0036-gesichter-lernen-und-gruppieren.md) (Gesichter), [ADR-0048](0048-bibliotheks-trennung-und-verknuepfen.md)
   (Bibliotheks-Trennung), [ADR-0041](0041-galerie-filter-unabhaengig-kombinierbar.md) (Galerie-Filter),
-  [ADR-0057](0057-foto-guete-und-highlights.md) (Foto-Güte, Wort „Serie“ in den Highlights), [ADR-0070](0070-modelle-und-daten.md)
+  [ADR-0057](0057-foto-guete-und-highlights.md) (Foto-Güte, Wort „Serie“ in den Highlights),
+  [ADR-0062](0062-ungenaue-orte-und-gps-spuren.md) (Ortsgenauigkeit), [ADR-0073](0073-app-verbindung.md) (App-Verbindung,
+  Gipfelbuch), [ADR-0070](0070-modelle-und-daten.md)
   (Modelle & Daten), [ADR-0012](0012-operation-logging.md) (Protokoll), [ADR-0069](0069-katalog-sicherung-und-portabler-modus.md)
   (Sicherung vor Migrationen), [Spike 19](../spikes/19-onedrive-platzhalter.md) (OneDrive-Platzhalter), Spike 20 (Panorama, ausstehend)
 - **Mockup:** `mockups/28-serien-zusammenfuegen.html` (Entwurf, Abnahme durch Herbert ausstehend; 17 Ansichten, siehe Punkt 21)
@@ -341,12 +343,33 @@ Je Verfahren eine `IMergeEngine` (`Method`, `Check(MergeInput) → Eignung + Gru
 - **Alle Quellen aus einer Bibliothek** (ADR-0048); gemischte Auswahl ist gesperrt.
 - **Dateinamen:** `<erstes Bild>_panorama.jpg`, `_hdr.jpg`, `_entrauscht.jpg`, `_ohne-leute.jpg`, `_langzeit.jpg`,
   `_fokus.jpg`, `_hdr-panorama.jpg`, `_gruppenfoto.jpg`, `_zeitraffer.mp4` (Zusätze einstellbar, Punkt 17).
-- **Metadaten:** Aufnahmedatum (mit Quelle und Versatz), Ort und Kamera vom ersten Bild; bei JPEG-Quelle der EXIF-Block des
-  ersten Bilds über `JpegExifCopier` (Ausrichtung 1), bei DNG-Quelle ein kleiner EXIF-Block (Datum, Kamera, GPS). XMP:
-  `CreatorTool` „Lumora“, Verfahren, Quellenzahl; bei Kugel 360° GPano (`ProjectionType` equirectangular,
-  `UsePanoramaViewer`, Vollbild-Maße). **Tags:** nur die gemeinsamen aller Quellen (Haken „gemeinsame Tags übernehmen“, an).
-  **Favorit und Sterne nicht** (neues Bild). **Personen** ermittelt die Gesichtserkennung neu. Die Quellen melden
-  `UsageReport.Used` (ADR-0072).
+- **Metadaten — Zeit, Ort und Höhe (Nachtrag nach Herberts Vorgabe, 2026-11-17):** Zeit und Ort des Ergebnisses müssen
+  stimmen, damit Orte, Storys und die App-Verbindung es derselben Tour zuordnen wie die Einzelbilder (Gipfelbuch fragt nach
+  Zeitfenster und Kartenausschnitt, `CatalogPhotoCatalog`, ADR-0073).
+  - **Aufnahmezeit** (mit Quelle, Genauigkeit und Versatz) von der frühesten Quelle, **die eine Aufnahmezeit hat**; Quellen
+    ohne Zeit zählen nicht. Hat keine Quelle eine, bleibt sie leer — nie das Erstelldatum der Ergebnisdatei.
+  - **Ort** von der ersten Quelle, **die einen Ort hat**, nicht starr vom ersten Bild: Handys haben beim ersten Bild einer
+    Serie oft noch keinen GPS-Fix. Echtes GPS (`GeoAccuracy.Exact`) geht vor geschätztem (ADR-0062), bei gleicher Güte die
+    früheste Quelle. Maßgeblich sind die Katalogwerte, also zählen auch in Lumora gesetzte Orte. Hat keine Quelle einen Ort,
+    bleibt er leer (kein Raten aus Nachbarfotos); „Ort setzen…“ geht wie bei jedem Foto.
+  - **Kamera** von der ersten Quelle.
+  - **Katalog:** Die Files-Zeile des Ergebnisses bekommt Zeit (`CapturedAt`, `CapturedAtSource`, `CapturedAtPrecision`,
+    `CapturedAtOffset`) und Ort (`Latitude`, `Longitude`, `GeoAccuracy`, `GeoAccuracyReason`) sofort beim Anlegen aus den so
+    gewählten Quellen — wie `CreateVariantsAsync` sie vom Original übernimmt. Die App-Verbindung findet das Ergebnis damit
+    ohne Nachlesen der Datei.
+  - **Datei:** Bei JPEG-Quelle der EXIF-Block der ersten Quelle über `JpegExifCopier` (Ausrichtung 1); stammt der Ort von
+    einer anderen Quelle, wird deren GPS-Block eingesetzt. Bei DNG-Quelle ein eigener EXIF-Block mit Datum, Kamera und dem
+    **ganzen** GPS-Block der Ortsquelle: Breite/Länge, **Höhe** (`GPSAltitudeRef`/`GPSAltitude`, Tags 5/6) und GPS-Zeit
+    (Tags 7/29). Ohne Höhe und GPS-Zeit stufte jedes Nachlesen der Datei (z. B. „Neu aufbauen“) den Ort als „geschätzt“ ein
+    (`GeoAccuracyReason.NoAltitudeNoTime`); die Höhe brauchen außerdem Gipfelbuch und der geplante 3D-Übergang in Orte. Bei
+    DJI gilt die EXIF-GPS-Höhe, nicht die Flughöhe über dem Startpunkt aus dem XMP (`RelativeAltitude`). Zeitraffer (MP4):
+    Katalog wie oben, in der Datei Aufnahmezeit (`creation_time`) und Ort (`©xyz`).
+  - **XMP:** `CreatorTool` „Lumora“, Verfahren, Quellenzahl; bei Kugel 360° GPano (`ProjectionType` equirectangular,
+    `UsePanoramaViewer`, Vollbild-Maße).
+  - Das Eigenschaften-Fenster nennt die Herkunft, z. B. „Datum: erstes Bild“, „Ort: Bild 3 von 26 (erstes mit Ort)“. Gleiches
+    gilt für Stapel und „Neu berechnen…“.
+- **Tags:** nur die gemeinsamen aller Quellen (Haken „gemeinsame Tags übernehmen“, an). **Favorit und Sterne nicht** (neues
+  Bild). **Personen** ermittelt die Gesichtserkennung neu. Die Quellen melden `UsageReport.Used` (ADR-0072).
 - **Kennzeichnung** „aus n Fotos zusammengefügt“: Ergebnis-Marke in der Galerie, Lightbox-Zeile „Zusammengefügt aus 26 Fotos ·
   Panorama, Kugel 360° · Quellen zeigen · Neu berechnen…“ („Neu berechnen“ öffnet das Fenster mit dem gespeicherten Rezept und
   speichert als weitere Datei), Abschnitt „Zusammengefügt“ im Eigenschaften-Fenster (Verfahren, Aufnahmeart, Größe, Quelle
@@ -503,6 +526,10 @@ Neuer Reiter nach „Verbessern“:
   Reihen mit `ExposureMode` 2, Intervallen, Platzhaltern und Gegenbeispielen.
 - Plan-Test der Galerie-Abfragen, Planer-Test für `BackgroundJob.Series`, Vorrang-Test analog `EnhanceForegroundTests`,
   Speichern/Rückgängig/„Neu aufbauen“ analog den Fassungen.
+- Metadaten-Tests (Punkt 10): erstes Bild ohne Ort → Ort der nächsten Quelle mit Ort; echtes GPS vor geschätztem; keine
+  Quelle mit Zeit bzw. Ort → leer, nie das Erstelldatum; der geschriebene DNG-Block enthält Höhe und GPS-Zeit, und nach dem
+  Nachlesen bleibt `GeoAccuracy.Exact`; die App-Verbindung liefert das Ergebnis im Zeitfenster und Kartenausschnitt seiner
+  Einzelbilder.
 - Rauchtest `SmokeScenario.Merge.cs` mit zur Laufzeit erzeugten Bildern (keine externen Assets). Prüfung der versteckten Sitzung:
   nach einem Lauf ist außerhalb des Containers nichts entstanden.
 - Der Mess-Harness aus Spike 20 wandert nach `tests/Lumora.PerfTests`; echte Fotos nur über eine `LUMORA_*`-Variable aus
