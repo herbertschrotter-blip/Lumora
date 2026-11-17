@@ -192,7 +192,7 @@
                                          IsChecked="{Binding IsEnabled, Mode=TwoWay}"
                                          AutomationProperties.Name="Vorschaubilder auf Vorrat erstellen" />
                         <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
-                                   Text="Erstellt im Hintergrund nach und nach die Vorschaubilder aller Fotos und Videos dieses Katalogs, damit Galerie, Storys und Orte später sofort Bilder zeigen. Läuft nur, wenn sonst nichts zu tun ist, und pausiert beim Blättern, beim Einlesen und während anderer Arbeiten. Fotos, die nur online liegen (z. B. OneDrive), und nicht erreichbare Laufwerke werden übersprungen — es wird nichts heruntergeladen. Fortschritt und Pause in der Aktivitäts-Anzeige." />
+                                   Text="Erstellt im Hintergrund nach und nach die Vorschaubilder aller Fotos und Videos dieses Katalogs, damit Galerie, Storys und Orte später sofort Bilder zeigen. Läuft nur, wenn sonst nichts zu tun ist, und pausiert, sobald Galerie oder Lightbox Bilder brauchen, beim Einlesen und während anderer Arbeiten. Fotos, die nur online liegen (z. B. OneDrive), und nicht erreichbare Laufwerke werden übersprungen — es wird nichts heruntergeladen. Fortschritt und Pause in der Aktivitäts-Anzeige." />
                         <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" MaxWidth="760" HorizontalAlignment="Left"
                                    Foreground="{DynamicResource SystemFillColorCautionBrush}"
                                    Text="{Binding StatusText}"

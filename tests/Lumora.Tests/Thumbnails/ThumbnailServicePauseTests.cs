@@ -97,4 +97,54 @@ public sealed class ThumbnailServicePauseTests
         await Task.Delay(100);
         renderer.Calls.Should().Be(2);
     }
+
+    [Fact]
+    public async Task Pausen_schachteln_sich_erst_das_letzte_Resume_setzt_fort()
+    {
+        // 0.5.40: „Cache leeren“ pausiert ebenfalls — sein Resume darf eine gehaltene Pause des Katalog-Umzugs nicht aufheben
+        using var fx = await TempLibraryFixture.CreateAsync();
+        var renderer = new FakeImageRenderer();
+        using var svc = new ThumbnailService(fx.ContextFactory, fx.Paths, renderer, new FakeVideoRenderer(), NullLogger<ThumbnailService>.Instance);
+        var request = new ThumbnailRequest(1, 1, fx.WriteLibraryFile("img1.jpg"), MediaType.Image, Modified);
+
+        await svc.PauseAsync(); // Umzug
+        await svc.PauseAsync(); // Cache leeren
+        await svc.RequestThumbnailsAsync([request]);
+        svc.Resume(); // Cache leeren fertig
+        await Task.Delay(150);
+        renderer.Calls.Should().Be(0, "der Umzug hält den Dienst weiter an");
+
+        svc.Resume(); // Umzug zurückgenommen
+        await WaitUntilAsync(() => renderer.Calls == 1);
+        svc.Resume(); // überzählig: keine Wirkung
+        renderer.Calls.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Abgebrochene_Pause_haelt_den_Dienst_nicht_an()
+    {
+        using var fx = await TempLibraryFixture.CreateAsync();
+        var renderer = new BlockingImageRenderer();
+        using var svc = new ThumbnailService(fx.ContextFactory, fx.Paths, renderer, new FakeVideoRenderer(), NullLogger<ThumbnailService>.Instance);
+        ThumbnailRequest Request(int id) => new(1, id, fx.WriteLibraryFile($"img{id}.jpg"), MediaType.Image, Modified);
+        await svc.RequestThumbnailsAsync([Request(1)]);
+        renderer.Entered.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
+
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMilliseconds(100)); // z. B. Zeitlimit des Umzugs
+        await FluentActions.Awaiting(() => svc.PauseAsync(timeout.Token)).Should().ThrowAsync<OperationCanceledException>();
+        renderer.Release.Set();
+
+        await svc.RequestThumbnailsAsync([Request(2)]);
+        await WaitUntilAsync(() => renderer.Calls == 2);
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (!condition())
+        {
+            DateTime.UtcNow.Should().BeBefore(deadline, "Bedingung erreicht");
+            await Task.Delay(10);
+        }
+    }
 }

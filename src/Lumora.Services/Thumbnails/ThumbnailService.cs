@@ -70,6 +70,13 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
 
     private readonly ConcurrentDictionary<int, JobState> _states = new();
     private readonly SemaphoreSlim _dbWriteLock = new(1, 1);
+
+    /// <summary>
+    /// Höchstens ein Video-Vorschaubild zugleich (FFmpeg, ADR-0007) — auch wenn der Video-Worker der Galerie und ein Vorschaubild
+    /// auf Vorrat (<see cref="CreateStockAsync"/>) zugleich eines wollen (0.5.40). Wird nicht entsorgt: nach dem Beenden kann
+    /// ein Vorrat-Aufruf noch darauf warten; ohne <c>AvailableWaitHandle</c> hält die Sperre nichts Unverwaltetes.
+    /// </summary>
+    private readonly SemaphoreSlim _videoRenderLock = new(1, 1);
     private readonly CancellationTokenSource _cts = new();
     private readonly List<Task> _workers = new();
     private int _started;
@@ -84,6 +91,7 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
     private int _ffmpegMissingLogged;
     private readonly object _pauseLock = new();
     private TaskCompletionSource? _resumed; // gesetzt, solange pausiert (ADR-0026)
+    private int _pauseCount; // unter _pauseLock: Pausen schachteln sich (Katalog-Umzug, „Cache leeren“, 0.5.40)
     private readonly Dictionary<int, ThumbnailRequest> _deferred = new(); // während der Pause angefordert; unter _pauseLock
     private int _activeJobs;
 
@@ -147,12 +155,22 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
     {
         lock (_pauseLock)
         {
+            _pauseCount++;
             _resumed ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         }
 
-        while (Volatile.Read(ref _activeJobs) > 0)
+        try
         {
-            await Task.Delay(25, ct).ConfigureAwait(false);
+            while (Volatile.Read(ref _activeJobs) > 0)
+            {
+                await Task.Delay(25, ct).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Abgebrochen (z. B. Zeitlimit des Umzugs): diese Pause zurücknehmen — der Aufrufer ruft Resume nur nach Erfolg
+            Resume();
+            throw;
         }
 
         _logger.LogInformation("ThumbnailService pausiert ({Pending} Aufträge warten)", PendingCount);
@@ -164,6 +182,11 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
         List<ThumbnailRequest> deferred;
         lock (_pauseLock)
         {
+            if (_pauseCount == 0 || --_pauseCount > 0)
+            {
+                return; // nicht pausiert, oder eine andere Pause (z. B. Katalog-Umzug) hält den Dienst weiter an
+            }
+
             resumed = _resumed;
             _resumed = null;
             deferred = [.. _deferred.Values];
@@ -605,6 +628,7 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
         // Auftrag der Galerie (nicht der Pflege, nicht der Vorrat): zählt für den Vorrang, bis er fertig ist
         var foreground = _hold is not null && _states.TryGetValue(req.FileId, out var state) && !state.Background;
         var cachePath = BuildCachePath(req.LibraryId, req.FileId);
+        var videoLocked = false;
         try
         {
             if (!File.Exists(req.SourcePath))
@@ -616,11 +640,25 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
                 return false;
             }
 
+            if (req.MediaType == MediaType.Video)
+            {
+                // höchstens ein FFmpeg zugleich, auch zwischen Video-Worker der Galerie und Vorrat (0.5.40, ADR-0007) — vor
+                // „Pending“, damit ein wartender Auftrag weder Zeile noch Versuch verbraucht
+                await _videoRenderLock.WaitAsync(_cts.Token).ConfigureAwait(false);
+                videoLocked = true;
+            }
+
             await UpsertStatusAsync(req, ThumbnailStatus.Pending, cachePath, null, attemptDelta: +1).ConfigureAwait(false);
 
             ThumbnailRenderResult result = req.MediaType == MediaType.Video
                 ? await _videoRenderer.RenderAsync(req.SourcePath, cachePath, Size, _cts.Token).ConfigureAwait(false)
                 : await RenderImageWithFallbackAsync(req, cachePath).ConfigureAwait(false);
+
+            if (videoLocked)
+            {
+                videoLocked = false;
+                _videoRenderLock.Release(); // Status schreiben braucht die Sperre nicht
+            }
 
             if (result.Success)
             {
@@ -669,6 +707,11 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
         }
         finally
         {
+            if (videoLocked)
+            {
+                _videoRenderLock.Release();
+            }
+
             if (queued)
             {
                 Interlocked.Decrement(ref _pending);

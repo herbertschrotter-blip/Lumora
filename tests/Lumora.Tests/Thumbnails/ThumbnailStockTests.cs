@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Lumora.Domain.Entities;
 using Lumora.Domain.Enums;
 using Lumora.Services.Background;
+using Lumora.Services.Messaging;
 using Lumora.Services.Scanning;
 using Lumora.Services.Thumbnails;
 using Lumora.Tests.Fixtures;
@@ -16,7 +17,8 @@ namespace Lumora.Tests.Thumbnails;
 /// Vorschaubilder auf Vorrat (0.5.40, ADR-0074 Nachtrag 0.5.40) — je Akzeptanzkriterium: (1) niedrigster Vorrang der
 /// Datei-Spur, Abgabe je Datei an wichtigere Aufgaben; (2) derselbe Dienst/Renderer, gleiche Cache-Datei und DB-Status, nur
 /// ohne gültiges Vorschaubild, Fotos vor Videos, keine Archive; (3) fehlend, Wurzel offline, Platzhalter ohne Dateizugriff;
-/// (4) Vordergrund je Datei, Galerie-Warteschlange, Einlesen, Katalog-Umzug, Kern-Obergrenze und Laufwerksart; (6) Schalter
+/// (4) Vordergrund je Datei, Galerie-Warteschlange, Einlesen, Katalog-Umzug, Kern-Obergrenze und Laufwerksart, ein FFmpeg
+/// zugleich; (5) Auslöser: Startverzögerung, Einlesen, neue Dateien, Cache leeren (auch mitten im Durchgang); (6) Schalter
 /// je Katalog; (7) versteckte Bibliothek: nichts außerhalb des Katalogs, keine Pfade im Protokoll. Nur Fakes, keine Fotos.
 /// </summary>
 public sealed class ThumbnailStockTests
@@ -180,7 +182,7 @@ public sealed class ThumbnailStockTests
 
         var report = await w.Stock.RunPassAsync().WaitAsync(Timeout);
 
-        report.Should().Be(new ThumbnailStockReport(1, 3, 0), "„fehlt“ zählt gar nicht als offen");
+        report.Should().Be(new ThumbnailStockReport(1, 2, 0), "„fehlt“ und Dateien unter einer nicht erreichbaren Wurzel zählen gar nicht als offen");
         w.Renderer.Calls.Should().Equal("da.jpg");
         foreach (var name in new[] { "fehlt.jpg", "weg.jpg", "platzhalter.jpg", "eingang.jpg" })
         {
@@ -202,9 +204,73 @@ public sealed class ThumbnailStockTests
         (await forgetful.RunPassAsync().WaitAsync(Timeout)).Should().Be(new ThumbnailStockReport(0, 1, 0));
         File.SetAttributes(placeholder, FileAttributes.Normal); // z. B. „immer auf diesem Gerät behalten“
 
-        (await w.Stock.RunPassAsync().WaitAsync(Timeout)).Should().Be(new ThumbnailStockReport(0, 1, 0), "gemerkt: nicht erneut abgefragt");
+        (await w.Stock.RunPassAsync().WaitAsync(Timeout)).Should().Be(ThumbnailStockReport.Empty, "gemerkt: zählt nicht als offen, nicht erneut abgefragt");
         w.Renderer.Calls.Should().BeEmpty();
         (await forgetful.RunPassAsync().WaitAsync(Timeout)).Should().Be(new ThumbnailStockReport(1, 0, 0), "nach Ablauf wieder nachgesehen");
+    }
+
+    [Fact]
+    public async Task Nur_Platzhalter_und_Wurzeln_offline_ohne_Eintrag_und_ohne_Info_Zeile()
+    {
+        var log = new ListLogger<ThumbnailStockService>();
+        await using var w = await World.CreateAsync(["platzhalter1.jpg", "platzhalter2.jpg"], inbox: ["eingang.jpg"], stockLogger: log);
+        foreach (var name in new[] { "platzhalter1.jpg", "platzhalter2.jpg" })
+        {
+            var path = Path.Combine(w.Fx.LibraryRoot, name);
+            File.SetAttributes(path, File.GetAttributes(path) | FileAttributes.Offline);
+        }
+
+        Directory.Move(w.Fx.InboxDir, w.Fx.InboxDir + "-abgezogen");
+        var statuses = new ConcurrentQueue<ThumbnailStockStatus>();
+        w.Fx.Messenger.Register<ConcurrentQueue<ThumbnailStockStatus>, ThumbnailStockStatusMessage>(statuses, static (q, m) => q.Enqueue(m.Status));
+        try
+        {
+            (await w.Stock.RunPassAsync().WaitAsync(Timeout)).Should().Be(new ThumbnailStockReport(0, 2, 0));
+            (await w.Stock.RunPassAsync().WaitAsync(Timeout)).Should().Be(ThumbnailStockReport.Empty, "nach jedem weiteren Auslöser: nichts offen");
+
+            statuses.Should().BeEmpty("kein Eintrag in der Aktivitäts-Anzeige, wenn nichts entsteht");
+            log.Messages.Where(m => m.Level >= LogLevel.Information).Should().BeEmpty("keine Info-Zeile, wenn nichts entsteht");
+            w.Renderer.Calls.Should().BeEmpty();
+        }
+        finally
+        {
+            foreach (var name in new[] { "platzhalter1.jpg", "platzhalter2.jpg" })
+            {
+                File.SetAttributes(Path.Combine(w.Fx.LibraryRoot, name), FileAttributes.Normal);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Fortschritt_und_Gesamt_zaehlen_nur_was_wirklich_entsteht()
+    {
+        var log = new ListLogger<ThumbnailStockService>();
+        await using var w = await World.CreateAsync(["a-platzhalter.jpg", "b-lokal.jpg", "c-platzhalter.jpg", "d-lokal.jpg"], stockLogger: log);
+        var placeholders = new[] { "a-platzhalter.jpg", "c-platzhalter.jpg" }.Select(n => Path.Combine(w.Fx.LibraryRoot, n)).ToList();
+        placeholders.ForEach(p => File.SetAttributes(p, File.GetAttributes(p) | FileAttributes.Offline));
+        try
+        {
+            (await w.Stock.RunPassAsync().WaitAsync(Timeout)).Should().Be(new ThumbnailStockReport(2, 2, 0));
+
+            // die lokalen Dateien wieder ohne Vorschaubild: der nächste Durchgang kennt die Platzhalter schon
+            await w.ClearCacheAsync();
+            var statuses = new ConcurrentQueue<ThumbnailStockStatus>();
+            w.Fx.Messenger.Register<ConcurrentQueue<ThumbnailStockStatus>, ThumbnailStockStatusMessage>(statuses, static (q, m) => q.Enqueue(m.Status));
+            var infoBefore = log.Messages.Count;
+
+            (await w.Stock.RunPassAsync().WaitAsync(Timeout)).Should().Be(new ThumbnailStockReport(2, 0, 0), "gemerkte Platzhalter werden gar nicht erst geladen");
+
+            var running = statuses.Where(s => s.IsRunning).ToList();
+            running.Should().NotBeEmpty();
+            running.Should().OnlyContain(s => s.Total == 2 && s.Done <= 2, "nur die beiden lokalen Dateien zählen");
+            statuses.Last().Should().Be(ThumbnailStockStatus.Idle);
+            log.Messages.Skip(infoBefore).Where(m => m.Level == LogLevel.Information).Select(m => m.Text)
+                .Should().Contain("Vorschaubilder auf Vorrat: 2 Fotos und Videos noch ohne Vorschaubild");
+        }
+        finally
+        {
+            placeholders.ForEach(p => File.SetAttributes(p, FileAttributes.Normal));
+        }
     }
 
     // ----- (4) Vordergrund, Galerie, Einlesen, Katalog-Umzug, Kerne, Laufwerk -----
@@ -247,18 +313,73 @@ public sealed class ThumbnailStockTests
         var galleryFile = (await w.FilesAsync()).Single(f => f.Name == "galerie.jpg");
         await w.Thumbs.RequestThumbnailsAsync([w.Request(galleryFile)]);
         w.Thumbs.PendingCount.Should().Be(1);
-        var waits = new ConcurrentQueue<string?>();
-        w.Fx.Messenger.Register<ConcurrentQueue<string?>, ThumbnailStockStatusMessage>(waits, static (q, m) => q.Enqueue(m.Status.Message));
+        var statuses = new ConcurrentQueue<ThumbnailStockStatus>();
+        w.Fx.Messenger.Register<ConcurrentQueue<ThumbnailStockStatus>, ThumbnailStockStatusMessage>(statuses, static (q, m) => q.Enqueue(m.Status));
 
         var pass = w.Stock.RunPassAsync();
-        await WaitUntilAsync(() => waits.Contains(ThumbnailStockService.QueueWaitReason) && w.Renderer.Calls.Count == 1);
+        await WaitUntilAsync(() => w.Renderer.Calls.Count == 1);
         await Task.Delay(150);
         w.Renderer.Calls.Should().Equal("galerie.jpg");
         pass.IsCompleted.Should().BeFalse();
+        statuses.Should().BeEmpty("vor der ersten eigenen Datei wartet der Vorrat still");
 
         gallery.Set();
         (await pass.WaitAsync(Timeout)).Generated.Should().Be(2);
         w.Renderer.Calls.Should().BeEquivalentTo(["galerie.jpg", "vorrat1.jpg", "vorrat2.jpg"], "jede Datei genau einmal");
+    }
+
+    [Fact]
+    public async Task Galerie_Auftrag_mitten_im_Durchgang_zeigt_den_Wartegrund()
+    {
+        await using var w = await World.CreateAsync(["a-vorrat.jpg", "b-galerie.jpg", "c-vorrat.jpg"], foreground: false);
+        var galleryFile = (await w.FilesAsync()).Single(f => f.Name == "b-galerie.jpg");
+        using var gallery = new ManualResetEventSlim();
+        w.Renderer.OnRender = (name, _) =>
+        {
+            if (name == "a-vorrat.jpg")
+            {
+                w.Thumbs.RequestThumbnailsAsync([w.Request(galleryFile)]).GetAwaiter().GetResult(); // Galerie blättert dorthin
+            }
+            else if (name == "b-galerie.jpg")
+            {
+                gallery.Wait(Timeout);
+            }
+        };
+        var waits = new ConcurrentQueue<string?>();
+        w.Fx.Messenger.Register<ConcurrentQueue<string?>, ThumbnailStockStatusMessage>(waits, static (q, m) => q.Enqueue(m.Status.Message));
+
+        var pass = w.Stock.RunPassAsync();
+        await WaitUntilAsync(() => waits.Contains(ThumbnailStockService.QueueWaitReason) && w.Renderer.Calls.Count == 2);
+        await Task.Delay(150);
+        w.Renderer.Calls.Should().Equal("a-vorrat.jpg", "b-galerie.jpg");
+        pass.IsCompleted.Should().BeFalse();
+
+        gallery.Set();
+        (await pass.WaitAsync(Timeout)).Generated.Should().Be(2);
+        w.Renderer.Calls.Should().BeEquivalentTo(["a-vorrat.jpg", "b-galerie.jpg", "c-vorrat.jpg"], "jede Datei genau einmal");
+    }
+
+    [Fact]
+    public async Task Video_der_Galerie_wartet_auf_das_Video_des_Vorrats()
+    {
+        // höchstens ein FFmpeg zugleich (ADR-0007), auch zwischen Video-Worker der Galerie und Vorrat
+        await using var w = await World.CreateAsync(["film1.mp4", "film2.mp4"], foreground: false);
+        var galleryFile = (await w.FilesAsync()).Single(f => f.Name == "film2.mp4");
+        w.Renderer.OnRender = (name, _) =>
+        {
+            if (name == "film1.mp4")
+            {
+                w.Thumbs.RequestThumbnailsAsync([w.Request(galleryFile)]).GetAwaiter().GetResult();
+                Thread.Sleep(300); // der Video-Worker der Galerie hätte jetzt Zeit, FFmpeg zu starten
+            }
+        };
+
+        var report = await w.Stock.RunPassAsync().WaitAsync(Timeout);
+        await WaitUntilAsync(() => w.Thumbs.PendingCount == 0);
+
+        w.Renderer.MaxConcurrent.Should().Be(1, "das Video der Galerie beginnt erst nach dem des Vorrats");
+        w.Renderer.Calls.Should().Equal("film1.mp4", "film2.mp4");
+        report.Generated.Should().Be(1, "film2 hat die Galerie erstellt");
     }
 
     [Fact]
@@ -323,27 +444,161 @@ public sealed class ThumbnailStockTests
         (await w.RowsAsync(request.FileId)).Single().Status.Should().Be(ThumbnailStatus.Generated, "kein hängender „in Arbeit“-Zustand");
     }
 
+    // ----- (5) Auslöser: Start nach StartDelay, Einlesen, neue Dateien, Cache leeren -----
+
+    [Fact]
+    public async Task Erster_Durchgang_erst_nach_der_Startverzoegerung()
+    {
+        await using var w = await World.CreateAsync(["a.jpg"]);
+        using (var defaults = new ThumbnailStockService(w.Fx.ContextFactory, w.Thumbs, NullLogger<ThumbnailStockService>.Instance))
+        {
+            defaults.StartDelay.Should().Be(TimeSpan.FromSeconds(60), "Standard: Start, erste Galerie-Seite und die übrigen Dienste gehen vor");
+        }
+
+        using var stock = w.CreateStock(null, startDelay: TimeSpan.FromSeconds(1));
+
+        await stock.StartAsync();
+        w.Renderer.Calls.Should().BeEmpty("vor Ablauf der Startverzögerung");
+        await WaitUntilAsync(() => w.Renderer.Calls.Count == 1);
+    }
+
+    [Fact]
+    public async Task Einlesen_stoesst_einen_Durchgang_an()
+    {
+        await using var w = await World.CreateAsync(["a.jpg", "b.jpg"]);
+        using var stock = await w.StartedStockAsync();
+
+        await w.ClearCacheAsync(sendMessage: false);
+        await Task.Delay(200);
+        w.Renderer.Calls.Should().HaveCount(2, "ohne Auslöser kein Durchgang");
+
+        w.Fx.Messenger.Send(new ScanCompletedMessage(w.LibraryId, new ScanResult(
+            w.LibraryId, w.Fx.LibraryRoot, 0, 0, 0, 0, TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero) { Mode = ScanMode.Incremental }));
+        await WaitUntilAsync(() => w.Renderer.Calls.Count == 4 && !stock.Status.IsRunning);
+    }
+
+    [Fact]
+    public async Task Nur_neue_Dateien_stossen_einen_Durchgang_an()
+    {
+        await using var w = await World.CreateAsync(["a.jpg", "b.jpg"]);
+        using var stock = await w.StartedStockAsync();
+        var ids = (await w.FilesAsync()).Select(f => f.Id).ToList();
+        await w.ClearCacheAsync(sendMessage: false);
+
+        foreach (var kind in new[] { FilesChangeKind.Metadata, FilesChangeKind.Moved, FilesChangeKind.Removed })
+        {
+            w.Fx.Messenger.Send(new FilesChangedMessage(w.LibraryId, kind, ids));
+        }
+
+        await Task.Delay(300);
+        w.Renderer.Calls.Should().HaveCount(2, "Bewerten, Verschieben und Entfernen bringen keine Datei ohne Vorschaubild");
+
+        w.Fx.Messenger.Send(new FilesChangedMessage(w.LibraryId, FilesChangeKind.Added, ids));
+        await WaitUntilAsync(() => w.Renderer.Calls.Count == 4 && !stock.Status.IsRunning);
+    }
+
     [Fact]
     public async Task Cache_leeren_stoesst_einen_Durchgang_an()
     {
         await using var w = await World.CreateAsync(["a.jpg", "b.jpg"]);
-        using var stock = w.CreateStock(null, startDelay: TimeSpan.Zero);
-        await stock.StartAsync();
-        await WaitUntilAsync(() => w.Renderer.Calls.Count == 2 && !stock.Status.IsRunning);
+        using var stock = await w.StartedStockAsync();
 
-        foreach (var file in await w.FilesAsync())
-        {
-            File.Delete((await w.RowsAsync(file.Id)).Single().CachePath);
-        }
+        var result = await w.ClearCacheAsync(); // wie Einstellungen › Speicher & Wartung › „Cache leeren“
 
-        await w.DeleteThumbnailRowsAsync(); // wie „Cache leeren“
-        w.Thumbs.InvalidateAll();
-        w.Fx.Messenger.Send(new ThumbnailCacheClearedMessage());
-
+        result.Rows.Should().Be(2);
+        result.DeletedFiles.Should().Be(2);
         await WaitUntilAsync(() => w.Renderer.Calls.Count == 4 && !stock.Status.IsRunning);
         foreach (var file in await w.FilesAsync())
         {
-            (await w.RowsAsync(file.Id)).Single().Status.Should().Be(ThumbnailStatus.Generated);
+            var row = (await w.RowsAsync(file.Id)).Single();
+            row.Status.Should().Be(ThumbnailStatus.Generated);
+            File.Exists(row.CachePath).Should().BeTrue();
+        }
+    }
+
+    [Fact]
+    public async Task Cache_leeren_waehrend_eines_Durchgangs_hinterlaesst_keine_Zeile_ohne_Cache_Datei()
+    {
+        // Ohne Pause des Vorschaubild-Dienstes schrieb der Vorrat zwischen dem Löschen der Zeilen und dem langen Löschen der
+        // Dateien neue Zeilen „Generated“, deren Datei das Löschen gleich wieder entfernte — und hielt sie danach für erledigt.
+        var names = Enumerable.Range(0, 60).Select(i => $"f{i:00}.jpg").ToArray();
+        await using var w = await World.CreateAsync(names);
+        w.Renderer.Delay = TimeSpan.FromMilliseconds(15);
+        var ballast = Path.Combine(w.Fx.Paths.ThumbnailsRoot, "0"); // vor dem Ordner der Bibliothek: das Löschen dauert
+        Directory.CreateDirectory(ballast);
+        for (var i = 0; i < 3000; i++)
+        {
+            File.WriteAllBytes(Path.Combine(ballast, $"{i}.jpg"), [1]);
+        }
+
+        var pass = w.Stock.RunPassAsync();
+        await WaitUntilAsync(() => w.Renderer.Calls.Count >= 3);
+        var result = await w.ClearCacheAsync(sendMessage: false).WaitAsync(Timeout);
+        await pass.WaitAsync(Timeout);
+
+        result.DeletedFiles.Should().BeGreaterThanOrEqualTo(3000);
+        var rows = await w.AllRowsAsync();
+        rows.Where(r => r.Status == ThumbnailStatus.Generated).Should().OnlyContain(r => File.Exists(r.CachePath),
+            "jede Zeile „Generated“ hat ihre Cache-Datei");
+
+        // der nächste Durchgang (ThumbnailCacheClearedMessage) erstellt den Rest
+        await w.Stock.RunPassAsync().WaitAsync(Timeout);
+        foreach (var file in await w.FilesAsync())
+        {
+            var row = (await w.RowsAsync(file.Id)).Should().ContainSingle().Subject;
+            row.Status.Should().Be(ThumbnailStatus.Generated);
+            File.Exists(row.CachePath).Should().BeTrue();
+        }
+    }
+
+    [Fact]
+    public async Task Cache_leeren_haelt_den_Dienst_erst_nach_den_Dateien_und_nur_fuer_die_Zeilen_an()
+    {
+        // Das Löschen der Dateien dauert bei 500 000 Vorschaubildern Minuten — so lange soll die Galerie nicht stillstehen
+        await using var w = await World.CreateAsync(["a.jpg", "b.jpg"]);
+        (await w.Stock.RunPassAsync().WaitAsync(Timeout)).Generated.Should().Be(2);
+        var ballast = Path.Combine(w.Fx.Paths.ThumbnailsRoot, "0");
+        Directory.CreateDirectory(ballast);
+        for (var i = 0; i < 200; i++)
+        {
+            File.WriteAllBytes(Path.Combine(ballast, $"{i}.jpg"), [1]);
+        }
+
+        var probe = new PauseProbe(w.Thumbs, () =>
+            (Directory.EnumerateFiles(w.Fx.Paths.ThumbnailsRoot, "*", SearchOption.AllDirectories).Count(), w.RowCountAsync().GetAwaiter().GetResult()));
+
+        var result = await w.ClearCacheAsync(sendMessage: false, thumbs: probe).WaitAsync(Timeout);
+
+        result.Should().Be(new ThumbnailCacheClearResult(202, 0, 2));
+        probe.Events.Should().Equal("Pause (0 Dateien, 2 Zeilen)", "InvalidateAll", "Resume (0 Dateien, 0 Zeilen)");
+    }
+
+    [Fact]
+    public async Task Cache_leeren_wartet_hoechstens_das_Zeitlimit_auf_einen_laufenden_Auftrag()
+    {
+        await using var w = await World.CreateAsync(["a.jpg", "b.jpg"], foreground: false);
+        var files = await w.FilesAsync();
+        using var release = new ManualResetEventSlim();
+        w.Renderer.OnRender = (name, _) =>
+        {
+            if (name == "a.jpg")
+            {
+                release.Wait(Timeout); // z. B. ein Bild auf einem langsamen Netzlaufwerk
+            }
+        };
+        await w.Thumbs.RequestThumbnailsAsync([w.Request(files[0])]);
+        await WaitUntilAsync(() => w.Renderer.Calls.Count == 1);
+
+        var result = await w.ClearCacheAsync(pauseTimeout: TimeSpan.FromMilliseconds(300)).WaitAsync(Timeout);
+
+        result.Rows.Should().Be(1, "die Zeile „Pending“ des laufenden Auftrags");
+        release.Set();
+        await WaitUntilAsync(() => w.Thumbs.PendingCount == 0);
+        await w.Thumbs.RequestThumbnailsAsync([w.Request(files[1])]);
+        await WaitUntilAsync(() => w.Renderer.Calls.Count == 2); // der Dienst ist nicht angehalten geblieben
+        foreach (var row in (await w.AllRowsAsync()).Where(r => r.Status == ThumbnailStatus.Generated))
+        {
+            File.Exists(row.CachePath).Should().BeTrue();
         }
     }
 
@@ -490,6 +745,45 @@ public sealed class ThumbnailStockTests
     private sealed class Storage(StorageKind kind) : IStorageKindProbe
     {
         public StorageKind GetKind(string path) => kind;
+    }
+
+    /// <summary>Vorschaubild-Dienst mit Mitschrift von Pause, Zustand verwerfen und Fortsetzen (Stand von Cache und Zeilen).</summary>
+    private sealed class PauseProbe(IThumbnailService inner, Func<(int Files, int Rows)> state) : IThumbnailService
+    {
+        public List<string> Events { get; } = [];
+
+        public int ThumbnailSize => inner.ThumbnailSize;
+
+        public int PendingCount => inner.PendingCount;
+
+        public event Action<ThumbnailReadyEventArgs>? ThumbnailReady
+        {
+            add => inner.ThumbnailReady += value;
+            remove => inner.ThumbnailReady -= value;
+        }
+
+        public Task RequestThumbnailsAsync(IReadOnlyList<ThumbnailRequest> requests, CancellationToken cancellationToken = default)
+            => inner.RequestThumbnailsAsync(requests, cancellationToken);
+
+        public async Task PauseAsync(CancellationToken ct = default)
+        {
+            await inner.PauseAsync(ct);
+            var (files, rows) = state();
+            Events.Add($"Pause ({files} Dateien, {rows} Zeilen)");
+        }
+
+        public void InvalidateAll()
+        {
+            Events.Add("InvalidateAll");
+            inner.InvalidateAll();
+        }
+
+        public void Resume()
+        {
+            var (files, rows) = state();
+            Events.Add($"Resume ({files} Dateien, {rows} Zeilen)");
+            inner.Resume();
+        }
     }
 
     /// <summary>Bild- und Video-Renderer in einem: schreibt Reihenfolge und gleichzeitige Aufrufe mit; optional ein Haken.</summary>
@@ -654,10 +948,33 @@ public sealed class ThumbnailStockTests
                 NotLocalMemory = notLocalMemory ?? TimeSpan.FromMinutes(30),
             };
 
-        public async Task DeleteThumbnailRowsAsync()
+        /// <summary>Vorrat mit <c>StartDelay</c> 0 gestartet; kehrt zurück, wenn der erste Durchgang alles erstellt hat.</summary>
+        public async Task<ThumbnailStockService> StartedStockAsync()
+        {
+            var stock = CreateStock(null, startDelay: TimeSpan.Zero);
+            await stock.StartAsync();
+            var count = (await FilesAsync()).Count(f => f.MediaType != MediaType.Archive);
+            await WaitUntilAsync(() => Renderer.Calls.Count == count && !stock.Status.IsRunning);
+            return stock;
+        }
+
+        /// <summary>„Cache leeren“ wie in den Einstellungen; ohne Nachricht, wenn der Auslöser selbst geprüft wird.</summary>
+        public Task<ThumbnailCacheClearResult> ClearCacheAsync(bool sendMessage = true, IThumbnailService? thumbs = null, TimeSpan? pauseTimeout = null)
+            => new ThumbnailCacheCleaner(Fx.ContextFactory, Fx.Paths, thumbs ?? Thumbs, sendMessage ? Fx.Messenger : new StrongReferenceMessenger())
+            {
+                PauseTimeout = pauseTimeout ?? TimeSpan.FromSeconds(30),
+            }.ClearAsync();
+
+        public async Task<int> RowCountAsync()
         {
             await using var ctx = Fx.CreateContext();
-            await ctx.Thumbnails.ExecuteDeleteAsync();
+            return await ctx.Thumbnails.CountAsync();
+        }
+
+        public async Task<List<Thumbnail>> AllRowsAsync()
+        {
+            await using var ctx = Fx.CreateContext();
+            return await ctx.Thumbnails.AsNoTracking().ToListAsync();
         }
 
         public ThumbnailRequest Request(MediaFile file)

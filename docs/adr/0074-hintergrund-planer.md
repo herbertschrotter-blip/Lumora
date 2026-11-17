@@ -233,14 +233,38 @@ und hält alle Hintergrund-Aufgaben an.
 - **Aktivitäts-Anzeige:** eigener Eintrag „Vorschaubilder auf Vorrat“ mit Fortschritt, Restzeit und Pause/Fortsetzen über den
   Planer, wie die übrigen Dateidienste. Im Protokoll stehen nur Zahlen.
 
+**Nachbesserung nach der Prüfung (0.5.40):**
+- **„Cache leeren“** (`IThumbnailCacheCleaner`, registriert in `AddThumbnailStock`) löscht zuerst die Dateien unter
+  `ThumbnailsRoot`. Das dauert bei 500 000 Vorschaubildern Minuten; Galerie und Vorrat arbeiten dabei weiter. Dann ruht der
+  Vorschaubild-Dienst kurz: `PauseAsync` wartet auf laufende Aufträge von Galerie, Pflege und Vorrat. Gelöscht werden alle
+  Zeilen und die inzwischen entstandenen Dateien, danach wird der In-Memory-Zustand verworfen. Es folgen `Resume` und erst
+  dann `ThumbnailCacheClearedMessage`. Ohne die Pause schrieben Galerie oder Vorrat neue Zeilen „Generated“, deren Datei das
+  Löschen gleich wieder entfernte. Die oben genannte Grenze gilt damit wieder nur für Löschen außerhalb von Lumora. Auf
+  laufende Aufträge wird höchstens 30 s gewartet; danach werden die Zeilen ohne Pause gelöscht (Warnung). Die Ablage
+  `_undo` wird wie bisher mit geleert (ADR-0065 Nachtrag 0.4.39).
+- **Pausen schachteln sich:** Jede erfolgreiche `PauseAsync` braucht ihr eigenes `Resume`; erst das letzte setzt fort.
+  Bricht das Warten ab (Zeitlimit des Umzugs), nimmt `PauseAsync` die eigene Pause selbst zurück.
+- **Offen** zählt ohne Dateizugriff weder gemerkte Platzhalter noch, falls eine Wurzel offline ist, Dateien darunter
+  (SQL-Funktionen auf der Leseverbindung). Eintrag in der Aktivitäts-Anzeige, Wartegrund und Info-Zeile erscheinen erst nach
+  dem ersten wirklich gerenderten Vorschaubild. Fortschritt und Gesamt zählen nur Dateien, die dem Vorschaubild-Dienst
+  übergeben werden; in diesem Durchgang neu erkannte Platzhalter senken das Gesamt. Ein Durchgang ohne Rendern endet still
+  (nur Debug). Rendert die Galerie während eines Durchgangs viele offene Dateien selbst, endet der Fortschritt unter 100 %;
+  das ist hingenommen, der Eintrag verschwindet am Ende ohnehin.
+- **Höchstens ein FFmpeg:** Video-Worker der Galerie und Vorrat teilen eine Sperre; sie wird vor dem Status „Pending“
+  genommen, damit ein wartender Auftrag keinen Versuch verbraucht. Bei Fotos bleibt die kurze Überschneidung hingenommen:
+  Der Vorrat nimmt keine neue Datei, sobald die Galerie etwas eingereiht hat; höchstens die laufenden Vorrat-Dateien (bis
+  `BackgroundCpu.MaxThreads`) überlappen mit den Galerie-Workern.
+
 **Folgen:** Galerie, Storys und Orte zeigen nach einiger Zeit überall sofort Bilder. Der Cache wächst auf die volle Größe
 (≈ 5,5 GB je 100 000 Fotos, PLAN Kap. 13), statt nur auf das bisher Angesehene. Auf einer Festplatte liest der Vorrat
 eine Datei nach der anderen, nur wenn nichts anderes ansteht. Die Pflege (ältere Größen ersetzen) geht vor, weil sie
 `PendingCount` belegt.
 
 **Referenzen:** `src/Lumora.Services/Thumbnails/ThumbnailStockService.cs`, `ThumbnailService.Stock.cs`,
-`ThumbnailStockSettingsStore.cs`, `ThumbnailStockServiceCollectionExtensions.cs`;
+`ThumbnailStockSettingsStore.cs`, `ThumbnailStockServiceCollectionExtensions.cs`, `ThumbnailCacheCleaner.cs`;
 `src/Lumora.Wpf/Settings/ThumbnailStock/ThumbnailStockSettingsViewModel.cs`. Tests:
-`tests/Lumora.Tests/Thumbnails/ThumbnailStockTests.cs`, `tests/Lumora.Tests/Activity/ThumbnailStockActivityTests.cs`,
-`tests/Lumora.Wpf.Tests/Settings/ThumbnailStockSettingsTests.cs`; Rauchtest-Schritt „Vorschaubilder auf Vorrat“.
+`tests/Lumora.Tests/Thumbnails/ThumbnailStockTests.cs`, `tests/Lumora.Tests/Thumbnails/ThumbnailServicePauseTests.cs`,
+`tests/Lumora.Tests/Activity/ThumbnailStockActivityTests.cs`, `tests/Lumora.Wpf.Tests/Settings/ThumbnailStockSettingsTests.cs`,
+`tests/Lumora.Wpf.Tests/Settings/ThumbnailCacheClearSettingsTests.cs`;
+Rauchtest-Schritt „Vorschaubilder auf Vorrat“.
 

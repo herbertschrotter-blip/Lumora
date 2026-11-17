@@ -27,7 +27,7 @@ public sealed partial class ThumbnailService
 
         if (IsPaused)
         {
-            return ThumbnailStockOutcome.Deferred; // Katalog zieht um (ADR-0026): später noch einmal
+            return ThumbnailStockOutcome.Deferred; // Katalog zieht um (ADR-0026) oder Cache wird geleert: später noch einmal
         }
 
         if (request.MediaType == MediaType.Video && !_videoRenderer.IsAvailable)

@@ -4,11 +4,12 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Lumora.Services.Background;
 using Lumora.Services.Database;
+using Lumora.Services.Infrastructure;
 using Lumora.Services.Scanning;
 
 namespace Lumora.Services.Thumbnails;
 
-/// <summary>Vorschaubilder auf Vorrat (0.5.40, ADR-0074 Nachtrag 0.5.40): Schalter je Katalog und Aufgabe der Datei-Spur.</summary>
+/// <summary>Vorschaubilder auf Vorrat (0.5.40, ADR-0074 Nachtrag 0.5.40): Schalter je Katalog, Aufgabe der Datei-Spur und „Cache leeren“.</summary>
 public static class ThumbnailStockServiceCollectionExtensions
 {
     public static IServiceCollection AddThumbnailStock(this IServiceCollection services)
@@ -23,6 +24,14 @@ public static class ThumbnailStockServiceCollectionExtensions
             sp.GetService<IScanGate>(),
             sp.GetService<IMessenger>(),
             sp.GetService<IVideoThumbnailRenderer>()));
+
+        // Nachbesserung 0.5.40: „Cache leeren“ hält den Vorschaubild-Dienst kurz an und stößt danach den Vorrat an
+        services.TryAddSingleton<IThumbnailCacheCleaner>(sp => new ThumbnailCacheCleaner(
+            sp.GetRequiredService<ILibraryContextFactory>(),
+            sp.GetRequiredService<IAppDataPaths>(),
+            sp.GetRequiredService<IThumbnailService>(),
+            sp.GetService<IMessenger>(),
+            sp.GetService<ILogger<ThumbnailCacheCleaner>>()));
         return services;
     }
 }

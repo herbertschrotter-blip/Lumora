@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
 using Lumora.Faces;
 using Lumora.Services.Archive;
@@ -33,7 +32,6 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly ILibraryContextFactory _factory;
     private readonly IAppDataPaths _paths;
     private readonly IVideoThumbnailRenderer _videoRenderer;
-    private readonly IThumbnailService _thumbnails;
     private readonly IMediaFormatRegistry _formats;
     private readonly IThemeService _theme;
     private readonly IDialogService _dialogs;
@@ -43,9 +41,11 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly ILogger<SettingsViewModel> _logger;
     private readonly IArchiveAutoExtractService? _autoExtract;
     private readonly ILibraryService? _libraries;
+    private readonly IThumbnailCacheCleaner _cacheCleaner;
 
     /// <param name="autoExtract">Automatisches Entpacken (ADR-0032); optional, damit ältere Tests ohne den Dienst auskommen.</param>
     /// <param name="libraries">Aktive Bibliothek für die Einstellung je Bibliothek (ADR-0033); optional wie <paramref name="autoExtract"/>.</param>
+    /// <param name="cacheCleaner">„Cache leeren“ (0.5.40, aus <c>AddThumbnailStock</c>); ohne Registrierung einer mit denselben Diensten.</param>
     public SettingsViewModel(
         ILibraryContextFactory factory,
         IAppDataPaths paths,
@@ -62,13 +62,14 @@ public sealed partial class SettingsViewModel : ObservableObject
         ILibraryService? libraries = null,
         FaceSettingsViewModel? faces = null,
         Lumora.Settings.FaceData.FaceDataSettingsViewModel? faceData = null,
-        Lumora.Settings.PersonRelations.PersonRelationsSettingsViewModel? relations = null)
+        Lumora.Settings.PersonRelations.PersonRelationsSettingsViewModel? relations = null,
+        IThumbnailCacheCleaner? cacheCleaner = null)
     {
         Relations = relations; // „Personen & Beziehungen“ (0.2.47, ADR-0045)
+        _cacheCleaner = cacheCleaner ?? new ThumbnailCacheCleaner(factory, paths, thumbnails);
         _factory = factory;
         _paths = paths;
         _videoRenderer = videoRenderer;
-        _thumbnails = thumbnails;
         _formats = formats;
         _theme = theme;
         _dialogs = dialogs;
@@ -574,12 +575,9 @@ public sealed partial class SettingsViewModel : ObservableObject
         IsCacheBusy = true;
         try
         {
-            var (deleted, skipped, rows) = await Task.Run(ClearCache).ConfigureAwait(true);
-            // In-Memory-Zustand des ThumbnailService verwerfen: als fehlgeschlagen gemerkte Dateien (Codec fehlte, kaputte
-            // Datei) werden mit frischem AttemptCount erneut versucht; erledigte ohne Cache-Datei prüft der Service ohnehin neu.
-            _thumbnails.InvalidateAll();
-            // 0.5.40: Vorschaubilder auf Vorrat füllen den Cache wieder auf (wenn eingeschaltet)
-            WeakReferenceMessenger.Default.Send(new ThumbnailCacheClearedMessage());
+            // 0.5.40: hält den Vorschaubild-Dienst (Galerie, Pflege, Vorrat) zum Löschen der Zeilen kurz an, verwirft seinen
+            // In-Memory-Zustand und meldet ThumbnailCacheClearedMessage — die Vorschaubilder auf Vorrat füllen den Cache wieder auf
+            var (deleted, skipped, rows) = await _cacheCleaner.ClearAsync().ConfigureAwait(true);
             InfoMessage = $"{deleted:N0} Dateien und {rows:N0} Datenbankeinträge entfernt"
                           + (skipped > 0 ? $" ({skipped:N0} Dateien in Benutzung übersprungen)." : ".");
             _logger.LogInformation("Thumbnail-Cache geleert: {Deleted} Dateien, {Rows} Zeilen, {Skipped} übersprungen", deleted, rows, skipped);
@@ -637,39 +635,6 @@ public sealed partial class SettingsViewModel : ObservableObject
             ThumbnailCacheText = "unbekannt";
             _logger.LogWarning(ex, "Thumbnail-Cache konnte nicht vermessen werden");
         }
-    }
-
-    private (int Deleted, int Skipped, int Rows) ClearCache()
-    {
-        int rows;
-        using (var connection = _factory.OpenSqliteConnection())
-        {
-            using var cmd = connection.CreateCommand();
-            cmd.CommandText = "DELETE FROM Thumbnails;";
-            rows = cmd.ExecuteNonQuery();
-        }
-
-        var deleted = 0;
-        var skipped = 0;
-        var root = _paths.ThumbnailsRoot;
-        if (Directory.Exists(root))
-        {
-            var options = new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true };
-            foreach (var file in Directory.EnumerateFiles(root, "*", options))
-            {
-                try
-                {
-                    File.Delete(file);
-                    deleted++;
-                }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-                {
-                    skipped++;
-                }
-            }
-        }
-
-        return (deleted, skipped, rows);
     }
 
     private static (int Count, long Bytes) MeasureDirectory(string root)

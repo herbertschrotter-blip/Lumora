@@ -69,13 +69,18 @@ public interface IThumbnailService
     }
 
     /// <summary>
-    /// Hält die Worker an (Umzug der Katalog-DB, ADR-0026): kein neuer Auftrag beginnt, neue Requests werden ohne
-    /// DB-Zugriff zurückgestellt; kehrt zurück, sobald die laufenden Aufträge fertig sind. Eingereihte Aufträge bleiben
-    /// in der Queue. Standard: keine Wirkung.
+    /// Hält die Worker an (Umzug der Katalog-DB, ADR-0026; „Cache leeren“, 0.5.40): kein neuer Auftrag beginnt — auch kein
+    /// Vorschaubild auf Vorrat —, neue Requests werden ohne DB-Zugriff zurückgestellt; kehrt zurück, sobald die laufenden
+    /// Aufträge fertig sind. Eingereihte Aufträge bleiben in der Queue. Pausen schachteln sich: jede erfolgreiche Pause
+    /// braucht ihr eigenes <see cref="Resume"/>. Wird das Warten abgebrochen, ist die Pause schon zurückgenommen.
+    /// Standard: keine Wirkung.
     /// </summary>
     Task PauseAsync(CancellationToken ct = default) => Task.CompletedTask;
 
-    /// <summary>Hebt <see cref="PauseAsync"/> auf und reicht die zurückgestellten Requests sofort nach. Standard: keine Wirkung.</summary>
+    /// <summary>
+    /// Hebt eine <see cref="PauseAsync"/> auf; erst nach der letzten laufen die Worker weiter und die zurückgestellten Requests
+    /// werden sofort nachgereicht. Standard: keine Wirkung.
+    /// </summary>
     void Resume()
     {
     }
@@ -102,6 +107,6 @@ public enum ThumbnailStockOutcome
     /// <summary>Nichts zu tun: schon gültig, gerade in Arbeit, endgültig gescheitert, Archiv oder kein FFmpeg.</summary>
     Skipped,
 
-    /// <summary>Dienst pausiert (Katalog-Umzug) — später noch einmal.</summary>
+    /// <summary>Dienst pausiert (Katalog-Umzug, Cache leeren) — später noch einmal.</summary>
     Deferred,
 }

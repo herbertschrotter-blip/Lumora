@@ -25,7 +25,10 @@ public sealed record ThumbnailStockStatusMessage(ThumbnailStockStatus Status);
 public sealed record ThumbnailCacheClearedMessage;
 
 /// <summary>Ergebnis eines Durchgangs (Tests, Rauchtest, Log).</summary>
-/// <param name="Skipped">fehlt, Wurzel nicht erreichbar, nur online, schon erledigt oder kein FFmpeg.</param>
+/// <param name="Skipped">
+/// in diesem Durchgang als nicht lokal erkannt (gelöscht, nur online), inzwischen erledigt oder kein FFmpeg. Dateien unter
+/// nicht erreichbaren Wurzeln und schon als nicht lokal gemerkte zählen gar nicht als offen (Nachbesserung 0.5.40).
+/// </param>
 public sealed record ThumbnailStockReport(int Generated, int Skipped, int Failed)
 {
     public static ThumbnailStockReport Empty { get; } = new(0, 0, 0);
@@ -316,23 +319,29 @@ public sealed class ThumbnailStockService : IThumbnailStockService, IDisposable
             ForgetNotLocalIfStale();
             await WaitWhileSuspendedAsync(token).ConfigureAwait(false);
             using var reader = _factory.OpenSqliteConnection();
+            var offlineRoots = await ContentHashBatch.LoadOfflineRootsAsync(_factory, token).ConfigureAwait(false);
+            RegisterKnownSkipFunctions(reader, offlineRoots);
             var mediaTypes = _video is { IsAvailable: false } ? new[] { MediaType.Image } : [MediaType.Image, MediaType.Video];
-            var total = await Task.Run(() => CountOpen(reader, mediaTypes), token).ConfigureAwait(false);
-            if (total == 0)
+            var open = await Task.Run(() => CountOpen(reader, mediaTypes, offlineRoots.Count > 0), token).ConfigureAwait(false);
+            if (open == 0)
             {
-                return ThumbnailStockReport.Empty;
+                return ThumbnailStockReport.Empty; // auch, wenn nur Wurzeln offline oder gemerkte Platzhalter übrig sind: still
             }
 
-            _logger.LogInformation("Vorschaubilder auf Vorrat: {Count} Fotos und Videos noch ohne Vorschaubild", total);
+            counts.Open = open;
             var sw = Stopwatch.StartNew();
-            var offlineRoots = await ContentHashBatch.LoadOfflineRootsAsync(_factory, token).ConfigureAwait(false);
-            PublishStatus(new ThumbnailStockStatus(true, 0, total), force: true);
             foreach (var mediaType in mediaTypes)
             {
-                await RunMediaTypeAsync(reader, mediaType, total, offlineRoots, counts, token).ConfigureAwait(false);
+                await RunMediaTypeAsync(reader, mediaType, offlineRoots, counts, token).ConfigureAwait(false);
             }
 
-            if (counts.Generated + counts.Failed > 0)
+            if (!counts.IsAnnounced)
+            {
+                _logger.LogDebug(
+                    "Vorschaubilder auf Vorrat: {Open} offen, nichts erzeugt ({NotLocal} nicht lokal, {Skipped} übersprungen)",
+                    counts.Open, counts.NotLocal, counts.Skipped);
+            }
+            else if (counts.Generated + counts.Failed > 0)
             {
                 _logger.LogInformation(
                     "Vorschaubilder auf Vorrat: {Generated} erzeugt, {Skipped} übersprungen (fehlt/nur online/erledigt), {Failed} nicht lesbar in {Sec:N1} s",
@@ -362,16 +371,16 @@ public sealed class ThumbnailStockService : IThumbnailStockService, IDisposable
 
     /// <summary>Alle offenen Dateien einer Medienart, Stapel für Stapel nach FileId.</summary>
     private async Task RunMediaTypeAsync(
-        SqliteConnection reader, MediaType mediaType, int total, IReadOnlyList<string> offlineRoots, Counts counts, CancellationToken token)
+        SqliteConnection reader, MediaType mediaType, IReadOnlyList<string> offlineRoots, Counts counts, CancellationToken token)
     {
         var cursor = 0;
         while (true)
         {
             token.ThrowIfCancellationRequested();
             await WaitWhileSuspendedAsync(token).ConfigureAwait(false);
-            await WaitForThumbnailQueueAsync(counts, total, token).ConfigureAwait(false);
+            await WaitForThumbnailQueueAsync(counts, token).ConfigureAwait(false);
             using var turn = await TurnAsync(token).ConfigureAwait(false);
-            var batch = await Task.Run(() => LoadBatch(reader, mediaType, cursor), token).ConfigureAwait(false);
+            var batch = await Task.Run(() => LoadBatch(reader, mediaType, cursor, offlineRoots.Count > 0), token).ConfigureAwait(false);
             if (batch.Count == 0)
             {
                 return;
@@ -383,16 +392,16 @@ public sealed class ThumbnailStockService : IThumbnailStockService, IDisposable
                 continue; // denselben Stapel später noch einmal
             }
 
-            var (handled, deferred) = await ProcessBatchAsync(batch, mediaType, offlineRoots, counts, total, token).ConfigureAwait(false);
+            var (handled, deferred) = await ProcessBatchAsync(batch, mediaType, offlineRoots, counts, token).ConfigureAwait(false);
             if (handled > 0)
             {
                 cursor = batch[handled - 1].FileId;
             }
 
-            PublishStatus(new ThumbnailStockStatus(true, Math.Min(total, counts.Done), total));
+            PublishProgress(counts);
             if (deferred)
             {
-                // Vorschaubild-Dienst pausiert (Katalog-Umzug): Spur abgeben und später dieselbe Datei noch einmal
+                // Vorschaubild-Dienst pausiert (Katalog-Umzug, Cache leeren): Spur abgeben und später dieselbe Datei noch einmal
                 turn?.Dispose();
                 await Task.Delay(BusyDelay, token).ConfigureAwait(false);
             }
@@ -408,7 +417,7 @@ public sealed class ThumbnailStockService : IThumbnailStockService, IDisposable
     /// des Vorschaubild-Dienstes zurückgestellte Datei und alles danach zählt nicht) und ob eine zurückgestellt wurde.
     /// </summary>
     private async Task<(int Handled, bool Deferred)> ProcessBatchAsync(
-        List<StockRow> batch, MediaType mediaType, IReadOnlyList<string> offlineRoots, Counts counts, int total, CancellationToken token)
+        List<StockRow> batch, MediaType mediaType, IReadOnlyList<string> offlineRoots, Counts counts, CancellationToken token)
     {
         var parallelism = Parallelism(mediaType, _planner?.ReadParallelism(batch[0].Path) ?? 1);
         var gate = new Lock();
@@ -442,18 +451,23 @@ public sealed class ThumbnailStockService : IThumbnailStockService, IDisposable
                 {
                     if (!IsLocal(row, offlineRoots))
                     {
-                        counts.Add(ThumbnailStockOutcome.Skipped); // fehlt, Wurzel offline oder nur online: kein Download
+                        counts.AddNotLocal(); // fehlt, Wurzel offline oder nur online: kein Download, zählt nicht in Fortschritt/Gesamt
                     }
                     else
                     {
                         var outcome = await _thumbnails.CreateStockAsync(
                             new ThumbnailRequest(row.LibraryId, row.FileId, row.Path, mediaType, row.ModifiedAtUtc), token).ConfigureAwait(false);
                         counts.Add(outcome);
+                        if (outcome is ThumbnailStockOutcome.Generated or ThumbnailStockOutcome.Failed)
+                        {
+                            Announce(counts); // erst ein wirklich gerendertes Vorschaubild zeigt Eintrag und Info-Zeile
+                        }
+
                         if (outcome == ThumbnailStockOutcome.Deferred)
                         {
                             lock (gate)
                             {
-                                stop = true; // Dienst pausiert (Katalog-Umzug): Spur abgeben, diese Datei später noch einmal
+                                stop = true; // Dienst pausiert (Katalog-Umzug, Cache leeren): Spur abgeben, diese Datei später noch einmal
                                 firstDeferred = Math.Min(firstDeferred, index);
                             }
                         }
@@ -469,7 +483,7 @@ public sealed class ThumbnailStockService : IThumbnailStockService, IDisposable
                     throw;
                 }
 
-                PublishStatus(new ThumbnailStockStatus(true, Math.Min(total, counts.Done), total));
+                PublishProgress(counts);
             }
         }
 
@@ -487,12 +501,12 @@ public sealed class ThumbnailStockService : IThumbnailStockService, IDisposable
     /// Liegt die Datei lokal? Nein bei Wurzel offline (ohne Dateizugriff), bei einer in dieser Sitzung schon als nicht lokal
     /// gemerkten Dateiversion (ohne Dateizugriff) und wenn die Attribute fehlen bzw. einen Cloud-Platzhalter zeigen
     /// (<see cref="ThumbnailService.IsLocallyAvailable"/> liest nur Attribute — kein Download). Letzteres wird gemerkt, damit
-    /// Durchgänge nach jedem Einlesen nicht jedes Mal alle Platzhalter abfragen.
+    /// Durchgänge nach jedem Einlesen nicht jedes Mal alle Platzhalter abfragen. Die ersten beiden Fälle filtert schon die
+    /// Abfrage (<see cref="RegisterKnownSkipFunctions"/>); hier nur noch als Rückfall (<see cref="IsKnownSkip"/>).
     /// </summary>
     private bool IsLocal(StockRow row, IReadOnlyList<string> offlineRoots)
     {
-        if (ContentHashBatch.IsUnderAny(row.Path, offlineRoots)
-            || (_notLocal.TryGetValue(row.FileId, out var modified) && modified == row.ModifiedAtUtc))
+        if (IsKnownSkip(row.Path, row.FileId, row.ModifiedAtUtc, offlineRoots))
         {
             return false;
         }
@@ -504,6 +518,32 @@ public sealed class ThumbnailStockService : IThumbnailStockService, IDisposable
 
         _notLocal[row.FileId] = row.ModifiedAtUtc;
         return false;
+    }
+
+    /// <summary>Ohne Dateizugriff bekannt nicht machbar: unter einer nicht erreichbaren Wurzel oder als nicht lokal gemerkte Dateiversion.</summary>
+    private bool IsKnownSkip(string path, int fileId, DateTime modifiedAtUtc, IReadOnlyList<string> offlineRoots)
+        => (offlineRoots.Count > 0 && ContentHashBatch.IsUnderAny(path, offlineRoots))
+           || (_notLocal.TryGetValue(fileId, out var modified) && modified == modifiedAtUtc);
+
+    /// <summary>
+    /// SQL-Funktionen für <see cref="CountOpen"/> und <see cref="LoadBatch"/> (Nachbesserung 0.5.40): gemerkte Platzhalter
+    /// (<see cref="NotLocalFunction"/>) und Dateien unter nicht erreichbaren Wurzeln (<see cref="OfflineFunction"/>, nur wenn
+    /// eine Wurzel offline ist) zählen nicht als offen. So meldet ein Auslöser (Einlesen, Ordnerüberwachung, Cache leeren) in
+    /// einer Bibliothek aus lauter OneDrive-Platzhaltern weder Eintrag noch Info-Zeile, ein Durchgang lädt sie nicht erst in
+    /// Stapeln, und Fortschritt und Restzeit zählen nur, was wirklich entsteht.
+    /// </summary>
+    private void RegisterKnownSkipFunctions(SqliteConnection connection, IReadOnlyList<string> offlineRoots)
+    {
+        connection.CreateFunction<long, long, bool>(
+            NotLocalFunction,
+            (fileId, modified) => _notLocal.TryGetValue((int)fileId, out var known) && known == FromUnixSeconds(modified));
+        if (offlineRoots.Count > 0)
+        {
+            // Wurzeln enden auf den Trenner (LoadOfflineRootsAsync), der Ordner einer Datei direkt in der Wurzel ist die Wurzel selbst
+            connection.CreateFunction<string, bool>(
+                OfflineFunction,
+                folder => ContentHashBatch.IsUnderAny(Path.TrimEndingDirectorySeparator(folder) + Path.DirectorySeparatorChar, offlineRoots));
+        }
     }
 
     /// <summary>Gemerkte „nicht lokal“-Dateien nach <see cref="NotLocalMemory"/> vergessen (z. B. inzwischen auf dem Gerät behalten).</summary>
@@ -537,33 +577,73 @@ public sealed class ThumbnailStockService : IThumbnailStockService, IDisposable
         return (_factory as IDatabaseAccessGate)?.IsSuspended != true && _scanGate?.IsBusy(libraryId) != true;
     }
 
-    /// <summary>Galerie- und Pflege-Aufträge zuerst: warten, bis die Warteschlange des Vorschaubild-Dienstes leer ist.</summary>
-    private async Task WaitForThumbnailQueueAsync(Counts counts, int total, CancellationToken token)
+    /// <summary>
+    /// Galerie- und Pflege-Aufträge zuerst: warten, bis die Warteschlange des Vorschaubild-Dienstes leer ist. Der Wartegrund
+    /// erscheint nur, wenn der Durchgang schon etwas erzeugt (sonst wartet er still).
+    /// </summary>
+    private async Task WaitForThumbnailQueueAsync(Counts counts, CancellationToken token)
     {
         if (_thumbnails.PendingCount <= 0)
         {
             return;
         }
 
-        PublishStatus(new ThumbnailStockStatus(false, Math.Min(total, counts.Done), total, QueueWaitReason), force: true);
+        if (counts.IsAnnounced)
+        {
+            PublishStatus(new ThumbnailStockStatus(false, counts.Done, counts.Total, QueueWaitReason), force: true);
+        }
+
         while (_thumbnails.PendingCount > 0)
         {
             await Task.Delay(QueuePollInterval, token).ConfigureAwait(false);
         }
 
-        PublishStatus(new ThumbnailStockStatus(true, Math.Min(total, counts.Done), total), force: true);
+        PublishProgress(counts, force: true);
+    }
+
+    /// <summary>
+    /// Erste Datei, die wirklich entsteht: Info-Zeile und Eintrag in der Aktivitäts-Anzeige. Ein Durchgang, der nur
+    /// fehlende, nicht erreichbare oder nur online liegende Dateien sieht, bleibt still.
+    /// </summary>
+    private void Announce(Counts counts)
+    {
+        if (!counts.TryAnnounce())
+        {
+            return;
+        }
+
+        _logger.LogInformation("Vorschaubilder auf Vorrat: {Count} Fotos und Videos noch ohne Vorschaubild", counts.Total);
+        PublishProgress(counts, force: true);
+    }
+
+    /// <summary>Fortschritt nur der Dateien, die wirklich entstehen (gedrosselt); vor <see cref="Announce"/> nichts.</summary>
+    private void PublishProgress(Counts counts, bool force = false)
+    {
+        if (counts.IsAnnounced)
+        {
+            PublishStatus(new ThumbnailStockStatus(true, counts.Done, counts.Total), force);
+        }
     }
 
     // ----- Abfragen (rohe SQL über eine eigene Leseverbindung, wie die Prüfsummen) -----
 
+    /// <summary>SQL-Funktion (FileId, Änderungszeit): als nicht lokal gemerkte Dateiversion (<see cref="RegisterKnownSkipFunctions"/>).</summary>
+    private const string NotLocalFunction = "lumora_stock_not_local";
+
+    /// <summary>SQL-Funktion (Ordnerpfad): unter einer nicht erreichbaren Wurzel (<see cref="RegisterKnownSkipFunctions"/>).</summary>
+    private const string OfflineFunction = "lumora_stock_offline";
+
     /// <summary>
     /// Offen = nicht „fehlt“ und kein gültiges Vorschaubild der aktuellen Größe: keine Zeile, „Generated“ für eine andere
     /// Dateiversion, oder Pending/Stale/Failed — außer endgültig gescheitert (<see cref="ThumbnailService.MaxAttempts"/>,
-    /// wie die Galerie). Alias f = Files, t = Thumbnails.
+    /// wie die Galerie); dazu nicht als nicht lokal gemerkt und (<paramref name="withOffline"/>) nicht unter einer nicht
+    /// erreichbaren Wurzel. Alias f = Files, d = Folders, t = Thumbnails.
     /// </summary>
-    private const string OpenFilter =
-        "f.Missing = 0 AND (t.FileId IS NULL OR (t.Status = 2 AND t.SourceModifiedAtUtc IS NOT f.ModifiedAtUtc)" +
-        " OR (t.Status <> 2 AND NOT (t.Status = 3 AND t.AttemptCount >= $maxAttempts)))";
+    private static string OpenFilter(bool withOffline)
+        => "f.Missing = 0 AND (t.FileId IS NULL OR (t.Status = 2 AND t.SourceModifiedAtUtc IS NOT f.ModifiedAtUtc)" +
+           " OR (t.Status <> 2 AND NOT (t.Status = 3 AND t.AttemptCount >= $maxAttempts)))" +
+           " AND NOT " + NotLocalFunction + "(f.Id, f.ModifiedAtUtc)" +
+           (withOffline ? " AND NOT " + OfflineFunction + "(d.Path)" : string.Empty);
 
     private const string ThumbnailJoin = "LEFT JOIN Thumbnails t ON t.FileId = f.Id AND t.Size = $size AND t.Kind = 0";
 
@@ -573,17 +653,17 @@ public sealed class ThumbnailStockService : IThumbnailStockService, IDisposable
         cmd.Parameters.AddWithValue("$maxAttempts", ThumbnailService.MaxAttempts);
     }
 
-    private static int CountOpen(SqliteConnection connection, IReadOnlyList<MediaType> mediaTypes)
+    private static int CountOpen(SqliteConnection connection, IReadOnlyList<MediaType> mediaTypes, bool withOffline)
     {
         using var cmd = connection.CreateCommand();
         var types = string.Join(", ", mediaTypes.Select(t => ((int)t).ToString(CultureInfo.InvariantCulture)));
-        cmd.CommandText = $"SELECT COUNT(*) FROM Files f {ThumbnailJoin} WHERE f.MediaType IN ({types}) AND {OpenFilter};";
+        cmd.CommandText = $"SELECT COUNT(*) FROM Files f JOIN Folders d ON d.Id = f.FolderId {ThumbnailJoin} WHERE f.MediaType IN ({types}) AND {OpenFilter(withOffline)};";
         AddFilterParameters(cmd);
         return Convert.ToInt32(cmd.ExecuteScalar(), CultureInfo.InvariantCulture);
     }
 
     /// <summary>Nächste offene Dateien einer Medienart nach <paramref name="afterFileId"/>.</summary>
-    private List<StockRow> LoadBatch(SqliteConnection connection, MediaType mediaType, int afterFileId)
+    private List<StockRow> LoadBatch(SqliteConnection connection, MediaType mediaType, int afterFileId, bool withOffline)
     {
         using var cmd = connection.CreateCommand();
         cmd.CommandText = $"""
@@ -591,7 +671,7 @@ public sealed class ThumbnailStockService : IThumbnailStockService, IDisposable
             FROM Files f
             JOIN Folders d ON d.Id = f.FolderId
             {ThumbnailJoin}
-            WHERE f.Id > $after AND f.MediaType = $type AND {OpenFilter}
+            WHERE f.Id > $after AND f.MediaType = $type AND {OpenFilter(withOffline)}
             ORDER BY f.Id
             LIMIT $take;
             """;
@@ -607,11 +687,15 @@ public sealed class ThumbnailStockService : IThumbnailStockService, IDisposable
                 r.GetInt32(0),
                 r.GetInt32(1),
                 Path.Combine(r.GetString(2), r.GetString(3)),
-                DateTime.SpecifyKind(DateTimeOffset.FromUnixTimeSeconds(r.GetInt64(4)).UtcDateTime, DateTimeKind.Utc)));
+                FromUnixSeconds(r.GetInt64(4))));
         }
 
         return rows;
     }
+
+    /// <summary><c>Files.ModifiedAtUtc</c> (Unix-Sekunden) wie im Katalog-Modell.</summary>
+    private static DateTime FromUnixSeconds(long seconds)
+        => DateTime.SpecifyKind(DateTimeOffset.FromUnixTimeSeconds(seconds).UtcDateTime, DateTimeKind.Utc);
 
     private async Task WaitWhileSuspendedAsync(CancellationToken token)
     {
@@ -667,12 +751,22 @@ public sealed class ThumbnailStockService : IThumbnailStockService, IDisposable
 
     private readonly record struct StockRow(int FileId, int LibraryId, string Path, DateTime ModifiedAtUtc);
 
-    /// <summary>Zähler eines Durchgangs (mehrere Arbeiter).</summary>
+    /// <summary>
+    /// Zähler eines Durchgangs (mehrere Arbeiter). Fortschritt und Gesamt zählen nur Dateien, die dem Vorschaubild-Dienst
+    /// übergeben wurden; erst in diesem Durchgang als nicht lokal erkannte senken das Gesamt (die schon bekannten zählt
+    /// <see cref="CountOpen"/> gar nicht erst). Der Bericht zählt sie als übersprungen.
+    /// </summary>
     private sealed class Counts
     {
         private int _generated;
         private int _skipped;
         private int _failed;
+        private int _handedOver; // dem Dienst übergeben und nicht zurückgestellt
+        private int _notLocal;
+        private int _announced;
+
+        /// <summary>Offene Dateien zu Beginn (<see cref="CountOpen"/>).</summary>
+        public int Open { get; set; }
 
         public int Generated => Volatile.Read(ref _generated);
 
@@ -680,10 +774,34 @@ public sealed class ThumbnailStockService : IThumbnailStockService, IDisposable
 
         public int Failed => Volatile.Read(ref _failed);
 
-        public int Done => Generated + Skipped + Failed;
+        /// <summary>Fortschritt: dem Dienst übergebene Dateien (erzeugt, nicht lesbar, inzwischen erledigt).</summary>
+        public int Done => Volatile.Read(ref _handedOver);
+
+        /// <summary>Gesamt: offen minus die in diesem Durchgang als nicht lokal erkannten, nie weniger als <see cref="Done"/>.</summary>
+        public int Total => Math.Max(Done, Open - NotLocal);
+
+        /// <summary>In diesem Durchgang als nicht lokal erkannt (gelöscht, nur online).</summary>
+        public int NotLocal => Volatile.Read(ref _notLocal);
+
+        public bool IsAnnounced => Volatile.Read(ref _announced) == 1;
+
+        /// <summary>true genau einmal: beim ersten wirklich gerenderten Vorschaubild (erzeugt oder nicht lesbar).</summary>
+        public bool TryAnnounce() => Interlocked.CompareExchange(ref _announced, 1, 0) == 0;
+
+        public void AddNotLocal()
+        {
+            Interlocked.Increment(ref _notLocal);
+            Interlocked.Increment(ref _skipped);
+        }
 
         public void Add(ThumbnailStockOutcome outcome)
         {
+            if (outcome == ThumbnailStockOutcome.Deferred)
+            {
+                return; // zurückgestellt: dieselbe Datei kommt noch einmal dran
+            }
+
+            Interlocked.Increment(ref _handedOver);
             switch (outcome)
             {
                 case ThumbnailStockOutcome.Generated:
@@ -692,8 +810,6 @@ public sealed class ThumbnailStockService : IThumbnailStockService, IDisposable
                 case ThumbnailStockOutcome.Failed:
                     Interlocked.Increment(ref _failed);
                     break;
-                case ThumbnailStockOutcome.Deferred:
-                    break; // zurückgestellt: dieselbe Datei kommt noch einmal dran
                 default:
                     Interlocked.Increment(ref _skipped);
                     break;

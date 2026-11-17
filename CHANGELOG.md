@@ -35,6 +35,32 @@ Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Form
   - Rauchtest-Schritt „Vorschaubilder auf Vorrat“
   - 28 neue Tests
 
+### Fixed — Nachbesserung nach der Prüfung
+- **„Cache leeren“ lässt keine Zeilen ohne Datei mehr zurück:** Bisher konnten Vorrat oder Galerie während des Leerens neue
+  Zeilen „Generated“ schreiben, deren Datei das Leeren gleich wieder löschte. Der Vorrat hielt diese Dateien danach für
+  erledigt. Jetzt werden zuerst die Dateien gelöscht, Galerie und Vorrat arbeiten dabei weiter. Danach ruht der
+  Vorschaubild-Dienst kurz: Zeilen und inzwischen entstandene Dateien löschen, Zustand verwerfen, fortsetzen. Erst dann
+  stößt die Nachricht den Vorrat an, und er füllt den Cache vollständig wieder auf.
+  - Neu `IThumbnailCacheCleaner`/`ThumbnailCacheCleaner` (`Services/Thumbnails`, registriert in `AddThumbnailStock`);
+    `SettingsViewModel` ruft nur noch ihn auf.
+  - Auf laufende Aufträge wartet er höchstens 30 s, danach löscht er die Zeilen ohne Pause (Warnung im Protokoll).
+  - Pausen des Vorschaubild-Dienstes schachteln sich: Das Fortsetzen nach „Cache leeren“ hebt die Pause eines
+    Katalog-Umzugs nicht auf. Eine abgebrochene Pause (Zeitlimit des Umzugs) hält den Dienst nicht mehr dauerhaft an.
+- **Keine Meldung ohne Arbeit:** Dateien unter nicht erreichbaren Wurzeln und schon als nicht lokal gemerkte Platzhalter
+  zählen nicht mehr als offen und werden nicht mehr in Stapeln geladen. Eintrag in der Aktivitäts-Anzeige und Info-Zeile
+  im Protokoll erscheinen erst, wenn wirklich ein Vorschaubild gerendert wurde. Fortschritt und Restzeit zählen nur
+  Dateien, die dem Vorschaubild-Dienst übergeben werden. Eine Bibliothek aus lauter OneDrive-Platzhaltern bleibt bei
+  jedem Einlesen still.
+- **Ein FFmpeg zugleich:** Ein Video der Galerie wartet auf das Video, das der Vorrat gerade erstellt (ADR-0007). Es wartet
+  vor dem Status „Pending“ und verbraucht so keinen Versuch.
+- Hinweistext beim Schalter: „pausiert, sobald Galerie oder Lightbox Bilder brauchen“ statt „beim Blättern“.
+- 14 neue Tests:
+  - Cache leeren: mitten im Durchgang, Reihenfolge Dateien → Pause → Zeilen, Zeitlimit
+  - Auslöser: Startverzögerung, Einlesen, nur neue Dateien
+  - stille Durchgänge und Zählung, Wartegrund mitten im Durchgang
+  - ein Video zugleich, geschachtelte und abgebrochene Pause
+  - Einstellungen: „Cache leeren“ über den Dienst, Ergebnis und Fehler als Hinweis
+
 ## [0.5.39] — 2026-11-17
 
 ### Docs — Spike 19: OneDrive-Platzhalter
