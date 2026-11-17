@@ -101,7 +101,9 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
     /// Zustand je FileId; <c>Retryable</c>-Fehlschläge dürfen nach <see cref="RetryCooldown"/> erneut laufen.
     /// <c>FallbackPath</c> = Vorschaubild einer älteren Größe, das gezeigt wird, solange das neue fehlt (ADR-0043);
     /// <c>Background</c> = Auftrag der Pflege im Hintergrund (nach Erfolg wird der Eintrag verworfen, damit 500 000
-    /// ersetzte Dateien nicht im Speicher bleiben).
+    /// ersetzte Dateien nicht im Speicher bleiben); <c>Rank</c> = Vorrang in der Warteschlange der OneDrive-Platzhalter,
+    /// <c>Cloud</c> = liegt in dieser Warteschlange und hält keinen Vordergrund-Vorrang mehr (ADR-0077,
+    /// <c>ThumbnailService.Cloud.cs</c>).
     /// </summary>
     private readonly record struct JobState(
         JobOutcome Outcome,
@@ -109,7 +111,9 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
         DateTime AtUtc,
         bool Retryable,
         string? FallbackPath = null,
-        bool Background = false);
+        bool Background = false,
+        long Rank = 0,
+        bool Cloud = false);
 
     public ThumbnailService(
         ILibraryContextFactory factory,
@@ -119,8 +123,11 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
         ILogger<ThumbnailService> logger,
         IFallbackImageThumbnailRenderer? fallbackRenderer = null,
         IScanGate? scanGate = null,
-        Background.IForegroundWork? foreground = null)
+        Background.IForegroundWork? foreground = null,
+        ICloudThumbnailRenderer? cloudRenderer = null)
     {
+        _cloudRenderer = cloudRenderer; // OneDrive-Platzhalter über die Shell (ADR-0077, ThumbnailService.Cloud.cs)
+        _cloudQueue = new CloudJobQueue(MaxCloudBacklog, RankOf);
         _hold = foreground is null ? null : new Background.ForegroundHold(foreground, Background.ForegroundNeed.Cpu, "Vorschaubilder");
         _factory = factory;
         _paths = paths;
@@ -312,17 +319,23 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
 
         EnsureStarted();
 
-        // 1) Schon bekannte Files direkt behandeln, Rest sammeln.
+        // 1) Schon bekannte Files direkt behandeln, Rest sammeln. Rang: spätere Anforderung vor früheren, innerhalb einer
+        //    Anforderung ihre Reihenfolge (nur die Warteschlange der OneDrive-Platzhalter nutzt ihn, ADR-0077).
+        var rankBase = NextRankBase();
+        var ranks = new Dictionary<int, long>(requests.Count);
         var toCheck = new List<ThumbnailRequest>(requests.Count);
-        foreach (var req in requests)
+        for (var i = 0; i < requests.Count; i++)
         {
+            var req = requests[i];
             // Archive (ADR-0022) haben kein Vorschaubild: weder DB-Zeile noch Renderer noch Event — die Kachel zeigt ein Icon.
             if (req.MediaType == MediaType.Archive)
             {
                 continue;
             }
 
-            if (TryHandleKnown(req, announce: !background))
+            var rank = rankBase - Math.Min(i, RankStride - 1);
+            ranks.TryAdd(req.FileId, rank);
+            if (TryHandleKnown(req, announce: !background, rank))
             {
                 continue;
             }
@@ -423,7 +436,7 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
                 continue;
             }
 
-            if (_states.TryAdd(req.FileId, new JobState(JobOutcome.Queued, req.SourceModifiedAtUtc, DateTime.UtcNow, false, fallback, background)))
+            if (_states.TryAdd(req.FileId, new JobState(JobOutcome.Queued, req.SourceModifiedAtUtc, DateTime.UtcNow, false, fallback, background, ranks.GetValueOrDefault(req.FileId))))
             {
                 var channel = req.MediaType == MediaType.Video ? _videoChannel : _imageChannel;
                 if (channel.Writer.TryWrite(req))
@@ -449,7 +462,8 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
     /// oder bewusst übersprungen); false = Eintrag fehlt/ungültig → DB-Prüfung nötig.
     /// </summary>
     /// <param name="announce">false für Aufträge der Pflege: nichts melden.</param>
-    private bool TryHandleKnown(ThumbnailRequest req, bool announce)
+    /// <param name="rank">Rang dieser Anforderung — ein wartender Auftrag rückt damit nach vorn (Platzhalter, ADR-0077).</param>
+    private bool TryHandleKnown(ThumbnailRequest req, bool announce, long rank = 0)
     {
         if (!_states.TryGetValue(req.FileId, out var state))
         {
@@ -458,6 +472,11 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
 
         if (state.Outcome == JobOutcome.Queued)
         {
+            if (announce && rank > state.Rank)
+            {
+                _states.TryUpdate(req.FileId, state with { Rank = rank }, state); // erneut angefordert (z. B. wieder sichtbar)
+            }
+
             // in Arbeit — auch für eine andere Version: der nächste Request validiert neu. Bis dahin das ältere zeigen.
             if (announce && state.SourceModifiedAtUtc == req.SourceModifiedAtUtc)
             {
@@ -520,7 +539,7 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
     {
         _states.TryGetValue(req.FileId, out var previous);
         _states[req.FileId] = new JobState(
-            outcome, req.SourceModifiedAtUtc, DateTime.UtcNow, retryable, fallbackPath ?? previous.FallbackPath, previous.Background);
+            outcome, req.SourceModifiedAtUtc, DateTime.UtcNow, retryable, fallbackPath ?? previous.FallbackPath, previous.Background, previous.Rank);
     }
 
     private void EnsureStarted()
@@ -540,6 +559,9 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
 
         // Video: max. 1 Worker (FFmpeg ist teuer, ADR-0007).
         _workers.Add(Task.Run(() => WorkerLoopAsync(_videoChannel.Reader)));
+
+        // OneDrive-Platzhalter: eigene Worker für Shell-Vorschaubilder (ADR-0077)
+        StartCloudWorkers();
 
         // Pflege: ältere Größen ersetzen, fehlende Bildmaße nachtragen — verzögert und nur bei leerer Warteschlange.
         StartMaintenance();
@@ -569,6 +591,11 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
                 while (reader.TryRead(out var req))
                 {
                     current = req;
+                    if (TryRouteToCloud(req))
+                    {
+                        continue; // nur online: Shell-Vorschaubild statt Original (ADR-0077, ThumbnailService.Cloud.cs)
+                    }
+
                     await EnterJobAsync(token).ConfigureAwait(false);
                     try
                     {
@@ -622,11 +649,12 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
     }
 
     /// <param name="queued">false = Vorschaubild auf Vorrat (<see cref="CreateStockAsync"/>): kam nicht über die Warteschlange und zählt nicht in <see cref="PendingCount"/>.</param>
+    /// <param name="cloud">Original liegt nur online: Shell-Vorschaubild statt WIC/FFmpeg (ADR-0077), kein FFmpeg-Platz.</param>
     /// <returns>true = Vorschaubild erzeugt.</returns>
-    private async Task<bool> ProcessJobAsync(ThumbnailRequest req, bool queued = true)
+    private async Task<bool> ProcessJobAsync(ThumbnailRequest req, bool queued = true, bool cloud = false)
     {
         // Auftrag der Galerie (nicht der Pflege, nicht der Vorrat): zählt für den Vorrang, bis er fertig ist
-        var foreground = _hold is not null && _states.TryGetValue(req.FileId, out var state) && !state.Background;
+        var foreground = _hold is not null && _states.TryGetValue(req.FileId, out var state) && !state.Background && !state.Cloud;
         var cachePath = BuildCachePath(req.LibraryId, req.FileId);
         var videoLocked = false;
         try
@@ -640,7 +668,7 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
                 return false;
             }
 
-            if (req.MediaType == MediaType.Video)
+            if (req.MediaType == MediaType.Video && !cloud)
             {
                 // höchstens ein FFmpeg zugleich, auch zwischen Video-Worker der Galerie und Vorrat (0.5.40, ADR-0007) — vor
                 // „Pending“, damit ein wartender Auftrag weder Zeile noch Versuch verbraucht
@@ -650,9 +678,11 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
 
             await UpsertStatusAsync(req, ThumbnailStatus.Pending, cachePath, null, attemptDelta: +1).ConfigureAwait(false);
 
-            ThumbnailRenderResult result = req.MediaType == MediaType.Video
-                ? await _videoRenderer.RenderAsync(req.SourcePath, cachePath, Size, _cts.Token).ConfigureAwait(false)
-                : await RenderImageWithFallbackAsync(req, cachePath).ConfigureAwait(false);
+            ThumbnailRenderResult result = cloud
+                ? await RenderCloudAsync(req, cachePath).ConfigureAwait(false)
+                : req.MediaType == MediaType.Video
+                    ? await _videoRenderer.RenderAsync(req.SourcePath, cachePath, Size, _cts.Token).ConfigureAwait(false)
+                    : await RenderImageWithFallbackAsync(req, cachePath).ConfigureAwait(false);
 
             if (videoLocked)
             {
@@ -726,7 +756,7 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
 
     /// <summary>Fehlschläge mit äußerer Ursache: die Datei selbst ist nicht „kaputt“, ein späterer Versuch kann gelingen.</summary>
     private static bool IsRetryable(string? errorCode)
-        => errorCode is ThumbnailErrorCodes.SourceMissing or ThumbnailErrorCodes.FfmpegNotFound;
+        => errorCode is ThumbnailErrorCodes.SourceMissing or ThumbnailErrorCodes.FfmpegNotFound or ThumbnailErrorCodes.CloudUnavailable;
 
     /// <summary>
     /// Bild via WIC; scheitert WIC am Decoding (<see cref="ThumbnailErrorCodes.WicDecodeFailed"/>)

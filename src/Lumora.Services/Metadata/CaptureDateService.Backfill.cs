@@ -189,11 +189,20 @@ public sealed partial class CaptureDateService
                 }
 
                 var readable = new List<PendingRow>(batch.Count);
+                var placeholders = new List<PendingRow>();
                 foreach (var row in batch)
                 {
                     if (IsUnderAny(row.Path, offlineRoots) || !ThumbnailService.IsLocallyAvailable(row.Path))
                     {
-                        skipped++; // fehlt oder nur online: in einer späteren Sitzung
+                        if (!IsUnderAny(row.Path, offlineRoots) && IsCloudCandidate(row.FileId, row.Path, row.ModifiedAt))
+                        {
+                            placeholders.Add(row); // nur online: Datum über die Shell, ohne Download (ADR-0077)
+                        }
+                        else
+                        {
+                            skipped++; // fehlt oder nur online: in einer späteren Sitzung
+                        }
+
                         continue;
                     }
 
@@ -209,6 +218,7 @@ public sealed partial class CaptureDateService
                     read1[i] = new ReadResult(row.FileId, row.LibraryId, row.ModifiedAt, _reader.Read(row.Path));
                 });
                 var results = read1.ToList();
+                skipped += ReadPlaceholders(placeholders, results, token);
 
                 cursor = batch[^1].FileId;
                 if (results.Count > 0)

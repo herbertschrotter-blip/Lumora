@@ -113,6 +113,7 @@ internal sealed class IncrementalScanRunner
             var scannedAtUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             var rootKey = TrimSeparators(rootPath);
             var folderMap = catalog.FolderIdsByPath;
+            var unreadable = new UnreadablePaths();
 
             // Legt den Ordner und alle fehlenden Zwischenordner bis zum Root an (vollständige ParentId-Kette).
             int GetOrCreateFolderId(string folderPath)
@@ -145,6 +146,8 @@ internal sealed class IncrementalScanRunner
             }
 
             // IOException während der Enumeration → Root-Recheck → offline → Scan beenden (keine Missing-Markierungen).
+            // Root erreichbar, Ordner/Datei aber nicht lesbar (z. B. OneDrive ohne Verbindung): darin nichts als fehlend
+            // markieren (ADR-0077, UnreadablePaths).
             void OnIoError(string path, Exception ex)
             {
                 _logger.LogWarning("IO-Fehler bei {Path} — Root wird erneut geprüft", path);
@@ -152,6 +155,8 @@ internal sealed class IncrementalScanRunner
                 {
                     throw new LibraryOfflineException(rootPath);
                 }
+
+                unreadable.Add(path);
             }
 
             var filesSinceRecheck = 0;
@@ -222,12 +227,28 @@ internal sealed class IncrementalScanRunner
             // Ein Laufwerk, das während der Enumeration verschwunden ist, darf keine Missing-Welle auslösen.
             await EnsureRootOnlineAsync(rootPath, ct).ConfigureAwait(false);
 
+            var coveredFolders = unreadable.Count == 0 ? null : unreadable.CoveredFolderIds(folderMap);
+            var folderPathById = unreadable.Count == 0 ? null : folderMap.ToDictionary(p => p.Value, p => p.Key);
+            var keptUnreadable = 0;
             foreach (var file in catalog.AllFiles)
             {
                 if (!file.Missing && !file.Seen)
                 {
+                    if (coveredFolders is not null
+                        && (coveredFolders.Contains(file.FolderId)
+                            || (folderPathById!.TryGetValue(file.FolderId, out var folderPath) && unreadable.IsUnreadableFile(folderPath, file.Name))))
+                    {
+                        keptUnreadable++; // nicht lesbar, nicht weg (ADR-0077)
+                        continue;
+                    }
+
                     missingIds.Add(file.Id);
                 }
+            }
+
+            if (keptUnreadable > 0)
+            {
+                _logger.LogWarning("{Count} Dateien in nicht lesbaren Ordnern nicht als fehlend markiert (Wurzel erreichbar, Inhalt gerade nicht lesbar)", keptUnreadable);
             }
 
             reporter.Report(new ScanProgress(folderMap.Count, filesSeen, totalBytes, null), force: true);
@@ -388,6 +409,8 @@ internal sealed class IncrementalScanRunner
     private sealed class CatalogFile
     {
         public int Id;
+        public int FolderId;
+        public string Name = string.Empty;
         public long Size;
         public long ModifiedAtUnix;
         public bool Missing;
@@ -464,13 +487,6 @@ internal sealed class IncrementalScanRunner
                 using var reader = cmd.ExecuteReader();
                 while (reader.Read())
                 {
-                    var file = new CatalogFile
-                    {
-                        Id = reader.GetInt32(0),
-                        Size = reader.GetInt64(3),
-                        ModifiedAtUnix = reader.GetInt64(4),
-                        Missing = reader.GetInt64(5) != 0,
-                    };
                     var folderId = reader.GetInt32(1);
                     if (excludedFolderIds.Contains(folderId))
                     {
@@ -478,6 +494,15 @@ internal sealed class IncrementalScanRunner
                     }
 
                     var name = reader.GetString(2);
+                    var file = new CatalogFile
+                    {
+                        Id = reader.GetInt32(0),
+                        FolderId = folderId,
+                        Name = name,
+                        Size = reader.GetInt64(3),
+                        ModifiedAtUnix = reader.GetInt64(4),
+                        Missing = reader.GetInt64(5) != 0,
+                    };
 
                     if (!snapshot._filesByFolder.TryGetValue(folderId, out var byName))
                     {

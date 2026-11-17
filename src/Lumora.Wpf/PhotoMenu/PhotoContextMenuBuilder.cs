@@ -69,6 +69,12 @@ public sealed record PhotoMenuHost
 
     /// <summary>Startordner für „Kopieren nach…“.</summary>
     public string? CopyInitialDirectory { get; init; }
+
+    /// <summary>„Datei ▸ Immer auf diesem Gerät behalten“ (ADR-0077): nur, wenn das Ziel in OneDrive liegt; null = Eintrag entfällt.</summary>
+    public Action? KeepOnDevice { get; init; }
+
+    /// <summary>„Datei ▸ Speicherplatz freigeben“ (ADR-0077): nur, wenn das Ziel in OneDrive liegt; null = Eintrag entfällt.</summary>
+    public Action? FreeUpSpace { get; init; }
 }
 
 /// <summary>
@@ -205,6 +211,16 @@ public static class PhotoContextMenuBuilder
         if (!primary.IsArchive || context.IsMulti)
         {
             Add(file.Items, "In die Bibliothek…", SymbolRegular.Archive24, host.ArchiveIntoLibrary, PhotoMenuGestures.IntoLibrary);
+        }
+
+        // OneDrive (ADR-0077, Mockup 27): wie im Explorer, nur für Dateien in OneDrive
+        if (host.KeepOnDevice is not null || host.FreeUpSpace is not null)
+        {
+            Separator(file.Items);
+            Add(file.Items, Lumora.Services.Cloud.CloudPinText.KeepHeader, SymbolRegular.CloudCheckmark24, host.KeepOnDevice,
+                toolTip: "OneDrive lädt die Datei herunter und behält sie auf diesem PC");
+            Add(file.Items, Lumora.Services.Cloud.CloudPinText.FreeHeader, SymbolRegular.Cloud24, host.FreeUpSpace,
+                toolTip: "Die Datei bleibt in OneDrive und in Lumora, belegt hier aber keinen Platz mehr");
         }
 
         if (single)

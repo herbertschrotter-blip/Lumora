@@ -151,7 +151,8 @@ public sealed partial class GalleryViewModel : ObservableObject
         Lumora.Services.Rotation.IPhotoRotationService? rotation = null,
         Lumora.Enhance.EnhanceGalleryActions? enhance = null,
         Lumora.Services.Places.Tracks.IAppTourReader? tours = null,
-        Lumora.AppConnect.AppConnectRuntime? appConnect = null)
+        Lumora.AppConnect.AppConnectRuntime? appConnect = null,
+        Lumora.Services.Cloud.ICloudFileService? cloudFiles = null)
     {
         InitTours(tours, appConnect, navigation); // Filter „Tour“ (ADR-0073 Stufe 7, Mockup 24, GalleryViewModel.Tours.cs)
         _rotation = rotation; // Rückgängig für „Drehen“ (ADR-0068, GalleryViewModel.Rotation.cs)
@@ -188,6 +189,7 @@ public sealed partial class GalleryViewModel : ObservableObject
         InitPlaces(placeActions); // Filter „Ort“, Kartenausschnitt, „Ort setzen…“ (GalleryViewModel.Places.cs, ADR-0050)
         InitPages(sharedFilter, navigation); // gemeinsamer Filter, seitengebundene Teile (GalleryViewModel.Pages.cs, ADR-0055)
         InitEnhance(enhance); // Foto verbessern: Marke „2 Fassungen“, beste Fassung, Stapel (GalleryViewModel.Enhance.cs, ADR-0071)
+        InitCloud(cloudFiles); // OneDrive: Wolken-Marke, Platzhalter nur sichtbar anfordern, Behalten/Freigeben (GalleryViewModel.Cloud.cs, ADR-0077)
     }
 
     // ---- Gebundene Daten ---------------------------------------------------------------------
@@ -929,6 +931,7 @@ public sealed partial class GalleryViewModel : ObservableObject
     {
         _visibleFirstIndex = firstIndex;
         _visibleLastIndex = lastIndex;
+        OnVisibleRangeChangedForCloud(); // OneDrive-Platzhalter: neu sichtbare nachfordern (GalleryViewModel.Cloud.cs, ADR-0077)
     }
 
     /// <summary>
@@ -951,7 +954,7 @@ public sealed partial class GalleryViewModel : ObservableObject
         }
 
         var ordered = OrderByVisibility(items, CurrentPage, _visibleFirstIndex, _visibleLastIndex);
-        await Task.Run(() => RequestThumbnailsAsync(ordered));
+        await Task.Run(() => RequestThumbnailsWithCloudAsync(ordered)); // Platzhalter nur sichtbar (ADR-0077)
     }
 
     /// <summary>Sortiert <paramref name="items"/> nach Abstand ihres Index in <paramref name="page"/> zum sichtbaren Bereich [first, last]; ohne bekannten Bereich unverändert.</summary>

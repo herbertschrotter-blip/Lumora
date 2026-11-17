@@ -126,6 +126,13 @@ public sealed partial class FileQualityIndexService : IFileQualityIndexService, 
             r.RequestPass();
         });
         _messenger.Register<FileQualityIndexService, MotifsChangedMessage>(this, static (r, _) => r.RequestPassDelayed());
+        _messenger.Register<FileQualityIndexService, CloudFilesChangedMessage>(this, static (r, m) =>
+        {
+            if (m.BecameLocal)
+            {
+                r.RequestPass(); // OneDrive-Platzhalter jetzt lokal: nachholen (ADR-0077)
+            }
+        });
 
         var token = _stop.Token;
         _ = Task.Run(async () =>

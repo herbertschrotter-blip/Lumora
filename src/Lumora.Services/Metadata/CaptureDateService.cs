@@ -56,6 +56,7 @@ public sealed partial class CaptureDateService : ICaptureDateService, IDisposabl
 
     private readonly ILibraryContextFactory _factory;
     private readonly ICaptureDateReader _reader;
+    private readonly Cloud.ICloudPropertyReader? _cloudProperties;
     private readonly IScanGate? _scanGate;
     private readonly Background.IBackgroundPlanner? _planner;
     private readonly ILogger<CaptureDateService> _logger;
@@ -72,8 +73,10 @@ public sealed partial class CaptureDateService : ICaptureDateService, IDisposabl
         ILogger<CaptureDateService> logger,
         IScanGate? scanGate = null,
         IMessenger? messenger = null,
-        Background.IBackgroundPlanner? planner = null)
+        Background.IBackgroundPlanner? planner = null,
+        Cloud.ICloudPropertyReader? cloudProperties = null)
     {
+        _cloudProperties = cloudProperties; // Aufnahmedatum von OneDrive-Platzhaltern ohne Download (ADR-0077)
         _factory = factory;
         _reader = reader;
         _logger = logger;

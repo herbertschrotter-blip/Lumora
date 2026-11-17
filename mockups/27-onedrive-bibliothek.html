@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lumora — OneDrive-Bibliothek (Entwurf 27)</title>
+<style>
+/* =====================================================================
+   Mockup 27 · OneDrive-Ordner als Bibliothek (ADR-0077, Spike 19).
+   Entwurf, Abnahme durch Herbert ausstehend. Gebaut in 0.5.41 nach diesem Entwurf (Auftrag „OneDrive-Bibliothek“).
+   Zustände: Galerie-Kacheln mit Wolken-Marke „nur online“ neben der Endung (Kachel ohne Vorschaubild, solange OneDrive
+   sie noch liefert), Collage mit Marke unten links, Rechtsklick › Datei ▸ „Immer auf diesem Gerät behalten“ /
+   „Speicherplatz freigeben“ mit Statusmeldung, Lightbox: 1024-px-Vorschau mit „Wird von OneDrive geladen … 45 %“ und
+   Abbrechen, nach Abbruch „Erneut laden“, ohne Internet Meldung (nie „fehlt“).
+   Tokens und Grundbausteine 1:1 aus Mockup 26 (dort aus 10/14). Fotos sind Farbflächen, Namen erfunden.
+   Hell/Dunkel über die Klasse „dark“ am body.
+   ===================================================================== */
+:root {
+  --mica-base:#F3F3F3; --layer-default:rgba(255,255,255,0.7); --layer-card:#FFFFFF; --layer-subtle:rgba(0,0,0,0.026);
+  --layer-secondary:rgba(0,0,0,0.04); --layer-tertiary:rgba(0,0,0,0.06);
+  --text-primary:#1A1A1A; --text-secondary:#5C5C5C; --text-tertiary:#8B8B8B; --text-disabled:#B5B5B5; --text-on-accent:#FFFFFF;
+  --stroke-default:rgba(0,0,0,0.0578); --stroke-divider:rgba(0,0,0,0.0803); --stroke-card:rgba(0,0,0,0.0578); --ctl-bottom:rgba(0,0,0,0.16);
+  --accent:#5B5FC7; --accent-light:#7579D8; --accent-dark:#4145A0; --accent-soft:rgba(91,95,199,0.08); --accent-soft-2:rgba(91,95,199,0.16);
+  --success:#107C10; --success-soft:rgba(16,124,16,0.10); --warning:#C29C00; --warning-soft:rgba(194,156,0,0.14); --danger:#C42B1C;
+  --shadow-card:0 2px 4px rgba(0,0,0,0.02), 0 1px 2px rgba(0,0,0,0.03); --shadow-flyout:0 8px 16px rgba(0,0,0,0.14);
+  --brand-indigo:#5B5FC7; --brand-violet:#8B5CF6; --brand-coral:#F97362; --brand-amber:#F5A524;
+  --page-bg:#E4E4EA;
+}
+body.dark {
+  color-scheme:dark;
+  --mica-base:#202020; --layer-default:rgba(43,43,43,0.7); --layer-card:#2C2C2C; --layer-subtle:rgba(255,255,255,0.03);
+  --layer-secondary:rgba(255,255,255,0.0418); --layer-tertiary:rgba(255,255,255,0.0605);
+  --text-primary:#FFFFFF; --text-secondary:#D0D0D0; --text-tertiary:#A0A0A0; --text-disabled:#6A6A6A;
+  --stroke-default:rgba(255,255,255,0.0837); --stroke-divider:rgba(255,255,255,0.0837); --stroke-card:rgba(255,255,255,0.0578); --ctl-bottom:rgba(255,255,255,0.22);
+  --accent:#818CF8; --accent-light:#A5B0FF; --accent-dark:#6066D8; --accent-soft:rgba(129,140,248,0.12); --accent-soft-2:rgba(129,140,248,0.24);
+  --success:#6CCB5F; --success-soft:rgba(108,203,95,0.12); --warning:#FCE100; --warning-soft:rgba(252,225,0,0.14); --danger:#FF6B5E;
+  --shadow-card:0 2px 4px rgba(0,0,0,0.18), 0 1px 2px rgba(0,0,0,0.22); --shadow-flyout:0 8px 16px rgba(0,0,0,0.4);
+  --brand-indigo:#818CF8; --brand-violet:#A78BFA; --brand-coral:#FB8A7A; --brand-amber:#FBBF24;
+  --page-bg:#121214;
+}
+* { box-sizing:border-box; } html,body { margin:0; }
+body { background:var(--page-bg); color:var(--text-primary); font-family:'Segoe UI Variable Text','Segoe UI',system-ui,sans-serif; font-size:14px; }
+button { font:inherit; color:inherit; }
+.ic { font-family:'Segoe Fluent Icons','Segoe MDL2 Assets'; font-size:16px; line-height:1; font-style:normal; }
+.ic.s { font-size:12px; }
+.hidden { display:none !important; }
+.mock-bar { position:sticky; top:0; z-index:100; display:flex; gap:16px; align-items:center; flex-wrap:wrap; padding:7px 20px; background:#2B2B33; color:#EEE; font-size:12px; }
+.mock-bar .grp { display:flex; gap:4px; align-items:center; flex-wrap:wrap; }
+.mock-bar button { background:#44444F; color:#EEE; border:1px solid #5A5A66; border-radius:4px; padding:3px 9px; cursor:pointer; font-size:12px; }
+.mock-bar button.on { background:#5B5FC7; border-color:#7579D8; }
+.mock-bar .note { margin-left:auto; color:#AAB; }
+.stage-wrap { padding:16px 20px 32px; display:flex; justify-content:center; }
+.win-box { position:relative; flex:none; }
+.window { position:absolute; left:0; top:0; transform-origin:0 0; background:var(--mica-base); border-radius:8px; border:1px solid var(--stroke-default);
+  box-shadow:0 16px 48px rgba(0,0,0,0.22); overflow:hidden; display:grid; grid-template-columns:232px 1fr; grid-template-rows:36px 1fr 30px; }
+.titlebar { grid-column:1/-1; display:flex; align-items:center; gap:10px; padding-left:14px; font-size:12px; color:var(--text-secondary); }
+.titlebar .tile { width:16px; height:16px; border-radius:4px; background:linear-gradient(135deg,#6366F1,#4145A0); }
+.titlebar .wc { margin-left:auto; display:flex; height:100%; } .titlebar .wc span { width:46px; display:grid; place-items:center; font-family:'Segoe Fluent Icons'; font-size:10px; color:var(--text-primary); }
+.nav { padding:2px 8px 10px; display:flex; flex-direction:column; gap:2px; }
+.wbs { font-family:'Segoe UI Variable Display','Segoe UI',sans-serif; font-size:22px; padding:2px 12px 10px;
+  background:linear-gradient(100deg,var(--brand-indigo),var(--brand-violet) 45%,var(--brand-coral) 75%,var(--brand-amber)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.lib-switch { margin:0 2px 8px; padding:8px 10px; border-radius:6px; background:var(--layer-card); border:1px solid var(--stroke-card); box-shadow:var(--shadow-card); display:flex; gap:10px; align-items:center; }
+.lib-switch b { display:block; font-weight:600; } .lib-switch small { display:block; color:var(--text-tertiary); font-size:11px; }
+.nav-item { display:flex; align-items:center; gap:12px; padding:9px 12px; border-radius:4px; position:relative; white-space:nowrap; }
+.nav-item.active { background:var(--layer-secondary); }
+.nav-item.active::before { content:''; position:absolute; left:0; top:10px; bottom:10px; width:3px; border-radius:2px; background:var(--accent); }
+.nav .spacer { flex:1; }
+.content { position:relative; min-width:0; min-height:0; background:var(--layer-default); border-top-left-radius:8px; border-left:1px solid var(--stroke-default); border-top:1px solid var(--stroke-default); overflow:hidden; }
+.statusbar { grid-column:1/-1; display:flex; align-items:center; gap:18px; padding:0 14px; font-size:12px; color:var(--text-secondary); border-top:1px solid var(--stroke-divider); background:var(--mica-base); }
+.statusbar .r { margin-left:auto; }
+.btn-acc { background:var(--accent); color:var(--text-on-accent); border:1px solid transparent; border-radius:4px; padding:5px 14px; font-size:13px; cursor:pointer; display:inline-flex; gap:6px; align-items:center; white-space:nowrap; }
+body.dark .btn-acc { color:#111; } .btn-acc:hover { background:var(--accent-light); }
+.btn-acc[disabled] { background:var(--layer-tertiary); color:var(--text-disabled); cursor:default; }
+.btn-std { background:var(--layer-card); border:1px solid var(--stroke-divider); border-bottom-color:var(--ctl-bottom); border-radius:4px; padding:5px 12px; font-size:13px; cursor:pointer; display:inline-flex; gap:6px; align-items:center; white-space:nowrap; }
+.btn-std:hover { background:var(--layer-subtle); }
+.phead { padding:18px 24px 6px; } .phead h1 { font-size:28px; font-weight:600; margin:0; }
+.tabs { display:flex; gap:4px; padding:4px 24px 10px; border-bottom:1px solid var(--stroke-divider); flex-wrap:wrap; }
+.tabs span { padding:6px 12px; border-radius:4px; color:var(--text-secondary); }
+.tabs span.on { color:var(--text-primary); font-weight:600; box-shadow:inset 0 -3px 0 var(--accent); }
+.body { padding:14px 24px 24px; display:grid; gap:12px; max-width:960px; }
+.card { background:var(--layer-card); border:1px solid var(--stroke-card); border-radius:8px; box-shadow:var(--shadow-card); padding:14px 16px; }
+.card h2 { font-size:15px; margin:0 0 4px; display:flex; gap:10px; align-items:center; }
+.muted { color:var(--text-secondary); font-size:12px; line-height:1.5; }
+.kv { display:grid; grid-template-columns:150px 1fr; gap:6px 10px; font-size:13px; margin-top:10px; }
+.kv span:nth-child(odd) { color:var(--text-secondary); }
+.row-btns { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
+
+/* --- Mockup 27: Galerie, Menü, Lightbox --- */
+.gtool { display:flex; gap:8px; align-items:center; padding:10px 24px; border-bottom:1px solid var(--stroke-divider); font-size:12px; color:var(--text-secondary); }
+.chip { padding:3px 10px; border-radius:12px; background:var(--accent-soft-2); color:var(--text-primary); font-size:12px; display:inline-flex; gap:6px; align-items:center; }
+.grid { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; padding:14px 24px; }
+.tile { border-radius:6px; overflow:hidden; border:1px solid var(--stroke-card); background:var(--layer-card); position:relative; }
+.tile .img { height:118px; position:relative; display:grid; place-items:center; color:var(--text-tertiary); }
+.tile .img .ph { font-family:'Segoe Fluent Icons'; font-size:34px; opacity:.6; }
+.tile .foot { padding:5px 8px; background:var(--layer-subtle); font-size:11px; }
+.tile .foot small { display:block; font-size:10px; color:var(--text-tertiary); }
+.badges { position:absolute; left:4px; bottom:4px; display:flex; gap:3px; align-items:center; }
+.ext { padding:1px 6px; border-radius:3px; background:var(--accent-dark); color:#fff; font-size:10px; }
+.cloud { padding:1px 4px; border-radius:3px; background:rgba(0,0,0,0.6); color:#fff; font-family:'Segoe Fluent Icons'; font-size:12px; line-height:15px; }
+.tile.sel { border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); }
+.collage { display:flex; flex-wrap:wrap; gap:6px; padding:14px 24px; }
+.collage .c { height:130px; border-radius:4px; position:relative; overflow:hidden; }
+.collage .plak { position:absolute; left:4px; bottom:4px; padding:2px 5px; border-radius:9px; background:rgba(0,0,0,0.4); color:#fff; font-family:'Segoe Fluent Icons'; font-size:11px; }
+.menu { position:absolute; background:var(--mica-base); border:1px solid var(--stroke-default); border-radius:8px; box-shadow:var(--shadow-flyout); padding:4px; min-width:240px; font-size:13px; z-index:30; }
+.menu .mi { display:flex; gap:10px; align-items:center; padding:6px 10px; border-radius:4px; white-space:nowrap; }
+.menu .mi .ic { width:18px; text-align:center; }
+.menu .mi.on { background:var(--layer-tertiary); }
+.menu .mi .k { margin-left:auto; color:var(--text-tertiary); font-size:12px; padding-left:18px; }
+.menu .mi .arr { margin-left:auto; font-family:'Segoe Fluent Icons'; font-size:10px; color:var(--text-secondary); padding-left:18px; }
+.menu hr { border:0; border-top:1px solid var(--stroke-divider); margin:4px 2px; }
+.menu .mi.new { box-shadow:inset 3px 0 0 var(--accent); }
+.toast { position:absolute; left:24px; right:24px; bottom:12px; padding:9px 14px; border-radius:6px; background:var(--layer-card); border:1px solid var(--stroke-card); box-shadow:var(--shadow-flyout); font-size:13px; display:flex; gap:10px; align-items:center; }
+.lb { position:absolute; inset:0; background:#0A0A0A; color:#E4E7EB; }
+.lb .tb { position:absolute; left:0; right:0; top:0; height:44px; display:flex; align-items:center; gap:12px; padding:0 16px; background:rgba(0,0,0,0.7); font-size:13px; }
+.lb .tb small { color:#A0AEC0; }
+.lb .tb .r { margin-left:auto; display:flex; gap:14px; font-family:'Segoe Fluent Icons'; font-size:16px; }
+.lb .pic { position:absolute; left:120px; right:120px; top:70px; bottom:90px; border-radius:2px; }
+.lb .pic.soft { filter:blur(1.2px) saturate(.95); }
+.lb .nav-b { position:absolute; top:50%; width:52px; height:52px; margin-top:-26px; border-radius:26px; background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.15); display:grid; place-items:center; font-family:'Segoe Fluent Icons'; font-size:18px; }
+.notice { position:absolute; left:50%; bottom:28px; transform:translateX(-50%); display:flex; gap:12px; align-items:center; padding:9px 14px; border-radius:8px; background:rgba(0,0,0,0.7); font-size:12px; max-width:640px; }
+.notice .ic { font-size:18px; }
+.notice .pb { height:3px; background:rgba(255,255,255,0.15); border-radius:2px; margin-top:6px; overflow:hidden; } .notice .pb i { display:block; height:100%; width:45%; background:#818CF8; }
+.notice .lbtn { padding:6px 10px; border-radius:6px; color:#E4E7EB; cursor:pointer; } .notice .lbtn:hover { background:rgba(255,255,255,0.15); }
+.legend { margin:0 24px 14px; }
+</style>
+</head>
+<body class="dark">
+
+<div class="mock-bar">
+  <span><b>Mockup 27 · OneDrive-Bibliothek · Entwurf</b></span>
+  <span class="grp">Design: <button id="mbLight">Hell</button><button id="mbDark" class="on">Dunkel</button></span>
+  <span class="grp">Ansicht: <button data-v="tiles" class="on">Kacheln</button><button data-v="collage">Collage</button><button data-v="menu">Rechtsklick</button><button data-v="pinned">Statusmeldung</button><button data-v="lbload">Lightbox lädt</button><button data-v="lbcancel">Lightbox abgebrochen</button><button data-v="lboff">Lightbox offline</button></span>
+  <span class="note">Fotos sind Farbflächen · Namen erfunden</span>
+</div>
+
+<div class="stage-wrap"><div class="win-box" id="winBox">
+<div class="window" id="win">
+  <div class="titlebar"><span class="tile"></span> Lumora<span class="wc"><span>&#xE921;</span><span>&#xE922;</span><span>&#xE8BB;</span></span></div>
+  <nav class="nav">
+    <div class="wbs">lumora</div>
+    <div class="lib-switch"><span class="ic">&#xE753;</span><div><b>OneDrive Bilder</b><small>Bibliothek · OneDrive</small></div></div>
+    <div class="nav-item active"><span class="ic">&#xE91B;</span>Galerie</div>
+    <div class="nav-item"><span class="ic">&#xE8F1;</span>Alben</div>
+    <div class="nav-item"><span class="ic">&#xE716;</span>Personen</div>
+    <div class="nav-item"><span class="ic">&#xE707;</span>Orte</div>
+    <div class="nav-item"><span class="ic">&#xE8A1;</span>Storys</div>
+    <div class="spacer"></div>
+    <div class="nav-item"><span class="ic">&#xE713;</span>Einstellungen</div>
+  </nav>
+
+  <main class="content">
+    <div class="phead"><h1>Galerie</h1></div>
+    <div class="gtool"><span class="chip"><span class="ic s">&#xE8B7;</span>Urlaub 2023 ✕</span><span>184 Fotos · 141 nur online</span><span style="margin-left:auto">Sortierung: Aufnahme ↓</span></div>
+
+    <div id="vTiles" class="grid"></div>
+    <div id="vCollage" class="collage hidden"></div>
+    <div class="legend muted" id="legend"><span class="cloud" style="display:inline-block">&#xE753;</span> = nur online (OneDrive): Vorschaubild kommt von OneDrive, nur für sichtbare Kacheln; Aufnahmedatum ohne Download, Orte und Gesichter folgen, sobald das Foto einmal lokal war. Nie „fehlt“.</div>
+
+    <div class="menu hidden" id="menu" style="left:300px; top:150px;">
+      <div class="mi"><span class="ic">&#xE8A7;</span>Öffnen<span class="k">Enter</span></div>
+      <div class="mi"><span class="ic">&#xE768;</span>Diashow ab hier</div>
+      <hr>
+      <div class="mi"><span class="ic">&#xE734;</span>Bewerten<span class="arr">&#xE76C;</span></div>
+      <div class="mi"><span class="ic">&#xE8EC;</span>Tags<span class="arr">&#xE76C;</span></div>
+      <div class="mi"><span class="ic">&#xE8F1;</span>Alben<span class="arr">&#xE76C;</span></div>
+      <hr>
+      <div class="mi"><span class="ic">&#xE70F;</span>Bearbeiten<span class="arr">&#xE76C;</span></div>
+      <hr>
+      <div class="mi on"><span class="ic">&#xE8A5;</span>Datei<span class="arr">&#xE76C;</span></div>
+      <div class="mi"><span class="ic">&#xE74D;</span>In den Papierkorb<span class="k">Entf</span></div>
+      <hr>
+      <div class="mi"><span class="ic">&#xE946;</span>Eigenschaften<span class="k">Alt+Enter</span></div>
+    </div>
+    <div class="menu hidden" id="submenu" style="left:546px; top:298px;">
+      <div class="mi"><span class="ic">&#xE8C8;</span>Kopieren (in die Zwischenablage)<span class="k">Strg+C</span></div>
+      <div class="mi"><span class="ic">&#xF413;</span>Kopieren nach…</div>
+      <div class="mi"><span class="ic">&#xE8DE;</span>Verschieben nach…</div>
+      <div class="mi"><span class="ic">&#xE8AC;</span>Umbenennen…</div>
+      <div class="mi"><span class="ic">&#xE7B8;</span>In die Bibliothek…<span class="k">Strg+M</span></div>
+      <hr>
+      <div class="mi new on"><span class="ic">&#xE753;</span>Immer auf diesem Gerät behalten</div>
+      <div class="mi new"><span class="ic">&#xE753;</span>Speicherplatz freigeben</div>
+      <hr>
+      <div class="mi"><span class="ic">&#xE838;</span>Im Explorer anzeigen</div>
+      <div class="mi"><span class="ic">&#xE8C8;</span>Pfad kopieren</div>
+    </div>
+    <div class="toast hidden" id="toast"><span class="ic">&#xE753;</span>3 Fotos werden immer auf diesem Gerät behalten — OneDrive lädt sie im Hintergrund herunter.</div>
+
+    <div class="lb hidden" id="lb">
+      <div class="tb"><span>Strand am Abend.jpg</span><small>12 / 184 · 4,1 MB · 14.08.2023 19:42</small><span class="r"><span>&#xE71E;</span><span>&#xE71F;</span><span>&#xEB51;</span><span>&#xE946;</span><span>&#xE8BB;</span></span></div>
+      <div class="pic soft" id="lbPic" style="background:linear-gradient(160deg,#F6A55C,#C2577C 55%,#3B3F7A)"></div>
+      <div class="nav-b" style="left:20px">&#xE76B;</div><div class="nav-b" style="right:20px">&#xE76C;</div>
+      <div class="notice" id="nLoad"><span class="ic">&#xE753;</span><div>Wird von OneDrive geladen … 45 %<div class="pb"><i></i></div></div><span class="lbtn">Abbrechen</span></div>
+      <div class="notice hidden" id="nCancel"><span class="ic">&#xE753;</span><div>Laden abgebrochen — angezeigt wird die Vorschau von OneDrive.</div><span class="lbtn">Erneut laden</span></div>
+      <div class="notice hidden" id="nOff"><span class="ic">&#xE753;</span><div>OneDrive ist gerade nicht erreichbar — angezeigt wird die Vorschau, das Original liegt nur online.</div><span class="lbtn">Erneut laden</span></div>
+    </div>
+  </main>
+
+  <div class="statusbar"><span>OneDrive Bilder</span><span>184 Fotos · 141 nur online</span><span>Vorschaubilder: 8 in Warteschlange</span><span class="r">0.5.41</span></div>
+</div>
+</div></div>
+
+<script>
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const COLORS=[['#F6A55C','#C2577C'],['#5EC2B7','#2E6E8E'],['#A3C46B','#4C7A3A'],['#E8D07A','#B0702E'],['#9C8BE0','#4B3F94'],['#7FB6E8','#3A5F99'],['#E58C8C','#8E3A5A'],['#B8C1C9','#5A6570'],['#F2C29B','#A0623C'],['#86D3A9','#2F7A5A']];
+const NAMES=['Strand am Abend','Hafen','Wanderweg','Markt','Altstadt','Bucht','Abendessen','Felsen','Sonnenuntergang','Leuchtturm'];
+// online = nur online; noThumb = Vorschaubild kommt noch (außerhalb des sichtbaren Bereichs bzw. gerade angefragt)
+const T=[{o:1},{o:1},{o:0},{o:1},{o:1,n:1},{o:0},{o:1},{o:1},{o:1,n:1},{o:1,n:1}];
+$('#vTiles').innerHTML=T.map((t,i)=>`<div class="tile${i<3?' sel':''}"><div class="img" style="${t.n?'':`background:linear-gradient(150deg,${COLORS[i][0]},${COLORS[i][1]})`}">${t.n?'<span class="ph">&#xEB9F;</span>':''}
+  <div class="badges"><span class="ext">.jpg</span>${t.o?'<span class="cloud" title="Nur online (OneDrive)">&#xE753;</span>':''}</div></div>
+  <div class="foot">${NAMES[i]}.jpg<small>${(2.1+i*0.37).toFixed(1).replace('.',',')} MB</small></div></div>`).join('');
+const W=[200,130,240,170,150,260,180,140,220,190];
+$('#vCollage').innerHTML=T.map((t,i)=>`<div class="c" style="width:${W[i]}px;background:linear-gradient(150deg,${COLORS[i][0]},${COLORS[i][1]})">${t.o?'<span class="plak" title="Nur online (OneDrive)">&#xE753;</span>':''}</div>`).join('');
+function view(v){
+  $$('.mock-bar [data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
+  $('#vTiles').classList.toggle('hidden',!['tiles','menu','pinned'].includes(v));
+  $('#vCollage').classList.toggle('hidden',v!=='collage');
+  $('#legend').classList.toggle('hidden',v.startsWith('lb'));
+  $('#menu').classList.toggle('hidden',v!=='menu'); $('#submenu').classList.toggle('hidden',v!=='menu');
+  $('#toast').classList.toggle('hidden',v!=='pinned');
+  $('#lb').classList.toggle('hidden',!v.startsWith('lb'));
+  $('#nLoad').classList.toggle('hidden',v!=='lbload'); $('#nCancel').classList.toggle('hidden',v!=='lbcancel'); $('#nOff').classList.toggle('hidden',v!=='lboff');
+}
+document.addEventListener('click',e=>{ const b=e.target.closest('[data-v]'); if(b){ view(b.dataset.v); } });
+let scale=1;
+function fit(){ const w=1280,h=800,win=$('#win'); win.style.width=w+'px'; win.style.height=h+'px'; scale=Math.min(1,(document.documentElement.clientWidth-40)/w);
+  win.style.transform=`scale(${scale})`; $('#winBox').style.width=w*scale+'px'; $('#winBox').style.height=h*scale+'px'; }
+function theme(d){ document.body.classList.toggle('dark',d); $('#mbLight').classList.toggle('on',!d); $('#mbDark').classList.toggle('on',d); }
+$('#mbLight').onclick=()=>theme(false); $('#mbDark').onclick=()=>theme(true);
+window.addEventListener('resize',fit);
+fit(); view('tiles');
+</script>
+</body>
+</html>

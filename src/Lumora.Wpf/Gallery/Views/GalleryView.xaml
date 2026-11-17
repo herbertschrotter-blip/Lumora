@@ -231,18 +231,30 @@
                                        Filled="{Binding IsFavorite}" />
                     </Button>
 
-                    <!-- Extension-Badge unten links -->
-                    <Border HorizontalAlignment="Left"
-                            VerticalAlignment="Bottom"
-                            Margin="4,0,0,4"
-                            Padding="6,1"
-                            CornerRadius="3"
-                            IsHitTestVisible="False"
-                            Background="{DynamicResource AccentFillColorTertiaryBrush}">
-                        <TextBlock Text="{Binding Extension}"
-                                   FontSize="10"
-                                   Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
-                    </Border>
+                    <!-- Extension-Badge unten links, daneben die Wolken-Marke „nur online“ (OneDrive, ADR-0077, Mockup 27) -->
+                    <StackPanel HorizontalAlignment="Left"
+                                VerticalAlignment="Bottom"
+                                Margin="4,0,0,4"
+                                Orientation="Horizontal">
+                        <Border Padding="6,1"
+                                CornerRadius="3"
+                                IsHitTestVisible="False"
+                                Background="{DynamicResource AccentFillColorTertiaryBrush}">
+                            <TextBlock Text="{Binding Extension}"
+                                       FontSize="10"
+                                       Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+                        </Border>
+                        <Border x:Name="CloudMark"
+                                Margin="3,0,0,0"
+                                Padding="4,1"
+                                CornerRadius="3"
+                                Background="#99000000"
+                                ToolTip="{x:Static vm:GalleryItem.CloudOnlyToolTip}"
+                                AutomationProperties.Name="Nur online"
+                                Visibility="{Binding IsCloudOnly, Converter={StaticResource BoolToVis}}">
+                            <ui:SymbolIcon Symbol="Cloud16" FontSize="12" Foreground="White" />
+                        </Border>
+                    </StackPanel>
 
                     <!-- Fassungs-Marke „2 Fassungen“ (ADR-0071, Mockup 13) über der Endung: Klick öffnet Original + Fassungen -->
                     <Button Style="{StaticResource TileOverlayButton}"

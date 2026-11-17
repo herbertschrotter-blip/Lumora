@@ -99,6 +99,13 @@ public sealed partial class DuplicateIndexService : IDuplicateIndexService, IDis
                 r.RequestPass();
             }
         });
+        _messenger.Register<DuplicateIndexService, CloudFilesChangedMessage>(this, static (r, m) =>
+        {
+            if (m.BecameLocal)
+            {
+                r.RequestPass(); // OneDrive-Platzhalter jetzt lokal: nachholen (ADR-0077)
+            }
+        });
 
         var token = _stop.Token;
         _ = Task.Run(async () =>

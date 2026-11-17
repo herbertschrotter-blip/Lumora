@@ -142,8 +142,15 @@
                     </Border.Background>
                 </Border>
                 <DockPanel LastChildFill="True" Margin="4,10,4,4">
-                    <!-- Personen (0.2.38/0.2.39): bestätigte und unbenannte Gesichter als dunkle Plakette -->
+                    <!-- Personen (0.2.38/0.2.39): bestätigte und unbenannte Gesichter als dunkle Plakette;
+                         davor die Wolken-Marke „nur online“ (OneDrive, ADR-0077, Mockup 27) -->
                     <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Bottom">
+                        <Border x:Name="CloudMark" Padding="5,2" Margin="0,0,3,0" CornerRadius="9" Background="#66000000"
+                                ToolTip="{x:Static vm:GalleryItem.CloudOnlyToolTip}"
+                                AutomationProperties.Name="Nur online"
+                                Visibility="{Binding IsCloudOnly, Converter={StaticResource CollageBoolToVis}}">
+                            <ui:SymbolIcon Symbol="Cloud16" FontSize="11" Foreground="White" />
+                        </Border>
                         <Border Padding="5,2" Margin="0,0,3,0" CornerRadius="9" Background="#66000000"
                                 ToolTip="{Binding Persons.ToolTip}"
                                 Visibility="{Binding Persons.HasConfirmed, Converter={StaticResource CollageBoolToVis}}">

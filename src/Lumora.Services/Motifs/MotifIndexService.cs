@@ -192,6 +192,13 @@ public sealed class MotifIndexService : IMotifIndexService, IDisposable
             r.CancelRun();
             r.RequestRun();
         });
+        _messenger.Register<MotifIndexService, CloudFilesChangedMessage>(this, static (r, m) =>
+        {
+            if (m.BecameLocal)
+            {
+                r.RequestRun(); // OneDrive-Platzhalter jetzt lokal: nachholen (ADR-0077)
+            }
+        });
 
         _worker = Task.Run(WorkerLoopAsync);
         Publish(_settings.Enabled ? new MotifIndexStatus(MotifIndexState.Idle) : MotifIndexStatus.Disabled, force: true);
@@ -639,8 +646,10 @@ public sealed class MotifIndexService : IMotifIndexService, IDisposable
                     return new LoadOutcome(candidate, null, true, null); // Video ohne Vorschaubild: später erneut
                 }
 
-                if (!File.Exists(candidate.SourcePath))
+                if (!File.Exists(candidate.SourcePath) || Cloud.CloudFiles.IsOnlineOnly(candidate.SourcePath))
                 {
+                    // fehlt — oder nur online (ADR-0077): das Original nie laden (Download); mit Vorschaubild (auch dem der
+                    // Shell) ging es oben ohne Original, sonst holt ein späterer Durchgang die Datei nach
                     return new LoadOutcome(candidate, null, true, null);
                 }
 

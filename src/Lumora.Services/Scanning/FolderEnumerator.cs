@@ -9,6 +9,11 @@ namespace Lumora.Services.Scanning;
 /// Durchläuft das Filesystem rekursiv unterhalb eines RootPath und liefert DiscoveredFile-Einträge
 /// für alle Endungen aus dem <see cref="IMediaFormatRegistry"/>. Permission-/IO-Fehler werden
 /// geloggt und übersprungen (kein Abbruch des Scans).
+/// <para>
+/// Verknüpfungen (Symlinks, Junctions) werden übersprungen, Cloud-Dateien und -Ordner nicht (ADR-0077): OneDrive markiert
+/// jede Datei und jeden Ordner als Reparse-Punkt — bis 0.5.40 fand der Scan in einem OneDrive-Ordner deshalb nichts.
+/// <see cref="Cloud.CloudFiles.IsLink"/> unterscheidet beides, ohne den Inhalt zu lesen (Platzhalter bleiben online).
+/// </para>
 /// </summary>
 public sealed class FolderEnumerator
 {
@@ -16,7 +21,7 @@ public sealed class FolderEnumerator
     {
         RecurseSubdirectories = false, // wir machen den Rekurs manuell, um Permission-Fehler pro Folder zu behandeln
         IgnoreInaccessible = true,
-        AttributesToSkip = FileAttributes.ReparsePoint | FileAttributes.System,
+        AttributesToSkip = FileAttributes.System, // Reparse-Punkte: Cloud ja, Verknüpfung nein (IsLink, ADR-0077)
     };
 
     private readonly IMediaFormatRegistry _formats;
@@ -75,9 +80,35 @@ public sealed class FolderEnumerator
                 continue;
             }
 
-            foreach (var filePath in files)
+            using var fileEnumerator = files.GetEnumerator();
+            while (true)
             {
                 ct.ThrowIfCancellationRequested();
+
+                // Auflisten kann mittendrin scheitern (z. B. OneDrive-Ordner, Verbindung weg): Ordner als nicht lesbar
+                // melden (UnreadablePaths, ADR-0077) statt den ganzen Scan abzubrechen
+                string filePath;
+                try
+                {
+                    if (!fileEnumerator.MoveNext())
+                    {
+                        break;
+                    }
+
+                    filePath = fileEnumerator.Current;
+                }
+                catch (IOException ex)
+                {
+                    _logger.LogWarning(ex, "IO-Fehler beim Auflisten von Folder: {Path}", folder);
+                    onIoError?.Invoke(folder, ex);
+                    break;
+                }
+                catch (UnauthorizedAccessException ex)
+                {
+                    _logger.LogWarning(ex, "Keine Berechtigung beim Auflisten von Folder (Rest übersprungen): {Path}", folder);
+                    break;
+                }
+
                 DiscoveredFile? df = null;
                 try
                 {
@@ -88,6 +119,11 @@ public sealed class FolderEnumerator
                     }
 
                     var info = new FileInfo(filePath);
+                    if (Cloud.CloudFiles.IsLink(info))
+                    {
+                        continue; // Verknüpfung auf eine Datei — wie bisher nicht einlesen
+                    }
+
                     df = new DiscoveredFile(
                         FullPath: info.FullName,
                         FolderPath: folder,
@@ -116,11 +152,13 @@ public sealed class FolderEnumerator
             // Subfolder enqueuen
             try
             {
-                foreach (var sub in Directory.EnumerateDirectories(folder, "*", Options))
+                foreach (var subInfo in new DirectoryInfo(folder).EnumerateDirectories("*", Options))
                 {
+                    var sub = subInfo.FullName;
                     // Katalog einer versteckten Bibliothek (.lumora, ADR-0049) liegt in der Bibliothek — nie mitscannen
                     if (!Infrastructure.CatalogFolders.IsCatalogFolder(sub)
-                        && exclusions?.IsExcludedChildDirectory(sub) != true) // ADR-0066: ausgeschlossen → nicht betreten
+                        && exclusions?.IsExcludedChildDirectory(sub) != true // ADR-0066: ausgeschlossen → nicht betreten
+                        && !Cloud.CloudFiles.IsLink(subInfo)) // Junction/Symlink: keine Schleifen; OneDrive-Ordner ja (ADR-0077)
                     {
                         queue.Enqueue(sub);
                     }

@@ -43,10 +43,6 @@ public sealed partial class ThumbnailService
     private static readonly TimeSpan IdlePollInterval = TimeSpan.FromMilliseconds(250);
     private static readonly TimeSpan GateBusyDelay = TimeSpan.FromSeconds(2);
 
-    /// <summary>Offline, RecallOnOpen, RecallOnDataAccess: Platzhalter eines Cloud-Speichers (Datei liegt nicht lokal).</summary>
-    private const FileAttributes CloudPlaceholderAttributes =
-        FileAttributes.Offline | (FileAttributes)0x00040000 | (FileAttributes)0x00400000;
-
     private int _upgradeRemaining;
 
     /// <summary>
@@ -320,16 +316,10 @@ public sealed partial class ThumbnailService
     private bool IsAnyLibraryBusy(IReadOnlyList<MaintenanceRow> batch)
         => _scanGate is { } gate && batch.Select(r => r.LibraryId).Distinct().Any(gate.IsBusy);
 
-    /// <summary>Datei vorhanden und lokal (kein Cloud-Platzhalter, dessen Lesen einen Download auslöste).</summary>
-    public static bool IsLocallyAvailable(string path)
-    {
-        try
-        {
-            return (File.GetAttributes(path) & (CloudPlaceholderAttributes | FileAttributes.Directory)) == 0;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
-        {
-            return false;
-        }
-    }
+    /// <summary>
+    /// Datei vorhanden und lokal (kein Cloud-Platzhalter, dessen Lesen einen Download auslöste). Seit 0.5.41 eine Weiterleitung
+    /// an die zentrale Platzhalter-Erkennung <see cref="Cloud.CloudFiles.IsLocallyAvailable"/> (ADR-0077) — die
+    /// Hintergrund-Dienste rufen weiter diese Stelle.
+    /// </summary>
+    public static bool IsLocallyAvailable(string path) => Cloud.CloudFiles.IsLocallyAvailable(path);
 }

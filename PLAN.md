@@ -518,6 +518,7 @@ Status (Stand 0.2.0): ✅ umgesetzt · 🟡 teilweise · ⬜ offen
 | ✅ | **Welle 8 Foto verbessern** | hochskalieren 2×/4× (Real-ESRGAN), Gesichter restaurieren mit Stärke (GFPGAN), einfärben (DeOldify), entfernen mit Pinsel/Kratzer (LaMa), Zuschneiden/Drehen/Licht; Lightbox-Leiste mit Vorher/Nachher, Ergebnis immer als neue, verknüpfte Datei mit Rückgängig, mehrere Fotos als Vorgang, Marke „2 Fassungen“, „beste Fassung zeigen“, Einstellungen › Verbessern; Modelle über „Modelle & Daten“ (CodeFormer weggelassen). Offen: Augen-offen/Lächeln als Gütemerkmal, Messung mit echten Modellen | Mockup 13 (abgenommen 2026-10-23), ADR-0071, Issue #17, umgesetzt in 0.4.46 |
 | ❌ | **KI-Bearbeitung mit ComfyUI (nur versteckt)** — verworfen, entfernt in 0.5.38 | lokal über ComfyUI im Container (`.lumora-ki`), von Lumora gestartet nur auf 127.0.0.1, beendet beim Zusperren/Sitzungsende/nach 10 min Leerlauf; eigene Leiste mit Vorlagen Hintergrund, Outfit (nur Alltagskleidung), Entfernen, Erweitern, Verbessern, dazu ComfyUI-Fenster (WebView2, Daten im Container) mit „Ergebnisse übernehmen“; Ergebnis als Fassung `<Name>_ki.jpg`, gekennzeichnet „KI-bearbeitet“; Grenzen `IEditPolicy` (keine sexualisierten Bearbeitungen echter Personen, Ergebnisprüfung, unter 21 kein Outfit); Programm und jedes Modell nur nach Freigabe; Bau in 5 Stufen, Outfit/Hintergrund/Fenster erst nach den Grenzen | Mockup 23 (abgenommen 2026-10-27), ADR-0076 |
 | 🟡 | **Produktivbetrieb** | Katalog-Sicherung vor Migrationen (konsistent, versteckt nur im Container, ohne Sicherung keine Migration), von Hand + Wiederherstellen beim nächsten Start, portabler Modus (`lumora.portable`/`Daten\` neben der EXE, `publish.ps1 -Portable`) für eine getrennte Release-Installation mit frischem Katalog, Datenordner in Info; offen: Sicherung der Fotos (Herberts Entscheidung, README „Produktivbetrieb“) | Issue #6, ADR-0069, umgesetzt in 0.4.40; Release 0.5.0 als portables Paket gebaut und mit dem Rauchtest geprüft |
+| 🟡 | **OneDrive-Bibliothek** | OneDrive-Ordner mit „Dateien bei Bedarf“ als normale Bibliothek: Platzhalter einlesen (Scanner liest Cloud-Reparse-Punkte), Vorschaubilder nur über die Shell und nur für Sichtbares, Aufnahmedatum ohne Download, Analysen lassen Platzhalter aus und holen sie nach, Lightbox mit 1024-px-Vorschau und „Wird von OneDrive geladen …“ (Abbrechen, offline Meldung), Wolken-Marke, „Immer auf diesem Gerät behalten“/„Speicherplatz freigeben“; nie „fehlt“ | Spike 19, Mockup 27 (Entwurf), ADR-0077 (Proposed), umgesetzt in 0.5.41 — Abnahme durch Herbert ausstehend |
 | ✅ | **Update-Manager „Modelle & Daten“** | alle Modelle und Datenpakete mit Zweck, Größe, Version, Quelle, Lizenz und Zustand; Laden nur nach Bestätigung mit SHA-256 und Fortschritt in der Aktivitäts-Anzeige, Prüfen, Entfernen, „Update suchen“ nur auf Klick; Register für die Modelle von „Foto verbessern“ | Mockup 19 (abgenommen 2026-10-25), ADR-0070, Issue #19, umgesetzt in 0.4.42 |
 
 ---
@@ -734,6 +735,10 @@ AggressiveBackgroundThumbs:     false  ← Bilder ja, Videos nur on-demand
 - **Mehrere Wurzeln (ADR-0020, ab 0.2.5):** Erreichbarkeit, Root-Recheck und Mass-Missing-Guard gelten je Wurzel.
   Fresh/ClearAndRescan starten nur, wenn alle Wurzeln erreichbar sind; der Incremental-Scan überspringt eine
   Offline-Wurzel (keine Missing-Markierung dort), gleicht die übrigen ab und meldet `LibraryOffline` mit ihrem Pfad.
+- **Cloud-Platzhalter (ADR-0077, ab 0.5.41):** Ein OneDrive-Platzhalter („nur online“) gilt nie als fehlend — er wird
+  eingelesen wie jede Datei, nicht lesbar heißt „OneDrive nicht erreichbar“, nie „fehlt“. Liefert ein Ordner beim
+  Incremental-Scan einen IO-Fehler, obwohl die Wurzel erreichbar ist, wird darin nichts als fehlend markiert
+  (`UnreadablePaths`).
 - **Neu aufbauen (ADR-0028, ab 0.2.24):** der bisherige Katalog bleibt während der Enumeration unangetastet; Sichern
   der Benutzerdaten, Löschen der alten Zeilen, Einfügen, Zurückschreiben und Suchindex laufen in einer Transaktion —
   Abbruch, Offline-Fehler, Ausnahme oder Absturz davor lassen Katalog und Benutzerdaten unverändert.
@@ -776,6 +781,11 @@ Katalog in den Einstellungen umgezogen ist: der Cache liegt immer neben `library
   Datei, gleicher Status, ohne Warteschlange). Er ist eine Aufgabe der Datei-Spur mit niedrigstem Vorrang und gibt je Datei
   ab: an Galerie und Pflege, an Vordergrund-Arbeit, an wichtigere Dateiaufgaben, bei Pause und Einlesen. Fehlende Dateien,
   Wurzeln offline und Cloud-Platzhalter überspringt er ohne Dateizugriff. Schalter je Katalog, Standard an.
+- **OneDrive-Platzhalter (0.5.41, ADR-0077)**: nie WIC/FFmpeg auf ein Original, das nur online liegt (Download). Der
+  Worker reicht den Auftrag an eine eigene Cloud-Warteschlange (8 Worker, zuletzt angefordert zuerst, höchstens 96
+  wartend); das Bild kommt über die Shell (`ICloudThumbnailRenderer`, 1024-px-Vorschau verkleinert) in dieselbe
+  Cache-Datei mit demselben Status. Die Galerie fordert Platzhalter nur sichtbar ± 12 an, der Vorrat nie. Fehlschlag
+  `cloud_unavailable` verbraucht keinen Versuch.
 - **Bildmaße**: beim Erzeugen `Files.Width/Height` = Original nach EXIF-Drehung (gleiche Transaktion wie „Generated“;
   Videos aus der FFmpeg-Eingabe); fehlende trägt die Pflege aus dem Dateikopf nach (0 × 0 = nicht lesbar).
 - Validation via DB: `Files.ModifiedAtUtc != Thumbnails.SourceModifiedAtUtc` → Re-generate

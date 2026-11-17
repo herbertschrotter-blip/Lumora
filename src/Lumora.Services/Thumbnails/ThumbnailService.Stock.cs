@@ -70,6 +70,12 @@ public sealed partial class ThumbnailService
                 return ThumbnailStockOutcome.Skipped; // inzwischen erzeugt (z. B. von der Pflege) oder endgültig gescheitert
             }
 
+            if (Cloud.CloudFiles.IsOnlineOnly(request.SourcePath))
+            {
+                ReleaseStockClaim(request);
+                return ThumbnailStockOutcome.Skipped; // inzwischen nur online: nie auf Vorrat, nie das Original lesen (ADR-0077)
+            }
+
             // ProcessJobAsync wirft nicht (Fehler → „Failed“, Abbruch beim Beenden → Zustand verworfen)
             if (await ProcessJobAsync(request, queued: false).ConfigureAwait(false))
             {

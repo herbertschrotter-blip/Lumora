@@ -62,6 +62,13 @@ public sealed partial class GeoLocationService
                 r.RequestBackfill();
             }
         });
+        _messenger.Register<GeoLocationService, CloudFilesChangedMessage>(this, static (r, m) =>
+        {
+            if (m.BecameLocal)
+            {
+                r.RequestBackfill(); // OneDrive-Platzhalter jetzt lokal: GPS nachholen (ADR-0077)
+            }
+        });
 
         (_geocoder as ReverseGeocoder)?.Warmup();
         var token = _stop.Token;

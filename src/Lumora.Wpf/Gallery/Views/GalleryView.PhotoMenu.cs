@@ -110,6 +110,7 @@ public partial class GalleryView
     private PhotoMenuHost CreateMenuHost(GalleryItem target, System.Collections.Generic.IReadOnlyList<int> ids)
     {
         var multi = ids.Count > 1;
+        var cloud = _viewModel.HasCloudFilesIn(ids); // OneDrive (ADR-0077): „Immer behalten“ / „Speicherplatz freigeben“
         return new PhotoMenuHost
         {
             Owner = ResolveOwnerWindow,
@@ -134,6 +135,8 @@ public partial class GalleryView
             RemoveMissing = _viewModel.ShowRemoveMissingAction || target.Missing ? () => _viewModel.RemoveMissingSelectionCommand.Execute(null) : null,
             ExternalCandidates = () => _viewModel.ExternalCandidates(target),
             CopyInitialDirectory = target.FolderPath,
+            KeepOnDevice = cloud ? () => _viewModel.KeepSelectionOnDeviceCommand.Execute(null) : null,
+            FreeUpSpace = cloud ? () => _viewModel.FreeSelectionSpaceCommand.Execute(null) : null,
         };
     }
 }

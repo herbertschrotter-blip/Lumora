@@ -241,6 +241,11 @@ public sealed class FaceCropService : IFaceCropService, IDisposable
 
         Parallel.ForEach(sources, new ParallelOptions { MaxDegreeOfParallelism = 2, CancellationToken = ct }, entry =>
         {
+            if (Cloud.CloudFiles.IsOnlineOnly(entry.Key))
+            {
+                return; // Speicherplatz freigegeben (ADR-0077): Original nicht laden; nicht als gescheitert merken — später erneut
+            }
+
             try
             {
                 Directory.CreateDirectory(FolderOf(libraryOfSource[entry.Key]));

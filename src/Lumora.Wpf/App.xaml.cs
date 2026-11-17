@@ -181,6 +181,7 @@ public partial class App : Application, ICatalogHostSwitcher
         // WIC-Bild-Renderer (WPF-Framework) — Implementierung des in Services
         // definierten IImageThumbnailRenderer-Interfaces.
         services.AddSingleton<IImageThumbnailRenderer, WicImageThumbnailRenderer>();
+        Lumora.Thumbnails.Cloud.CloudUiServiceCollectionExtensions.AddCloudUi(services); // OneDrive-Platzhalter: Shell-Vorschaubilder ohne Download (Wpf/Thumbnails/Cloud, ADR-0077)
         services.AddLightbox();
 
         // Shell: Navigation, Statusleiste, Theme, Seiten Bibliothek/Ordner/Einstellungen (Wpf/Shell)

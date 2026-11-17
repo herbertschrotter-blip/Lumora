@@ -229,6 +229,19 @@ gleich benannte Tags oder Personen haben; es sind verschiedene.
 - Beim Update auf 0.2.51 bekommt jede Bibliothek die Begriffe, die sie benutzt; nicht benutzte Tags, Kategorien,
   Personen und Beziehungen findet man in jeder Bibliothek wieder (überzählige dort löschen).
 
+### OneDrive-Ordner als Bibliothek (seit 0.5.41, ADR-0077)
+Ein OneDrive-Ordner mit „Dateien bei Bedarf“ ist eine normale Bibliothek (bis 0.5.40 fand das Einlesen dort nichts).
+Fotos, die **nur online** liegen, sind sichtbar, sortierbar, bewertbar und verschiebbar, ohne dass Lumora sie herunterlädt:
+- **Wolken-Marke** auf der Kachel (neben der Endung, in der Collage unten links): nur online. „Fehlt“ gibt es dafür nie.
+- **Vorschaubilder** holt Lumora wie der Explorer von OneDrive (nur für sichtbare Kacheln, ein bis zwei Sekunden je Bild);
+  ohne Internet bleiben neue Kacheln leer und werden später erneut versucht. Das **Aufnahmedatum** kommt ebenfalls ohne
+  Download; **Orte, Gesichter, Doppelte** und die Foto-Güte folgen, sobald die Datei einmal lokal ist.
+- **Lightbox**: zuerst die Vorschau von OneDrive mit „Wird von OneDrive geladen …“, dann das Original (Windows lädt es).
+  **Abbrechen** behält die Vorschau, **Erneut laden** versucht es noch einmal; ohne Internet erscheint eine Meldung.
+- **Rechtsklick › Datei ▸ Immer auf diesem Gerät behalten / Speicherplatz freigeben** — wie im Explorer, auch für mehrere
+  Fotos und in der Lightbox; Windows lädt bzw. gibt im Hintergrund frei, die Marke folgt.
+- Die versteckte Bibliothek darf weiterhin nie in OneDrive liegen.
+
 ### Eingang und Bibliotheksordner
 Eine Bibliothek hat genau einen **Bibliotheksordner** (der beim Anlegen gewählte Ordner — dein sortiertes Fotoarchiv;
 im Code „Archiv-Wurzel“) und beliebig viele **Eingänge** (unsortierte Quellordner: Kamera-Import, Handy-Upload,

@@ -21,4 +21,11 @@ public static class ThumbnailErrorCodes
     public const string FfmpegTimeout = "ffmpeg_timeout";
 
     public const string FfmpegFailed = "ffmpeg_failed";
+
+    /// <summary>
+    /// OneDrive-Platzhalter (ADR-0077): die Shell lieferte kein Vorschaubild (keine Verbindung, Zeitgrenze, kein Anbieter-
+    /// Vorschaubild) oder es gibt keinen Shell-Weg (Tests, versteckte Sitzung). Äußere Ursache: verbraucht keinen Versuch —
+    /// das Original wird dafür nie dekodiert (das löste einen Download aus).
+    /// </summary>
+    public const string CloudUnavailable = "cloud_unavailable";
 }

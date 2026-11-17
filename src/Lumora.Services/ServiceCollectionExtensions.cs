@@ -72,6 +72,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IVideoThumbnailRenderer>(sp => sp.GetRequiredService<FfmpegVideoThumbnailer>());
         services.TryAddSingleton<IFallbackImageThumbnailRenderer>(sp => sp.GetRequiredService<FfmpegVideoThumbnailer>());
         services.TryAddSingleton<IThumbnailService, ThumbnailService>();
+        Cloud.CloudServiceCollectionExtensions.AddCloudFiles(services); // OneDrive-Bibliothek: Platzhalter, Pin, Original laden, Datum ohne Download (ADR-0077)
         services.AddThumbnailStock(); // Vorschaubilder auf Vorrat: Datei-Spur mit niedrigstem Vorrang, Schalter je Katalog (0.5.40, ADR-0074 Nachtrag)
 
         // Aktivitäts-Anzeige: Zentrale aller Hintergrund-Vorgänge, Brücke der Fortschrittsquellen, Datei-Vorgänge als Dekorierer

@@ -112,6 +112,13 @@ public sealed class ChecksumBackfillService : IChecksumBackfillService, IDisposa
                 r.RequestPass();
             }
         });
+        _messenger.Register<ChecksumBackfillService, CloudFilesChangedMessage>(this, static (r, m) =>
+        {
+            if (m.BecameLocal)
+            {
+                r.RequestPass(); // OneDrive-Platzhalter jetzt lokal: nachholen (ADR-0077)
+            }
+        });
 
         var token = _stop.Token;
         _ = Task.Run(async () =>

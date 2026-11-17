@@ -266,6 +266,48 @@
                        TextWrapping="Wrap" />
         </Border>
 
+        <!-- OneDrive-Platzhalter (ADR-0077, Mockup 27): Vorschau von OneDrive, Original wird geladen — Abbrechen / Erneut laden -->
+        <Border x:Name="CloudNoticePanel"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Bottom"
+                Margin="16,0,16,28"
+                Padding="14,8"
+                CornerRadius="8"
+                Background="{DynamicResource LightboxChromeBrush}"
+                AutomationProperties.Name="Hinweis OneDrive"
+                Visibility="{Binding HasCloudNotice, Converter={StaticResource BoolToVis}}">
+            <StackPanel Orientation="Horizontal">
+                <ui:SymbolIcon Symbol="CloudArrowDown24"
+                               FontSize="18"
+                               Margin="0,0,10,0"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource LightboxTextBrush}" />
+                <StackPanel VerticalAlignment="Center" MaxWidth="460">
+                    <TextBlock Style="{StaticResource LightboxOverlayText}"
+                               Text="{Binding CloudNotice}"
+                               TextWrapping="Wrap" />
+                    <ProgressBar Height="3"
+                                 Margin="0,6,0,0"
+                                 Minimum="0"
+                                 Maximum="1"
+                                 Value="{Binding CloudProgress, Mode=OneWay}"
+                                 Visibility="{Binding IsCloudLoading, Converter={StaticResource BoolToVis}}" />
+                </StackPanel>
+                <Button Style="{StaticResource LightboxOverlayButton}"
+                        Margin="12,0,0,0"
+                        Content="Abbrechen"
+                        Command="{Binding CancelCloudLoadCommand}"
+                        AutomationProperties.Name="Laden von OneDrive abbrechen"
+                        Visibility="{Binding IsCloudLoading, Converter={StaticResource BoolToVis}}" />
+                <Button Style="{StaticResource LightboxOverlayButton}"
+                        Margin="12,0,0,0"
+                        Content="Erneut laden"
+                        Command="{Binding RetryCloudLoadCommand}"
+                        AutomationProperties.Name="Original von OneDrive erneut laden"
+                        Visibility="{Binding CanRetryCloudLoad, Converter={StaticResource BoolToVis}}" />
+            </StackPanel>
+        </Border>
+
         <!-- Transportleiste (nur Video) -->
         <Grid VerticalAlignment="Bottom"
               Visibility="{Binding IsVideo, Converter={StaticResource BoolToVis}}">

@@ -150,6 +150,13 @@ public sealed class FaceIndexService : IFaceIndexService, IDisposable
             r.CancelRun();
             r.RequestRun();
         });
+        _messenger.Register<FaceIndexService, CloudFilesChangedMessage>(this, static (r, m) =>
+        {
+            if (m.BecameLocal)
+            {
+                r.RequestRun(); // OneDrive-Platzhalter jetzt lokal: nachholen (ADR-0077)
+            }
+        });
 
         _worker = Task.Run(WorkerLoopAsync);
         Publish(_settings.Enabled ? new FaceIndexStatus(FaceIndexState.Idle) : FaceIndexStatus.Disabled, force: true);
@@ -573,8 +580,10 @@ public sealed class FaceIndexService : IFaceIndexService, IDisposable
             try
             {
                 thread.Priority = ThreadPriority.BelowNormal;
-                if (!File.Exists(candidate.Path))
+                if (!File.Exists(candidate.Path) || Cloud.CloudFiles.IsOnlineOnly(candidate.Path))
                 {
+                    // fehlt — oder nur online (OneDrive-Platzhalter, ADR-0077): nicht laden (Download), nicht vermerken;
+                    // sobald die Datei lokal ist (CloudFilesChangedMessage), holt ein Durchgang sie nach
                     return new LoadOutcome(candidate, null, true, null);
                 }
 

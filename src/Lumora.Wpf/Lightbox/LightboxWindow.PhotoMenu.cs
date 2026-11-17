@@ -89,6 +89,8 @@ public partial class LightboxWindow
             Recycle = () => _ = _viewModel.DeleteCurrentCommand.ExecuteAsync(null),
             ExternalCandidates = () => [Candidate(item)],
             CopyInitialDirectory = System.IO.Path.GetDirectoryName(item.Path),
+            KeepOnDevice = _viewModel.IsCurrentCloudFile ? () => _viewModel.KeepCurrentOnDeviceCommand.Execute(null) : null, // ADR-0077
+            FreeUpSpace = _viewModel.IsCurrentCloudFile ? () => _viewModel.FreeCurrentSpaceCommand.Execute(null) : null,
         };
         PhotoContextMenuBuilder.Build(menu.Items, new PhotoMenuContext(PhotoMenuSource.Lightbox, target, ids), host, actions);
     }

@@ -91,8 +91,12 @@ public sealed partial class LightboxViewModel : ObservableObject, IDisposable
         Lumora.Services.Usage.IUsageSignals? usageSignals = null,
         Lumora.Services.Usage.IUsageService? usageService = null,
         Lumora.Enhance.EnhancePanelFactory? enhance = null,
-        Lumora.Services.Background.IForegroundWork? foreground = null)
+        Lumora.Services.Background.IForegroundWork? foreground = null,
+        Lumora.Services.Cloud.ICloudFileService? cloudFiles = null,
+        Lumora.Services.Cloud.ICloudFileHydrator? cloudHydrator = null,
+        Lumora.Thumbnails.Cloud.ICloudPreviewSource? cloudPreview = null)
     {
+        InitCloud(cloudFiles, cloudHydrator, cloudPreview); // OneDrive-Platzhalter: Vorschau, Original laden, Abbrechen (LightboxViewModel.Cloud.cs, ADR-0077)
         // Bilder laden hat Vorrang vor Hintergrund-Aufgaben (ADR-0074 Nachtrag 0.5.15)
         _imageHold = new Lumora.Services.Background.ForegroundHold(foreground, Lumora.Services.Background.ForegroundNeed.Cpu, "Lightbox");
         _cache = new LightboxImageCache(capacity: 4, _imageHold);
@@ -337,6 +341,7 @@ public sealed partial class LightboxViewModel : ObservableObject, IDisposable
 
         var version = ++_showVersion;
         ErrorMessage = null;
+        ResetCloud(item); // laufendes Laden von OneDrive abbrechen, Hinweis weg (ADR-0077)
 
         if (item.IsArchive)
         {
@@ -437,8 +442,15 @@ public sealed partial class LightboxViewModel : ObservableObject, IDisposable
 
     // ----- Bilder -----
 
-    private async Task ShowImageAsync(LightboxItem item, int version)
+    /// <param name="afterCloud">true = das Original wurde gerade von OneDrive geladen (LightboxViewModel.Cloud.cs).</param>
+    private async Task ShowImageAsync(LightboxItem item, int version, bool afterCloud = false)
     {
+        if (!afterCloud && IsCloudPlaceholder(item))
+        {
+            await ShowCloudImageAsync(item, version).ConfigureAwait(true); // nur online: Vorschau, dann Original (ADR-0077)
+            return;
+        }
+
         IsLoading = true;
         BuildFileInfo(item);
         MediaInfoHeader = "Aufnahme";
@@ -504,9 +516,9 @@ public sealed partial class LightboxViewModel : ObservableObject, IDisposable
         }
 
         var item = _items[index];
-        if (!item.IsImage)
+        if (!item.IsImage || IsCloudPlaceholder(item))
         {
-            return;
+            return; // Nachbarn, die nur online liegen, nie vorab laden (Download, ADR-0077)
         }
 
         try
@@ -1505,6 +1517,7 @@ public sealed partial class LightboxViewModel : ObservableObject, IDisposable
         StopUsage(); // letzte Ansicht zählen (ADR-0072)
         _disposed = true;
         _showVersion++;
+        _cloudCts?.Cancel(); // Laden von OneDrive abbrechen (ADR-0077)
         WeakReferenceMessenger.Default.UnregisterAll(this);
         Faces.Dispose(); // 0.2.38
         Enhance?.Dispose(); // ADR-0071

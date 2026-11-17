@@ -3,6 +3,60 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.41] — 2026-11-17
+
+### Added — OneDrive-Bibliothek (ADR-0077 Proposed, Mockup 27 Entwurf, Spike 19)
+- **Ein OneDrive-Ordner mit „Dateien bei Bedarf“ ist eine normale Bibliothek.** Fotos, die nur online liegen, sind sichtbar,
+  sortierbar, bewertbar und verschiebbar, ohne dass Lumora sie herunterlädt.
+- **Zentrale Platzhalter-Erkennung** `Services/Cloud/CloudFiles`: nur online = `RecallOnDataAccess`, `RecallOnOpen` oder
+  `Offline`; „Immer behalten“ = `Pinned`, „Speicherplatz freigeben“ = `Unpinned`. `ThumbnailService.IsLocallyAvailable`
+  leitet dorthin weiter, alle Hintergrund-Dienste prüfen damit an derselben Stelle.
+- **Vorschaubilder über die Shell, nie aus dem Original:** Der Bild- bzw. Video-Worker reicht Platzhalter an eine eigene
+  Cloud-Warteschlange weiter. Acht Worker holen das Bild wie der Explorer (`IShellItemImageFactory`,
+  `SIIGBF_THUMBNAILONLY`, Wiederholen bei `WTS_E_EXTRACTIONPENDING` bis 30 s, 8 STA-Threads) und schreiben es verkleinert in
+  dieselbe Cache-Datei `{fileId}_400_still.jpg` mit demselben Status.
+  - zuletzt angeforderte Kacheln zuerst, höchstens 96 wartend, ältere verfallen
+  - Fehlschlag `cloud_unavailable` (keine Verbindung, Zeitgrenze) verbraucht keinen Versuch
+  - Die Galerie fordert Platzhalter nur für sichtbare Kacheln ± 12 an, beim Scrollen nach 150 ms die neu sichtbaren; der
+    Vorrat lässt Platzhalter aus.
+- **Aufnahmedatum ohne Download** beim Nachtragen über den Eigenschaftsspeicher (`GPS_DEFAULT`, `System.Photo.DateTaken`);
+  ohne Datum bleibt die Datei offen, bis sie lokal ist. GPS kommt erst aus der lokalen Datei.
+- **Analysen lassen Platzhalter aus und holen sie nach:** Gesichter laden das Original nicht und vermerken die Datei nicht,
+  Motive rechnen nur mit einem vorhandenen Vorschaubild, Gesichts-Ausschnitte warten. Neue Nachricht
+  `CloudFilesChangedMessage(BecameLocal)` stößt Gesichter, Motive, Datum, Orte, Doppelte, Prüfsummen und Güte an.
+- **Lightbox:** zuerst die 1024-px-Vorschau mit „Wird von OneDrive geladen …“ und Fortschritt, dann das Original
+  (`ICloudFileHydrator`, Windows lädt). **Abbrechen** behält die Vorschau, **Erneut laden**; ohne Internet eine Meldung —
+  nie „fehlt“. Nachbarn, die nur online liegen, werden nicht vorab geladen.
+- **Wolken-Marke** auf Kacheln (neben der Endung) und in der Collage (unten links). **Rechtsklick › Datei ▸ „Immer auf
+  diesem Gerät behalten“ (+P −U) / „Speicherplatz freigeben“ (+U −P)** über `SetFileAttributes`, auch in der Lightbox, mit
+  Statusmeldung; der Dienst beobachtet die Dateien, bis Windows fertig ist, und aktualisiert die Marke.
+- **Technik:** `Services/Cloud` (`CloudFiles`, `CloudSyncRoots`, `ICloudFileService`, `CloudPinText`, `StaWorkerPool`,
+  `CloudFileHydrator`, `ShellCloudPropertyReader`, `AddCloudFiles`), `ThumbnailService.Cloud.cs` mit `CloudJobQueue`,
+  `ICloudThumbnailRenderer`; Wpf: `Thumbnails/Cloud` (`ShellThumbnailExtractor`, `ShellCloudThumbnailRenderer`,
+  `AddCloudUi`), `GalleryViewModel.Cloud.cs`, `GalleryItem.Cloud.cs`, `LightboxViewModel.Cloud.cs`; Rauchtest-Schritt
+  „OneDrive-Platzhalter (simuliert)“.
+
+### Fixed — Einlesen fand in OneDrive-Ordnern nichts
+- OneDrive markiert jede Datei und jeden Ordner als Reparse-Punkt; der Scanner übersprang Reparse-Punkte (nativ gemessen:
+  0 Dateien, 0 Ordner). Jetzt werden nur Verknüpfungen mit Linkziel (Junction, Symlink) übersprungen, Cloud-Einträge
+  eingelesen (`CloudFiles.IsLink`, liest nur den Reparse-Punkt).
+- **Offline-vs-Missing:** Liefert ein Ordner beim Abgleich einen IO-Fehler, obwohl die Wurzel erreichbar ist (etwa
+  OneDrive ohne Verbindung), wird darin nichts als fehlend markiert (`UnreadablePaths`).
+
+### Gemessen (nativ, 8 Platzhalter, Lumoras Shell-Weg, keine Dateinamen)
+- Vorschaubilder 8 von 8 in 4,3 s (Median 2,0 s, langsamstes 4,3 s), Aufnahmedatum 8 von 8, danach alle weiterhin nur
+  online; Scanner im Ordner des ersten Platzhalters 881 von 881 Mediendateien (vorher 0).
+
+### Tests
+- 41 neue Tests (30 Services, 11 Wpf, davon die native OneDrive-Prüfung nur mit `LUMORA_ONEDRIVE_PROBE`).
+
+### Offen
+- Mockup 27 und ADR-0077 warten auf Herberts Abnahme.
+- Dateien, die außerhalb von Lumora lokal werden (Explorer), holen die Analysen erst beim nächsten Einlesen bzw. Start nach.
+- Videos, die nur online liegen: Vorschaubild über die Shell; Abspielen lädt wie bisher über LibVLC (kein eigener Hinweis).
+- „Ordner übernehmen“ (`FolderAdoptionSourceReader`) überspringt Reparse-Ordner weiterhin — für OneDrive-Ordner als Quelle
+  noch nicht angepasst.
+
 ## [0.5.40] — 2026-11-17
 
 ### Added — Vorschaubilder auf Vorrat (ADR-0074 Nachtrag 0.5.40)
