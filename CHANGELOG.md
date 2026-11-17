@@ -3,6 +3,38 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.40] — 2026-11-17
+
+### Added — Vorschaubilder auf Vorrat (ADR-0074 Nachtrag 0.5.40)
+- **Neue Hintergrund-Aufgabe „Vorschaubilder auf Vorrat“:** erstellt still nach und nach die Vorschaubilder aller lokalen
+  Fotos, danach der Videos — bisher entstanden sie nur für Angezeigtes. Archive nie. Galerie, Storys, Orte, Alben und die
+  App-Verbindung zeigen später sofort Bilder.
+- **Niedrigster Vorrang:** Die Aufgabe läuft in der Datei-Spur nach den Prüfsummen, also nur, wenn die übrigen Dateidienste
+  nichts lesen wollen. Sie gibt die Spur **je Datei** ab, sobald
+  - Galerie oder Lightbox etwas brauchen,
+  - Vorschaubilder der Galerie oder der Pflege eingereiht sind,
+  - eine wichtigere Aufgabe wartet.
+
+  Sie ruht beim Einlesen, bei Scan-Sperre, beim Katalog-Umzug und bei Pause.
+- **Derselbe Renderer, dieselbe Datei:** gleiche Cache-Datei und gleicher DB-Status wie bei der Galerie, nur für Dateien ohne
+  gültiges Vorschaubild der aktuellen Größe; endgültig gescheiterte bleiben außen vor wie bisher.
+- **Nichts herunterladen:** Fehlende Dateien, nicht erreichbare Wurzeln und OneDrive-Platzhalter werden ohne Dateizugriff
+  übersprungen. Platzhalter merkt sich der Dienst 30 Minuten und fragt sie in dieser Zeit nicht erneut ab.
+- **Auslöser:** 60 s nach dem Start, nach jedem Einlesen, wenn Dateien dazukommen und nach „Cache leeren“.
+- **Lesen passend zum Laufwerk:** Fotos auf einer SSD mehrere zugleich, höchstens die halbe Kernzahl; auf einer Festplatte
+  eines nach dem anderen. Videos immer einzeln.
+- **Aktivitäts-Anzeige:** eigener Eintrag mit Fortschritt, Restzeit und Pause/Fortsetzen.
+- **Schalter** Einstellungen › Speicher & Wartung › Vorschaubilder › „Vorschaubilder auf Vorrat erstellen“: Standard an, je
+  Katalog gespeichert. Die versteckte Bibliothek hat ihren eigenen Schalter und schreibt nur in ihren Cache im Container.
+- **Technik:**
+  - `Services/Thumbnails`: `ThumbnailStockService`, `ThumbnailStockSettingsStore`, `AddThumbnailStock`
+  - `ThumbnailService.Stock.cs`: `IThumbnailService.CreateStockAsync` — ohne Warteschlange, ohne `PendingCount`
+  - Planer: `BackgroundJob.ThumbnailStock` (Vorrang 4) und `IBackgroundPlanner.HasWaitingAhead`
+  - Oberfläche: `Wpf/Settings/ThumbnailStock`
+  - „Cache leeren“ meldet `ThumbnailCacheClearedMessage`
+  - Rauchtest-Schritt „Vorschaubilder auf Vorrat“
+  - 28 neue Tests
+
 ## [0.5.39] — 2026-11-17
 
 ### Docs — Spike 19: OneDrive-Platzhalter

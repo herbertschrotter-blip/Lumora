@@ -72,6 +72,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IVideoThumbnailRenderer>(sp => sp.GetRequiredService<FfmpegVideoThumbnailer>());
         services.TryAddSingleton<IFallbackImageThumbnailRenderer>(sp => sp.GetRequiredService<FfmpegVideoThumbnailer>());
         services.TryAddSingleton<IThumbnailService, ThumbnailService>();
+        services.AddThumbnailStock(); // Vorschaubilder auf Vorrat: Datei-Spur mit niedrigstem Vorrang, Schalter je Katalog (0.5.40, ADR-0074 Nachtrag)
 
         // Aktivitäts-Anzeige: Zentrale aller Hintergrund-Vorgänge, Brücke der Fortschrittsquellen, Datei-Vorgänge als Dekorierer
         // (Services/Activity, ADR-0067) — vor AddOperations, damit IFileOperationService der Dekorierer ist

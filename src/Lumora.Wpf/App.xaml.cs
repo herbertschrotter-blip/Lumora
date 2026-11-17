@@ -199,6 +199,7 @@ public partial class App : Application, ICatalogHostSwitcher
         services.AddCategoryManagement(); // Seite „Kategorien“ (Wpf/Settings/CategoryManagement, ADR-0027)
         services.AddSettingsInfo(); // Einstellungen › Info (Wpf/Settings/Info, ADR-0042)
         Lumora.Settings.Backup.CatalogBackupUiServiceCollectionExtensions.AddCatalogBackupUi(services); // Speicher & Wartung › Katalog-Sicherung (Wpf/Settings/Backup, ADR-0069)
+        Lumora.Settings.ThumbnailStock.ThumbnailStockUiServiceCollectionExtensions.AddThumbnailStockUi(services); // Speicher & Wartung › „Vorschaubilder auf Vorrat erstellen“ (Wpf/Settings/ThumbnailStock, 0.5.40)
         services.AddFacesUi(); // Gesichtserkennung: WIC-Lader + Einstellungs-Abschnitt (Wpf/Faces, ADR-0035)
         services.AddPersonsUi(); // Seite „Personen“: Zuordnen, Gruppen, Gesichts-Ausschnitte (Wpf/Persons, ADR-0037)
         services.AddFaceDataSettings(); // „Gesichtsdaten löschen…“ in den Einstellungen (Wpf/Settings/FaceData, 0.2.38)
@@ -544,6 +545,15 @@ public partial class App : Application, ICatalogHostSwitcher
         _host.Services.GetRequiredService<Lumora.Services.Duplicates.IDuplicateIndexService>().Start();
         // Prüfsummen aller Fotos und Videos im Leerlauf (ADR-0073): für die App-Verbindung (by-checksum) und das Wiederfinden
         _host.Services.GetRequiredService<Lumora.Services.Duplicates.IChecksumBackfillService>().Start();
+        // Vorschaubilder auf Vorrat (0.5.40, ADR-0074 Nachtrag): Schalter je Katalog lesen, erster Durchgang verzögert, niedrigster Vorrang
+        try
+        {
+            await _host.Services.GetRequiredService<Lumora.Services.Thumbnails.IThumbnailStockService>().StartAsync().ConfigureAwait(true);
+        }
+        catch (Exception stockEx)
+        {
+            Log.Warning(stockEx, "Vorschaubilder auf Vorrat konnten nicht gestartet werden");
+        }
 
         // Foto-Güte (ADR-0057): Schärfe, Belichtung und Bildwirkung im Hintergrund — Grundlage für Highlights der Storys
         _host.Services.GetRequiredService<Lumora.Services.Quality.IFileQualityIndexService>().Start();

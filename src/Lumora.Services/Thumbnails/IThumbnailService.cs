@@ -79,4 +79,29 @@ public interface IThumbnailService
     void Resume()
     {
     }
+
+    /// <summary>
+    /// Vorschaubild auf Vorrat (0.5.40): erzeugt es für diese Datei sofort auf dem Thread des Aufrufers — gleicher Renderer,
+    /// gleiche Cache-Datei, gleicher DB-Status wie ein Galerie-Auftrag, aber ohne Warteschlange, ohne Vorrang und ohne
+    /// <see cref="PendingCount"/>. Der Aufrufer prüft vorher, dass die Datei lokal liegt (kein Cloud-Platzhalter). Standard:
+    /// nichts tun (<see cref="ThumbnailStockOutcome.Skipped"/>).
+    /// </summary>
+    Task<ThumbnailStockOutcome> CreateStockAsync(ThumbnailRequest request, CancellationToken ct = default)
+        => Task.FromResult(ThumbnailStockOutcome.Skipped);
+}
+
+/// <summary>Ergebnis von <see cref="IThumbnailService.CreateStockAsync"/>.</summary>
+public enum ThumbnailStockOutcome
+{
+    /// <summary>Vorschaubild neu erzeugt.</summary>
+    Generated,
+
+    /// <summary>Renderer gescheitert (DB-Status „Failed“, Versuch gezählt).</summary>
+    Failed,
+
+    /// <summary>Nichts zu tun: schon gültig, gerade in Arbeit, endgültig gescheitert, Archiv oder kein FFmpeg.</summary>
+    Skipped,
+
+    /// <summary>Dienst pausiert (Katalog-Umzug) — später noch einmal.</summary>
+    Deferred,
 }

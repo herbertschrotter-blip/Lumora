@@ -40,7 +40,8 @@ public partial class SettingsPage : UserControl
         Backup.CatalogBackupSettingsViewModel? catalogBackup = null,
         ModelPackages.ModelPackagesViewModel? modelPackages = null,
         Lumora.Enhance.EnhanceSettingsViewModel? enhance = null,
-        Lumora.AppConnect.ConnectedAppsViewModel? connectedApps = null)
+        Lumora.AppConnect.ConnectedAppsViewModel? connectedApps = null,
+        ThumbnailStock.ThumbnailStockSettingsViewModel? thumbnailStock = null)
     {
         _sections = sections;
         InitializeComponent();
@@ -64,6 +65,10 @@ public partial class SettingsPage : UserControl
         StorageView.CatalogBackupCard.DataContext = catalogBackup;
         StorageView.CatalogBackupCard.Visibility = catalogBackup is null ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible;
         Loaded += (_, _) => _ = catalogBackup?.RefreshAsync();
+        // 0.5.40: Speicher & Wartung › Vorschaubilder › „Vorschaubilder auf Vorrat erstellen“; ohne Dienst ausgeblendet
+        StorageView.ThumbnailStockPanel.DataContext = thumbnailStock;
+        StorageView.ThumbnailStockPanel.Visibility = thumbnailStock is null ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible;
+        Loaded += (_, _) => thumbnailStock?.Refresh();
 
         LibraryTab.Content = library;
         TagsTab.Content = tags;

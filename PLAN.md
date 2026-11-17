@@ -771,6 +771,11 @@ Katalog in den Einstellungen umgezogen ist: der Cache liegt immer neben `library
 - **Übergang alter Größen** (320 px): zeigen, bis das neue fertig ist, dann Zeile (gleiche Transaktion) und Datei löschen;
   Pflege im Hintergrund ersetzt den Rest in 32er-Stapeln bei leerer Warteschlange (nicht bei Pause, Scan-Sperre,
   fehlender Quelle, Cloud-Platzhalter), Fortschritt in `PendingCount`.
+- **Vorrat (0.5.40, ADR-0074 Nachtrag)**: die Stufe 🟢 „Background“ — `ThumbnailStockService` erstellt still die
+  Vorschaubilder aller lokalen Fotos, dann Videos, über `IThumbnailService.CreateStockAsync` (gleicher Renderer, gleiche
+  Datei, gleicher Status, ohne Warteschlange). Er ist eine Aufgabe der Datei-Spur mit niedrigstem Vorrang und gibt je Datei
+  ab: an Galerie und Pflege, an Vordergrund-Arbeit, an wichtigere Dateiaufgaben, bei Pause und Einlesen. Fehlende Dateien,
+  Wurzeln offline und Cloud-Platzhalter überspringt er ohne Dateizugriff. Schalter je Katalog, Standard an.
 - **Bildmaße**: beim Erzeugen `Files.Width/Height` = Original nach EXIF-Drehung (gleiche Transaktion wie „Generated“;
   Videos aus der FFmpeg-Eingabe); fehlende trägt die Pflege aus dem Dateikopf nach (0 × 0 = nicht lesbar).
 - Validation via DB: `Files.ModifiedAtUtc != Thumbnails.SourceModifiedAtUtc` → Re-generate

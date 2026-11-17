@@ -598,10 +598,12 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
         entry?.Dispose();
     }
 
-    private async Task ProcessJobAsync(ThumbnailRequest req)
+    /// <param name="queued">false = Vorschaubild auf Vorrat (<see cref="CreateStockAsync"/>): kam nicht über die Warteschlange und zählt nicht in <see cref="PendingCount"/>.</param>
+    /// <returns>true = Vorschaubild erzeugt.</returns>
+    private async Task<bool> ProcessJobAsync(ThumbnailRequest req, bool queued = true)
     {
-        // Auftrag der Galerie (nicht der Pflege): zählt für den Vorrang, bis er fertig ist
-        var foreground = _hold is not null && _states.TryGetValue(req.FileId, out var queued) && !queued.Background;
+        // Auftrag der Galerie (nicht der Pflege, nicht der Vorrat): zählt für den Vorrang, bis er fertig ist
+        var foreground = _hold is not null && _states.TryGetValue(req.FileId, out var state) && !state.Background;
         var cachePath = BuildCachePath(req.LibraryId, req.FileId);
         try
         {
@@ -611,7 +613,7 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
                 var missing = ThumbnailRenderResult.Fail(ThumbnailErrorCodes.SourceMissing, $"Quelldatei fehlt: {req.SourcePath}");
                 await UpsertStatusAsync(req, ThumbnailStatus.Failed, cachePath, missing, attemptDelta: 0).ConfigureAwait(false);
                 SetState(req, JobOutcome.Failed, retryable: true);
-                return;
+                return false;
             }
 
             await UpsertStatusAsync(req, ThumbnailStatus.Pending, cachePath, null, attemptDelta: +1).ConfigureAwait(false);
@@ -643,29 +645,35 @@ public sealed partial class ThumbnailService : IThumbnailService, IDisposable
                 }
 
                 RaiseReady(new ThumbnailReadyEventArgs(req.LibraryId, req.FileId, cachePath));
+                return true;
             }
-            else
-            {
-                var retryable = IsRetryable(result.ErrorCode);
-                await UpsertStatusAsync(req, ThumbnailStatus.Failed, cachePath, result, attemptDelta: retryable ? -1 : 0).ConfigureAwait(false);
-                SetState(req, JobOutcome.Failed, retryable);
-                _logger.LogDebug(
-                    "Thumb fehlgeschlagen: File={FileId} {Code}: {Msg}",
-                    req.FileId, result.ErrorCode, result.ErrorMessage);
-            }
+
+            var retryable = IsRetryable(result.ErrorCode);
+            await UpsertStatusAsync(req, ThumbnailStatus.Failed, cachePath, result, attemptDelta: retryable ? -1 : 0).ConfigureAwait(false);
+            SetState(req, JobOutcome.Failed, retryable);
+            _logger.LogDebug(
+                "Thumb fehlgeschlagen: File={FileId} {Code}: {Msg}",
+                req.FileId, result.ErrorCode, result.ErrorMessage);
+            return false;
         }
         catch (OperationCanceledException)
         {
             _states.TryRemove(req.FileId, out _);
+            return false;
         }
         catch (Exception ex)
         {
             SetState(req, JobOutcome.Failed);
             _logger.LogWarning(ex, "Thumb-Job-Ausnahme: File={FileId}", req.FileId);
+            return false;
         }
         finally
         {
-            Interlocked.Decrement(ref _pending);
+            if (queued)
+            {
+                Interlocked.Decrement(ref _pending);
+            }
+
             if (foreground)
             {
                 ForegroundJobDone();

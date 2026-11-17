@@ -805,7 +805,8 @@ Reiter oben (ADR-0042):
   „Version x, keine automatische Prüfung“) und **Entfernen…** (löscht nur die Dateien des Modells, was schon erkannt ist,
   bleibt). Lumora lädt nie von selbst. Die versteckte Bibliothek nutzt dieselben Modelle aus dem normalen Modellordner.
 - **Speicher & Wartung** — Speicherorte mit „Ordner öffnen“ und **Ändern…** (siehe „Speicherort des Katalogs“),
-  Thumbnail-Cache (Belegung, **Cache leeren** — Vorschaubilder werden bei Bedarf neu erzeugt), Karte **Fehlende Dateien**
+  Thumbnail-Cache (Belegung, **Cache leeren** — Vorschaubilder werden bei Bedarf neu erzeugt; seit 0.5.40 Schalter
+  **Vorschaubilder auf Vorrat erstellen**, Standard an, je Katalog — siehe „Aktivitäten“), Karte **Fehlende Dateien**
   mit **Alle fehlenden entfernen (n)** für die aktuelle Bibliothek (seit 0.4.30, siehe „Fehlende Dateien entfernen“),
   Karte **Katalog-Sicherung** (seit 0.4.40: jetzt sichern, Liste, Ordner öffnen, Wiederherstellen…, siehe
   [Produktivbetrieb](#produktivbetrieb)), FFmpeg-Status mit kopierbarem winget-Befehl, unterstützte Bild- und Videoformate.
@@ -1178,6 +1179,11 @@ automatische Aktualisierung und Änderungen, die auf den Katalog warten.
   („wartet — Vorrang für „Foto verbessern““) — Gesichter und Motive schon vor dem nächsten Foto — und laufen danach von
   selbst weiter. Seit 0.5.15 ebenso, solange die **Lightbox** ein Bild lädt (bis 2 s danach) und solange Vorschaubilder für
   die **Galerie** fehlen; Hintergrund-Rechnen nutzt höchstens die Hälfte der Kerne.
+  **Vorschaubilder auf Vorrat (seit 0.5.40):** Ganz zuletzt, wenn sonst nichts zu tun ist, erstellt Lumora nach und nach
+  die Vorschaubilder aller Fotos und dann Videos, damit Galerie, Storys und Orte später sofort Bilder zeigen. Sobald die
+  Galerie oder Lightbox etwas braucht, eine andere Aufgabe lesen will oder eingelesen wird, hält der Vorrat nach dem
+  laufenden Bild an. Fotos, die nur online liegen (z. B. OneDrive), und nicht erreichbare Laufwerke werden übersprungen; es
+  wird nichts heruntergeladen. Abschalten unter Einstellungen › Speicher & Wartung.
   Das manuelle Entpacken im Entpacken-Dialog, „Neu aufbauen“ und „Speicherort ändern“ zeigen ihren Fortschritt weiter in
   ihren Dialogen bzw. auf der Bibliotheksseite.
 

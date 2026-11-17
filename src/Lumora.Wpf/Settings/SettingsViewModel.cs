@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
 using Lumora.Faces;
 using Lumora.Services.Archive;
@@ -577,6 +578,8 @@ public sealed partial class SettingsViewModel : ObservableObject
             // In-Memory-Zustand des ThumbnailService verwerfen: als fehlgeschlagen gemerkte Dateien (Codec fehlte, kaputte
             // Datei) werden mit frischem AttemptCount erneut versucht; erledigte ohne Cache-Datei prüft der Service ohnehin neu.
             _thumbnails.InvalidateAll();
+            // 0.5.40: Vorschaubilder auf Vorrat füllen den Cache wieder auf (wenn eingeschaltet)
+            WeakReferenceMessenger.Default.Send(new ThumbnailCacheClearedMessage());
             InfoMessage = $"{deleted:N0} Dateien und {rows:N0} Datenbankeinträge entfernt"
                           + (skipped > 0 ? $" ({skipped:N0} Dateien in Benutzung übersprungen)." : ".");
             _logger.LogInformation("Thumbnail-Cache geleert: {Deleted} Dateien, {Rows} Zeilen, {Skipped} übersprungen", deleted, rows, skipped);

@@ -14,7 +14,7 @@ using Lumora.Services.Stories;
 namespace Lumora.Services.Activity;
 
 /// <summary>
-/// Hintergrund-Indizes in der Aktivitäts-Anzeige (ADR-0067): Vorschaubilder, Doppelte, Prüfsummen im Leerlauf, Gesichter, Motive, Aufnahmedatum,
+/// Hintergrund-Indizes in der Aktivitäts-Anzeige (ADR-0067): Vorschaubilder, Vorschaubilder auf Vorrat (0.5.40), Doppelte, Prüfsummen im Leerlauf, Gesichter, Motive, Aufnahmedatum,
 /// Orte, Genauigkeit, Foto-Güte, Storys, GPS-Spuren. Ohne kurze Meldung und — außer bei Fehlern bzw. beim vom Benutzer
 /// angestoßenen Einlesen der GPS-Spuren — ohne Eintrag unter „Zuletzt fertig“. Ein Zustand „wartet“ der Quelle (z. B.
 /// „wartet auf den Katalog“) wird zu „Wartet“ mit diesem Grund. Gesichter und Motive teilen sich die Grafikkarte Foto um
@@ -28,6 +28,7 @@ public sealed partial class ActivityBridge
     private const string FacesKey = "faces";
     private const string MotifsKey = "motifs";
     private const string ThumbnailsKey = "thumbnails";
+    internal const string ThumbnailStockKey = "thumbnail-stock";
 
     private readonly Thumbnails.IThumbnailService? _thumbnails;
     private readonly IFaceIndexService? _faces;
@@ -55,6 +56,9 @@ public sealed partial class ActivityBridge
             ActivityKind.Duplicates, "Doppelte suchen", BackgroundJob.Duplicates, m.Status.IsRunning, m.Status.Done, m.Status.Total, m.Status.Message, m.Status.Phase)));
         _messenger.Register<ActivityBridge, ChecksumBackfillStatusMessage>(this, static (r, m) => r.OnSimpleIndex("checksums", new(
             ActivityKind.Duplicates, "Prüfsummen berechnen", BackgroundJob.Checksums, m.Status.IsRunning, m.Status.Done, m.Status.Total, m.Status.Message, "für Wiederfinden und verbundene Apps")));
+        // 0.5.40: Vorschaubilder auf Vorrat — Fortschritt, Restzeit, Pause/Fortsetzen über den Planer wie die übrigen Dateidienste
+        _messenger.Register<ActivityBridge, Thumbnails.ThumbnailStockStatusMessage>(this, static (r, m) => r.OnSimpleIndex(ThumbnailStockKey, new(
+            ActivityKind.Thumbnails, "Vorschaubilder auf Vorrat", BackgroundJob.ThumbnailStock, m.Status.IsRunning, m.Status.Done, m.Status.Total, m.Status.Message, "für alle Fotos und Videos")));
         _messenger.Register<ActivityBridge, CaptureDateBackfillStatusMessage>(this, static (r, m) => r.OnSimpleIndex("capture-dates", new(
             ActivityKind.CaptureDates, "Aufnahmedatum nachtragen", BackgroundJob.CaptureDates, m.Status.IsRunning, m.Status.Done, m.Status.Total, m.Status.Message, "aus EXIF, Video, Dateiname")));
         _messenger.Register<ActivityBridge, GeoBackfillStatusMessage>(this, static (r, m) => r.OnSimpleIndex("geo-backfill", new(

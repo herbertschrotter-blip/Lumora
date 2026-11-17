@@ -182,6 +182,7 @@ internal sealed partial class SmokeScenario
         InitEnhanceSmoke(services); // Schritt „Foto verbessern“ (ADR-0071, SmokeScenario.Enhance.cs)
         InitPhotoMenuSmoke(services); // Titelbild, Rechtsklick-Menü, Ordnerleiste, Fotos nach außen (ADR-0068, SmokeScenario.PhotoMenu.cs)
         InitUsageSmoke(services); // Schritt „Nutzungs-Signale“ (ADR-0072, SmokeScenario.Usage.cs)
+        InitThumbnailStockSmoke(services); // Schritt „Vorschaubilder auf Vorrat“ (0.5.40, SmokeScenario.ThumbnailStock.cs)
         _messenger.Register<SmokeScenario, ScanCompletedMessage>(this, static (r, m) => r._lastScan = m.Result);
     }
 
@@ -206,6 +207,7 @@ internal sealed partial class SmokeScenario
         await _watch.SetEnabledAsync(false).ConfigureAwait(true);
         await DisableMotifsForSmokeAsync().ConfigureAwait(true); // Motiv-Erkennung erst im eigenen Schritt (ADR-0052)
         await DisableUsageForSmokeAsync().ConfigureAwait(true); // „Nutzung lernen“ erst im eigenen Schritt (ADR-0072)
+        await DisableThumbnailStockForSmokeAsync().ConfigureAwait(true); // Vorschaubilder auf Vorrat erst im eigenen Schritt (0.5.40)
         try
         {
             await RunStepsAsync().ConfigureAwait(true);
@@ -278,6 +280,7 @@ internal sealed partial class SmokeScenario
         await StepAsync("Galerie-Filter Tour: Test-Tour um ein Foto, Auswahl mit Fotozahl und Gipfel, Filter mit Tour-Leiste und „Es gilt“ (hell/dunkel), Lightbox-Abschnitt „Tour“ → zurück in die Galerie, aufgeräumt", TourFilterAsync).ConfigureAwait(true); // ADR-0073 Stufe 7, Mockup 24
         await StepAsync("Nutzungs-Signale (simulierte Zeit): Lightbox zählt 5 s aktiv + Zoom, nicht im Hintergrund, nicht unter 1 s, nicht aus „Doppelte“; Weitergabe; nur Tagessummen; Wiederkehr → Galerie „Lieblinge“ (hell), Zeile „Nutzung“, Einstellungen › Storys „Nutzung lernen“ (dunkel), löschen, aus → nichts gespeichert", UsageSignalsAsync).ConfigureAwait(true); // ADR-0072
         await StepAsync("Foto verbessern: Foto einlesen, Lightbox-Leiste „Verbessern“ mit Modell-Zustand, Hochskalieren (Fake) + Licht → Vorschau Vorher/Nachher, als neue Datei daneben gespeichert (Original unverändert, verknüpft, Marke „2 Fassungen“, beste Fassung), Rückgängig, Stapel mit Aktivität + Rückgängig, Einstellungen › Verbessern (hell/dunkel)", EnhanceAsync).ConfigureAwait(true); // ADR-0071
+        await StepAsync("Vorschaubilder auf Vorrat: Schalter in Speicher & Wartung, aus → kein Durchgang, Vorschaubilder der Testbibliothek entfernt, an (Settings-Tabelle) → im Hintergrund wieder erstellt (gleiche Cache-Datei, Status, nur im Cache), aus", ThumbnailStockAsync).ConfigureAwait(true); // 0.5.40
         await StepAsync("Versteckte Bibliothek: anlegen (_hidden simuliert), Fotos im eigenen Katalog im Container, Zusperren nach Untätigkeit + Aushängen (Fake), falsches Kennwort, wieder öffnen, normale Bibliothek unverändert, keine Spuren im AppData, Sicherheits-Check (Fake-Leser, hell/dunkel, im normalen Modus kein Reiter)", HiddenLibraryAsync).ConfigureAwait(true); // ADR-0049
         // Nach dem Katalogwechsel ist die normale Sitzung neu aufgebaut — die restlichen Schritte laufen mit deren Diensten
         await RunAfterHiddenLibraryAsync(async s =>

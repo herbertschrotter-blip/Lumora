@@ -190,3 +190,57 @@ durfte alle Kerne nutzen. In einer großen versteckten Bibliothek (rund 450 000 
 Kernen; die Galerie bekam so lange keine Vorschaubilder. Seit 0.5.31 nutzt `FaceClusterer` deshalb
 `BackgroundCpu.Options` (halbe Kerne). Das Gruppieren dauert dadurch etwas länger, die Bedienung bleibt flüssig.
 
+## Nachtrag 0.5.40 — Vorschaubilder auf Vorrat (2026-11-17)
+
+**Anlass:** Bisher entstanden Vorschaubilder nur für Angezeigtes (Galerie-Seite, Storys, Orte, Doppelte, Alben,
+App-Verbindung). Wer zum ersten Mal in einen großen Ordner blättert, wartet; die Galerie meldet dabei Vordergrund-Vorrang an
+und hält alle Hintergrund-Aufgaben an.
+
+**Entscheidung:**
+- Neue Aufgabe der Datei-Spur **`BackgroundJob.ThumbnailStock`** („Vorschaubilder auf Vorrat“) mit **Vorrang 4**, nach den
+  Prüfsummen: `ThumbnailStockService` (`Services/Thumbnails`) erstellt still nach und nach die Vorschaubilder aller lokalen
+  Fotos und Videos. Fotos zuerst, dann Videos, je nach FileId; Archive nie. Offen ist eine Datei, die nicht „fehlt“ und kein
+  gültiges Vorschaubild der aktuellen Größe hat (keine Zeile, „Generated“ für eine andere Dateiversion, Pending/Stale/Failed
+  außer endgültig gescheitert wie bei der Galerie). Ohne FFmpeg zählen Videos nicht als offen.
+- **Kein zweiter Renderer:** `IThumbnailService.CreateStockAsync` erzeugt das Vorschaubild sofort auf dem Thread des
+  Aufrufers — gleicher Renderer, gleiche Cache-Datei `{fileId}_400_still.jpg`, gleicher DB-Status, gleiches
+  `ThumbnailReady`. Er geht nicht durch die Warteschlange, zählt nicht in `PendingCount` und nicht als Vordergrund-Arbeit.
+  Der gemeinsame In-Memory-Zustand verhindert Doppelarbeit mit Galerie und Pflege; vor dem Rendern prüft ein Zugriff über
+  den Primärschlüssel, ob die Zeile inzwischen gültig ist.
+- **Spur je Datei abgeben:** Vor jeder Datei prüft der Vorrat, ob er weiter darf. Er gibt ab, sobald
+  - Galerie oder Pflege Vorschaubilder eingereiht haben (`PendingCount` > 0; Wartegrund „wartet — zuerst angeforderte
+    Vorschaubilder“),
+  - der Planer ihn anhält (Pause, „Alle pausieren“, Einlesen, Katalog-Umzug, `IForegroundWork` wie Lightbox, Galerie,
+    Verbessern),
+  - oder eine wichtigere Dateiaufgabe auf die Spur wartet — neu `IBackgroundPlanner.HasWaitingAhead(job)`.
+
+  Die übrigen Dateidienste geben die Spur weiterhin am Stapelende ab.
+- **Nie ein Download:** Fehlende Dateien, Dateien unter nicht erreichbaren Wurzeln und Cloud-Platzhalter
+  (`ThumbnailService.IsLocallyAvailable`) werden ohne Dateizugriff übersprungen. Es entsteht dabei auch keine DB-Zeile.
+  Als nicht lokal erkannte Dateiversionen merkt sich der Dienst 30 Minuten. Folgende Durchgänge nach einem Einlesen
+  fragen so nicht jedes Mal alle Platzhalter neu ab.
+- **Lesen passend zum Laufwerk:** Fotos gleichzeitig nach `ReadParallelism`, höchstens `BackgroundCpu.MaxThreads`, mit
+  niedriger Thread-Priorität wie bisher; Videos einzeln (FFmpeg, ADR-0007). Stapel zu 32 Dateien.
+- **Auslöser:** erster Durchgang 60 s nach dem Start, danach nach jedem Einlesen, wenn Dateien dazukommen und nach „Cache
+  leeren“ (`ThumbnailCacheClearedMessage`). Ist der Vorschaubild-Dienst angehalten (Katalog-Umzug), stellt er die Datei
+  zurück; sie kommt danach noch einmal dran.
+- **Grenze:** Eine außerhalb von Lumora gelöschte Cache-Datei mit gültiger Zeile erkennt nur die Galerie beim Anzeigen. Der
+  Vorrat prüft keine Dateien im Cache, damit ein Durchgang über 500 000 Zeilen keinen Dateizugriff je Zeile braucht.
+- **Schalter je Katalog:** Einstellungen › Speicher & Wartung › Vorschaubilder › „Vorschaubilder auf Vorrat erstellen“,
+  Standard an, gespeichert in der Settings-Tabelle (`thumbnails.stock.enabled`). „Aus“ beendet einen laufenden Durchgang nach
+  den Dateien, die gerade entstehen. Die versteckte Bibliothek hat ihren eigenen Schalter. Sie schreibt wie die Galerie nur
+  in ihren eigenen Vorschaubild-Cache im Container.
+- **Aktivitäts-Anzeige:** eigener Eintrag „Vorschaubilder auf Vorrat“ mit Fortschritt, Restzeit und Pause/Fortsetzen über den
+  Planer, wie die übrigen Dateidienste. Im Protokoll stehen nur Zahlen.
+
+**Folgen:** Galerie, Storys und Orte zeigen nach einiger Zeit überall sofort Bilder. Der Cache wächst auf die volle Größe
+(≈ 5,5 GB je 100 000 Fotos, PLAN Kap. 13), statt nur auf das bisher Angesehene. Auf einer Festplatte liest der Vorrat
+eine Datei nach der anderen, nur wenn nichts anderes ansteht. Die Pflege (ältere Größen ersetzen) geht vor, weil sie
+`PendingCount` belegt.
+
+**Referenzen:** `src/Lumora.Services/Thumbnails/ThumbnailStockService.cs`, `ThumbnailService.Stock.cs`,
+`ThumbnailStockSettingsStore.cs`, `ThumbnailStockServiceCollectionExtensions.cs`;
+`src/Lumora.Wpf/Settings/ThumbnailStock/ThumbnailStockSettingsViewModel.cs`. Tests:
+`tests/Lumora.Tests/Thumbnails/ThumbnailStockTests.cs`, `tests/Lumora.Tests/Activity/ThumbnailStockActivityTests.cs`,
+`tests/Lumora.Wpf.Tests/Settings/ThumbnailStockSettingsTests.cs`; Rauchtest-Schritt „Vorschaubilder auf Vorrat“.
+

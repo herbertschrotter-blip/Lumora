@@ -168,6 +168,7 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <ui:TextBlock Grid.Row="0" Grid.ColumnSpan="3" Style="{StaticResource SectionTitle}" Text="Vorschaubilder (Thumbnail-Cache)" />
 
@@ -184,6 +185,19 @@
                     </StackPanel>
                     <ui:Button Grid.Row="2" Grid.Column="2" Content="Cache leeren" Icon="{ui:SymbolIcon Broom24}"
                                Command="{Binding ClearThumbnailCacheCommand}" Margin="12,2" />
+
+                    <!-- 0.5.40: Vorschaubilder auf Vorrat (je Katalog, Standard an); DataContext = ThumbnailStockSettingsViewModel (SettingsPage) -->
+                    <StackPanel x:Name="ThumbnailStockPanel" Grid.Row="3" Grid.ColumnSpan="3" Margin="0,10,0,0" Visibility="Collapsed">
+                        <ui:ToggleSwitch Content="Vorschaubilder auf Vorrat erstellen"
+                                         IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                                         AutomationProperties.Name="Vorschaubilder auf Vorrat erstellen" />
+                        <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
+                                   Text="Erstellt im Hintergrund nach und nach die Vorschaubilder aller Fotos und Videos dieses Katalogs, damit Galerie, Storys und Orte später sofort Bilder zeigen. Läuft nur, wenn sonst nichts zu tun ist, und pausiert beim Blättern, beim Einlesen und während anderer Arbeiten. Fotos, die nur online liegen (z. B. OneDrive), und nicht erreichbare Laufwerke werden übersprungen — es wird nichts heruntergeladen. Fortschritt und Pause in der Aktivitäts-Anzeige." />
+                        <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" MaxWidth="760" HorizontalAlignment="Left"
+                                   Foreground="{DynamicResource SystemFillColorCautionBrush}"
+                                   Text="{Binding StatusText}"
+                                   Visibility="{Binding StatusText, Converter={StaticResource NullToVis}}" />
+                    </StackPanel>
                 </Grid>
             </Border>
 

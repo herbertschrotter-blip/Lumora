@@ -18,8 +18,11 @@ public enum BackgroundJob
     Motifs,
     Stories,
 
-    /// <summary>SHA-256 aller Fotos und Videos im Leerlauf (App-Verbindung, Wiederfinden) — niedrigster Vorrang der Datei-Spur.</summary>
+    /// <summary>SHA-256 aller Fotos und Videos im Leerlauf (App-Verbindung, Wiederfinden) — Vorrang 3 der Datei-Spur.</summary>
     Checksums,
+
+    /// <summary>Vorschaubilder auf Vorrat für alle lokalen Fotos und Videos (0.5.40) — niedrigster Vorrang der Datei-Spur, nach den Prüfsummen.</summary>
+    ThumbnailStock,
 }
 
 /// <summary>Warum eine Aufgabe gerade nicht arbeitet.</summary>
@@ -56,7 +59,8 @@ public sealed record BackgroundJobStateMessage(BackgroundJobState State);
 /// <summary>
 /// Hintergrund-Planer (ADR-0074): statt dass alle Dienste gleichzeitig dieselben Dateien lesen, vergibt er
 /// <b>eine Datei-Spur</b> nach Vorrang — erst die Metadaten (Aufnahmedatum, Orte, Genauigkeit; abwechselnd Stapel um Stapel
-/// über dieselben Dateien), dann Doppelte, dann Foto-Güte, zuletzt die Prüfsummen aller Dateien (Leerlauf). Gesichter, Motive und Storys brauchen die Spur nicht (Grafikkarte
+/// über dieselben Dateien), dann Doppelte, dann Foto-Güte, dann die Prüfsummen aller Dateien (Leerlauf), zuletzt die Vorschaubilder
+/// auf Vorrat (0.5.40). Gesichter, Motive und Storys brauchen die Spur nicht (Grafikkarte
 /// bzw. Katalog), halten aber wie alle beim Einlesen, beim Katalog-Umzug und bei Pause an. Seit 0.5.12 hat Arbeit, auf die
 /// der Benutzer wartet, Vorrang (<see cref="IForegroundWork"/>): braucht sie die Grafikkarte, warten Gesichter und Motive;
 /// braucht sie den Prozessor, warten alle.
@@ -75,6 +79,12 @@ public interface IBackgroundPlanner
     /// <summary>Darf <paramref name="job"/> gerade arbeiten (nicht pausiert, kein Einlesen, kein Katalog-Umzug, kein Vorrang)? Für
     /// Aufgaben, die liegengebliebene Arbeit selbst später nachholen, statt zu warten.</summary>
     bool CanRun(BackgroundJob job);
+
+    /// <summary>
+    /// Wartet eine Aufgabe der Datei-Spur mit höherem Vorrang als <paramref name="job"/>, die arbeiten dürfte (nicht pausiert,
+    /// nicht gesperrt)? Für Aufgaben, die die Spur je Datei abgeben statt am Stapelende (Vorschaubilder auf Vorrat, 0.5.40).
+    /// </summary>
+    bool HasWaitingAhead(BackgroundJob job) => false;
 
     BackgroundJobState GetState(BackgroundJob job);
 
@@ -107,6 +117,7 @@ public sealed class BackgroundPlanner : IBackgroundPlanner, IDisposable
         [BackgroundJob.Duplicates] = 1,
         [BackgroundJob.Quality] = 2,
         [BackgroundJob.Checksums] = 3,
+        [BackgroundJob.ThumbnailStock] = 4, // 0.5.40: Vorschaubilder auf Vorrat, nur wenn alle anderen nichts lesen wollen
     };
 
     private readonly IScanGate? _scanGate;
@@ -161,6 +172,20 @@ public sealed class BackgroundPlanner : IBackgroundPlanner, IDisposable
         lock (_lock)
         {
             return !_paused.Contains(job) && Block(job) == BackgroundWait.None;
+        }
+    }
+
+    public bool HasWaitingAhead(BackgroundJob job)
+    {
+        if (!FileLanePriority.TryGetValue(job, out var own))
+        {
+            return false;
+        }
+
+        lock (_lock)
+        {
+            return _waiters.Any(w => FileLanePriority.TryGetValue(w.Job, out var other) && other < own
+                                     && !_paused.Contains(w.Job) && Block(w.Job) == BackgroundWait.None);
         }
     }
 
@@ -475,6 +500,7 @@ public static class JobNames
         BackgroundJob.Motifs => "Motive",
         BackgroundJob.Stories => "Storys",
         BackgroundJob.Checksums => "Prüfsummen",
+        BackgroundJob.ThumbnailStock => "Vorschaubilder auf Vorrat",
         _ => job.ToString(),
     };
 }
