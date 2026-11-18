@@ -3,6 +3,22 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.49] — 2026-11-18
+
+### Services + Wpf — Einstellungen › Zusammenfügen: gleichzeitiges Speichern
+- Der Rauchtest auf 0.5.48 zeigte beim Schritt „Versteckte Bibliothek“ (frischer Katalog) `UNIQUE constraint failed: Settings.Key`
+  für `merge.panorama.sphereForm`: zwei Speichervorgänge (Fenster merkt Kugel-Form bzw. Farbe, die Einstellungs-Seite speichert
+  alles) suchten gleichzeitig den Schlüssel, fanden ihn nicht und legten ihn beide an. Die App lief weiter, der zweite
+  Schreibvorgang ging verloren, im Protokoll stand ein ERR.
+- `MergeSettingsStore` schreibt jeden Schlüssel jetzt in einem Befehl (`INSERT … ON CONFLICT(Key) DO UPDATE`), „Alles speichern“
+  in einer Transaktion; `MergeSettingsViewModel` speichert nacheinander (der letzte Stand gewinnt).
+- Test `MergeSettingsStoreTests`: 24 gleichzeitige Speicher-/Merk-Vorgänge auf leerem Katalog (vorher rot), Merken schreibt nur
+  den eigenen Schlüssel.
+
+### Offen
+- Dasselbe Muster (Suchen → Anlegen) haben ältere Einstellungs-Speicher (u. a. Verbessern, Doppelte, Motive, Ordnerüberwachung);
+  bisher ohne Befund, bei Gelegenheit gleich umstellen.
+
 ## [0.5.48] — 2026-11-18
 
 ### Services + Wpf — Zusammenfügen Stufe 1: Befunde aus der Prüfung (ADR-0078 Nachtrag 0.5.48)

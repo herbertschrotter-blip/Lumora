@@ -22,6 +22,9 @@ public sealed partial class MergeSettingsViewModel : ObservableObject, IDisposab
     private bool _loading = true;
     private CancellationTokenSource? _saveCts;
 
+    /// <summary>Ein Speichervorgang zur Zeit, in der Reihenfolge der Änderungen (der letzte Stand gewinnt).</summary>
+    private readonly SemaphoreSlim _saveGate = new(1, 1);
+
     public MergeSettingsViewModel(IMergeService service, ILogger<MergeSettingsViewModel>? logger = null)
     {
         _service = service;
@@ -183,17 +186,27 @@ public sealed partial class MergeSettingsViewModel : ObservableObject, IDisposab
         }
     }
 
-    public Task SaveNowAsync()
-        => _service.SaveSettingsAsync(new MergeSettings(
-            SphereBand ? MergeSphereForm.Band : MergeSphereForm.Full,
-            UseSubfolder ? MergeSaveLocation.Subfolder : MergeSaveLocation.NextToFirst,
-            SubfolderName,
-            PanoramaSuffix,
-            Math.Clamp(JpegQuality, 50, 100),
-            CopyCommonTags,
-            CopyRating,
-            DroneFolderOneUp,
-            Math.Clamp(ColorBoost, MergeLimits.ColorBoostOff, MergeLimits.ColorBoostMax)));
+    public async Task SaveNowAsync()
+    {
+        await _saveGate.WaitAsync().ConfigureAwait(true);
+        try
+        {
+            await _service.SaveSettingsAsync(new MergeSettings(
+                SphereBand ? MergeSphereForm.Band : MergeSphereForm.Full,
+                UseSubfolder ? MergeSaveLocation.Subfolder : MergeSaveLocation.NextToFirst,
+                SubfolderName,
+                PanoramaSuffix,
+                Math.Clamp(JpegQuality, 50, 100),
+                CopyCommonTags,
+                CopyRating,
+                DroneFolderOneUp,
+                Math.Clamp(ColorBoost, MergeLimits.ColorBoostOff, MergeLimits.ColorBoostMax))).ConfigureAwait(true);
+        }
+        finally
+        {
+            _saveGate.Release();
+        }
+    }
 
     public void Dispose()
     {

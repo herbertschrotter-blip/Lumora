@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
-using Lumora.Domain.Entities;
 using Lumora.Services.Database;
 
 namespace Lumora.Imaging.Merge;
@@ -61,6 +60,7 @@ public sealed class MergeSettingsStore(ILibraryContextFactory factory) : IMergeS
     {
         ArgumentNullException.ThrowIfNull(settings);
         await using var ctx = factory.Create();
+        await using var tx = await ctx.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
         await UpsertAsync(ctx, SphereFormKey, settings.SphereForm.ToString(), ct).ConfigureAwait(false);
         await UpsertAsync(ctx, LocationKey, settings.Location.ToString(), ct).ConfigureAwait(false);
         await UpsertAsync(ctx, SubfolderKey, MergeNaming.CleanFolderName(settings.SubfolderName), ct).ConfigureAwait(false);
@@ -70,21 +70,19 @@ public sealed class MergeSettingsStore(ILibraryContextFactory factory) : IMergeS
         await UpsertAsync(ctx, CopyRatingKey, settings.CopyRating ? "true" : "false", ct).ConfigureAwait(false);
         await UpsertAsync(ctx, DroneOneUpKey, settings.DroneFolderOneUp ? "true" : "false", ct).ConfigureAwait(false);
         await UpsertAsync(ctx, ColorBoostKey, ClampBoost(settings.ColorBoost).ToString(CultureInfo.InvariantCulture), ct).ConfigureAwait(false);
-        await ctx.SaveChangesAsync(ct).ConfigureAwait(false);
+        await tx.CommitAsync(ct).ConfigureAwait(false);
     }
 
     public async Task RememberSphereFormAsync(MergeSphereForm form, CancellationToken ct = default)
     {
         await using var ctx = factory.Create();
         await UpsertAsync(ctx, SphereFormKey, form.ToString(), ct).ConfigureAwait(false);
-        await ctx.SaveChangesAsync(ct).ConfigureAwait(false);
     }
 
     public async Task RememberColorBoostAsync(int percent, CancellationToken ct = default)
     {
         await using var ctx = factory.Create();
         await UpsertAsync(ctx, ColorBoostKey, ClampBoost(percent).ToString(CultureInfo.InvariantCulture), ct).ConfigureAwait(false);
-        await ctx.SaveChangesAsync(ct).ConfigureAwait(false);
     }
 
     private static int ClampBoost(int percent) => Math.Clamp(percent, MergeLimits.ColorBoostOff, MergeLimits.ColorBoostMax);
@@ -99,18 +97,12 @@ public sealed class MergeSettingsStore(ILibraryContextFactory factory) : IMergeS
     private static bool ReadBool(Dictionary<string, string?> rows, string key, bool fallback)
         => rows.TryGetValue(key, out var text) && bool.TryParse(text, out var value) ? value : fallback;
 
-    private static async Task UpsertAsync(Lumora.Data.LibraryContext ctx, string key, string value, CancellationToken ct)
-    {
-        var row = await ctx.Settings.FindAsync([key], ct).ConfigureAwait(false);
-        if (row is null)
-        {
-            ctx.Settings.Add(new Setting { Key = key, Value = value });
-        }
-        else
-        {
-            row.Value = value;
-        }
-    }
+    /// <summary>
+    /// Ein Schlüssel in einem Befehl (INSERT … ON CONFLICT): zwei gleichzeitige Speichervorgänge — Fenster und Einstellungen,
+    /// zwei schnelle Änderungen — scheitern sonst mit „UNIQUE constraint failed: Settings.Key“ (Rauchtest 0.5.48).
+    /// </summary>
+    private static Task<int> UpsertAsync(Lumora.Data.LibraryContext ctx, string key, string value, CancellationToken ct)
+        => ctx.Database.ExecuteSqlAsync($"INSERT INTO Settings (Key, Value) VALUES ({key}, {value}) ON CONFLICT(Key) DO UPDATE SET Value = excluded.Value;", ct);
 }
 
 /// <summary>Zielname und Zielordner des Ergebnisses (ADR-0078 Punkt 10): <c>&lt;erstes Bild&gt;_panorama.jpg</c> neben dem ersten Einzelbild.</summary>
