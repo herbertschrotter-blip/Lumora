@@ -530,6 +530,36 @@ kommt in den Papierkorb).
   (Apache-2.0, ≈ 340 MB; braucht zum Finden der Gesichter die Gesichtserkennung), DeOldify artistic (MIT, ≈ 255 MB),
   LaMa (Apache-2.0, ≈ 210 MB). In einer versteckten Bibliothek bleiben Zwischenstände und Ergebnisse im Container.
 
+### Zusammenfügen — Panorama aus mehreren Fotos (seit 0.5.47, ADR-0078 Stufe 1)
+Aus überlappenden Fotos wird ein Panorama; die Einzelbilder bleiben Byte für Byte unverändert, das Ergebnis ist eine neue Datei
+neben dem ersten Einzelbild (`<erstes Bild>_panorama.jpg`) mit Rückgängig.
+- **Starten:** Fotos wählen, Rechtsklick „Bearbeiten ▸ n Fotos zusammenfügen…“ (Galerie, Listenansicht) oder
+  **Zusammenfügen…** in der Aktionsleiste (ab 2 gewählten). Bei **einem** Foto (auch in der Lightbox, damit auch aus Alben und
+  Storys) zeigt das Fenster die Zeit-Nachbarn (gleicher Ordner, gleiche Kamera, ± 2 min) — noch nicht angehakt. Fotos aus
+  verschiedenen Bibliotheken lassen sich nicht zusammenfügen (Eintrag gesperrt, Grund im Tooltip). Kein Tastenkürzel.
+- **Fenster:** links die Verfahren (Stufe 1: nur Panorama, die übrigen „kommt später“) mit „Warum dieser Vorschlag“, in der
+  Mitte die Vorschau (Zoom/Verschieben; bei „Gerade Kanten“ das ganze Panorama abgedunkelt mit Zuschnitt-Rahmen und
+  schraffierten Lücken), unten der Filmstreifen mit Haken und Marken („nicht eingebunden“, „nur OneDrive“, „fehlt“), rechts
+  die Optionen: Aufnahmeart als Kacheln (Automatisch, Kugel 360°, Zylinder, Perspektive, Vertikal, Nur verschieben — umschalten
+  richtet nicht neu aus), Kugel 360° als **Horizontstreifen** oder **2 : 1**, Zuschnitt (Gerade Kanten ohne ein gefülltes
+  Pixel | Lücken füllen | Ungeschnitten), Belichtung ausgleichen, **Farbe kräftiger** 0–150 % (Aus = treu zu den Quellen,
+  Standard 100 = Buntheit wie Photoshop; der Regler tont nur neu und wird gemerkt), Größe (volle Auflösung; reicht der
+  Speicher nicht, die größte passende Stufe mit Grund). Nicht speicherbare Ergebnisse (gekippte Kette, zu wenig Überlappung)
+  zeigt das Fenster mit Grund — gespeichert wird nur, was die Prüfung besteht.
+- **Speichern:** „Als neue Datei speichern“ mit Schätzung (Zeit, Größe, Arbeitsspeicher), Schrittliste und **Im Hintergrund
+  weiterrechnen** (gibt den Vorrang zurück, Fortschritt in der Aktivitäts-Anzeige mit „Öffnen“ und „Rückgängig“). Die
+  Fertig-Ansicht zeigt „aus n Fotos zusammengefügt“ und bietet Öffnen, In der Galerie zeigen, Rückgängig, Danach verbessern…
+  und Im Explorer zeigen (versteckte Bibliothek: gesperrt). Übernommen werden Zeit, Ort samt Höhe, Kamera, die höchsten
+  Sterne, Favorit und gemeinsame Tags; gestartet aus einem eigenen Album, kommt das Ergebnis auch dorthin.
+- **Danach:** Galerie-Marke **„Panorama · aus n Fotos“** (Klick: Ergebnis und Quellen in der Lightbox, Ergebnis zuerst);
+  Lightbox-Zeile „Zusammengefügt aus n Fotos · Quellen zeigen · Neu berechnen…“ und Info-Abschnitt „Zusammengefügt“;
+  Rechtsklick „Suchen ▸ Quellen“ bzw. „Suchen ▸ Zusammengefügtes Ergebnis“.
+- **Einstellungen › Zusammenfügen:** Farbe kräftiger, Kugel-Vorauswahl, Ablage (neben dem ersten Einzelbild oder im
+  Unterordner; Drohnen-Panorama-Ordner eine Ebene höher), Namenszusatz, JPEG-Qualität, Tags und Sterne/Favorit übernehmen,
+  Arbeitsspeicher und Rechen-Prozess. OpenCV rechnet in einem eigenen Prozess — stürzt er ab, läuft Lumora weiter.
+- **OneDrive:** liegen Fotos nur online, fragt das Fenster: „Herunterladen und fortfahren“, „Ohne diese Fotos“ oder
+  Abbrechen. In einer versteckten Bibliothek bleiben Zwischenstände und Ergebnis im Container.
+
 ### Diashow (seit 0.4.9, ADR-0059)
 Vollbild-Diashow ohne Musik auf dem Bildschirm des Hauptfensters, schwarz: Fotos blenden ineinander über und zoomen
 langsam (Ken Burns) auf die erkannten Gesichter, ohne Gesichter auf die Bildmitte — nie mit schwarzen Rändern. Unten links

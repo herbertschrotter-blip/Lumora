@@ -589,6 +589,11 @@ der Erkennung und dem Stapel (Stufe 2) bequem abarbeiten, und RAW, 16K und „Vo
 5. **Fokus-Stapel, Zeitraffer, HDR-Panorama**; Serien-Arten Fokusreihe, Intervall, Panorama-Belichtungsreihe.
 6. **Bestes Gruppenfoto** (zuletzt, aufwendigstes). Danach Abschluss der Welle mit MINOR-Sprung.
 
+> Die Abnahme 2026-11-18 ergänzt diese Liste (Nr. 2, 3 und 9): Stufe 3 enthält zusätzlich die Wahl „Mit Hugin rechnen“ und die
+> eigene 16-bit-Entwicklung der DNG; danach folgt eine eigene Stufe 3b (360°-Rundum-Ansicht in der Lightbox); die
+> Einzelbild-Werkzeuge Geraderichten, Perspektive und Himmel kommen nach Stufe 6. Stufe 1 ist gebaut (0.5.46 Teil A, 0.5.47
+> Teil B).
+
 ### 20. Ausblick (nicht Teil dieses Vorhabens)
 
 - Einzelbild-Werkzeuge Geraderichten, Perspektive, Himmel verbessern in „Foto verbessern“ (Punkt 16).
@@ -964,3 +969,79 @@ Rauchtest-Schritt) setzt auf die Schnittstellen unten. Entscheidungen beim Bau, 
     `ActivityAction.ShowResult(FileIds)`. Farbverstärkung: `MergeOptions.ColorBoost` (Prozent 0–150, null = zuletzt gewählt),
     `MergeSettings.ColorBoost` (Einstellung `merge.colorBoost`, erstes Mal 100), `IMergeSettingsStore.RememberColorBoostAsync`,
     Rezept-Feld `colorBoost`. Schließen der Sitzung bricht eine laufende Vorschau ab; ein laufendes Speichern rechnet zu Ende.
+
+## Nachtrag 0.5.47 — Bau Stufe 1 Teil B (Claude; Fenster, Menüs, Marke, Lightbox, Einstellungen, Fix Zuschnitt)
+
+Teil B baut die Oberfläche auf den Schnittstellen aus Teil A (Nachtrag 0.5.46 Nr. 13). Entscheidungen beim Bau, wo der Text
+oben offen war oder abweicht:
+
+1. **Fix Zuschnitt „Gerade Kanten“.** Ursache der hellen Flecken links und rechts an der unteren Kante (Handy-Schwenk): der
+   Zuschnitt aus Spike 20 dehnte die Deckungsmaske um 3 % der Höhe, schloss sie mit 5 × 5 und füllte die so gewonnenen Ränder
+   per Inpaint (¼ Maßstab, weich hochgerechnet); beim Horizontstreifen galten Zeilen mit 97 % Deckung als voll. Jetzt kommt das
+   Rechteck aus der **echten Deckungsmaske nach dem Überblenden** (ohne Schließen, ohne Dehnen) abzüglich eines Sicherheitsrands
+   von 0,05 % der kurzen Seite (mindestens 2 px; beim 360°-Streifen links/rechts übergreifend): größtes Rechteck auf voll
+   gedeckten Blöcken (≤ 1/8 verkleinert), danach pixelgenau nachgezogen, bis kein ungedecktes Pixel mehr darin liegt;
+   Horizontstreifen nur aus voll gedeckten Zeilen; nichts wird gefüllt. Bleibt nichts übrig, zeigt die Vorschau ungeschnitten und
+   die Prüfung meldet „zu wenig Bildhöhe“. Neues Maß `QualityCheck.UncoveredPixels` (ungedeckte Pixel im Zuschnitt vor jedem
+   Füllen; „Gerade Kanten“ = 0). Tests (synthetisch): welliger Schwenk mit Roll- und Neigungsfehlern — „Lücken füllen“ > 1 000
+   ungedeckte Pixel, „Gerade Kanten“ 0 und kein schwarzes Pixel an den vier Kanten; Kanten-Nachziehen mit Ecke, Kerbe und Loch
+   (ein Loch im Inneren kostet nur den Streifen um dieses Loch, verstreute Löcher werden einzeln abgeschnitten);
+   Horizontstreifen der Kugel 0. Nachgerechnet mit dem Harness (volle Auflösung, Kennzahlen außerhalb des Repos in
+   `werkzeuge\runs\stufe1-vergleich`, alter Stand unter `vor-fix-0.5.46`; Ecken vergrößert geprüft):
+
+   | Serie | Größe vorher → nachher | ungedeckt im Zuschnitt | L* Std | C* Mittel | ΔE zu Photoshop (Standard / aus) |
+   |---|---|---|---|---|---|
+   | Handy-2 | 14 102 × 5 462 → 13 892 × 5 069 (70 MP) | 0 | 19,7 | 34,0 | 4,4 / 6,1 |
+   | Drohne-360-A | 27 182 × 6 200 → 27 182 × 6 172 (168 MP) | 0 | 19,0 | 31,8 | 2,8 / 3,7 |
+
+   Farbe und Kontrast bleiben praktisch gleich (vorher 19,7 / 34,1 / 4,4 bzw. 19,0 / 31,9 / 2,7); Handy-2 verliert die gefüllten
+   Ränder (≈ 7 % Höhe), die Drohne 28 Zeilen.
+2. **Bühne mit Zuschnitt-Rahmen und schraffierten Lücken.** Bei „Gerade Kanten“ schreibt der Hilfsprozess zur Vorschau
+   zusätzlich das ungeschnittene Panorama (Lücken grau schraffiert) und die Lage des Zuschnitts (`ComposeRequest.FramePath`,
+   `ComposeResult.Frame`, `MergePreview.Frame`); die Bühne zeigt es abgedunkelt mit Rahmen und legt die getönte Vorschau in den
+   Zuschnitt — so wirkt der Regler „Farbe kräftiger“ sofort, der Rahmen bleibt beim Neu-Tonen. „Ungeschnitten“ zeigt die
+   Lücken in der Vorschau schraffiert; gespeichert wird nie mit Schraffur. Zoom/Verschieben über das `ZoomPanControl` der
+   Lightbox.
+3. **Fenster** (`Wpf/Merge/MergeWindow`, `MergeViewModel`): eines je Sitzung, nicht modal, Owner das Hauptfenster (überlebt die
+   Lightbox); ein neuer Start ersetzt ein offenes Fenster, solange es nicht speichert. Haken im Filmstreifen starten nach kurzer
+   Pause eine neue Vorschau-Sitzung (neu ausrichten; bis dahin ist Speichern gesperrt); Aufnahmeart, Kugel-Form, Zuschnitt und Belichtung setzen in derselben
+   Sitzung neu zusammen; der Regler tont nur neu (`UpdateAsync` mit gleicher Geometrie) und merkt die Stärke sofort
+   (`SaveSettingsAsync`), die Kugel-Form ebenso. Schließen während des Speicherns wirkt wie „Im Hintergrund weiterrechnen“.
+   Rückgängig in der Fertig-Ansicht führt zurück zur Vorschau (nochmals speichern geht).
+4. **„Warum dieser Vorschlag“** in Stufe 1 ohne Klassifizierer (der kommt mit Stufe 2): Belege aus der Auswahl (Zahl,
+   Zeitspanne, Kamera) und nach der Vorschau aus der Ausrichtung (eingebunden, vorgeschlagene Aufnahmeart, Gimbal, geschätzte
+   Brennweite, Photometrie).
+5. **Größe:** volle Auflösung als Standard; ist sie nicht machbar, steht sie ausgegraut mit Grund und Zahl, darunter die größte
+   passende Stufe (aus `IMergePreviewSession.Estimate`). Keine Größenwahl, Quelle immer JPEG (Stufe 3); Hochskalieren
+   ausgegraut „kommt später“.
+6. **Start-Wege:** „Bearbeiten ▸“ direkt nach „… verbessern…“: „Zusammenfügen…“ bzw. „n Fotos zusammenfügen…“ in Kachel,
+   Listenzeile und Lightbox; Aktionsleiste ab 2 gewählten. Gesperrt mit Grund im Tooltip bei gemischten Bibliotheken, nur
+   Videos/Archiv-Einträgen/fehlenden Dateien, fehlendem Rechen-Prozess (bekannt nach dem ersten Start — die Prüfung startet
+   einen Hilfsprozess und läuft deshalb nicht beim App-Start) und während ein Speichern läuft. „Serie mit n Fotos…“ kommt mit
+   Stufe 2. Die Lightbox bekommt das Album der Galerie über `ILightboxService.SetAlbumContext` vor `Open` (nur die Galerie setzt
+   es; aus Story oder Orte geöffnet ohne Album).
+7. **Ergebnis-Marke** „Panorama · aus n Fotos“ als Knopf über der Endung (über „2 Fassungen“), je Seite gebündelt
+   (`IMergedPhotoStore.GetMarksAsync`), nach `MergeSavedMessage` nachgetragen; Tooltip nennt nicht mehr vorhandene Quellen.
+8. **Lightbox:** eigene Zeile unter dem Bild (eigene Zeile des Fensters statt im Overlay: kollidiert nicht mit dem
+   OneDrive-Hinweis und der Video-Leiste), Info-Abschnitt „Zusammengefügt“ (Verfahren, Aufnahmeart samt Form, Zuschnitt, Farbe
+   kräftiger, Quelle, Quellen davon nicht mehr vorhanden, erstellt mit). „Quellen zeigen“ öffnet Ergebnis und Quellen ab dem
+   ersten Einzelbild, „Neu berechnen…“ das Fenster mit den noch vorhandenen Quellen und den Optionen aus dem Rezept.
+9. **Suchen ▸** „Quellen“ (Bedingung „Quellen von …“, Ergebnis eingeschlossen) bzw. „Zusammengefügtes Ergebnis“ (Bedingung
+   „zusammengefügt aus …“). **Aktivität:** Knopf „Öffnen“/„Ergebnisse zeigen“ in Liste und Meldung
+   (`IActivityNavigator.ShowFiles`; ein Ergebnis öffnet mit seinen Quellen).
+10. **Einstellungen › Zusammenfügen** (Reiter nach „Verbessern“, `NavigationTags.SettingsMerge`): Farbe kräftiger, Kugel-
+    Vorauswahl, Ablage (neben dem ersten Einzelbild | Unterordner; Drohnen-Ordner eine Ebene höher), Namenszusatz,
+    JPEG-Qualität, Tags und Sterne/Favorit, Arbeitsspeicher, Zustand des Rechen-Prozesses; Serien, Stapel, RAW/TIFF und Hugin als
+    „kommt später“.
+11. **Versteckte Sitzung / OneDrive:** Vorschau, Rahmen und Ergebnis liegen im Temp-Ordner des Katalogs (Container) und werden
+    ohne Dateisperre in den Speicher geladen; „Im Explorer zeigen“ ist gesperrt. Platzhalter: Rückfrage „Herunterladen und
+    fortfahren“ / „Ohne diese Fotos“ / Abbrechen (schließt das Fenster); Filmstreifen-Vorschaubilder von Platzhaltern nur aus dem
+    Cache.
+12. **Abweichungen vom Mockup 28** (nachgezogen in den Ansichten 4, 5, 11, 14, 15): keine Wahl JPEG/RAW (Stufe 3), kein Schalter
+    „Horizont gerade“ (Wellenkorrektur immer an), keine Überlagerungen „Nähte“/„Raster“ (die Vorschau hat keine Nahtdaten) —
+    stattdessen der Schalter „Zuschnitt und Lücken“; Filmstreifen ohne Rollen („R2 · 45°“), nur Uhrzeit bzw. Abstand zum
+    gestarteten Foto; kein Knopf „Neues Zusammenfügen“ in der Fertig-Ansicht.
+13. **Abnahme-Läufe Stufe 1 (Punkt 19):** Handy-Schwenk (Handy-2, 25 Fotos) ergibt Vorschau und Panorama (oben). Für den
+    9-Bilder-Weitwinkel (3 × 3) und den Vertikal-Schwenk gibt es in Spike 20 keine Quellen (dort nur Handy-1 bis -3 und die
+    Drohnen-Kugeln A/B; „nicht gemessen: 3 × 3, Vertikal“) — dieser Abnahme-Lauf steht aus. Rauchtest-Schritt
+    `SmokeScenario.Merge.cs` mit zur Laufzeit gezeichneten, überlappenden Bildern (keine externen Assets).

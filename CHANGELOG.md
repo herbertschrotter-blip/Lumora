@@ -3,6 +3,62 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.47] — 2026-11-18
+
+### Wpf — Zusammenfügen Stufe 1 Teil B: Fenster, Menüs, Marke, Lightbox (ADR-0078)
+- **Fix Zuschnitt „Gerade Kanten“:** kein einziges gefülltes Pixel mehr. Bisher dehnte der Zuschnitt die Deckungsmaske um 3 %
+  und füllte die Ränder per Inpaint — beim welligen Handy-Schwenk helle, verwischte Flecken links und rechts an der unteren
+  Kante. Jetzt Rechteck aus der echten Deckungsmaske nach dem Überblenden mit kleinem Sicherheitsrand, pixelgenau
+  nachgezogen; der 360°-Horizontstreifen nimmt nur voll gedeckte Zeilen. Neues Maß „ungedeckte Pixel im Zuschnitt“ in der
+  Prüfung (0 bei „Gerade Kanten“). Nachgerechnet: Handy-2 13 892 × 5 069 (vorher 14 102 × 5 462 mit Füllflecken),
+  Drohne-360-A 27 182 × 6 172; Farbe und Kontrast unverändert (C* 34,0 bzw. 31,8; ΔE zu Photoshop 4,4 bzw. 2,8).
+- **Fenster „Zusammenfügen“** (Mockup 28 Ansichten 5 und 11): links die Verfahren (nur Panorama gebaut, übrige „kommt in
+  Stufe n“) mit „Warum dieser Vorschlag“; Mitte die Bühne mit Zoom/Verschieben — bei „Gerade Kanten“ das ungeschnittene
+  Panorama abgedunkelt mit Zuschnitt-Rahmen und schraffierten Lücken, die getönte Vorschau im Rahmen —, Fortschritt der
+  Vorschau, Hinweis- und Warnstreifen (Prüfung vor dem Speichern mit Grund, nicht eingebundene Fotos); unten der Filmstreifen
+  mit Haken, Vorschaubildern und Marken („nicht eingebunden“, „nur OneDrive“, „fehlt“, „statt RAW“); rechts Aufnahmeart als
+  Kacheln mit Skizze und Vorschlag, Kugel 360° als Horizontstreifen oder 2 : 1 (letzte Wahl vorgewählt), Zuschnitt,
+  Belichtung, **Regler „Farbe kräftiger“ 0–150 %** mit „Aus“ und „Standard 100 %“ (tont nur neu, wird gemerkt), Größe (volle
+  Auflösung, sonst ausgegraut mit Grund und die größte passende Stufe), Hochskalieren „kommt später“.
+- **Speichern** mit Schätzung (Dauer, Größe, Arbeitsspeicher), Schrittliste mit Fortschritt und Restzeit, „Im Hintergrund
+  weiterrechnen“ (gibt den Vorrang zurück, schließt das Fenster), Abbrechen; **Fertig-Ansicht** mit „aus n Fotos
+  zusammengefügt“, Übernahme (höchste Sterne, Favorit, gemeinsame Tags), Öffnen, In der Galerie zeigen, Rückgängig (zurück zur
+  Vorschau), Danach verbessern…, Im Explorer zeigen (versteckte Sitzung: gesperrt). Gestartet aus einem eigenen Album: „auch ins
+  Album …“ (gesetzt). OneDrive-Platzhalter: Rückfrage „Herunterladen und fortfahren“ / „Ohne diese Fotos“ / Abbrechen.
+- **Start-Wege:** Rechtsklick „Bearbeiten ▸ Zusammenfügen…“ bzw. „n Fotos zusammenfügen…“ direkt nach „… verbessern…“ in
+  Kachel, Listenzeile und Lightbox (ein Foto → Zeit-Nachbarn im Filmstreifen, noch nicht angehakt); Aktionsleiste
+  „Zusammenfügen…“ ab 2 gewählten; gesperrt mit Grund bei gemischten Bibliotheken, nur Videos/Archiven/fehlenden Dateien oder
+  fehlendem Rechen-Prozess. Die Lightbox übernimmt das Album der Galerie (`ILightboxService.SetAlbumContext`).
+- **Galerie:** Ergebnis-Marke „Panorama · aus n Fotos“ (Klick: Ergebnis und Quellen in der Lightbox, Ergebnis zuerst), je Seite
+  gebündelt nachgetragen wie „2 Fassungen“; Kacheln bleiben Automation-Blätter.
+- **Lightbox:** Zeile „Zusammengefügt aus n Fotos · Panorama, … · Quellen zeigen · Neu berechnen…“ unter dem Bild und
+  Info-Abschnitt „Zusammengefügt“ (Verfahren, Aufnahmeart, Zuschnitt, Farbe kräftiger, Quellen davon nicht mehr vorhanden,
+  erstellt mit). „Neu berechnen…“ öffnet das Fenster mit den Quellen und dem Rezept (speichert als weitere Datei).
+- **Suchen ▸** „Quellen“ bei einem Ergebnis, „Zusammengefügtes Ergebnis“ bei einer Quelle.
+- **Aktivitäts-Anzeige:** Knopf „Öffnen“ bzw. „Ergebnisse zeigen“ in Liste und Meldung (`ActivityActionKind.ShowResult`);
+  Vorrang zeigt der Vorgang nur, solange gerechnet wird.
+- **Einstellungen › Zusammenfügen** (neuer Reiter nach „Verbessern“, Mockup 28 Ansicht 15): Farbe kräftiger, Kugel-Vorauswahl,
+  Ablage (neben dem ersten Einzelbild, Unterordner, Drohnen-Ordner eine Ebene höher), Namenszusatz, JPEG-Qualität, Tags und
+  Sterne/Favorit übernehmen, Arbeitsspeicher, Zustand des Rechen-Prozesses; Serien, Stapel, RAW und Hugin „kommt später“.
+- **Tests:** `tests/Lumora.Wpf.Tests/Merge/MergeUiTests.cs` (Fenster-ViewModel: Vorschau ab 2 Haken, Zeit-Nachbarn, Regler tont
+  nur neu und wird gemerkt, Aufnahmeart ohne neue Sitzung, Sperre bei gemischten Bibliotheken, Prüfung, Speichern/Fertig/
+  Rückgängig, Im Hintergrund weiterrechnen; Fenster und Einstellungen hell/dunkel ohne Binding-Fehler; Menü, Suchen ▸,
+  Ergebnis-Marke, Lightbox-Zeile, Sperrgründe, Aktivität „Öffnen“); `tests/Lumora.Imaging.Tests/Chain/StraightCropTests.cs`
+  (kein gefülltes Pixel, Kanten nachziehen, Rahmen der Bühne). Rauchtest-Schritt „Zusammenfügen“ (`SmokeScenario.Merge.cs`)
+  mit zur Laufzeit gezeichneten, überlappenden Bildern und echtem Rechen-Prozess.
+- Nebenbei: Lightbox-Einträge für Fassungen und Ergebnisse aus einem gemeinsamen Lader (`LightboxEntryLoader`, in Stücken zu
+  400 Ids); die Meldung „Panorama gespeichert“ nennt nur noch eine verkleinerte Größe, keine Rechen-Hinweise; das Rezept nennt
+  die App-Version; ein Neuladen der Galerie, das nach dem Schließen ihrer Quelle (Katalogwechsel) ankommt, wird verworfen statt
+  als Fehler protokolliert.
+- Doku: ADR-0078 Nachtrag 0.5.47 und Hinweis zu den Bau-Stufen, ADR-Übersicht, Mockup 28 (Stufe-1-Ansichten nachgezogen),
+  PLAN Kap. 3/7, README „Zusammenfügen“.
+
+### Offen
+- Abnahme-Lauf Stufe 1 mit einem 9-Bilder-Weitwinkel (3 × 3) und einem Vertikal-Schwenk: in Spike 20 gibt es dafür keine
+  Quellen — Herbert wählt je einen DJI-Ordner aus.
+- „Zusammenfügen“ in der versteckten Sitzung ist durch den Merge-Dienst-Test aus 0.5.46 (Temp im Container) und die gesperrte
+  Explorer-Schaltfläche abgedeckt, aber noch nicht als eigener Rauchtest-Schritt in der versteckten Bibliothek.
+
 ## [0.5.46] — 2026-11-18
 
 ### Imaging — Zusammenfügen Stufe 1 Teil A: Panorama-Kette, Hilfsprozess, Merge-Dienst (ADR-0078)

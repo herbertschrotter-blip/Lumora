@@ -62,6 +62,7 @@ public sealed class PhotoActions
     private readonly Gallery.CaptureDates.CaptureDateActions? _captureDates;
     private readonly Gallery.Places.PlaceActions? _places;
     private readonly Albums.AlbumActions? _albums;
+    private readonly Lumora.Services.Merge.IMergedPhotoStore? _mergedPhotos;
 
     public PhotoActions(
         IDialogService dialogs,
@@ -82,8 +83,10 @@ public sealed class PhotoActions
         ILibraryScope? scope = null,
         Gallery.CaptureDates.CaptureDateActions? captureDates = null,
         Gallery.Places.PlaceActions? places = null,
-        Albums.AlbumActions? albums = null)
+        Albums.AlbumActions? albums = null,
+        Lumora.Services.Merge.IMergedPhotoStore? mergedPhotos = null)
     {
+        _mergedPhotos = mergedPhotos;
         _captureDates = captureDates;
         _places = places;
         _albums = albums;
@@ -719,4 +722,51 @@ public sealed class PhotoActions
     public Task<RelatedPhotos?> DuplicatesAsync(int fileId) => _related?.DuplicatesAsync(fileId) ?? Task.FromResult<RelatedPhotos?>(null);
 
     public Task<RelatedPhotos?> SamePersonsAsync(int fileId) => _related?.SamePersonsAsync(fileId) ?? Task.FromResult<RelatedPhotos?>(null);
+
+    // ---- Suchen ▸ Quellen / Zusammengefügtes Ergebnis (ADR-0078) ------------------------------------------------------
+
+    /// <summary>Ist die Datei ein zusammengefügtes Ergebnis bzw. Quelle eines Ergebnisses?</summary>
+    public async Task<(bool IsResult, bool IsSource)> MergeRolesAsync(int fileId)
+    {
+        if (_mergedPhotos is null)
+        {
+            return (false, false);
+        }
+
+        try
+        {
+            var marks = await _mergedPhotos.GetMarksAsync([fileId]).ConfigureAwait(true);
+            var sources = await _mergedPhotos.GetSourceFileIdsAsync([fileId]).ConfigureAwait(true);
+            return (marks.ContainsKey(fileId), sources.Contains(fileId));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Zusammenfügen-Rollen von {FileId} nicht lesbar", fileId);
+            return (false, false);
+        }
+    }
+
+    /// <summary>„Suchen ▸ Quellen“: Ergebnis und seine noch vorhandenen Quellen.</summary>
+    public async Task<RelatedPhotos?> MergeSourcesAsync(int fileId, string name)
+    {
+        if (_mergedPhotos is null)
+        {
+            return null;
+        }
+
+        var sources = await _mergedPhotos.GetSourcesAsync(fileId).ConfigureAwait(true);
+        return sources.Count == 0 ? null : new RelatedPhotos(Lumora.Imaging.Merge.MergeTexts.SourcesLabel(name), [fileId, .. sources]);
+    }
+
+    /// <summary>„Suchen ▸ Zusammengefügtes Ergebnis“: die Quelle und die Ergebnisse, in die sie eingeflossen ist.</summary>
+    public async Task<RelatedPhotos?> MergeResultsAsync(int fileId, string name)
+    {
+        if (_mergedPhotos is null)
+        {
+            return null;
+        }
+
+        var results = await _mergedPhotos.GetResultsOfSourceAsync(fileId).ConfigureAwait(true);
+        return results.Count == 0 ? null : new RelatedPhotos(Lumora.Imaging.Merge.MergeTexts.ResultsLabel(name), [fileId, .. results]);
+    }
 }

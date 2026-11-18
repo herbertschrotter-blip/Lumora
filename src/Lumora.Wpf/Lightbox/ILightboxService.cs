@@ -39,4 +39,12 @@ public interface ILightboxService
     void ShowEnhancePanel()
     {
     }
+
+    /// <summary>
+    /// Album der Galerie für das nächste <c>Open</c> (ADR-0078 Punkt 7: „Zusammenfügen…“ in der Lightbox setzt „auch ins Album …“).
+    /// Gilt nur für den nächsten Aufruf; wer es nicht setzt (Story, Orte), öffnet ohne Album. Standard: keine Wirkung.
+    /// </summary>
+    void SetAlbumContext(int? albumId, string? albumName)
+    {
+    }
 }

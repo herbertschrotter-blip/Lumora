@@ -32,10 +32,23 @@ internal sealed class ComposeOutcome : IDisposable
     /// <summary>Hinweise ohne die von Tonwert-Angleich und Farbverstärkung.</summary>
     public List<string> BaseNotes { get; init; } = [];
 
+    /// <summary>
+    /// Pixel im Zuschnitt, die kein Einzelbild deckt (gemessen an der echten Deckungsmaske nach dem Überblenden, vor jedem
+    /// Füllen). „Gerade Kanten“ garantiert 0; „Lücken füllen“ füllt genau diese Pixel, „Ungeschnitten“ lässt sie schwarz.
+    /// </summary>
+    public long UncoveredInCrop { get; init; }
+
+    /// <summary>Vorschau-Sitzung bei „Gerade Kanten“: ungeschnittenes Panorama mit schraffierten Lücken (vor dem Look); sonst null.</summary>
+    public Mat? Frame { get; set; }
+
+    /// <summary>Lage des Zuschnitts in <see cref="Frame"/>.</summary>
+    public Rect FrameCrop { get; init; }
+
     public void Dispose()
     {
         Image.Dispose();
         Untoned?.Dispose();
+        Frame?.Dispose();
     }
 }
 
@@ -1006,7 +1019,7 @@ internal sealed class PanoComposer
             Mat? untoned = null;
             try
             {
-                var crop = CropAndFill(pano, panoMask, cs, out var cropFraction);
+                var crop = CropAndFill(pano, panoMask, cs, out var cropFraction, out var uncovered);
                 Mat result;
                 using (var view = new Mat(pano, crop))
                 {
@@ -1020,7 +1033,7 @@ internal sealed class PanoComposer
                 untoned = _keepUntoned ? pano.Clone() : null;
                 ApplyLook(pano, toneReference, _spec, _notes, _ct);
                 _progress(WorkerStep.Finish, 2, 2);
-                var check = Check(cropFraction, seamNcc);
+                var check = Check(cropFraction, seamNcc, uncovered);
                 return new ComposeOutcome
                 {
                     Image = pano,
@@ -1034,12 +1047,16 @@ internal sealed class PanoComposer
                     Untoned = untoned,
                     ToneReference = toneReference,
                     BaseNotes = baseNotes,
+                    UncoveredInCrop = uncovered,
+                    Frame = _frame,
+                    FrameCrop = _frameCrop,
                 };
             }
             catch
             {
                 pano.Dispose();
                 untoned?.Dispose();
+                _frame?.Dispose();
                 throw;
             }
             finally
@@ -1172,36 +1189,78 @@ internal sealed class PanoComposer
 
     // ------------------------------------------------------------------ Zuschnitt und Füllen
 
-    /// <summary>Zuschnitt nach Einstellung; füllt Lücken im Ausschnitt; liefert den Ausschnitt und seine Höhe gegenüber der Bildhöhe.</summary>
-    private Rect CropAndFill(Mat pano, Mat mask, double cs, out double cropFraction)
+    /// <summary>
+    /// Zuschnitt nach Einstellung; füllt Lücken im Ausschnitt nur bei „Lücken füllen“ (und den Polen der 2 : 1-Kugel); liefert
+    /// den Ausschnitt, seine Höhe gegenüber der Bildhöhe und die Zahl der ungedeckten Pixel darin. „Gerade Kanten“ bestimmt das
+    /// Rechteck aus der echten Deckungsmaske nach dem Überblenden (ohne Schließen, ohne Dehnen), abzüglich eines kleinen
+    /// Sicherheitsrands für Interpolation und Überblendung — der Ausschnitt enthält danach kein einziges gefülltes Pixel.
+    /// (Bis 0.5.46 dehnte der Zuschnitt die Maske um 3 % der Höhe und füllte die Ränder per Inpaint: helle Flecken an den Ecken.)
+    /// </summary>
+    private Rect CropAndFill(Mat pano, Mat mask, double cs, out double cropFraction, out long uncovered)
     {
-        using (var k5 = Cv2.GetStructuringElement(MorphShapes.Rect, new Size(5, 5)))
-        {
-            Cv2.MorphologyEx(mask, mask, MorphTypes.Close, k5);
-        }
-
+        using var raw = new Mat();
+        Cv2.Threshold(mask, raw, 0, 255, ThresholdTypes.Binary);
         Rect crop;
         if (_full360)
         {
+            Close(mask);
             crop = new Rect(0, 0, pano.Width, pano.Height);
+            uncovered = CountUncovered(raw, crop);
             FillPoles(pano, mask);
         }
         else if (_spec.Crop == WireCrop.Straight)
         {
-            crop = _is360 && Projections.Wraps(_proj) ? Crop360(mask, FillFraction) : CropInner(mask, FillFraction);
-            FillBorders(pano, mask, crop);
+            var wraps = _is360 && Projections.Wraps(_proj);
+            using var safe = SafeCoverage(raw, CropMargin(pano), wraps);
+            crop = TrimToCovered(safe, wraps ? Crop360(safe) : CropInner(safe));
+            if (crop.Width <= 0 || crop.Height <= 0)
+            {
+                // nichts voll gedeckt (gekippte Kette): ungeschnitten zeigen, die Prüfung meldet „zu wenig Bildhöhe“
+                crop = Cv2.BoundingRect(raw);
+                crop = crop.Width > 0 && crop.Height > 0 ? crop : new Rect(0, 0, pano.Width, pano.Height);
+                cropFraction = 0;
+                _cropAreaFraction = 0;
+                uncovered = CountUncovered(raw, crop);
+                return crop;
+            }
+
+            uncovered = CountUncovered(raw, crop);
+            if (_keepUntoned)
+            {
+                // Bühne des Fensters: ungeschnittenes Panorama mit schraffierten Lücken, Zuschnitt als Rahmen darin
+                var frameBounds = Cv2.BoundingRect(raw);
+                if (frameBounds.Width > 0 && frameBounds.Height > 0)
+                {
+                    _frame = new Mat(pano, frameBounds).Clone();
+                    using (var coverage = new Mat(raw, frameBounds))
+                    {
+                        HatchGaps(_frame, coverage);
+                    }
+
+                    _frameCrop = new Rect(crop.X - frameBounds.X, crop.Y - frameBounds.Y, crop.Width, crop.Height);
+                }
+            }
         }
         else
         {
+            Close(mask);
             crop = Cv2.BoundingRect(mask);
             if (crop.Width <= 0 || crop.Height <= 0)
             {
                 crop = new Rect(0, 0, pano.Width, pano.Height);
             }
 
+            uncovered = CountUncovered(raw, crop);
             if (_spec.Crop == WireCrop.Fill)
             {
                 FillBorders(pano, mask, crop);
+            }
+            else if (_keepUntoned)
+            {
+                // „Ungeschnitten“ in der Vorschau: Lücken schraffiert statt schwarz (gespeichert wird ohne Schraffur)
+                using var view = new Mat(pano, crop);
+                using var coverage = new Mat(raw, crop);
+                HatchGaps(view, coverage);
             }
         }
 
@@ -1213,15 +1272,87 @@ internal sealed class PanoComposer
         cropFraction = (vertical ? crop.Width : crop.Height) / Math.Max(1.0, medianExtent);
         // Anteil des Zuschnitts an der gedeckten Fläche: eine gekippte Kette kann die volle Höhe behalten, verliert dann
         // aber einen großen Teil des Schwenks
-        var bounds = Cv2.BoundingRect(mask);
+        var bounds = Cv2.BoundingRect(raw);
         _cropAreaFraction = bounds.Width > 0 && bounds.Height > 0 ? crop.Width * (double)crop.Height / (bounds.Width * (double)bounds.Height) : 1;
         return crop;
     }
 
     private double _cropAreaFraction = 1;
+    private Mat? _frame;
+    private Rect _frameCrop;
 
-    /// <summary>360°: das längste Band an Zeilen, die zu mindestens (1 − Anteil) gefüllt sind.</summary>
-    private static Rect Crop360(Mat mask, double allow)
+    /// <summary>Ungedeckte Pixel als graue Schraffur (Bühne des Fensters; nie im gespeicherten Ergebnis).</summary>
+    internal static void HatchGaps(Mat image, Mat coverage)
+    {
+        using var gaps = new Mat();
+        Cv2.Threshold(coverage, gaps, 0, 255, ThresholdTypes.BinaryInv);
+        if (Cv2.CountNonZero(gaps) == 0)
+        {
+            return;
+        }
+
+        int width = image.Width, height = image.Height;
+        using var hatch = new Mat(image.Size(), image.Type(), new Scalar(44, 44, 44));
+        var step = Math.Max(8, Math.Min(width, height) / 50);
+        var thickness = Math.Max(2, step / 3);
+        for (var d = -height; d < width; d += step)
+        {
+            Cv2.Line(hatch, new Point(d, height), new Point(d + height, 0), new Scalar(92, 92, 92), thickness);
+        }
+
+        hatch.CopyTo(image, gaps);
+    }
+
+    /// <summary>Kleine Löcher und Kerben der Maske schließen (nur „Lücken füllen“, „Ungeschnitten“ und 2 : 1-Kugel).</summary>
+    private static void Close(Mat mask)
+    {
+        using var k5 = Cv2.GetStructuringElement(MorphShapes.Rect, new Size(5, 5));
+        Cv2.MorphologyEx(mask, mask, MorphTypes.Close, k5);
+    }
+
+    /// <summary>Sicherheitsrand für „Gerade Kanten“ (Interpolation, Überblendung): 0,05 % der kurzen Seite, mindestens 2 px.</summary>
+    internal static int CropMargin(Mat pano) => Math.Max(2, (int)Math.Round(Math.Min(pano.Width, pano.Height) * 0.0005));
+
+    /// <summary>
+    /// Deckung abzüglich Sicherheitsrand: Erosion mit ungedecktem Rand (auch an den Leinwandkanten); bei der 360°-Kugel laufen
+    /// linker und rechter Rand ineinander und werden dort nicht beschnitten.
+    /// </summary>
+    private static Mat SafeCoverage(Mat raw, int margin, bool wraps)
+    {
+        using var kernel = Cv2.GetStructuringElement(MorphShapes.Rect, new Size(2 * margin + 1, 2 * margin + 1));
+        var safe = new Mat();
+        if (!wraps)
+        {
+            Cv2.Erode(raw, safe, kernel, null, 1, BorderTypes.Constant, Scalar.All(0));
+            return safe;
+        }
+
+        using var padded = new Mat();
+        Cv2.CopyMakeBorder(raw, padded, 0, 0, margin, margin, BorderTypes.Wrap);
+        using var eroded = new Mat();
+        Cv2.Erode(padded, eroded, kernel, null, 1, BorderTypes.Constant, Scalar.All(0));
+        using (var view = new Mat(eroded, new Rect(margin, 0, raw.Cols, raw.Rows)))
+        {
+            view.CopyTo(safe);
+        }
+
+        return safe;
+    }
+
+    /// <summary>Ungedeckte Pixel der Maske im Ausschnitt.</summary>
+    private static long CountUncovered(Mat raw, Rect crop)
+    {
+        if (crop.Width <= 0 || crop.Height <= 0)
+        {
+            return 0;
+        }
+
+        using var view = new Mat(raw, crop);
+        return crop.Width * (long)crop.Height - Cv2.CountNonZero(view);
+    }
+
+    /// <summary>360°: das längste Band an Zeilen, die über die ganze Breite gedeckt sind.</summary>
+    private static Rect Crop360(Mat mask)
     {
         int best = 0, bestStart = 0, cur = 0, curStart = 0;
         int rows = mask.Rows, cols = mask.Cols;
@@ -1234,8 +1365,7 @@ internal sealed class PanoComposer
 
         for (var y = 0; y < rows; y++)
         {
-            var fullRow = rowSums.At<int>(y, 0) >= cols * (1 - Math.Max(0.001, allow));
-            if (fullRow)
+            if (rowSums.At<int>(y, 0) >= cols)
             {
                 if (cur == 0)
                 {
@@ -1255,31 +1385,24 @@ internal sealed class PanoComposer
             }
         }
 
-        return new Rect(0, bestStart, mask.Cols, Math.Max(1, best));
+        return best == 0 ? new Rect(0, 0, 0, 0) : new Rect(0, bestStart, cols, best);
     }
 
     /// <summary>
-    /// Größtes achsparalleles Rechteck innerhalb der Maske (1/8, Histogramm-Stapel). Mit Anteil &gt; 0 wird die Maske vorher um
-    /// Anteil × Höhe gedehnt — die schmalen ungedeckten Ränder füllt danach <see cref="FillBorders"/>.
+    /// Größtes achsparalleles Rechteck innerhalb der Maske (auf ≤ 1/8 verkleinert, nur voll gedeckte Blöcke, Histogramm-Stapel);
+    /// die Kanten zieht danach <see cref="TrimToCovered"/> pixelgenau nach.
     /// </summary>
-    private static Rect CropInner(Mat mask, double allow)
+    private static Rect CropInner(Mat mask)
     {
         var f = Math.Max(1, Math.Min(8, Math.Min(mask.Cols, mask.Rows) / 64));
         using var small = new Mat();
         Cv2.Resize(mask, small, new Size(Math.Max(1, mask.Cols / f), Math.Max(1, mask.Rows / f)), 0, 0, InterpolationFlags.Area);
         using var bin = new Mat();
         Cv2.Threshold(small, bin, 253, 255, ThresholdTypes.Binary);
-        if (allow > 0)
-        {
-            var d = Math.Max(1, (int)(allow * small.Rows));
-            using var k = Cv2.GetStructuringElement(MorphShapes.Rect, new Size(2 * d + 1, 2 * d + 1));
-            Cv2.Dilate(bin, bin, k);
-        }
-
         int rows = bin.Rows, cols = bin.Cols;
         var hgt = new int[cols];
         long bestA = 0;
-        var best = new Rect(0, 0, cols, rows);
+        var best = new Rect(0, 0, 0, 0);
         for (var y = 0; y < rows; y++)
         {
             for (var x = 0; x < cols; x++)
@@ -1308,9 +1431,77 @@ internal sealed class PanoComposer
             }
         }
 
-        var r = f == 1 ? best : new Rect(best.X * f + 1, best.Y * f + 1, best.Width * f - 2, best.Height * f - 2);
+        if (bestA == 0)
+        {
+            return new Rect(0, 0, 0, 0);
+        }
+
+        // Blöcke zurück auf volle Größe (der verkleinerte Raster ist bei nicht teilbaren Maßen leicht gestreckt: die Kanten
+        // prüft TrimToCovered pixelgenau)
+        double sx = mask.Cols / (double)cols, sy = mask.Rows / (double)rows;
+        var x0 = (int)Math.Ceiling(best.X * sx);
+        var y0 = (int)Math.Ceiling(best.Y * sy);
+        var x1 = (int)Math.Floor(best.Right * sx);
+        var y1 = (int)Math.Floor(best.Bottom * sy);
+        var r = new Rect(x0, y0, Math.Max(0, x1 - x0), Math.Max(0, y1 - y0));
+        return r & new Rect(0, 0, mask.Cols, mask.Rows);
+    }
+
+    /// <summary>
+    /// Zieht die Kanten des Rechtecks nach innen, bis kein ungedecktes Pixel mehr darin liegt (Kante mit dem größten Anteil an
+    /// Lücken zuerst; ein Loch im Inneren schneidet die kleinere Seite um dieses Loch ab). Leeres Rechteck, wenn nichts übrig bleibt.
+    /// </summary>
+    internal static Rect TrimToCovered(Mat mask, Rect r)
+    {
         r &= new Rect(0, 0, mask.Cols, mask.Rows);
-        return r.Width > 0 && r.Height > 0 ? r : new Rect(0, 0, mask.Cols, mask.Rows);
+        while (r.Width > 0 && r.Height > 0)
+        {
+            using var view = new Mat(mask, r);
+            using var topRow = new Mat(mask, new Rect(r.X, r.Y, r.Width, 1));
+            using var bottomRow = new Mat(mask, new Rect(r.X, r.Bottom - 1, r.Width, 1));
+            using var leftCol = new Mat(mask, new Rect(r.X, r.Y, 1, r.Height));
+            using var rightCol = new Mat(mask, new Rect(r.Right - 1, r.Y, 1, r.Height));
+            var top = 1 - Cv2.CountNonZero(topRow) / (double)r.Width;
+            var bottom = 1 - Cv2.CountNonZero(bottomRow) / (double)r.Width;
+            var left = 1 - Cv2.CountNonZero(leftCol) / (double)r.Height;
+            var right = 1 - Cv2.CountNonZero(rightCol) / (double)r.Height;
+            var worst = Math.Max(Math.Max(top, bottom), Math.Max(left, right));
+            if (worst > 0)
+            {
+                // die Kante mit dem größten Lückenanteil wandert eine Zeile bzw. Spalte nach innen
+                r = worst == top ? new Rect(r.X, r.Y + 1, r.Width, r.Height - 1)
+                    : worst == bottom ? new Rect(r.X, r.Y, r.Width, r.Height - 1)
+                    : worst == left ? new Rect(r.X + 1, r.Y, r.Width - 1, r.Height)
+                    : new Rect(r.X, r.Y, r.Width - 1, r.Height);
+                continue;
+            }
+
+            if (Cv2.CountNonZero(view) == r.Width * (long)r.Height)
+            {
+                return r;
+            }
+
+            // Loch im Inneren (Kanten sauber): um EIN Loch (erste Zusammenhangskomponente) die größte der vier Teilflächen
+            // behalten — mehrere verstreute Löcher werden so einzeln abgeschnitten, nicht ihr gemeinsames Rechteck
+            using var inverted = new Mat();
+            Cv2.Threshold(view, inverted, 0, 255, ThresholdTypes.BinaryInv);
+            using var labels = new Mat();
+            using var stats = new Mat();
+            using var centroids = new Mat();
+            var hole = Cv2.ConnectedComponentsWithStats(inverted, labels, stats, centroids, PixelConnectivity.Connectivity8) > 1
+                ? new Rect(stats.At<int>(1, 0), stats.At<int>(1, 1), stats.At<int>(1, 2), stats.At<int>(1, 3))
+                : Cv2.BoundingRect(inverted);
+            Rect[] parts =
+            [
+                new Rect(r.X, r.Y, r.Width, hole.Y),
+                new Rect(r.X, r.Y + hole.Bottom, r.Width, r.Height - hole.Bottom),
+                new Rect(r.X, r.Y, hole.X, r.Height),
+                new Rect(r.X + hole.Right, r.Y, r.Width - hole.Right, r.Height),
+            ];
+            r = parts.OrderByDescending(p => p.Width * (long)p.Height).First();
+        }
+
+        return new Rect(r.X, r.Y, 0, 0);
     }
 
     /// <summary>Ungedeckte Pixel im Ausschnitt: Inpaint (Telea) auf ¼ Maßstab, hochskaliert + leichtes Rauschen (fester Startwert).</summary>
@@ -1458,7 +1649,7 @@ internal sealed class PanoComposer
 
     // ------------------------------------------------------------------ Prüfung
 
-    private QualityCheck Check(double cropFraction, double seamNcc)
+    private QualityCheck Check(double cropFraction, double seamNcc, long uncovered)
     {
         var problems = new List<string>(_alignment.Problems);
         var total = _sources.Count;
@@ -1498,6 +1689,7 @@ internal sealed class PanoComposer
             SeamNcc = seamNcc,
             CropHeightFraction = Math.Round(cropFraction, 3),
             CropAreaFraction = Math.Round(_cropAreaFraction, 3),
+            UncoveredPixels = uncovered,
             UsedImages = used,
             TotalImages = total,
         };

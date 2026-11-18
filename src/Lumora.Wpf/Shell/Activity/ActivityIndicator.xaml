@@ -136,6 +136,9 @@
                         <ui:Button Style="{StaticResource RowIconButton}" Icon="{ui:SymbolIcon Dismiss16}" ToolTip="Abbrechen (bereits Erledigtes bleibt, Rückgängig möglich)"
                                    AutomationProperties.Name="Abbrechen" Command="{Binding CancelCommand}"
                                    Visibility="{Binding CanCancel, Converter={StaticResource BoolToVis}}" />
+                        <ui:Button Style="{StaticResource RowLinkButton}" Content="{Binding ShowResultLabel}"
+                                   AutomationProperties.Name="{Binding ShowResultLabel}" Command="{Binding ShowResultCommand}"
+                                   Visibility="{Binding HasShowResult, Converter={StaticResource BoolToVis}}" />
                         <ui:Button Style="{StaticResource RowLinkButton}" Content="Rückgängig"
                                    AutomationProperties.Name="Rückgängig" Command="{Binding UndoCommand}"
                                    Visibility="{Binding HasUndo, Converter={StaticResource BoolToVis}}" />
@@ -239,9 +242,14 @@
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    Visibility="{Binding ToastSubtitle, Converter={StaticResource NullToVis}}" />
                     </StackPanel>
-                    <ui:Button Grid.Column="2" Style="{StaticResource RowLinkButton}" Content="Rückgängig" VerticalAlignment="Center"
-                               AutomationProperties.Name="Rückgängig" Command="{Binding UndoToastCommand}"
-                               Visibility="{Binding ToastHasUndo, Converter={StaticResource BoolToVis}}" />
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <ui:Button Style="{StaticResource RowLinkButton}" Content="{Binding ToastShowResultLabel}" VerticalAlignment="Center"
+                                   AutomationProperties.Name="{Binding ToastShowResultLabel}" Command="{Binding ShowResultToastCommand}"
+                                   Visibility="{Binding ToastHasShowResult, Converter={StaticResource BoolToVis}}" />
+                        <ui:Button Style="{StaticResource RowLinkButton}" Content="Rückgängig" VerticalAlignment="Center"
+                                   AutomationProperties.Name="Rückgängig" Command="{Binding UndoToastCommand}"
+                                   Visibility="{Binding ToastHasUndo, Converter={StaticResource BoolToVis}}" />
+                    </StackPanel>
                     <ui:Button Grid.Column="3" Style="{StaticResource RowIconButton}" Icon="{ui:SymbolIcon Dismiss16}" VerticalAlignment="Center"
                                ToolTip="Meldung schließen" AutomationProperties.Name="Meldung schließen" Command="{Binding DismissToastCommand}" />
                 </Grid>

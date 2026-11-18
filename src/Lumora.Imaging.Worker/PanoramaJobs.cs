@@ -98,6 +98,7 @@ internal sealed class PanoramaJobs : IDisposable
                 Projection = look.Projection,
                 Seconds = clock.Elapsed.TotalSeconds,
                 PeakBytes = PeakBytes(),
+                Frame = look.Frame is { } kept && File.Exists(kept.Path) ? kept : null, // Rahmen der Geometrie bleibt
             };
         }
 
@@ -105,13 +106,21 @@ internal sealed class PanoramaJobs : IDisposable
         using var outcome = PanoComposer.Compose(_sources, _alignment, request.Settings, fullQuality: false, ownsSources: false, 0, WorkerLimits.MaxJpegEdge, progress, ct, keepUntoned: true);
         progress(WorkerStep.Write, 0, 1);
         JpegOutput.Write(outcome.Image, request.OutputPath, request.JpegQuality);
+        PreviewFrame? frame = null;
+        if (request.FramePath is { Length: > 0 } framePath && outcome.Frame is { } frameImage)
+        {
+            JpegOutput.Write(frameImage, framePath, 80);
+            var c = outcome.FrameCrop;
+            frame = new PreviewFrame { Path = framePath, Width = frameImage.Width, Height = frameImage.Height, CropX = c.X, CropY = c.Y, CropWidth = c.Width, CropHeight = c.Height };
+        }
+
         if (outcome.Untoned is { } untoned)
         {
             outcome.Untoned = null; // gehört jetzt dem Merker
-            _look = new LookCache(key, untoned, outcome);
+            _look = new LookCache(key, untoned, outcome) { Frame = frame };
         }
 
-        return Result(request.Id, request.OutputPath, outcome, clock);
+        return Result(request.Id, request.OutputPath, outcome, clock) with { Frame = frame };
     }
 
     public ComposeResult Render(RenderRequest request, Action<WorkerStep, int, int> progress, CancellationToken ct)
@@ -331,6 +340,9 @@ internal sealed class PanoramaJobs : IDisposable
         public QualityCheck Check { get; } = outcome.Check;
 
         public WireProjection Projection { get; } = outcome.Projection;
+
+        /// <summary>Rahmen-Datei der Bühne (gilt weiter, solange nur neu getont wird).</summary>
+        public PreviewFrame? Frame { get; init; }
 
         /// <summary>Alles außer dem „Look“ muss gleich sein, damit das gemerkte Bild passt.</summary>
         public static ComposeSpec KeyOf(ComposeSpec spec) => spec with { ToneMatch = 0, ColorBoost = 0 };

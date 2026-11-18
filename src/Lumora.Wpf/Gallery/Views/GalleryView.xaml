@@ -256,11 +256,33 @@
                         </Border>
                     </StackPanel>
 
-                    <!-- Fassungs-Marke „2 Fassungen“ (ADR-0071, Mockup 13) über der Endung: Klick öffnet Original + Fassungen -->
+                    <!-- Marken über der Endung: „Panorama · aus n Fotos“ (ADR-0078) und „2 Fassungen“ (ADR-0071, Mockup 13) -->
+                    <StackPanel HorizontalAlignment="Left"
+                                VerticalAlignment="Bottom"
+                                Margin="4,0,0,24">
+                    <!-- Ergebnis-Marke (ADR-0078 Punkt 9): Klick öffnet Ergebnis + Quellen in der Lightbox (Ergebnis zuerst) -->
                     <Button Style="{StaticResource TileOverlayButton}"
                             HorizontalAlignment="Left"
-                            VerticalAlignment="Bottom"
-                            Margin="4,0,0,24"
+                            Margin="0,0,0,3"
+                            Padding="0"
+                            Background="Transparent"
+                            MinWidth="0"
+                            MinHeight="0"
+                            ToolTip="{Binding MergeMarkToolTip}"
+                            AutomationProperties.Name="{Binding MergeMarkText}"
+                            Visibility="{Binding IsMergeResult, Converter={StaticResource BoolToVis}}"
+                            Command="{Binding Path=(gc:GalleryListBox.TileHost).OpenMergeResultCommand, RelativeSource={RelativeSource Self}}"
+                            CommandParameter="{Binding}">
+                        <Border Padding="7,1" CornerRadius="8" Background="#CC4145A0">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:SymbolIcon Symbol="ImageMultiple16" FontSize="11" Foreground="White" Margin="0,0,4,0" />
+                                <TextBlock Text="{Binding MergeMarkText}" FontSize="10" FontWeight="Bold" Foreground="White" />
+                            </StackPanel>
+                        </Border>
+                    </Button>
+                    <!-- Fassungs-Marke „2 Fassungen“ (ADR-0071, Mockup 13): Klick öffnet Original + Fassungen -->
+                    <Button Style="{StaticResource TileOverlayButton}"
+                            HorizontalAlignment="Left"
                             Padding="0"
                             Background="Transparent"
                             MinWidth="0"
@@ -277,6 +299,7 @@
                             </StackPanel>
                         </Border>
                     </Button>
+                    </StackPanel>
 
                     <!-- Sterne unten rechts: Bewertung (sichtbar wenn gesetzt, sonst bei Hover) -->
                     <Border x:Name="StarsHost"
@@ -847,6 +870,16 @@
                                    Margin="10,0,12,0"
                                    Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
                         <Border Width="1" Margin="0,4,6,4" Background="{DynamicResource ControlStrokeColorDefaultBrush}" />
+                        <!-- Zusammenfügen (ADR-0078 Punkt 7, Mockup 28 Ansicht 4): ab 2 gewählten Fotos, gleich nach der Auswahl;
+                             gesperrt mit Grund (gemischte Bibliotheken) -->
+                        <ui:Button Appearance="Transparent" Content="Zusammenfügen…"
+                                   Icon="{ui:SymbolIcon ImageMultiple24}"
+                                   ToolTip="{Binding MergeActionToolTip}"
+                                   ToolTipService.ShowOnDisabled="True"
+                                   AutomationProperties.Name="Zusammenfügen"
+                                   AutomationProperties.AutomationId="GalleryMergeAction"
+                                   Command="{Binding MergeSelectionCommand}"
+                                   Visibility="{Binding ShowMergeAction, Converter={StaticResource BoolToVis}}" />
 
                         <ui:Button Appearance="Transparent" Content="Favorit"
                                    Icon="{ui:SymbolIcon Heart24, Filled=True}"

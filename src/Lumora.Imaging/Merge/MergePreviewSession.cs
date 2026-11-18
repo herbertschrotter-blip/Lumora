@@ -194,8 +194,10 @@ internal sealed class MergePreviewSession : IMergePreviewSession
                     throw new OperationCanceledException(token); // Sitzung geschlossen
                 }
 
-                var path = Path.Combine(_workDir, $"preview-{Interlocked.Increment(ref _previewCounter):000}.jpg");
-                composed = await stitch.ComposeAsync(Spec(options, preview: true), path, 85, p => Report(p, saving: false, estimating: false, activity), token).ConfigureAwait(false);
+                var number = Interlocked.Increment(ref _previewCounter);
+                var path = Path.Combine(_workDir, $"preview-{number:000}.jpg");
+                var framePath = options.Crop == MergeCrop.Straight ? Path.Combine(_workDir, $"frame-{number:000}.jpg") : null;
+                composed = await stitch.ComposeAsync(Spec(options, preview: true), path, 85, p => Report(p, saving: false, estimating: false, activity), token, framePath).ConfigureAwait(false);
                 if (composed.Check.Passed || !allowRetry || attempt >= ComposeRetries || !composed.Check.Problems.Any(p => p is "crop-height" or "crop-size" or "tilted" or "residual" or "seams"))
                 {
                     break;
@@ -208,7 +210,7 @@ internal sealed class MergePreviewSession : IMergePreviewSession
                 TryDelete(path);
             }
 
-            DeleteOlderPreviews(composed.OutputPath);
+            DeleteOlderPreviews(composed.OutputPath, composed.Frame?.Path);
             var preview = ToPreview(composed, options, clock.Elapsed);
             Current = preview;
             activity?.Dismiss();
@@ -256,7 +258,16 @@ internal sealed class MergePreviewSession : IMergePreviewSession
             Quality(r.Check),
             notes,
             dropped,
-            elapsed);
+            elapsed,
+            r.Frame is { } f ? new MergePreviewFrame(f.Path, f.Width, f.Height, f.CropX, f.CropY, f.CropWidth, f.CropHeight) : null);
+    }
+
+    /// <summary>„Lumora 0.5.47“: Version der App (Lumora.exe trägt die CHANGELOG-Version), sonst die dieser Bibliothek.</summary>
+    internal static string AppName()
+    {
+        var entry = System.Reflection.Assembly.GetEntryAssembly()?.GetName();
+        var version = entry is { Name: "Lumora" } ? entry.Version : typeof(MergePreviewSession).Assembly.GetName().Version;
+        return "Lumora " + (version?.ToString(3) ?? "?");
     }
 
     private static MergeQuality Quality(QualityCheck c)
@@ -436,8 +447,9 @@ internal sealed class MergePreviewSession : IMergePreviewSession
                 }));
             }
 
+            var headline = notes.FirstOrDefault(n => n.Code.StartsWith("size-reduced", StringComparison.Ordinal));
             activity?.Complete(new ActivityCompletion(
-                notes.Count > 0 ? $"{methodName} gespeichert · {notes[0].Text}" : $"{methodName} gespeichert",
+                headline is not null ? $"{methodName} gespeichert · {headline.Text}" : $"{methodName} gespeichert",
                 ActivityState.Succeeded,
                 actions));
             return saved with { Notes = notes };
@@ -553,7 +565,7 @@ internal sealed class MergePreviewSession : IMergePreviewSession
             _sources.Select((s, i) => new MergeRecipeSource(s.FileId, _specs[i].Index)).ToList(),
             _estimate!.Alignment,
             rendered.Scale,
-            "Lumora " + (typeof(MergePreviewSession).Assembly.GetName().Version?.ToString(3) ?? "?"),
+            AppName(),
             Options.ColorBoost ?? MergeLimits.ColorBoostDefault);
         var create = new MergeCreateRequest(
             rows.Select(r => r.Id).ToList(),
@@ -785,13 +797,13 @@ internal sealed class MergePreviewSession : IMergePreviewSession
         return rows.ToDictionary(r => r.Id, r => Path.Combine(r.Path, r.Name));
     }
 
-    private void DeleteOlderPreviews(string keep)
+    private void DeleteOlderPreviews(string keep, string? keepFrame)
     {
         try
         {
-            foreach (var file in Directory.EnumerateFiles(_workDir, "preview-*.jpg"))
+            foreach (var file in Directory.EnumerateFiles(_workDir, "preview-*.jpg").Concat(Directory.EnumerateFiles(_workDir, "frame-*.jpg")))
             {
-                if (!string.Equals(file, keep, StringComparison.OrdinalIgnoreCase))
+                if (!string.Equals(file, keep, StringComparison.OrdinalIgnoreCase) && !string.Equals(file, keepFrame, StringComparison.OrdinalIgnoreCase))
                 {
                     TryDelete(file);
                 }

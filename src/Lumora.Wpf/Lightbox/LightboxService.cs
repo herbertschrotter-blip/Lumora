@@ -33,6 +33,11 @@ public sealed class LightboxService : ILightboxService, IDisposable
 
     public bool IsOpen => _window is not null;
 
+    private (int? Id, string? Name) _pendingAlbum;
+
+    /// <summary>Album der Galerie für das nächste Öffnen (ADR-0078 Punkt 7).</summary>
+    public void SetAlbumContext(int? albumId, string? albumName) => _pendingAlbum = (albumId, albumName);
+
     /// <summary>Leiste „Verbessern“ öffnen (Rechtsklick „Bearbeiten ▸ Foto verbessern…“, ADR-0071).</summary>
     public void ShowEnhancePanel() => _ = _window?.ViewModel.ShowEnhanceAsync();
 
@@ -44,6 +49,7 @@ public sealed class LightboxService : ILightboxService, IDisposable
         ArgumentNullException.ThrowIfNull(entries);
         if (entries.Count == 0)
         {
+            _pendingAlbum = (null, null);
             _logger.LogWarning("Lightbox.Open ohne Einträge ignoriert");
             return;
         }
@@ -56,12 +62,15 @@ public sealed class LightboxService : ILightboxService, IDisposable
         }
 
         startIndex = Math.Clamp(startIndex, 0, entries.Count - 1);
+        var album = _pendingAlbum; // gilt nur für dieses Öffnen — auch wenn es scheitert, nicht für ein späteres
+        _pendingAlbum = (null, null);
 
         if (_window is null)
         {
             var window = CreateWindow(owner);
             _window = window;
             window.ViewModel.UsageContext = usage; // Nutzungs-Signale: voll, gedämpft (Story) oder gar nicht (Doppelte), ADR-0072
+            window.ViewModel.SetMergeAlbum(album.Id, album.Name); // ADR-0078
             window.ViewModel.Load(entries, startIndex);
             window.Show();
             if (_lastMaximized)
@@ -74,6 +83,7 @@ public sealed class LightboxService : ILightboxService, IDisposable
         else
         {
             _window.ViewModel.UsageContext = usage; // ADR-0072
+            _window.ViewModel.SetMergeAlbum(album.Id, album.Name); // ADR-0078
             _window.ViewModel.Load(entries, startIndex);
             if (_window.WindowState == WindowState.Minimized)
             {

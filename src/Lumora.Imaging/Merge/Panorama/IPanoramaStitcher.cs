@@ -36,7 +36,8 @@ public interface IPanoramaStitchSession : IAsyncDisposable
 
     Task<EstimateResult> EstimateAsync(IReadOnlyList<SourceSpec> sources, int decodeEdge, int seed, Action<ProgressMessage>? progress, CancellationToken ct);
 
-    Task<ComposeResult> ComposeAsync(ComposeSpec settings, string outputPath, int jpegQuality, Action<ProgressMessage>? progress, CancellationToken ct);
+    /// <param name="framePath">Bühne: ungeschnittenes Panorama mit Zuschnitt-Rahmen hierhin (nur „Gerade Kanten“); null = nicht.</param>
+    Task<ComposeResult> ComposeAsync(ComposeSpec settings, string outputPath, int jpegQuality, Action<ProgressMessage>? progress, CancellationToken ct, string? framePath = null);
 
     void SetThreads(int threads);
 }
@@ -74,8 +75,8 @@ public sealed class WorkerPanoramaStitcher(IImagingWorkerHost host) : IPanoramaS
         public Task<EstimateResult> EstimateAsync(IReadOnlyList<SourceSpec> sources, int decodeEdge, int seed, Action<ProgressMessage>? progress, CancellationToken ct)
             => worker.RunAsync<EstimateResult>(id => new EstimateRequest { Id = id, Sources = sources, DecodeEdge = decodeEdge, Seed = seed }, progress, ct);
 
-        public Task<ComposeResult> ComposeAsync(ComposeSpec settings, string outputPath, int jpegQuality, Action<ProgressMessage>? progress, CancellationToken ct)
-            => worker.RunAsync<ComposeResult>(id => new ComposeRequest { Id = id, Settings = settings, OutputPath = outputPath, JpegQuality = jpegQuality }, progress, ct);
+        public Task<ComposeResult> ComposeAsync(ComposeSpec settings, string outputPath, int jpegQuality, Action<ProgressMessage>? progress, CancellationToken ct, string? framePath = null)
+            => worker.RunAsync<ComposeResult>(id => new ComposeRequest { Id = id, Settings = settings, OutputPath = outputPath, JpegQuality = jpegQuality, FramePath = framePath }, progress, ct);
 
         public void SetThreads(int threads) => worker.SetThreads(threads);
 

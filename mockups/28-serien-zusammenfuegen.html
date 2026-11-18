@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Lumora — Serien und Zusammenfügen (Entwurf 28)</title>
+<title>Lumora — Serien und Zusammenfügen (Mockup 28, abgenommen 2026-11-18)</title>
 <style>
 /* =====================================================================
    Mockup 28 · Serien und Zusammenfügen — aus mehreren Fotos eines (ADR-0078).
@@ -11,6 +11,11 @@
    diesem Mockup vor: farbiger Rahmen je Serien-Art auf allen Kacheln einer Serie statt Marke und Punkt (Ansichten 1–3), volle
    Auflösung als Standard, Sterne/Favorit übernehmen, Hugin als Wahl, Kugel 360° als Streifen oder 2 : 1 zur Wahl. Das
    Mockup wird beim Bau der jeweiligen Stufe nachgezogen.
+   Stufe-1-Ansichten nachgezogen beim Bau (0.5.47): Ansichten 4, 5, 11, 14 und 15 zeigen den gebauten Stand — Regler
+   „Farbe kräftiger“ (0–150 %, Aus und Standard 100), volle Auflösung (größte passende Stufe ausgegraut mit Grund), Kugel 360°
+   als Horizontstreifen oder 2 : 1, Zuschnitt „Gerade Kanten“ ohne gefülltes Pixel, Ablage neben dem ersten Einzelbild (eine
+   Ebene höher als Einstellung), Sterne/Favorit und gemeinsame Tags; RAW/DNG, Größenwahl und Hochskalieren stehen auf
+   „kommt später“.
    Umfang (17 Ansichten, oben umschaltbar; Zustände je Ansicht in der zweiten Zeile):
     1 Galerie mit Marken („Serie · n Fotos“ nur auf dem ersten Foto, Punkt auf den übrigen, Ergebnis-Marke „aus n Fotos“)
     2 Filter „Serien“ (Chip „Serien · 12 neu“, Flyout mit Arten/Zustand/Stand/Stapel, eine Kachel je Serie, Ein-Klick-Knopf)
@@ -31,7 +36,7 @@
    dunkle Bühne und Lightbox mit den festen Farben aus Mockup 13, Aktivitäts-Anzeige wie 15. Alle Fotos sind
    CSS-Verläufe und Platzhalter-Formen, Gesichter neutrale Kreise; Namen, Ordner, Alben und Dateinamen sind erfundene
    Muster, Zahlen aus dem ADR (110 DJI-Ordner: 48 × 26, 43 × 21, 6 × 9, 3 × 3; 26 Fotos in 51 s).
-   Spike 20 (Panorama-Werkzeug) ist ausstehend — das Mockup zeigt Bedienung, nicht die Werkzeugwahl.
+   Spike 20 ist ausgewertet (eigene Kette auf OpenCV-Bausteinen, Abnahme Nr. 2) — das Mockup zeigt Bedienung, nicht das Werkzeug.
    Oberflächentexte mit drei Punkten ohne Leerzeichen davor, wie alle Einträge des Foto-Menüs („Foto verbessern…“).
    Hell/Dunkel über die Klasse „dark“ am body; beim Öffnen nach der Systemeinstellung (prefers-color-scheme) wie 08/13.
    ===================================================================== */
@@ -336,6 +341,9 @@ body.dark .sg { color:#111; }
 .orow { display:flex; gap:10px; align-items:center; justify-content:space-between; font-size:13px; }
 .onote { font-size:11px; color:var(--text-secondary); line-height:1.4; }
 .onote.off { color:var(--text-tertiary); }
+.rng { position:relative; flex:1; height:4px; border-radius:2px; background:var(--layer-tertiary); margin:0 6px; }
+.rng i { position:absolute; left:0; top:0; bottom:0; border-radius:2px; background:var(--accent); }
+.rng b { position:absolute; top:-5px; width:14px; height:14px; margin-left:-7px; border-radius:50%; background:var(--accent); border:2px solid var(--layer-card); }
 .projs { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
 .proj { position:relative; text-align:left; padding:5px 8px; border-radius:6px; border:1px solid var(--stroke-divider); background:var(--layer-card); cursor:pointer; display:grid; gap:2px; }
 .proj:hover { background:var(--layer-subtle); }
@@ -618,7 +626,7 @@ const fth=(im,lab,o={})=>`<div class="fth ${o.off?'off':''} ${o.ref?'ref':''}"><
 function foot({file,album=null,est,primary='Als neue Datei speichern',tags=true,place='neben dem ersten Einzelbild'}){
   return `<span class="file">${file}</span><span class="dd">${place}</span>
    ${album?`<label><span class="chk on">&#xE73E;</span>auch ins Album „${album}“</label>`:''}
-   ${tags?'<label title="nur Tags, die alle Quellen tragen; keine Sterne, kein Favorit"><span class="chk on">&#xE73E;</span>gemeinsame Tags</label>':''}
+   ${tags?'<label title="nur Tags, die alle Quellen tragen"><span class="chk on">&#xE73E;</span>gemeinsame Tags</label><label title="höchste Sternezahl der Quellen; Favorit, wenn eine Quelle Favorit ist (Abnahme Nr. 12)"><span class="chk on">&#xE73E;</span>Sterne und Favorit</label>':''}
    <span class="est2">${est}</span><button class="btn-std">Verwerfen</button><button class="btn-acc">${primary}</button>`;
 }
 function upscaleBox({on=false,dis=false,reason='',mp='',x2=true,x4=false}){
@@ -630,7 +638,7 @@ function upscaleBox({on=false,dis=false,reason='',mp='',x2=true,x4=false}){
 
 /* Panorama-Aufnahmearten */
 const PROJ={
- kugel:{n:'Kugel 360°',s:'2 : 1 · für 360°-Betrachter',w:660,h:330,gaps:true,size:['Klein ≈ 40 MP','16K · 134 MP','Voll ≈ 450 MP'],dims:'16 384 × 8 192'},
+ kugel:{n:'Kugel 360°',s:'Streifen oder 2 : 1',w:660,h:330,gaps:true,size:['Klein ≈ 40 MP','16K · 134 MP','Voll ≈ 450 MP'],dims:'≈ 27 200 × 6 200 (Streifen) · 169 MP'},
  zyl:{n:'Zylinder',s:'Schwenk bis ≈ 180° und mehr',w:680,h:200,clip:'polygon(0 10%,8% 4%,17% 9%,26% 2%,36% 8%,47% 1%,58% 7%,69% 2%,80% 8%,90% 3%,100% 9%,100% 90%,91% 97%,80% 92%,69% 98%,58% 93%,47% 99%,36% 92%,26% 98%,17% 91%,8% 96%,0 90%)',crop:'11% 0 11% 0',size:['Klein ≈ 40 MP','Vorschlag · 118 MP','Voll ≈ 310 MP'],dims:'≈ 21 800 × 5 400'},
  persp:{n:'Perspektive',s:'wenige Bilder · Weitwinkel 3 × 3',w:600,h:340,clip:'polygon(0 0,30% 12%,70% 12%,100% 0,100% 100%,70% 88%,30% 88%,0 100%)',crop:'14% 6% 14% 6%',size:['Klein ≈ 40 MP','Vorschlag · 96 MP','Voll ≈ 380 MP'],dims:'≈ 12 000 × 8 000'},
  vert:{n:'Vertikal',s:'senkrechter Schwenk',w:220,h:470,clip:'polygon(6% 0,94% 2%,100% 34%,96% 66%,100% 100%,2% 98%,0 66%,4% 33%)',crop:'3% 7% 3% 7%',size:['Klein ≈ 40 MP','Vorschlag · 64 MP','Voll ≈ 120 MP'],dims:'≈ 5 300 × 12 000'},
@@ -669,13 +677,18 @@ function panoOpts(p,{hdrpano=false}={}){
      <div class="orow"><span>HDR-Stil</span><span class="seg"><button class="on">Natürlich</button><button>Kräftig</button></span></div><div class="orow"><span>Geister entfernen</span><span class="sw on"></span></div></div>`:''}
    <div class="osec"><h4>Aufnahmeart</h4>${projTiles(p==='auto'?'auto':k)}
      <div class="onote">Vorschlag aus Bildzahl und Gimbal-Winkeln · Umschalten rechnet nur die Projektion neu.</div></div>
-   <div class="osec"><h4>Zuschnitt</h4><span class="seg">${crop.map((c,i)=>`<button class="${i===0?'on':''}">${c}</button>`).join('')}</span></div>
-   <div class="osec"><div class="orow"><span>Belichtung ausgleichen</span><span class="sw on"></span></div><div class="orow"><span>Horizont gerade (Wellenkorrektur)</span><span class="sw on"></span></div></div>
-   <div class="osec"><h4>Quelle</h4><span class="seg"><button>JPEG</button><button class="on">RAW (DNG) · 16 bit</button></span>
-     <div class="onote">Raw-Bilderweiterung gefunden · Vorschau aus den JPEG-Geschwistern · <span class="chk" style="width:12px;height:12px;vertical-align:-2px"></span> Farben an JPEG angleichen</div></div>
-   <div class="osec"><h4>Größe</h4><span class="seg"><button>${P.size[0]}</button><button class="on">${P.size[1]}</button><button disabled>${P.size[2]}</button></span>
-     <div class="onote">${P.dims}. „Voll“ braucht ≈ 12 GB Arbeitsspeicher, frei sind 9 GB. Keine Kante über 65 535 px (JPEG-Grenze).</div></div>
-   ${upscaleBox({dis:true,reason:'Panorama hat 134 MP — Hochskalieren geht nur bis 16 MP (2×) bzw. 4 MP (4×). Für mehr Pixel bei „Größe“ mehr wählen.'})}`;
+   ${k==='kugel'?`<div class="osec"><h4>Kugel 360°</h4><span class="seg"><button class="on">Horizontstreifen</button><button>2 : 1 · Rundum-Bild</button></span>
+     <div class="onote">Gleichrangig zur Wahl (Abnahme Nr. 4); vorausgewählt die zuletzt gewählte Form, beim ersten Mal der Horizontstreifen.</div></div>`:''}
+   <div class="osec"><h4>Zuschnitt</h4><span class="seg"><button class="on">Gerade Kanten</button><button>Lücken füllen</button><button>Ungeschnitten</button></span>
+     <div class="onote">Gerade Kanten: nur Bildinhalt — kein einziges gefülltes Pixel (0.5.47). Die Bühne zeigt den Rest abgedunkelt, Lücken schraffiert.</div></div>
+   <div class="osec"><div class="orow"><span>Belichtung ausgleichen</span><span class="sw on"></span></div></div>
+   <div class="osec"><h4>Farbe kräftiger</h4><div class="orow"><span class="rng"><i style="width:67%"></i><b style="left:67%"></b></span><span>100 % (Standard)</span></div>
+     <div class="orow" style="justify-content:flex-start"><span class="seg"><button>Aus</button><button class="on">Standard 100 %</button></span></div>
+     <div class="onote">0–150 %: Buntheit wie Photoshop, Helligkeit und Kontrast bleiben; „Aus“ bleibt treu zu den Quellen. Der Regler tont nur neu und wird gemerkt.</div></div>
+   <div class="osec"><h4>Größe</h4><div class="upbox"><div class="h">Volle Auflösung</div><div class="onote">${P.dims}</div></div>
+     <div class="upbox off"><div class="h">Größte passende · 70 %</div><div class="onote off">nur, wenn der Arbeitsspeicher nicht reicht oder eine Kante über 65 500 px käme — dann ist „Volle Auflösung“ ausgegraut mit Grund und Zahl</div></div>
+     <div class="onote">Quelle JPEG; RAW/DNG und Größenwahl kommen mit Stufe 3.</div></div>
+   ${upscaleBox({dis:true,reason:'Danach hochskalieren — kommt später (Stufe 4), nur nach dem Zusammenfügen, gedämpft.'})}`;
 }
 
 /* ---------- Ansichten ---------- */
@@ -984,18 +997,18 @@ function tlWin(){
 /* 11 Speichern → Rechnen → Fertig */
 function saveWin(s){
   const base=panoWin('kugel');
-  const albumFoot=foot({file:'DJI_0001_panorama.jpg',album:'Ausflüge',est:'<b>≈ 3 min</b> mit Vorrang · 134 MP · ≈ 48 MB<br>Arbeitsspeicher ≈ 5 GB von 9 GB frei'});
+  const albumFoot=foot({file:'DJI_0001_panorama.jpg',album:'Ausflüge',est:'<b>≈ 80 s</b> mit Vorrang · 169 MP · ≈ 28 MB<br>Arbeitsspeicher ≈ 5,6 GB von 9 GB frei'});
   if(s==='before'){
     return {title:base.title,body:base.body+`<div class="estpop"><b>Speichern in voller Auflösung</b><div class="kv" style="margin-top:6px">
-       <span>Größe</span><span>16 384 × 8 192 (134 MP), JPEG Q92</span><span>Quelle</span><span>RAW (DNG) 16 bit, 26 Fotos</span><span>Zeit</span><span>≈ 3 min mit Vorrang (≈ 6 min nebenbei)</span>
-       <span>Arbeitsspeicher</span><span>≈ 5 GB von 9 GB frei</span><span>Platz</span><span>≈ 48 MB neben dem ersten Einzelbild</span><span>Album</span><span>„Ausflüge“ (gestartet aus dem Album)</span></div>
+       <span>Größe</span><span>volle Auflösung ≈ 27 200 × 6 200 (169 MP), JPEG Q92</span><span>Quelle</span><span>JPEG, 26 Fotos (RAW/DNG kommt mit Stufe 3)</span><span>Zeit</span><span>≈ 80 s mit Vorrang (länger nebenbei)</span>
+       <span>Arbeitsspeicher</span><span>≈ 5,6 GB von 9 GB frei</span><span>Platz</span><span>≈ 28 MB neben dem ersten Einzelbild</span><span>Album</span><span>„Ausflüge“ (gestartet aus dem Album)</span></div>
        <div class="muted" style="margin-top:6px">Ausgerichtet wird nicht neu: das Rezept aus der Vorschau gilt. Die 26 Einzelbilder bleiben unverändert.</div></div>`,foot:albumFoot};
   }
   if(s==='run'){
-    const steps=[['done','Quellen lesen (RAW, 26 / 26)','1 min 02 s'],['done','Projizieren (Kugel 360°) — Ausrichtung aus der Vorschau','14 s'],['done','Belichtung ausgleichen','9 s'],['done','Nähte suchen','21 s'],['run','Überblenden (5/6) · Band 4 von 7','läuft'],['','Speichern und eintragen (Datei, Katalog, Album „Ausflüge“)','']];
+    const steps=[['done','Fotos lesen (26 / 26)','14 s'],['done','Projizieren (Kugel 360°) — Ausrichtung aus der Vorschau','14 s'],['done','Belichtung ausgleichen','9 s'],['done','Nähte suchen','21 s'],['run','Überblenden (5/6) · Band 4 von 7','läuft'],['','Speichern und eintragen (Datei, Katalog, Album „Ausflüge“)','']];
     return {title:base.title,
       body:mleft({src:PANO_SRC,fit:'pano',sel:'pano',sugg:'pano',why:PANO_WHY,lock:true})
-       +`<div class="mcenter"><div></div><div class="mstage"><div class="prog"><h2>Panorama zusammenfügen · 26 Fotos</h2><div class="m2">Kugel 360° · 16K · aus RAW (DNG) · mit Vorrang (Hintergrund pausiert)</div>
+       +`<div class="mcenter"><div></div><div class="mstage"><div class="prog"><h2>Panorama zusammenfügen · 26 Fotos</h2><div class="m2">Kugel 360° · Horizontstreifen · volle Auflösung · mit Vorrang (Hintergrund wartet)</div>
           <div>${steps.map(([c,t,r])=>`<div class="pl ${c}"><span class="d">${c==='done'?'&#xE73E;':c==='run'?'&#xE768;':''}</span><span>${t}</span><small>${r}</small></div>`).join('')}</div>
           <div class="bigbar"><i style="width:78%"></i></div><div class="m2">78 % · noch ≈ 2 min · Arbeitsspeicher 4,6 GB</div>
           <div class="btns"><button class="btn-std">Im Hintergrund weiterrechnen</button><button class="btn-std">Abbrechen</button></div>
@@ -1011,7 +1024,7 @@ function doneWin(hidden){
   const D = hidden
     ? {src:'<b>21 Fotos · Serie „Panorama“</b>Sa, 05.07.2025 · 40 s<br>Kamera · JPEG',fit:'panoH',why:['Handserie: 21 Fotos in 40 s, gleiche Kamera (EXIF)','Überlappung ≈ 30 %, Bewegung seitlich (Vorschaubilder)','Bildwinkel aus Brennweite + Schwenk ≈ 170° → Zylinder'],
        n:21,w:680,h:170,dims:'≈ 21 800 × 5 400',file:'IMG_0001_panorama.jpg',size:'118 MP · 41 MB',art:'Zylinder',time:'2 min 40 s'}
-    : {src:PANO_SRC,fit:'pano',why:PANO_WHY,n:26,w:660,h:330,dims:'16 384 × 8 192',file:'DJI_0001_panorama.jpg',size:'134 MP · 46 MB',art:'Kugel 360°',time:'3 min 12 s'};
+    : {src:PANO_SRC,fit:'pano',why:PANO_WHY,n:26,w:660,h:330,dims:'27 182 × 6 172',file:'DJI_0001_panorama.jpg',size:'168 MP · 27 MB',art:'Kugel 360° · Horizontstreifen',time:'1 min 22 s'};
   return {title:hidden?'Zusammenfügen – Privat':'Zusammenfügen · Panorama – Lumora',
    body:mleft({src:D.src,fit:D.fit,sel:'pano',sugg:'pano',why:D.why,lock:true})
     +`<div class="mcenter"><div class="wstrip ok"><span class="ic s">&#xE73E;</span>Panorama gespeichert · ${hidden?'im Container, neben dem ersten Einzelbild':'neben dem ersten Einzelbild, auch in Album „Ausflüge“'}</div>
@@ -1020,7 +1033,7 @@ function doneWin(hidden){
     +`<div class="mright"><h3><span class="ic" style="color:var(--success)">&#xE73E;</span>Fertig</h3>
       <span class="kenn">${ki('merge')}aus ${D.n} Fotos zusammengefügt</span>
       <div class="kv"><span>Datei</span><span class="mono">${D.file}</span><span>Größe</span><span>${D.size}</span><span>Aufnahme</span><span>Datum und Kamera vom ersten Bild, Ort samt Höhe vom ersten mit Ort</span>
-        <span>Tags</span><span>2 gemeinsame übernommen</span><span>Sterne</span><span>keine (neues Bild)</span><span>Quellen</span><span>unverändert · in der Galerie eingeklappt</span>
+        <span>Übernommen</span><span>höchste Sterne der Quellen, Favorit · 2 gemeinsame Tags</span><span>Farbe</span><span>kräftiger 100 % (Standard)</span><span>Quellen</span><span>unverändert, mit dem Ergebnis verknüpft (Einklappen mit Stufe 2)</span>
         ${hidden?'<span>Ablage</span><span>im Container</span>':'<span>Album</span><span>„Ausflüge“ (Verknüpfung)</span>'}</div>
       <div class="vbtns"><button class="btn-acc"><span class="ic s">&#xE8A7;</span>Öffnen</button><button class="btn-std"><span class="ic s">&#xE91B;</span>In der Galerie zeigen</button>
         <button class="btn-std"><span class="ic s">&#xE7A7;</span>Rückgängig</button><button class="btn-std"><span class="ic s">&#xE945;</span>Danach verbessern…</button>
@@ -1103,9 +1116,9 @@ V.lb=()=>{
     <div class="strip">${strip}</div></div>
     <div class="side"><h3>${ki('pano','l')}DJI_0001_panorama.jpg</h3><div class="muted">16 384 × 8 192 · 134 MP · 46 MB</div>
      <h4>Aufnahme</h4><div class="kv"><span>Datum</span><span>Sa, 14.06.2025 10:42 (erstes Bild)</span><span>Ort</span><span>mit Höhe, aus Bild 1 (erstes mit Ort)</span><span>Kamera</span><span>DJI (erstes Bild)</span></div>
-     <h4>Zusammengefügt</h4><div class="kv"><span>Verfahren</span><span>Panorama</span><span>Aufnahmeart</span><span>Kugel 360° · Lücken gefüllt</span><span>Größe</span><span>16K</span><span>Quelle</span><span>RAW (DNG) 16 bit</span>
-       <span>Quellen</span><span>26 · alle vorhanden</span><span>Erstellt</span><span>17.11.2026 mit Lumora</span><span>360°-Betrachter</span><span>GPano-Angaben gesetzt</span></div>
-     <h4>Zuordnung</h4><div class="kv"><span>Tags</span><span>2 gemeinsame</span><span>Sterne</span><span>—</span><span>Personen</span><span>werden neu erkannt</span></div>
+     <h4>Zusammengefügt</h4><div class="kv"><span>Verfahren</span><span>Panorama</span><span>Aufnahmeart</span><span>Kugel 360° · 2 : 1 (Rundum-Bild)</span><span>Zuschnitt</span><span>Gerade Kanten</span><span>Farbe kräftiger</span><span>100 % (Standard)</span><span>Quelle</span><span>JPEG</span>
+       <span>Quellen</span><span>26 · alle vorhanden</span><span>Erstellt</span><span>18.11.2026 mit Lumora 0.5.47</span><span>360°-Betrachter</span><span>GPano-Angaben gesetzt</span></div>
+     <h4>Zuordnung</h4><div class="kv"><span>Tags</span><span>2 gemeinsame</span><span>Sterne</span><span>höchste der Quellen, Favorit übernommen</span><span>Personen</span><span>werden neu erkannt</span></div>
      <div class="muted">„Neu berechnen…“ öffnet das Fenster mit dem gespeicherten Rezept und speichert als weitere Datei. „Verbessern“ am Ergebnis ergibt eine normale Fassung.</div></div></div>`;
 };
 
@@ -1113,7 +1126,12 @@ V.lb=()=>{
 V.set=()=>`<div class="phead"><h1>Einstellungen</h1></div>
  <div class="tabs"><span>Bibliotheken &amp; Eingänge</span><span>Tags</span><span>Kategorien</span><span>Gesichter</span><span>Motive</span><span>Verbessern</span><span class="on">Zusammenfügen</span><span>Archive</span><span>Darstellung</span><span>Storys</span><span>Assistent</span><span>Orte</span><span>Modelle &amp; Daten</span><span>Speicher &amp; Wartung</span><span>Verbundene Apps</span><span>Info</span></div>
  <div class="sbody"><div class="scol">
-  <section class="card"><h2>${ki('stack','l')}Serien erkennen</h2>
+  <section class="card"><h2>${ki('pano','l')}Panorama <span class="muted" style="font-size:11px;font-weight:400">Stufe 1 · gebaut</span></h2>
+   <div class="srow" style="grid-template-columns:1fr"><div><b>Farbe kräftiger</b><div class="orow" style="margin-top:6px"><span class="rng"><i style="width:67%"></i><b style="left:67%"></b></span><span>100 % (Standard)</span></div><small>0 = aus (treu zu den Quellen), 100 = Standard (Buntheit wie Photoshop), bis 150 · Helligkeit und Kontrast bleiben · das Fenster merkt sich die letzte Stärke</small></div></div>
+   <div class="srow" style="grid-template-columns:1fr"><div><b>Kugel 360° vorausgewählt als</b><div class="radio-row"><span class="radio on"></span>Horizontstreifen (wie die bisherigen Photoshop-Panoramen)</div><div class="radio-row" style="padding-top:0"><span class="radio"></span>2 : 1 · Rundum-Bild mit gefülltem Zenit/Nadir</div></div></div>
+   <div class="srow"><div><b>Größe</b><small>volle Auflösung · reicht der Arbeitsspeicher nicht (frei − 1,5 GB) oder käme eine Kante über 65 500 px, die größte passende Stufe</small></div><span class="dd">Volle Auflösung</span></div>
+   <div class="srow"><div><b>Rechen-Prozess (OpenCV)</b><small>eigener Prozess — stürzt er ab, läuft Lumora weiter</small></div><span class="state s-ok">geladen</span></div></section>
+  <section class="card" style="opacity:.6"><h2>${ki('stack','l')}Serien erkennen <span class="muted" style="font-size:11px;font-weight:400">kommt mit Stufe 2</span></h2>
    <div class="srow"><div><b>Serien erkennen</b><small>still im Hintergrund · wartet, sobald du auf etwas wartest · Datei-Spur Vorrang 3 (nach Datum/Orte, Doppelten, Foto-Güte; vor Prüfsummen und Vorschaubildern auf Vorrat) · lädt nie aus OneDrive herunter</small></div><span class="sw on"></span></div>
    <div class="srow" style="grid-template-columns:1fr"><div><b>Arten</b><div class="kinds" style="margin-top:6px">${[['pano','Panorama'],['hdr','Belichtungsreihe'],['stack','Serienbild'],['focus','Fokusreihe'],['interval','Intervall'],['panohdr','Panorama-Belichtungsreihe']].map(([k,n])=>`<label><span class="chk on">&#xE73E;</span>${ki(k)}${n}</label>`).join('')}</div></div></div>
    <div class="srow"><div><b>Zeitlücke Serienbild</b><small>höchster Abstand zwischen zwei Fotos</small></div><span class="inp">2 s</span></div>
@@ -1131,12 +1149,13 @@ V.set=()=>`<div class="phead"><h1>Einstellungen</h1></div>
  </div><div class="scol">
   <section class="card"><h2><span class="ic">&#xE8B7;</span>Ergebnis</h2>
    <div class="srow" style="grid-template-columns:1fr"><div><b>Ablage</b><div class="radio-row"><span class="radio on"></span>neben dem ersten Einzelbild</div><div class="radio-row" style="padding-top:0"><span class="radio"></span>im Unterordner „zusammengefügt“</div></div></div>
-   <div class="srow"><div><b>Drohnen-Panorama-Ordner: eine Ebene höher ablegen</b></div><span class="sw"></span></div>
+   <div class="srow"><div><b>Drohnen-Panorama-Ordner: eine Ebene höher ablegen</b><small>Wahl laut Abnahme Nr. 15; Standard aus</small></div><span class="sw"></span></div>
    <div class="srow" style="grid-template-columns:1fr"><div><b>Dateinamen-Zusätze</b><div class="sfx" style="margin-top:6px">${[['Panorama','_panorama'],['Belichtungsreihe','_hdr'],['Entrauschen','_entrauscht'],['Leute entfernen','_ohne-leute'],['Langzeit','_langzeit'],['Fokus-Stapel','_fokus'],['HDR-Panorama','_hdr-panorama'],['Gruppenfoto','_gruppenfoto'],['Zeitraffer','_zeitraffer']].map(([n,v])=>`<span>${n}</span><span class="mono">${v}</span>`).join('')}</div></div></div>
    <div class="srow"><div><b>JPEG-Qualität</b></div><span class="inp">92</span></div>
-   <div class="srow"><div><b>TIFF 16 bit bei RAW-Quellen</b></div><span class="sw"></span></div>
-   <div class="srow"><div><b>Gemeinsame Tags übernehmen</b><small>Sterne und Favorit nicht — neues Bild</small></div><span class="sw on"></span></div>
-   <div class="srow"><div><b>Quellen zusammengefügter Serien einklappen</b><small>nur, wenn das Ergebnis im Bereich liegt</small></div><span class="sw on"></span></div></section>
+   <div class="srow" style="opacity:.6"><div><b>TIFF 16 bit bei RAW-Quellen</b><small>kommt mit Stufe 3</small></div><span class="sw"></span></div>
+   <div class="srow"><div><b>Gemeinsame Tags übernehmen</b></div><span class="sw on"></span></div>
+   <div class="srow"><div><b>Sterne und Favorit übernehmen</b><small>höchste Sternezahl der Quellen; Favorit, wenn eine Quelle Favorit ist</small></div><span class="sw on"></span></div>
+   <div class="srow" style="opacity:.6"><div><b>Quellen zusammengefügter Serien einklappen</b><small>kommt mit Stufe 2 · nur, wenn das Ergebnis im Bereich liegt</small></div><span class="sw on"></span></div></section>
   <section class="card"><h2><span class="ic">&#xE9D9;</span>Rechnen</h2>
    <div class="srow"><div><b>Stapel nebenbei ab</b><small>halbe Kerne, Hintergrund läuft weiter</small></div><span class="inp">3 Serien</span></div>
    <div class="muted">Vorrang nur, solange das Fenster eine Vorschau rechnet oder speichert (danach 2 s Nachlauf); der Hintergrund wartet so lange. Ein offenes Fenster, das nichts rechnet, hält den Hintergrund nicht an.</div></section>
@@ -1202,7 +1221,7 @@ const CAP={
  filter:'<b>Ansicht 2 · Filter „Serien“</b> (Punkt 9). Chip „Serien · 12 neu“ in der Zeile „Inhalt“ neben „Doppelte“, mit allen Filtern kombinierbar (ADR-0041). Flyout: Arten mit Zahlen (Panorama 110 nach Aufnahmeart: 48 Kugel, 43 Zylinder, 6 Perspektive, 3 Vertikal, 10 andere), Zustand Neu | Offen | Alle | Zusammengefügt | Verworfene — 2 Panoramen sind schon zusammengefügt, also zeigt „Panoramen, offen“ <b>108 Serien</b>; „Eine Kachel je Serie“, Stand der Erkennung (OneDrive-Platzhalter nur mit Katalogdaten, nie heruntergeladen) und der Stapel „Alle 108 sichtbaren zusammenfügen…“ (Ansicht 12). Eine Kachel je Serie: Titelbild mit Stapel-Rand, Art, Zahl, Dauer, „neu“; beim Darüberfahren der <b>Ein-Klick-Knopf</b> — öffnet das Fenster mit vorausgewähltem Verfahren und vorausgewählter Art, die Vorschau startet sofort. Serien mit Sicherheit 0,5–0,7 zeigen keinen Ein-Klick-Knopf. <b>Offen bei der Abnahme:</b> Klick auf die Kachel-Marke zeigt die Serie (Entwurf) oder öffnet gleich das Fenster?',
  series:'<b>Ansicht 3 · Geöffnete Serie</b> (Punkt 9) — das „Aufklappen“: Klick oder Enter öffnet die Serie als Bedingung „Serie: …“ plus <b>Serien-Leiste</b> (verträglich mit der virtualisierten, seitenweisen Galerie). Leiste: Art, Titel, Zeitspanne, Kamera, Gründe als Chips, Probe-Vorschau (Stufe 3), [Panorama 360° zusammenfügen ▾] mit den übrigen Verfahren „passt“/„eher nicht“, Alle auswählen, Serie anpassen, Keine Serie. Beim Öffnen gilt die Serie als gesehen, der Zähler am Chip sinkt. <b>Serie anpassen:</b> Haken entfernen nimmt ein Foto heraus, „Zur Serie hinzufügen ▸“ holt gewählte Fotos dazu; „Keine Serie“ verwirft (im Flyout unter „Verworfene“ wieder herstellbar). Der Benutzerzustand bleibt beim erneuten Erkennen.',
  menu:'<b>Ansicht 4 · Rechtsklick</b> (Punkte 7 und 8) im gemeinsamen Foto-Menü (<span class="mono">PhotoContextMenuBuilder</span>, heute gebaut in Galerie-Kachel, Listenzeile und Lightbox) unter „Bearbeiten ▸“ direkt nach „Foto verbessern…“ bzw. „5 Fotos verbessern…“: ab 2 Fotos „5 Fotos zusammenfügen…“, bei einem Foto einer Serie „Serie mit 26 Fotos zusammenfügen…“, dazu die Aktionsleiste ab 2 gewählten Fotos. Bei Mehrfachauswahl fehlen wie im Code Öffnen, Personen, Titelbild, Suchen und Eigenschaften. Rechtsklick auf die <b>Marke</b>: Serie zusammenfügen, Fotos der Serie zeigen, Keine Serie. <b>Suchen ▸</b> „Gleiche Serie“, bei einer Quelle „Zusammengefügtes Ergebnis“, bei einem Ergebnis „Quellen“. <b>Liste</b>: dasselbe Menü in der Listenansicht. <b>Lightbox</b>: dasselbe Menü (ohne Öffnen und Suchen, Diashow „S“), bei einem Foto ohne Serie „Zusammenfügen…“ — auch wenn die Lightbox aus einer <b>Story</b> geöffnet wurde; die Story-Seite selbst hat das Menü nicht (Ausblick). <b>Lightbox → Fenster</b>: das Fenster zeigt die Zeit-Nachbarn (gleicher Ordner, gleiche Kamera, ± 2 min) im Filmstreifen, noch nicht angehakt; erst ab 2 Haken gibt es Verfahren und Vorschau. <b>Aus einem Album:</b> ein eigenes Album ist eine gefilterte Galerie, also dieselben Wege; das Fenster setzt dann im Fuß „auch ins Album „…““ (Ansicht 11); bei intelligenten Alben gibt es den Haken nicht. <b>Gesperrt</b> mit Tooltip: gemischte Bibliotheken, nur Videos, Archiv-Einträge, fehlende Dateien, OpenCV nicht geladen. Kein eigenes Tastenkürzel in Stufe 1 (Strg+M ist „In die Bibliothek…“).',
- pano:'<b>Ansicht 5 · Fenster „Zusammenfügen“ · Panorama</b> (Punkte 6 und 8). Eigenes, nicht modales Fenster: links die neun Verfahren mit „passt“/„eher nicht“ und Grund, der Vorschlag hervorgehoben, darunter „Warum dieser Vorschlag“ (Belege aus Ordner, Gimbal-XMP, Zeit, Kamera, Überlappung). Mitte die Vorschau (≈ 4–6 MP aus Vorschaubildern) mit Zuschnitt-Rahmen, schraffierten Lücken und Überlagerung „Nähte“, unten der Filmstreifen der Quellen mit Rolle („R2 · 45°“). Rechts die <b>Aufnahmearten wie in Photoshop</b> als Kacheln mit Skizze: Automatisch, Kugel 360° (2 : 1, Lücken füllen, GPano), Zylinder, Perspektive, Vertikal, Nur verschieben — umschalten rechnet nur die Projektion neu. Zuschnitt, Belichtung, Quelle JPEG/RAW (DNG, Raw-Bilderweiterung), Größe (16K Standard, „Voll“ nur wenn der Speicher reicht). „Danach hochskalieren“ ist hier ausgegraut (134 MP über der Grenze). Zustand <b>Stufe 1</b>: nur Panorama aktiv, Rest „kommt später“. <b>HDR-Panorama</b>: Gruppen „26 Positionen × 3 Belichtungen“, HDR- und Panorama-Optionen. Werkzeug hinter der Vorschau: offen bis Spike 20.',
+ pano:'<b>Ansicht 5 · Fenster „Zusammenfügen“ · Panorama</b> (Punkte 6 und 8). Eigenes, nicht modales Fenster: links die neun Verfahren mit „passt“/„eher nicht“ und Grund, der Vorschlag hervorgehoben, darunter „Warum dieser Vorschlag“ (Belege aus Ordner, Gimbal-XMP, Zeit, Kamera, Überlappung). Mitte die Vorschau (≈ 4–6 MP aus Vorschaubildern) mit Zuschnitt-Rahmen, schraffierten Lücken und Überlagerung „Nähte“, unten der Filmstreifen der Quellen mit Rolle („R2 · 45°“). Rechts die <b>Aufnahmearten wie in Photoshop</b> als Kacheln mit Skizze: Automatisch, Kugel 360° (2 : 1, Lücken füllen, GPano), Zylinder, Perspektive, Vertikal, Nur verschieben — umschalten rechnet nur die Projektion neu. Kugel 360° als Horizontstreifen oder 2 : 1, Zuschnitt (Gerade Kanten ohne gefülltes Pixel), Belichtung, <b>Farbe kräftiger</b> 0–150 % mit Aus und Standard 100, Größe (volle Auflösung, sonst die größte passende Stufe mit Grund); Quelle RAW/DNG und Größenwahl kommen mit Stufe 3, „Danach hochskalieren“ mit Stufe 4. Zustand <b>Stufe 1</b>: nur Panorama aktiv, Rest „kommt später“ (gebaut 0.5.47). <b>HDR-Panorama</b>: Gruppen „26 Positionen × 3 Belichtungen“, HDR- und Panorama-Optionen. Werkzeug hinter der Vorschau: offen bis Spike 20.',
  hdr:'<b>Ansicht 6 · Belichtungsreihe (HDR)</b> (Punkte 5 und 15). Vorher/Nachher-Regler gegen die mittlere Belichtung (wie die Verbessern-Bühne), Überlagerung „Geister“. Stil Natürlich (Exposure Fusion) oder Kräftig (HDR + Tonung), Ausrichten aus der Hand/Stativ, Geister entfernen mit Bezugsbild. <b>Danach hochskalieren</b> mit dem Modell aus „Foto verbessern“: 12 MP → 48 MP (2×), 4× ausgegraut (nur bis 4 MP); Grenzen 64 MP, Ladekante 10 000 px, JPEG 65 535 px. Es entsteht eine Datei.',
  burst:'<b>Ansicht 7 · Serienbild</b> (Punkt 5): dieselbe Serie, drei Verfahren. <b>Entrauschen / mehr Details</b> (Vorschlag bei ISO ≥ 800): Stärke, Bezugsbild = schärfstes, „Mehr Details aus der Serie“ 1,5×/2× ab 8 Fotos aus der Hand. <b>Leute entfernen</b>: Median über die Serie, Maske „veränderte Stellen“, gelb = zu selten frei (bleibt wie im Bezugsbild); Pinsel kommt später. <b>Langzeit</b>: Weich (Mittel) oder Lichtspuren (Hellste), Stativ = nicht ausrichten.',
  focus:'<b>Ansicht 8 · Fokus-Stapel</b> (Punkt 5, Stufe 5). Überlagerung „Schärfe-Herkunft“: jede Farbe steht für das Quellfoto (Farbbalken im Filmstreifen, nah → fern). Ausrichten mit Maßstab gegen das „Atmen“ des Fokus, Glättung, Rand beschneiden, Hinweis auf Halos. Hochskalieren hier ausgegraut (24 MP über 16 MP).',

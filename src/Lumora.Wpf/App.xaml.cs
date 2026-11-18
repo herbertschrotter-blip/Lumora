@@ -218,6 +218,7 @@ public partial class App : Application, ICatalogHostSwitcher
         Lumora.Usage.UsageUiServiceCollectionExtensions.AddUsageUi(services); // Einstellungen › Storys › „Nutzung lernen“ (Wpf/Usage, ADR-0072)
         Lumora.Enhance.EnhanceUiServiceCollectionExtensions.AddEnhanceUi(services); // Foto verbessern: Lightbox-Leiste, Stapel, Fassungen, Einstellungen › Verbessern (Wpf/Enhance, ADR-0071)
         Lumora.PhotoMenu.PhotoMenuServiceCollectionExtensions.AddPhotoMenu(services); // Rechtsklick-Menü, Titelbild, Eigenschaften, Export (Wpf/PhotoMenu, ADR-0068)
+        Lumora.Merge.MergeUiServiceCollectionExtensions.AddMergeUi(services); // Zusammenfügen: Fenster, Marke, Lightbox-Zeile, Einstellungen (Wpf/Merge, ADR-0078 Stufe 1 Teil B)
         Lumora.AppConnect.ConnectedAppsUi.AddConnectedAppsUi(services); // Einstellungen › Verbundene Apps (Wpf/AppConnect, ADR-0073 Stufe 4)
 
         services.AddSingleton<MainWindow>();

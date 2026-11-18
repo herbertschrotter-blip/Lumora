@@ -41,7 +41,8 @@ public partial class SettingsPage : UserControl
         ModelPackages.ModelPackagesViewModel? modelPackages = null,
         Lumora.Enhance.EnhanceSettingsViewModel? enhance = null,
         Lumora.AppConnect.ConnectedAppsViewModel? connectedApps = null,
-        ThumbnailStock.ThumbnailStockSettingsViewModel? thumbnailStock = null)
+        ThumbnailStock.ThumbnailStockSettingsViewModel? thumbnailStock = null,
+        Lumora.Merge.MergeSettingsViewModel? merge = null)
     {
         _sections = sections;
         InitializeComponent();
@@ -57,6 +58,8 @@ public partial class SettingsPage : UserControl
         AssistantView.DataContext = assistant; // Reiter „Assistent“ (ADR-0063); ohne Dienst leer
         ModelsView.DataContext = modelPackages; // Reiter „Modelle & Daten“ (ADR-0070); ohne Dienst leer
         EnhanceView.DataContext = enhance; // Reiter „Verbessern“ (ADR-0071); ohne Dienst leer
+        MergeView.DataContext = merge; // Reiter „Zusammenfügen“ (ADR-0078); ohne Dienst leer
+        Loaded += (_, _) => _ = merge?.RefreshAsync();
         ConnectedAppsView.DataContext = connectedApps; // Reiter „Verbundene Apps“ (ADR-0073); ohne Dienst leer
         // Speicher & Wartung › Fehlende Dateien (ADR-0065); ohne Dienst ausgeblendet
         StorageView.MissingFilesCard.DataContext = missingFiles;

@@ -13,6 +13,7 @@
              xmlns:assistant="clr-namespace:Lumora.Stories.Assistant"
              xmlns:models="clr-namespace:Lumora.Settings.ModelPackages"
              xmlns:enhance="clr-namespace:Lumora.Enhance"
+             xmlns:merge="clr-namespace:Lumora.Merge"
              xmlns:appconnect="clr-namespace:Lumora.AppConnect"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance local:SettingsViewModel}"
@@ -102,6 +103,10 @@
             <!-- Verbessern (ADR-0071, Mockup 13): DataContext = EnhanceSettingsViewModel (Code-Behind) -->
             <TabItem Header="Verbessern" Tag="{x:Static shell:NavigationTags.SettingsEnhance}">
                 <enhance:SettingsEnhanceSection x:Name="EnhanceView" />
+            </TabItem>
+            <!-- Zusammenfügen (ADR-0078 Punkt 17, Mockup 28 Ansicht 15): DataContext = MergeSettingsViewModel (Code-Behind) -->
+            <TabItem Header="Zusammenfügen" Tag="{x:Static shell:NavigationTags.SettingsMerge}">
+                <merge:SettingsMergeSection x:Name="MergeView" />
             </TabItem>
             <TabItem Header="Archive" Tag="{x:Static shell:NavigationTags.SettingsArchives}">
                 <sections:SettingsArchivesSection />

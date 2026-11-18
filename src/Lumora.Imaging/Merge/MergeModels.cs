@@ -149,11 +149,18 @@ public sealed record MergePreview(
     MergeQuality Quality,
     IReadOnlyList<MergeNote> Notes,
     IReadOnlyList<int> DroppedFileIds,
-    TimeSpan Elapsed)
+    TimeSpan Elapsed,
+    MergePreviewFrame? Frame = null)
 {
     /// <summary>Speichern nur, wenn die Prüfung bestanden ist (nie still speichern).</summary>
     public bool CanSave => Quality.Passed;
 }
+
+/// <summary>
+/// Bühne des Fensters bei „Gerade Kanten“ (Nachtrag 0.5.47): ungeschnittenes Vorschau-Panorama mit schraffierten Lücken (vor
+/// Tonwert-Angleich und Farbverstärkung) und die Lage des Zuschnitts darin in Pixeln der Rahmen-Datei.
+/// </summary>
+public sealed record MergePreviewFrame(string ImagePath, int Width, int Height, int CropX, int CropY, int CropWidth, int CropHeight);
 
 /// <summary>Fortschritt („Nähte suchen 4/6“) einer Vorschau bzw. des Speicherns.</summary>
 /// <param name="Saving">true beim Speichern (volle Auflösung), false bei der Vorschau.</param>

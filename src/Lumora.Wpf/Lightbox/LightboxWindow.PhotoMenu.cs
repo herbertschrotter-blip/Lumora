@@ -86,6 +86,8 @@ public partial class LightboxWindow
             SetPlace = actions.HasPlaces ? () => PhotoContextMenuBuilder.Run(HostFor(actions), () => actions.SetPlaceAsync(ids, item.IsVideo, this)) : null,
             ShowFaces = item.IsImage && _viewModel.Faces.IsAvailable ? ShowFaces : null,
             Enhance = item.IsImage && _viewModel.HasEnhance ? () => _ = _viewModel.ShowEnhanceAsync() : null, // ADR-0071
+            Merge = _viewModel.HasMerge ? () => _ = _viewModel.StartMergeAsync() : null, // ADR-0078: Zeit-Nachbarn im Fenster
+            MergeBlockedReason = _viewModel.HasMerge ? _viewModel.MergeBlockReason(item, target.IsMissing) : null,
             Recycle = () => _ = _viewModel.DeleteCurrentCommand.ExecuteAsync(null),
             ExternalCandidates = () => [Candidate(item)],
             CopyInitialDirectory = System.IO.Path.GetDirectoryName(item.Path),

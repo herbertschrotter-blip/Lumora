@@ -152,7 +152,8 @@ public sealed partial class GalleryViewModel : ObservableObject
         Lumora.Enhance.EnhanceGalleryActions? enhance = null,
         Lumora.Services.Places.Tracks.IAppTourReader? tours = null,
         Lumora.AppConnect.AppConnectRuntime? appConnect = null,
-        Lumora.Services.Cloud.ICloudFileService? cloudFiles = null)
+        Lumora.Services.Cloud.ICloudFileService? cloudFiles = null,
+        Lumora.Merge.MergeGalleryActions? merge = null)
     {
         InitTours(tours, appConnect, navigation); // Filter „Tour“ (ADR-0073 Stufe 7, Mockup 24, GalleryViewModel.Tours.cs)
         _rotation = rotation; // Rückgängig für „Drehen“ (ADR-0068, GalleryViewModel.Rotation.cs)
@@ -190,6 +191,7 @@ public sealed partial class GalleryViewModel : ObservableObject
         InitPages(sharedFilter, navigation); // gemeinsamer Filter, seitengebundene Teile (GalleryViewModel.Pages.cs, ADR-0055)
         InitEnhance(enhance); // Foto verbessern: Marke „2 Fassungen“, beste Fassung, Stapel (GalleryViewModel.Enhance.cs, ADR-0071)
         InitCloud(cloudFiles); // OneDrive: Wolken-Marke, Platzhalter nur sichtbar anfordern, Behalten/Freigeben (GalleryViewModel.Cloud.cs, ADR-0077)
+        InitMerge(merge); // Zusammenfügen: Menü, Aktionsleiste, Ergebnis-Marke (GalleryViewModel.Merge.cs, ADR-0078)
     }
 
     // ---- Gebundene Daten ---------------------------------------------------------------------
@@ -841,6 +843,12 @@ public sealed partial class GalleryViewModel : ObservableObject
         catch (OperationCanceledException)
         {
         }
+        catch (Exception ex) when (ex is ObjectDisposedException || (ex is InvalidOperationException && !_source.IsOpen))
+        {
+            // Sitzung endet (Katalogwechsel, Beenden, versteckte Bibliothek zugesperrt): die Quelle ist schon zu bzw. freigegeben —
+            // ein noch angestoßenes Neuladen der alten Sitzung entfällt (bis 0.5.46 als Fehler protokolliert)
+            _logger.LogDebug(ex, "Reload verworfen: Galerie-Quelle bereits geschlossen");
+        }
         catch (Exception ex)
         {
             ErrorMessage = ex.Message;
@@ -912,6 +920,7 @@ public sealed partial class GalleryViewModel : ObservableObject
         FireAndForget(() => ApplyMotifsToItemsAsync(rows.Select(r => r.Id).ToList(), ct)); // Motive (ADR-0052)
         FireAndForget(() => ApplyFolderLinkMarksAsync(query, rows.Select(r => r.Id).ToList(), ct)); // Verknüpft (ADR-0054)
         FireAndForget(() => ApplyVariantMarksAsync(rows.Select(r => r.Id).ToList(), ct)); // Fassungen (ADR-0071)
+        FireAndForget(() => ApplyMergeMarksAsync(rows.Select(r => r.Id).ToList(), ct)); // Ergebnis-Marke „aus n Fotos“ (ADR-0078)
 
         SetLoadStatus($"{TotalCount:N0} Treffer · Seite {DisplayPageIndex} von {PageCount:N0} · {LastPageLoadMs:N1} ms");
         _logger.LogInformation(
@@ -1890,6 +1899,7 @@ public sealed partial class GalleryViewModel : ObservableObject
         try
         {
             var owner = OwnerWindowResolver?.Invoke() ?? Application.Current?.MainWindow;
+            _lightbox.SetAlbumContext(CurrentAlbum.Id, CurrentAlbum.Name); // „Zusammenfügen…“ in der Lightbox: auch ins Album (ADR-0078)
             _lightbox.Open(entries, startIndex, owner);
         }
         catch (Exception ex)

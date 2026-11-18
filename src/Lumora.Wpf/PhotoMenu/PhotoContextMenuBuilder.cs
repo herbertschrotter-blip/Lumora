@@ -53,6 +53,15 @@ public sealed record PhotoMenuHost
     /// <summary>„Bearbeiten ▸ Foto verbessern…“ (ADR-0071): Leiste „Verbessern“ bzw. bei Mehrfachauswahl der Stapel-Dialog; null = ausgegraut.</summary>
     public Action? Enhance { get; init; }
 
+    /// <summary>
+    /// „Bearbeiten ▸ n Fotos zusammenfügen…“ bzw. „Zusammenfügen…“ (ADR-0078 Punkt 7): Fenster „Zusammenfügen“; null = Eintrag
+    /// entfällt (keine Anbindung).
+    /// </summary>
+    public Action? Merge { get; init; }
+
+    /// <summary>Grund, warum „Zusammenfügen…“ gesperrt ist (gemischte Bibliotheken, nur Videos/Archive/fehlende, nicht verfügbar); null = frei.</summary>
+    public string? MergeBlockedReason { get; init; }
+
     /// <summary>„Suchen ▸“: Ergebnis als Bedingung in der Galerie zeigen; null = kein „Suchen“.</summary>
     public Func<RelatedPhotos, Task>? ApplySearch { get; init; }
 
@@ -177,6 +186,15 @@ public static class PhotoContextMenuBuilder
             enhanceable ? host.Enhance : null,
             toolTip: enhanceable ? "Hochskalieren, Gesichter, Einfärben, Entfernen, Licht — als neue Datei, das Original bleibt" : "Nur Fotos lassen sich verbessern.",
             keepDisabled: true);
+        // Zusammenfügen (ADR-0078 Punkt 7) direkt nach „… verbessern…“; ein Foto → Zeit-Nachbarn im Fenster
+        if (host.Merge is { } merge)
+        {
+            var blockedMerge = host.MergeBlockedReason;
+            Add(edit.Items, Lumora.Imaging.Merge.MergeTexts.MenuHeader(single ? 1 : ids.Count), SymbolRegular.ImageMultiple24,
+                blockedMerge is null ? merge : null,
+                toolTip: blockedMerge ?? Lumora.Imaging.Merge.MergeTexts.MenuToolTip,
+                keepDisabled: true);
+        }
         RemoveTrailingSeparators(edit.Items);
         if (edit.Items.Count == 0)
         {
@@ -492,6 +510,25 @@ public static class PhotoContextMenuBuilder
         Add(menu.Items, "Gleicher Ort", SymbolRegular.Location24, () => Search(host, () => actions.SamePlaceAsync(primary.FileId), "Dieses Foto hat keinen Ort."));
         Add(menu.Items, "Doppelte zeigen", SymbolRegular.DocumentCopy24, () => Search(host, () => actions.DuplicatesAsync(primary.FileId), "Noch kein Fingerabdruck für dieses Foto (Doppelte werden im Hintergrund berechnet)."));
         Add(menu.Items, "Gleiche Person(en)", SymbolRegular.People24, () => Search(host, () => actions.SamePersonsAsync(primary.FileId), "Auf diesem Foto ist keine Person bestätigt."));
+
+        // Zusammenfügen (ADR-0078 Punkt 9): bei einem Ergebnis „Quellen“, bei einer Quelle „Zusammengefügtes Ergebnis“
+        var (isResult, isSource) = await actions.MergeRolesAsync(primary.FileId).ConfigureAwait(true);
+        if (isResult || isSource)
+        {
+            Separator(menu.Items);
+        }
+
+        if (isResult)
+        {
+            Add(menu.Items, Lumora.Imaging.Merge.MergeTexts.SearchSources, SymbolRegular.ImageMultiple24,
+                () => Search(host, () => actions.MergeSourcesAsync(primary.FileId, primary.Name), "Die Quellen sind nicht mehr in der Bibliothek."));
+        }
+
+        if (isSource)
+        {
+            Add(menu.Items, Lumora.Imaging.Merge.MergeTexts.SearchResult, SymbolRegular.ImageMultiple24,
+                () => Search(host, () => actions.MergeResultsAsync(primary.FileId, primary.Name), "Kein zusammengefügtes Ergebnis mehr."));
+        }
     }
 
     // ---- Hilfen ------------------------------------------------------------------------------------------------------

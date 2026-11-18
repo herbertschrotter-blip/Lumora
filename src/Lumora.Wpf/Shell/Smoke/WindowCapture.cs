@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -51,6 +52,47 @@ internal static class WindowCapture
         using var stream = File.Create(path);
         encoder.Save(stream);
         return method;
+    }
+
+    /// <summary>
+    /// Fenster samt offener Popups (Rechtsklick-Menü, Untermenü) als PNG: RenderTargetBitmap sieht nur den Visualbaum des
+    /// Fensters, Popups leben in eigenen Fenstern — sie werden an ihrer Bildschirm-Lage dazugezeichnet (ADR-0078, Rauchtest).
+    /// </summary>
+    public static string? TrySaveWithPopups(Window window, string path, IEnumerable<FrameworkElement> popups)
+    {
+        var width = window.ActualWidth;
+        var height = window.ActualHeight;
+        if (width <= 0 || height <= 0)
+        {
+            return null;
+        }
+
+        var dpi = VisualTreeHelper.GetDpi(window);
+        var target = new RenderTargetBitmap((int)Math.Ceiling(width * dpi.DpiScaleX), (int)Math.Ceiling(height * dpi.DpiScaleY), dpi.PixelsPerInchX, dpi.PixelsPerInchY, PixelFormats.Pbgra32);
+        var origin = window.PointToScreen(new Point(0, 0));
+        var visual = new DrawingVisual();
+        using (var context = visual.RenderOpen())
+        {
+            var background = window.Background as SolidColorBrush;
+            context.DrawRectangle(background is { Color.A: 255 } ? background : ThemeFallbackBackground(), null, new Rect(0, 0, width, height));
+            context.DrawRectangle(new VisualBrush(window) { Stretch = Stretch.None, AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top }, null, new Rect(0, 0, width, height));
+            foreach (var popup in popups.Where(p => p.IsVisible && p.ActualWidth > 0 && p.ActualHeight > 0))
+            {
+                var at = popup.PointToScreen(new Point(0, 0));
+                var rect = new Rect((at.X - origin.X) / dpi.DpiScaleX, (at.Y - origin.Y) / dpi.DpiScaleY, popup.ActualWidth, popup.ActualHeight);
+                context.DrawRectangle(ThemeFallbackBackground(), null, rect);
+                context.DrawRectangle(new VisualBrush(popup) { Stretch = Stretch.None, AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top }, null, rect);
+            }
+        }
+
+        target.Render(visual);
+        target.Freeze();
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(target));
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        using var stream = File.Create(path);
+        encoder.Save(stream);
+        return "RenderTargetBitmap + Popups";
     }
 
     /// <summary>WPF-Visualbaum des Fensters in Gerätepixeln; transparenter Window.Background (Mica) wird gefüllt.</summary>

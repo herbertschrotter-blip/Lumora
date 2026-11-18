@@ -57,6 +57,30 @@ public sealed record ComposeRequest : WorkerMessage
     public required string OutputPath { get; init; }
 
     public int JpegQuality { get; init; } = 85;
+
+    /// <summary>
+    /// Bühne des Fensters (Nachtrag 0.5.47): bei „Gerade Kanten“ zusätzlich das ungeschnittene Panorama mit schraffierten
+    /// Lücken hierhin schreiben (JPEG, Temp-Ordner); null = nicht. Den Zuschnitt darin nennt <see cref="ComposeResult.Frame"/>.
+    /// </summary>
+    public string? FramePath { get; init; }
+}
+
+/// <summary>Ungeschnittenes Vorschau-Panorama (schraffierte Lücken) und die Lage des Zuschnitts darin (Pixel der Rahmen-Datei).</summary>
+public sealed record PreviewFrame
+{
+    public required string Path { get; init; }
+
+    public int Width { get; init; }
+
+    public int Height { get; init; }
+
+    public int CropX { get; init; }
+
+    public int CropY { get; init; }
+
+    public int CropWidth { get; init; }
+
+    public int CropHeight { get; init; }
 }
 
 /// <summary>
@@ -179,6 +203,9 @@ public sealed record ComposeResult : WorkerMessage
     public double Seconds { get; init; }
 
     public long PeakBytes { get; init; }
+
+    /// <summary>Ungeschnittenes Panorama mit Zuschnitt-Rahmen (nur Vorschau mit <see cref="ComposeRequest.FramePath"/>).</summary>
+    public PreviewFrame? Frame { get; init; }
 }
 
 /// <summary>Fehler einer Arbeit (der Hilfsprozess läuft weiter).</summary>
@@ -360,6 +387,9 @@ public sealed record QualityCheck
 
     /// <summary>Fläche des Zuschnitts gegenüber dem Rahmen der gedeckten Fläche (0…1).</summary>
     public double CropAreaFraction { get; init; } = 1;
+
+    /// <summary>Ungedeckte Pixel im Zuschnitt vor jedem Füllen (ADR-0078 Nachtrag 0.5.47): „Gerade Kanten“ immer 0.</summary>
+    public long UncoveredPixels { get; init; }
 
     public int UsedImages { get; init; }
 

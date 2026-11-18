@@ -62,6 +62,7 @@ public sealed class PanoramaChainMoreTests : IDisposable
             using var band = Compose(list, a, new ComposeSpec { Projection = WireProjection.Spherical360, SphereForm = WireSphereForm.Band, Scale = 0.5 }, full: false);
             band.Check.Passed.Should().BeTrue(string.Join(",", band.Check.Problems));
             ((double)band.Image.Width / band.Image.Height).Should().BeGreaterThan(2.2, "Horizontstreifen ist breiter als 2 : 1");
+            band.UncoveredInCrop.Should().Be(0, "Horizontstreifen mit geraden Kanten füllt nichts");
 
             using var full = Compose(list, a, new ComposeSpec { Projection = WireProjection.Spherical360, SphereForm = WireSphereForm.Full, Scale = 0.5 }, full: false);
             full.Image.Width.Should().Be(full.Image.Height * 2, "2 : 1-Rundum-Bild");
@@ -116,9 +117,10 @@ public sealed class PanoramaChainMoreTests : IDisposable
             a.Cameras.Should().HaveCount(offsets.Length);
             a.SimilarityResidualPx.Should().BeLessThan(1.5);
             using var outcome = Compose(list, a, new ComposeSpec { Projection = WireProjection.ShiftOnly, ToneMatch = 0, ColorBoost = 0 });
-            outcome.Image.Width.Should().BeInRange(1390, 1410);
-            outcome.Image.Height.Should().BeInRange(690, 710);
-            // Mitte der Vorlage im Ergebnis suchen (Ränder sind gefüllt) und vergleichen
+            // gerade Kanten ohne gefüllte Pixel: Sicherheitsrand und die leicht schiefen Scan-Kanten kosten ein paar Pixel
+            outcome.Image.Width.Should().BeInRange(1375, 1410);
+            outcome.Image.Height.Should().BeInRange(680, 710);
+            // Mitte der Vorlage im Ergebnis suchen und vergleichen
             using var truth = new Mat(flat, new Rect(200, 150, 1000, 400));
             using var score = new Mat();
             Cv2.MatchTemplate(outcome.Image, truth, score, TemplateMatchModes.CCoeffNormed);

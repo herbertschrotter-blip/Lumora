@@ -1,0 +1,126 @@
+<UserControl x:Class="Lumora.Merge.SettingsMergeSection"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:local="clr-namespace:Lumora.Merge"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance local:MergeSettingsViewModel, IsDesignTimeCreatable=False}"
+             d:DesignWidth="1000">
+    <!-- Einstellungen › Zusammenfügen (ADR-0078 Punkt 17, Mockup 28 Ansicht 15) — Stufe 1; DataContext = MergeSettingsViewModel -->
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="../Settings/Sections/SettingsStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Style="{StaticResource SectionPanel}">
+            <TextBlock Style="{StaticResource Lead}"
+                       Text="Aus mehreren Fotos eines: Panorama aus der Auswahl (Rechtsklick › Bearbeiten › Zusammenfügen…). Die Einzelbilder bleiben unverändert — das Ergebnis wird eine neue Datei mit Rückgängig." />
+
+            <!-- Farbe und Kugel -->
+            <Border Style="{StaticResource SectionCard}" AutomationProperties.Name="Panorama">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                        <ui:SymbolIcon Symbol="ImageMultiple24" FontSize="16" Margin="0,0,8,0" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                        <ui:TextBlock Style="{StaticResource SectionTitle}" Margin="0" Text="Panorama" />
+                    </StackPanel>
+
+                    <TextBlock Style="{StaticResource Label}" Margin="0,4,0,4" Text="Farbe kräftiger" />
+                    <Grid MaxWidth="520" HorizontalAlignment="Left">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="360" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Slider Minimum="0" Maximum="{Binding ColorBoostMax, Mode=OneTime}" Value="{Binding ColorBoost}" TickFrequency="10" IsSnapToTickEnabled="True"
+                                AutomationProperties.Name="Farbe kräftiger" AutomationProperties.AutomationId="SettingsMergeColorBoost" />
+                        <TextBlock Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center" Text="{Binding ColorBoostText}" />
+                    </Grid>
+                    <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0"
+                               Text="0 = aus (treu zu den Quellen), 100 = Standard (Buntheit wie Photoshop), bis 150. Helligkeit und Kontrast bleiben. Das Fenster merkt sich die zuletzt gewählte Stärke." />
+
+                    <TextBlock Style="{StaticResource Label}" Margin="0,14,0,4" Text="Kugel 360° vorausgewählt als" />
+                    <RadioButton GroupName="MergeSphere" Content="Horizontstreifen (wie die bisherigen Photoshop-Panoramen)" IsChecked="{Binding SphereBand}" />
+                    <RadioButton GroupName="MergeSphere" Margin="0,4,0,0" Content="2 : 1 · Rundum-Bild mit gefülltem Zenit/Nadir (für 360°-Betrachter)" IsChecked="{Binding SphereFull}" />
+                    <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0" Text="Im Fenster jedes Mal wählbar; die letzte Wahl gilt als Vorauswahl." />
+                </StackPanel>
+            </Border>
+
+            <!-- Ergebnis -->
+            <Border Style="{StaticResource SectionCard}" AutomationProperties.Name="Ergebnis">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                        <ui:SymbolIcon Symbol="Save24" FontSize="16" Margin="0,0,8,0" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                        <ui:TextBlock Style="{StaticResource SectionTitle}" Margin="0" Text="Ergebnis" />
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Label}" Margin="0,4,0,4" Text="Ablage" />
+                    <RadioButton GroupName="MergeLocation" Content="Neben dem ersten Einzelbild (Standard)" IsChecked="{Binding NextToFirst}" />
+                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                        <RadioButton GroupName="MergeLocation" Content="Im Unterordner neben dem ersten Einzelbild:" IsChecked="{Binding UseSubfolder}" />
+                        <ui:TextBox Width="200" Margin="8,0,0,0" Text="{Binding SubfolderName, UpdateSourceTrigger=PropertyChanged}"
+                                    IsEnabled="{Binding UseSubfolder}" AutomationProperties.Name="Name des Unterordners" />
+                    </StackPanel>
+                    <ui:ToggleSwitch Margin="0,10,0,0" Content="Drohnen-Panorama-Ordner: eine Ebene höher ablegen" IsChecked="{Binding DroneFolderOneUp}"
+                                     AutomationProperties.AutomationId="SettingsMergeOneUp" />
+                    <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0" Text="Gilt für Ordner mit DJI-Namensmuster (z. B. 100_0001). Nie wird eine Datei überschrieben; ist der Name belegt, kommt „ (2)“ dazu." />
+
+                    <TextBlock Style="{StaticResource Label}" Margin="0,14,0,4" Text="Dateiname-Zusatz Panorama" />
+                    <StackPanel Orientation="Horizontal">
+                        <ui:TextBox Width="160" Text="{Binding PanoramaSuffix, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Dateiname-Zusatz" />
+                        <TextBlock Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="12,0,0,0">
+                            <Run Text="Beispiel: " /><Run Text="{Binding FileNameExample, Mode=OneWay}" FontFamily="Cascadia Mono, Consolas" />
+                        </TextBlock>
+                    </StackPanel>
+
+                    <TextBlock Style="{StaticResource Label}" Margin="0,14,0,4" Text="JPEG-Qualität" />
+                    <StackPanel Orientation="Horizontal">
+                        <Slider Width="240" Minimum="70" Maximum="100" Value="{Binding JpegQuality}" TickFrequency="1" IsSnapToTickEnabled="True" AutomationProperties.Name="JPEG-Qualität" />
+                        <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" Text="{Binding JpegQuality}" />
+                    </StackPanel>
+
+                    <ui:ToggleSwitch Margin="0,14,0,0" Content="Gemeinsame Tags übernehmen" IsChecked="{Binding CopyCommonTags}" />
+                    <ui:ToggleSwitch Margin="0,10,0,0" Content="Sterne und Favorit übernehmen" IsChecked="{Binding CopyRating}" />
+                    <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0" Text="Höchste Sternezahl der Quellen; Favorit, wenn mindestens eine Quelle Favorit ist. Personen erkennt die Gesichtserkennung im Ergebnis neu." />
+                </StackPanel>
+            </Border>
+
+            <!-- Größe und Rechnen -->
+            <Border Style="{StaticResource SectionCard}" AutomationProperties.Name="Größe und Rechnen">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                        <ui:SymbolIcon Symbol="Ruler24" FontSize="16" Margin="0,0,8,0" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                        <ui:TextBlock Style="{StaticResource SectionTitle}" Margin="0" Text="Größe und Rechnen" />
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource ValueText}" Text="Volle Auflösung (Standard)" />
+                    <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0" Text="{Binding MemoryText}" AutomationProperties.AutomationId="SettingsMergeMemory" />
+                    <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0"
+                               Text="Vorrang nur, solange das Fenster eine Vorschau rechnet oder speichert (danach 2 s Nachlauf). Ein offenes Fenster, das nichts rechnet, hält den Hintergrund nicht an." />
+                    <Grid Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource ValueText}" Text="Rechen-Prozess (OpenCV)" />
+                            <TextBlock Style="{StaticResource Hint}" Text="{Binding ToolDetail}" />
+                        </StackPanel>
+                        <TextBlock Grid.Column="1" VerticalAlignment="Center" Text="{Binding ToolState}" AutomationProperties.AutomationId="SettingsMergeTool" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- kommt später -->
+            <Border Style="{StaticResource SectionCard}" Opacity="0.6" AutomationProperties.Name="Kommt später">
+                <StackPanel>
+                    <ui:TextBlock Style="{StaticResource SectionTitle}" Text="Kommt später" />
+                    <TextBlock Style="{StaticResource Hint}"
+                               Text="Serien erkennen (Stufe 2) · Stapel nebenbei (Stufe 2) · RAW/DNG, TIFF 16 bit, Größenwahl und Hugin (Stufe 3) · weitere Verfahren und Hochskalieren danach (Stufen 4–6)." />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

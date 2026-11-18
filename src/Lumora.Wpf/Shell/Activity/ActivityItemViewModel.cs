@@ -42,6 +42,11 @@ public sealed partial class ActivityItemViewModel : ObservableObject
     private bool _hasUndo;
 
     [ObservableProperty] private bool _hasShowMissing;
+
+    /// <summary>„Öffnen“ bzw. „Ergebnisse zeigen“ (ADR-0078, <see cref="ActivityActionKind.ShowResult"/>).</summary>
+    [ObservableProperty] private bool _hasShowResult;
+
+    [ObservableProperty] private string _showResultLabel = "Öffnen";
     [ObservableProperty] private bool _hasDetails;
     [ObservableProperty] private bool _isError;
     [ObservableProperty] private bool _isWarning;
@@ -85,6 +90,9 @@ public sealed partial class ActivityItemViewModel : ObservableObject
         CanPause = s.CanPause;
         HasUndo = s.HasAction(ActivityActionKind.Undo);
         HasShowMissing = s.HasAction(ActivityActionKind.ShowMissing);
+        var showResult = s.Actions.FirstOrDefault(a => a.Kind == ActivityActionKind.ShowResult);
+        HasShowResult = showResult?.FileIds is { Count: > 0 };
+        ShowResultLabel = showResult?.Label ?? "Öffnen";
         HasDetails = s.HasAction(ActivityActionKind.Details) && !string.IsNullOrEmpty(s.Details);
         OnPropertyChanged(nameof(AutomationName));
     }
@@ -211,6 +219,9 @@ public sealed partial class ActivityItemViewModel : ObservableObject
 
     [RelayCommand]
     private void ShowMissing() => _owner.ShowMissing();
+
+    [RelayCommand]
+    private void ShowResult() => _owner.ShowResult(Snapshot);
 
     [RelayCommand]
     private System.Threading.Tasks.Task ShowDetailsAsync() => _owner.ShowDetailsAsync(this);

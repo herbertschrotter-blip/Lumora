@@ -18,6 +18,11 @@ namespace Lumora.Shell.Activity;
 public interface IActivityNavigator
 {
     void ShowMissingFiles();
+
+    /// <summary>„Öffnen“ bzw. „Ergebnisse zeigen“ (ADR-0078): Ergebnisse in der Lightbox (bei einem zusammengefügten mit Quellen). Standard: nichts.</summary>
+    void ShowFiles(IReadOnlyList<int> fileIds)
+    {
+    }
 }
 
 /// <summary>
@@ -81,6 +86,12 @@ public sealed partial class ActivityStatusViewModel : ObservableObject, IDisposa
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(UndoToastCommand))]
     private bool _toastHasUndo;
+
+    [ObservableProperty] private bool _toastHasShowResult;
+
+    [ObservableProperty] private string _toastShowResultLabel = "Öffnen";
+
+    private IReadOnlyList<int>? _toastFileIds;
 
     /// <param name="utcNow">Optional (Tests); sonst die Uhr.</param>
     public ActivityStatusViewModel(
@@ -297,6 +308,10 @@ public sealed partial class ActivityStatusViewModel : ObservableObject, IDisposa
         ToastIsError = snapshot.State == ActivityState.Failed;
         ToastIsWarning = snapshot.State == ActivityState.Warning;
         ToastHasUndo = snapshot.HasAction(ActivityActionKind.Undo);
+        var showResult = snapshot.Actions.FirstOrDefault(a => a.Kind == ActivityActionKind.ShowResult);
+        _toastFileIds = showResult?.FileIds;
+        ToastHasShowResult = _toastFileIds is { Count: > 0 };
+        ToastShowResultLabel = showResult?.Label ?? "Öffnen";
         IsToastVisible = true;
         StopTimer(_toastTimer);
         _toastTimer.Start();
@@ -311,6 +326,8 @@ public sealed partial class ActivityStatusViewModel : ObservableObject, IDisposa
         ToastIsError = false;
         ToastIsWarning = false;
         ToastHasUndo = false;
+        ToastHasShowResult = false;
+        _toastFileIds = null;
         IsToastVisible = true;
         StopTimer(_toastTimer);
         _toastTimer.Start();
@@ -387,6 +404,28 @@ public sealed partial class ActivityStatusViewModel : ObservableObject, IDisposa
         }
 
         Refresh();
+    }
+
+    /// <summary>„Öffnen“ / „Ergebnisse zeigen“ eines Vorgangs (ADR-0078).</summary>
+    internal void ShowResult(ActivitySnapshot snapshot)
+    {
+        var ids = snapshot.Actions.FirstOrDefault(a => a.Kind == ActivityActionKind.ShowResult)?.FileIds;
+        if (ids is { Count: > 0 })
+        {
+            IsFlyoutOpen = false;
+            _navigator?.ShowFiles(ids);
+        }
+    }
+
+    [RelayCommand]
+    private void ShowResultToast()
+    {
+        var ids = _toastFileIds;
+        DismissToast();
+        if (ids is { Count: > 0 })
+        {
+            _navigator?.ShowFiles(ids);
+        }
     }
 
     internal void ShowMissing()

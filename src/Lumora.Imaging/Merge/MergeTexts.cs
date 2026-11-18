@@ -87,6 +87,91 @@ public static class MergeTexts
         return string.Create(CultureInfo.GetCultureInfo("de-DE"), $"Größte passende Größe: {Math.Round(scale * 100):0} % — volle Auflösung {full}{mem} geht nicht, weil {reason}.");
     }
 
+    // ------------------------------------------------------------------ Oberfläche (Stufe 1 Teil B)
+
+    private static readonly CultureInfo De = CultureInfo.GetCultureInfo("de-DE");
+
+    /// <summary>Menü und Aktionsleiste (Abnahme Nr. 10: ohne Leerzeichen vor „…“): „Zusammenfügen…“ bzw. „5 Fotos zusammenfügen…“.</summary>
+    public static string MenuHeader(int count) => count <= 1 ? "Zusammenfügen…" : string.Create(De, $"{count:N0} Fotos zusammenfügen…");
+
+    public const string MenuToolTip = "Panorama aus überlappenden Fotos — als neue Datei, die Einzelbilder bleiben unverändert";
+
+    public const string BlockedMixedLibraries = "Fotos aus verschiedenen Bibliotheken lassen sich nicht zusammenfügen.";
+
+    public const string BlockedNoPhotos = "Nur Fotos lassen sich zusammenfügen — keine Videos, Archiv-Einträge oder fehlenden Dateien.";
+
+    public const string BlockedBusy = "Ein Zusammenfügen wird gerade gespeichert — bitte warten, bis es fertig ist.";
+
+    /// <summary>Ergebnis-Marke der Galerie: „Panorama · aus 26 Fotos“.</summary>
+    public static string ResultMark(MergeMethod method, int sourceCount) => string.Create(De, $"{Method(method)} · aus {sourceCount:N0} Fotos");
+
+    /// <summary>Kennzeichnung des Ergebnisses: „aus 26 Fotos zusammengefügt“.</summary>
+    public static string MadeFrom(int sourceCount) => string.Create(De, $"aus {sourceCount:N0} Fotos zusammengefügt");
+
+    /// <summary>Lightbox-Zeile: „Zusammengefügt aus 26 Fotos · Panorama, Kugel 360°“.</summary>
+    public static string LightboxRow(MergeMethod method, PanoramaProjection? projection, int sourceCount)
+        => string.Create(De, $"Zusammengefügt aus {sourceCount:N0} Fotos · {Method(method)}") + (projection is { } p and not PanoramaProjection.Auto ? ", " + Projection(p) : string.Empty);
+
+    /// <summary>Marke einer Quelle im Filmstreifen (leer = lesbar).</summary>
+    public static string SourceState(MergeSourceState state) => state switch
+    {
+        MergeSourceState.Video => "Video",
+        MergeSourceState.Archive => "Archiv",
+        MergeSourceState.Missing => "fehlt",
+        MergeSourceState.OnlineOnly => "nur OneDrive",
+        MergeSourceState.Offline => "Laufwerk offline",
+        MergeSourceState.Raw => "RAW (Stufe 3)",
+        MergeSourceState.Unsupported => "Format nicht lesbar",
+        _ => string.Empty,
+    };
+
+    public const string NotIncluded = "nicht eingebunden";
+
+    /// <summary>Unterzeile der Aufnahmeart-Kacheln (Mockup 28, Ansicht 5).</summary>
+    public static string ProjectionHint(PanoramaProjection projection) => projection switch
+    {
+        PanoramaProjection.Spherical360 => "360° · Streifen oder 2 : 1",
+        PanoramaProjection.Cylindrical => "Schwenk bis ≈ 180° und mehr",
+        PanoramaProjection.Perspective => "wenige Bilder · Weitwinkel 3 × 3",
+        PanoramaProjection.Vertical => "senkrechter Schwenk",
+        PanoramaProjection.ShiftOnly => "Scans, flache Vorlagen",
+        _ => "übernimmt den Vorschlag",
+    };
+
+    public static string Crop(MergeCrop crop) => crop switch
+    {
+        MergeCrop.Fill => "Lücken füllen",
+        MergeCrop.None => "Ungeschnitten",
+        _ => "Gerade Kanten",
+    };
+
+    public static string SphereForm(MergeSphereForm form) => form == MergeSphereForm.Full ? "2 : 1 (Rundum-Bild)" : "Horizontstreifen";
+
+    /// <summary>„Farbe kräftiger“: „aus“ bei 0, sonst Prozent (100 = Standard).</summary>
+    public static string ColorBoost(int percent)
+        => percent <= MergeLimits.ColorBoostOff ? "aus" : percent == MergeLimits.ColorBoostDefault ? "100 % (Standard)" : string.Create(De, $"{percent} %");
+
+    public const string SearchSources = "Quellen";
+
+    public const string SearchResult = "Zusammengefügtes Ergebnis";
+
+    /// <summary>„Suchen ▸ Quellen“ als Bedingung.</summary>
+    public static string SourcesLabel(string resultName) => $"Quellen von {resultName}";
+
+    /// <summary>„Suchen ▸ Zusammengefügtes Ergebnis“ als Bedingung.</summary>
+    public static string ResultsLabel(string sourceName) => $"zusammengefügt aus {sourceName}";
+
+    /// <summary>Megapixel-Text („77 MP“).</summary>
+    public static string Megapixels(int width, int height) => string.Create(De, $"{width * (double)height / 1e6:0} MP");
+
+    /// <summary>Byte-Angabe („≈ 1,2 GB“, „≈ 48 MB“).</summary>
+    public static string Bytes(long bytes)
+        => bytes >= 1_000_000_000 ? string.Create(De, $"≈ {bytes / 1e9:0.0} GB") : string.Create(De, $"≈ {Math.Max(1, bytes / 1_000_000):N0} MB");
+
+    /// <summary>Dauer („≈ 45 s“, „≈ 3 min“).</summary>
+    public static string Duration(TimeSpan d)
+        => d.TotalSeconds < 90 ? string.Create(De, $"≈ {Math.Max(1, Math.Round(d.TotalSeconds)):0} s") : string.Create(De, $"≈ {Math.Round(d.TotalMinutes):0} min");
+
     /// <summary>Fehler des Hilfsprozesses als verständlicher Satz.</summary>
     public static string Error(WorkerErrorCode? code, string? detail) => code switch
     {

@@ -43,6 +43,9 @@ public static class NavigationTags
 
     /// <summary>Einstellungen › Verbessern (ADR-0071): Modelle, Speicherort, Dateiname, Metadaten, beste Fassung, Grafikkarte.</summary>
     public const string SettingsEnhance = "settings-enhance";
+
+    /// <summary>Einstellungen › Zusammenfügen (ADR-0078 Punkt 17): Farbe kräftiger, Kugel-Vorauswahl, Ablage, Größe, Rechen-Prozess.</summary>
+    public const string SettingsMerge = "settings-merge";
     public const string SettingsArchives = "settings-archives";
     public const string SettingsAppearance = "settings-appearance";
 
@@ -63,7 +66,7 @@ public static class NavigationTags
     /// <summary>Alle Reiter der Einstellungen in Anzeigereihenfolge.</summary>
     public static IReadOnlyList<string> SettingsSections { get; } =
     [
-        Library, Tags, Categories, SettingsFaces, SettingsMotifs, SettingsEnhance /* ADR-0071 */, SettingsArchives, SettingsAppearance, SettingsStories, SettingsAssistant /* ADR-0063 */, SettingsPlaces, SettingsModels /* ADR-0070 */, SettingsStorage, SettingsConnectedApps /* ADR-0073 */, SettingsInfo,
+        Library, Tags, Categories, SettingsFaces, SettingsMotifs, SettingsEnhance /* ADR-0071 */, SettingsMerge /* ADR-0078 */, SettingsArchives, SettingsAppearance, SettingsStories, SettingsAssistant /* ADR-0063 */, SettingsPlaces, SettingsModels /* ADR-0070 */, SettingsStorage, SettingsConnectedApps /* ADR-0073 */, SettingsInfo,
     ];
 
     /// <summary>

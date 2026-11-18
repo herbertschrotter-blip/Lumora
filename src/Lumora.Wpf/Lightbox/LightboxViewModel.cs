@@ -94,7 +94,8 @@ public sealed partial class LightboxViewModel : ObservableObject, IDisposable
         Lumora.Services.Background.IForegroundWork? foreground = null,
         Lumora.Services.Cloud.ICloudFileService? cloudFiles = null,
         Lumora.Services.Cloud.ICloudFileHydrator? cloudHydrator = null,
-        Lumora.Thumbnails.Cloud.ICloudPreviewSource? cloudPreview = null)
+        Lumora.Thumbnails.Cloud.ICloudPreviewSource? cloudPreview = null,
+        Lumora.Merge.MergeGalleryActions? merge = null)
     {
         InitCloud(cloudFiles, cloudHydrator, cloudPreview); // OneDrive-Platzhalter: Vorschau, Original laden, Abbrechen (LightboxViewModel.Cloud.cs, ADR-0077)
         // Bilder laden hat Vorrang vor Hintergrund-Aufgaben (ADR-0074 Nachtrag 0.5.15)
@@ -125,6 +126,7 @@ public sealed partial class LightboxViewModel : ObservableObject, IDisposable
         InitGeoHint(geoSuggestions); // Hinweis „Position geschätzt“ mit Vorschlag (LightboxViewModel.GeoAccuracy.cs, ADR-0062)
         InitUsage(usageSignals, usageService); // Nutzungs-Signale: aktive Ansehdauer, Zeile „Nutzung“ (LightboxViewModel.Usage.cs, ADR-0072)
         InitEnhance(enhance); // Leiste „Verbessern“ (LightboxViewModel.Enhance.cs, ADR-0071)
+        InitMerge(merge); // Zeile „Zusammengefügt aus n Fotos“, Info-Abschnitt, Menü (LightboxViewModel.Merge.cs, ADR-0078)
     }
 
     // ----- Anbindung an das Fenster (View-Mechanik) -----
@@ -311,6 +313,7 @@ public sealed partial class LightboxViewModel : ObservableObject, IDisposable
         UpdateFacesForCurrent(); // 0.2.38
         NoteUsageShow(CurrentItem); // Ansehdauer (ADR-0072)
         UpdateEnhanceForCurrent(); // ADR-0071
+        UpdateMergeForCurrent(); // ADR-0078
         _ = ShowCurrentAsync();
     }
 

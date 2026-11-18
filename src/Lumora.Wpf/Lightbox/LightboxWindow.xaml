@@ -36,6 +36,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <!-- Minimale Titelleiste: Dateiname links, Maße/Größe/Datum + Zähler rechts -->
@@ -239,6 +240,13 @@
                             </Button>
                         </StackPanel>
 
+                        <!-- Zusammengefügt (ADR-0078 Punkt 10): Verfahren, Aufnahmeart, Quellen, davon nicht mehr vorhanden -->
+                        <StackPanel Visibility="{Binding HasMergeInfo, Converter={StaticResource BoolToVis}}"
+                                    AutomationProperties.AutomationId="LightboxMergeInfo">
+                            <TextBlock Style="{StaticResource InfoHeader}" Text="ZUSAMMENGEFÜGT" Margin="0,14,0,8" />
+                            <ItemsControl ItemsSource="{Binding MergeInfoRows}" ItemTemplate="{StaticResource InfoRowTemplate}" />
+                        </StackPanel>
+
                         <TextBlock Style="{StaticResource InfoHeader}"
                                    Text="{Binding MediaInfoHeader}"
                                    Margin="0,14,0,8" />
@@ -289,9 +297,33 @@
                                   Visibility="{Binding IsOpen, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}" />
         </Grid>
 
+        <!-- Zusammengefügt (ADR-0078 Punkt 10, Mockup 28 Ansicht 14): „Zusammengefügt aus 26 Fotos · Panorama, Kugel 360° · Quellen zeigen · Neu berechnen…“ -->
+        <Border Grid.Row="2"
+                Padding="12,6"
+                Background="{DynamicResource LightboxPanelBrush}"
+                BorderBrush="{DynamicResource LightboxPanelBorderBrush}"
+                BorderThickness="0,1,0,0"
+                AutomationProperties.AutomationId="LightboxMergeRow"
+                Visibility="{Binding HasMergeInfo, Converter={StaticResource BoolToVis}}">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                <ui:SymbolIcon Symbol="ImageMultiple24" FontSize="15" Margin="0,0,8,0" VerticalAlignment="Center" Foreground="{DynamicResource LightboxTextBrush}" />
+                <TextBlock Text="{Binding MergeRowText}" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource LightboxTextBrush}" />
+                <TextBlock Text=" · " FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource LightboxTextSecondaryBrush}" />
+                <Button Style="{StaticResource LightboxOverlayButton}" Padding="6,2" MinWidth="0" Command="{Binding ShowMergeSourcesCommand}"
+                        AutomationProperties.Name="Quellen zeigen">
+                    <TextBlock Text="Quellen zeigen" FontSize="12" TextDecorations="Underline" Foreground="{DynamicResource LightboxTextBrush}" />
+                </Button>
+                <TextBlock Text=" · " FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource LightboxTextSecondaryBrush}" />
+                <Button Style="{StaticResource LightboxOverlayButton}" Padding="6,2" MinWidth="0" Command="{Binding RecomputeMergeCommand}"
+                        AutomationProperties.Name="Neu berechnen" ToolTip="Öffnet „Zusammenfügen“ mit den Quellen und dem gespeicherten Rezept — speichert als weitere Datei">
+                    <TextBlock Text="Neu berechnen…" FontSize="12" TextDecorations="Underline" Foreground="{DynamicResource LightboxTextBrush}" />
+                </Button>
+            </StackPanel>
+        </Border>
+
         <!-- Leiste unten: Tags, Kategorien, „+ Tag / Kategorie“ (Mockup 16); aus im Vollbild und per Schalter -->
         <local:LightboxMarksBar x:Name="MarksBar"
-                                Grid.Row="2"
+                                Grid.Row="3"
                                 Visibility="{Binding ShowMarksBar, Converter={StaticResource BoolToVis}}" />
     </Grid>
 </dialogs:AppFluentWindow>

@@ -129,6 +129,8 @@ public partial class GalleryView
             SetPlace = () => _viewModel.SetSelectionPlaceCommand.Execute(null),
             ShowFaces = () => _ = _viewModel.OpenWithFacesAsync(target),
             Enhance = _viewModel.HasEnhance ? () => _ = _viewModel.EnhanceFromMenuAsync(target, ids) : null, // ADR-0071
+            Merge = _viewModel.HasMerge ? () => _ = _viewModel.MergeFromMenuAsync(target, ids) : null, // ADR-0078
+            MergeBlockedReason = _viewModel.HasMerge ? _viewModel.MergeBlockReason(target, ids) : null,
             ApplySearch = result => _viewModel.ApplyRelatedSearchAsync(result.Label, result.FileIds),
             MoveTo = () => _viewModel.MoveSelectionCommand.Execute(null),
             Recycle = () => _viewModel.RecycleSelectionCommand.Execute(null),

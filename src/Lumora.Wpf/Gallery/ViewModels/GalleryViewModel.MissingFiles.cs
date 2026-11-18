@@ -29,7 +29,11 @@ public sealed partial class GalleryViewModel
 
     private bool CanRemoveMissingSelection() => _removalActions is not null && CanActOnSelection;
 
-    partial void OnSelectedCountChanged(int value) => RemoveMissingSelectionCommand.NotifyCanExecuteChanged();
+    partial void OnSelectedCountChanged(int value)
+    {
+        RemoveMissingSelectionCommand.NotifyCanExecuteChanged();
+        OnSelectionChangedForMerge(); // „Zusammenfügen…“ in der Aktionsleiste (ADR-0078)
+    }
 
     partial void OnIsOperationRunningChanged(bool value) => RemoveMissingSelectionCommand.NotifyCanExecuteChanged();
 
