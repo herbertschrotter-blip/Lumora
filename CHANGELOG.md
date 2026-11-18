@@ -3,6 +3,31 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.45] — 2026-11-18
+
+### Docs — Abnahmen: OneDrive-Bibliothek und Serien/Zusammenfügen
+- **ADR-0077 und Mockup 27 (OneDrive-Bibliothek)** von Herbert so abgenommen, wie in 0.5.41 gebaut → Accepted.
+- **ADR-0078 und Mockup 28 (Serien und Zusammenfügen)** als Grundlage abgenommen → Accepted. Herberts Entscheidungen stehen
+  im neuen Abschnitt „Abnahme 2026-11-18“ des ADR und gehen Text und Mockup vor:
+  - Spike 20: Geometrie reicht, Farbe und Kontrast werden in Stufe 1 nachgeschärft; eigene OpenCV-Kette als Standard,
+    **Hugin zusätzlich als Wahl** im Fenster (Stufe 3, Laden über „Modelle & Daten“, nie im portablen Paket); eigene
+    16-bit-DNG-Entwicklung; Drohnen-Kugel als Horizontstreifen oder 2 : 1 jedes Mal zur Wahl; Hochskalieren gedämpft und
+    standardmäßig aus; Rechnen im Hilfsprozess; Prüfung vor dem Speichern.
+  - Offene Punkte: Serien-Erkennung Vorrang 3 vor Prüfsummen und Vorrat, Bau-Reihenfolge und Schreibweise „Zusammenfügen…“
+    bestätigt; **volle Auflösung** als Standard statt 16K; das Ergebnis übernimmt **auch Sterne und Favorit**; Quellen
+    eingeklappt; Ablage neben dem ersten Bild; Stapel ohne Einzelvorschau; neue Stufe 3b **360°-Rundum-Ansicht** in der
+    Lightbox; Einzelbild-Werkzeuge nach Stufe 6.
+  - Neu: erkannte Serien bekommen auf allen Kacheln einen **farbigen Rahmen je Art** (Panorama, Belichtungsreihe,
+    Serienbild, Fokusreihe, Intervall) statt Marke und Punkt — gebaut mit Stufe 2.
+- PLAN.md Kap. 7: OneDrive-Bibliothek ✅, Serien/Zusammenfügen mit den Entscheidungen; **App-Verbindung (Gipfelbuch) ✅** —
+  die Zeile stand noch auf offen, obwohl alle 7 Stufen bis 0.5.25 gebaut sind.
+- ADR-Übersicht und Mockup-Köpfe nachgezogen.
+
+### Offen
+- Mockup 28 zeigt noch Marke und Punkt, 16K und „ohne Sterne“; nachgezogen beim Bau von Stufe 1 bzw. 2.
+- Nachtrag in ADR-0074 (Vorrang Serien 3, Prüfsummen 4, Vorrat 5) mit Stufe 2; je Stufe ein GitHub-Issue.
+- Sicherung der Fotos (Issue #6) entscheidet Herbert später.
+
 ## [0.5.44] — 2026-11-17
 
 ### Docs — Spike 20: Panorama gegen Photoshop

@@ -1,6 +1,6 @@
 # ADR-0077: OneDrive-Bibliothek — Platzhalter sichtbar und ordnbar, ohne Download
 
-- **Status:** Proposed — Abnahme durch Herbert
+- **Status:** Accepted (Herbert, 2026-11-18: so abgenommen, wie in 0.5.41 gebaut; Mockup 27 abgenommen)
 - **Datum:** 2026-11-17
 - **Entscheider:** Herbert (Auftrag „OneDrive-Bibliothek“ nach Spike 19), umgesetzt von Claude
 - **Bezogen auf:** [Spike 19](../spikes/19-onedrive-platzhalter.md) (Vorschaubilder und Aufnahmedatum ohne Download),
@@ -147,4 +147,4 @@ und lässt den Dienst laufen (0.5.40).
 - Code: `src/Lumora.Services/Cloud`, `src/Lumora.Services/Thumbnails/ThumbnailService.Cloud.cs`,
   `src/Lumora.Wpf/Thumbnails/Cloud`, `src/Lumora.Wpf/Gallery/ViewModels/GalleryViewModel.Cloud.cs`,
   `src/Lumora.Wpf/Lightbox/LightboxViewModel.Cloud.cs`, `src/Lumora.Services/Scanning/FolderEnumerator.cs`
-- Mockup: `mockups/27-onedrive-bibliothek.html` (Entwurf, Abnahme ausstehend)
+- Mockup: `mockups/27-onedrive-bibliothek.html` (abgenommen 2026-11-18)

@@ -1,6 +1,7 @@
 # ADR-0078: Serien und Zusammenfügen — aus mehreren Fotos eines, Serien still erkannt, Ergebnis als neue verknüpfte Datei
 
-- **Status:** Proposed — Abnahme durch Herbert (mit Mockup 28)
+- **Status:** Accepted (Herbert, 2026-11-18, mit Mockup 28; seine Entscheidungen zu den offenen Punkten und zum Nachtrag
+  0.5.44 stehen im Abschnitt „Abnahme 2026-11-18“ am Ende und gehen dem Text darüber und dem Mockup vor)
 - **Datum:** 2026-11-17
 - **Entscheider:** Herbert Schrotter (Wünsche, Namen „Serien“ und „Zusammenfügen …“, Projekt `Lumora.Imaging`, Reihenfolge der Verfahren;
   Zeit und Ort von der ersten Quelle mit Angabe samt GPS-Höhe, Punkt 10; Gespräch 2026-11-17), Claude (Konzept: zwei unabhängige Entwürfe bewertet und zu diesem zusammengeführt, Detailentscheidungen
@@ -21,7 +22,8 @@
   (Modelle & Daten), [ADR-0012](0012-operation-logging.md) (Protokoll), [ADR-0069](0069-katalog-sicherung-und-portabler-modus.md)
   (Sicherung vor Migrationen), [Spike 19](../spikes/19-onedrive-platzhalter.md) (OneDrive-Platzhalter), [Spike 20](../spikes/20-panorama.md) (Panorama, gelb;
   Folgen im Nachtrag am Ende)
-- **Mockup:** `mockups/28-serien-zusammenfuegen.html` (Entwurf, Abnahme durch Herbert ausstehend; 17 Ansichten, siehe Punkt 21)
+- **Mockup:** `mockups/28-serien-zusammenfuegen.html` (abgenommen 2026-11-18 mit den Abweichungen aus „Abnahme 2026-11-18“;
+  17 Ansichten, siehe Punkt 21)
 
 ## Kontext
 
@@ -598,7 +600,7 @@ der Erkennung und dem Stapel (Stufe 2) bequem abarbeiten, und RAW, 16K und „Vo
 
 ### 21. Mockup 28 (`mockups/28-serien-zusammenfuegen.html`)
 
-**Entwurf, Abnahme durch Herbert ausstehend.** Eine HTML-Datei ohne externe Abhängigkeiten, Tokens 1:1 aus Mockup 08 (dazu
+**Abgenommen 2026-11-18 mit Abweichungen (siehe „Abnahme 2026-11-18“).** Eine HTML-Datei ohne externe Abhängigkeiten, Tokens 1:1 aus Mockup 08 (dazu
 `--warning-soft`/`--smoke` wie 10/13/14/18/26), Galerie-Rahmen wie 18/24/26, dunkle Bühne und Lightbox wie 13, Aktivitäts-Anzeige
 wie 15; Hell/Dunkel, beim Öffnen nach der Systemeinstellung wie 08/13. Oben die Ansichten-Leiste, darunter je Ansicht die
 Zustände, unter dem Fenster eine Erläuterung mit Verweis auf die Punkte dieses ADR. Die Ansichten (Zustände in Klammern):
@@ -714,6 +716,9 @@ Entwurf; sie sind bei der Abnahme zu bestätigen.
 
 ## Offene Punkte (vor dem Bau)
 
+> Alle Punkte dieser Liste hat Herbert am 2026-11-18 entschieden — siehe „Abnahme 2026-11-18“ am Ende. Die Liste bleibt als
+> Verlauf stehen.
+
 - **Spike 20 (liegt vor, gelb):** Herberts Urteil über die Vergleichsbilder und Abnahme der Vorschläge im Nachtrag
   (eigene Kette, eigene DNG-Entwicklung, Hochskalieren gedämpft, Hilfsprozess). Nicht gemessen: 3 × 3, Vertikal und 21er
   Drohnen-Schwenk; die Kugel nur als Horizontstreifen.
@@ -741,7 +746,7 @@ Entwurf; sie sind bei der Abnahme zu bestätigen.
 
 ## Referenzen
 
-- Mockup `mockups/28-serien-zusammenfuegen.html` (Entwurf, Abnahme ausstehend), Spike 20 `docs/spikes/20-panorama.md` (Spike-Code und
+- Mockup `mockups/28-serien-zusammenfuegen.html` (abgenommen 2026-11-18 mit Abweichungen), Spike 20 `docs/spikes/20-panorama.md` (Spike-Code und
   Vergleichsbilder außerhalb des Repos in `werkzeuge\runs\panorama-spike`)
 - Vorlagen im Code: `src/Lumora.Wpf/PhotoMenu/PhotoContextMenuBuilder.cs` (Bearbeiten ▸, Suchen ▸),
   `src/Lumora.Wpf/PhotoMenu/PhotoMenuModels.cs` (`PhotoMenuSource`, `PhotoMenuGestures`), `src/Lumora.Wpf/Gallery/Views/GalleryView.PhotoMenu.cs`,
@@ -754,7 +759,7 @@ Entwurf; sie sind bei der Abnahme zu bestätigen.
 - Mockups als Designvorlage: `mockups/08-lumora-app.html`, `13-foto-verbessern.html`, `18-galerie-ordnerleiste.html`,
   `26-container-verschieben.html`
 
-## Nachtrag 0.5.44 — Ergebnis von Spike 20 (Vorschlag, Abnahme durch Herbert ausstehend)
+## Nachtrag 0.5.44 — Ergebnis von Spike 20 (von Herbert am 2026-11-18 einzeln entschieden, siehe „Abnahme 2026-11-18“)
 
 [Spike 20](../spikes/20-panorama.md) ist gelb: Die eigene Kette erreicht die Geometrie von Photoshop; nach zwei Runden sind
 Handy-1, Handy-2 und Drohne-A nahe gleichwertig, Handy-3 (Felsen in 1–3 m) und Drohne-B (Gegenlicht) etwas schlechter. Runde 2
@@ -778,3 +783,70 @@ ist nicht unabhängig nachgeprüft; Herberts Urteil über die Vergleichsbilder s
    zurückgestellt war.
 6. **Prüfung des Ergebnisses:** feste Startwerte für RANSAC und eine Plausibilitätsprüfung (Restfehler, Nahtgüte,
    Zuschnitthöhe) vor dem Speichern; ein gekippter Lauf wird wiederholt statt gespeichert.
+
+## Abnahme 2026-11-18 — Entscheidungen von Herbert
+
+Herbert hat dieses ADR und Mockup 28 als Grundlage abgenommen und die offenen Punkte sowie die sechs Vorschläge aus dem
+Nachtrag 0.5.44 einzeln entschieden. Wo diese Liste vom Text oben oder vom Mockup abweicht, gilt diese Liste; Mockup 28 wird
+beim Bau der betroffenen Stufe nachgezogen. Mit „Detail (Claude)“ markiert ist, was Claude zur Umsetzung ergänzt hat.
+
+**Spike 20 und Nachtrag 0.5.44**
+
+1. **Urteil über die Vergleichsbilder:** Die Geometrie reicht, **Farbe und Kontrast müssen besser werden**. Nachgeschärft wird
+   in Stufe 1 selbst, ohne eigene Spike-Runde; die Abnahme von Stufe 1 enthält einen Farb- und Kontrastvergleich gegen
+   Photoshop an denselben Serien wie Spike 20.
+2. **Werkzeug:** Die eigene Kette auf OpenCV-Bausteinen ist Standard (Punkt 3, Option 1). **Hugin kommt dazu**, als Wahl im
+   Fenster („Mit Hugin rechnen“, zum Vergleich, etwa bei Felsen im Nahbereich) — als zweite Umsetzung von `IPanoramaStitcher`
+   in Stufe 3. Hugin (GPL) wird nicht eingebunden, sondern als eigenes Programm aufgerufen; es kommt nur über „Modelle &
+   Daten“ nach Bestätigung mit SHA-256 auf den Rechner (ADR-0070), nie ins Repo und nie ins portable Paket. Ohne Hugin ist die
+   Wahl ausgegraut mit Hinweis.
+3. **RAW:** eigene 16-bit-Entwicklung der DNG wie im Nachtrag, Punkt 2; die Raw-Bilderweiterung bleibt Rückfall für andere
+   Rohformate. Stufe 3 heißt damit „DNG über die eigene Entwicklung“.
+4. **Kugel 360°:** Horizontstreifen und 2 : 1-Rundum-Bild (Zenit/Nadir gefüllt) stehen **gleichrangig zur Wahl im Fenster** —
+   Herbert will jedes Mal wählen können; ersetzt Nachtrag, Punkt 3. Detail (Claude): vorausgewählt ist die zuletzt gewählte
+   Form, beim ersten Mal der Horizontstreifen; die Vorauswahl steht auch unter Einstellungen › Zusammenfügen.
+5. **Hochskalieren:** wie Nachtrag, Punkt 4 — nur nach dem Zusammenfügen, gedämpft (Modellanteil höchstens 60 %),
+   standardmäßig aus.
+6. **Hilfsprozess:** angenommen (Nachtrag, Punkt 5) — stürzt das Rechnen ab, läuft Lumora weiter und meldet den Fehler.
+7. **Prüfung vor dem Speichern:** angenommen (Nachtrag, Punkt 6) — schlechte Ergebnisse werden wiederholt oder gemeldet, nie
+   still gespeichert.
+
+**Offene Punkte**
+
+8. **Vorrang der Serien-Erkennung:** 3, vor Prüfsummen (4) und Vorschaubildern auf Vorrat (5) — bestätigt. Der Nachtrag in
+   ADR-0074 folgt mit Stufe 2, wenn sich die Nummern im Code ändern.
+9. **Bau-Reihenfolge** (Punkt 19) bestätigt; Stufe 3 enthält zusätzlich Hugin (Nr. 2). Neu: **360°-Rundum-Ansicht** als
+   eigene Stufe 3b nach Stufe 3 (2 : 1-Kugelpanoramen in der Lightbox mit der Maus drehen). Die Einzelbild-Werkzeuge
+   Geraderichten, Perspektive und Himmel kommen nach Stufe 6 (bleiben bei „Foto verbessern“, Punkt 16 und 20).
+10. **Schreibweise** „Zusammenfügen…“ ohne Leerzeichen bestätigt (Punkt 1).
+11. **Ergebnisgröße:** **volle Auflösung ist Standard** statt 16K (ändert Punkt 6 „Größe“ und die Folge in „Negativ“). Reicht
+    `MergeMemoryBudget` nicht oder wäre eine Kante länger als 65 535 px (JPEG-Grenze), nimmt Lumora die größte passende Stufe
+    und sagt es im Fenster; JPEG Q92, TIFF 16 bit auf Wunsch. Die Größenwahl mit Speicherprüfung bleibt in Stufe 3.
+12. **Bewertung:** Das Ergebnis übernimmt **auch Sterne und Favorit** (ändert Punkt 10 „Tags“). Detail (Claude): die höchste
+    Sternezahl der Quellen, Favorit, wenn mindestens eine Quelle Favorit ist; dazu wie bisher die gemeinsamen Tags.
+13. **Quellen einklappen** standardmäßig an — bestätigt (Punkt 9).
+14. **Serie zeigen statt Fenster** (Klick auf die Marke) — bestätigt. Da die Marke dem farbigen Rahmen weicht (Nr. 20), gilt
+    das für die Titelkachel bei „Eine Kachel je Serie“ und für „Serie zeigen“ im Rechtsklick: Bedingung + Serien-Leiste, das
+    Fenster öffnet erst der Knopf.
+15. **Ablage bei Drohnen-Ordnern:** neben dem ersten Einzelbild, „eine Ebene höher“ als Wahl in den Einstellungen — bestätigt.
+16. **Stapel ohne Einzelvorschau** als Ausnahme erlaubt; die Prüfung vor dem Speichern (Nr. 7) läuft trotzdem.
+17. **Start aus einer Story** nur über die Lightbox, Ergebnis nicht automatisch in der Story — reicht.
+18. **DJI-Ordner außerhalb der Muster:** Aufnahmeart aus den Gimbal-Winkeln, bei Unsicherheit „Automatisch“ ohne
+    Ein-Klick-Vorschlag — bestätigt.
+19. **„Augen zu“ beim Gruppenfoto:** 2d106det als eigener Eintrag in „Modelle & Daten“, Laden nur nach Bestätigung —
+    einverstanden.
+
+**Neu: farbiger Rahmen je Serien-Art** (Herbert, 2026-11-18; ändert Punkt 9 „Kachel-Marke“)
+
+20. Erkannte Serien sind in Galerie, Liste und Ordner-Zeilen **farblich markiert: jede Kachel einer Serie bekommt einen
+    Rahmen in der Farbe ihrer Art** — statt der Marke „Serie · n Fotos“ auf dem ersten Foto und des Punkts auf den übrigen.
+    Vorschlag der Farben: Panorama blau, Belichtungsreihe orange, Serienbild grün, Fokusreihe violett, Intervall türkis. Art
+    und Zahl („Panorama · 26 Fotos“) stehen im Tooltip; „Serie zeigen“, „Serie mit 26 Fotos zusammenfügen…“ und „Keine
+    Serie“ im Rechtsklick. Bei „Eine Kachel je Serie“ trägt die Titelkachel denselben Rahmen zum Stapel-Rand und Text. Die
+    Ergebnis-Marke „aus n Fotos“ bleibt.
+    Detail (Claude): Der Rahmen liegt innen in der Kachel-Vorlage (kein eigenes Automation-Element, Kacheln bleiben Blätter)
+    und ist von der Auswahl-Markierung unterscheidbar; die Farben werden in Hell und Dunkel geprüft und auch für
+    Farbschwäche unterscheidbar gewählt (Symbol der Art im Tooltip und in der Legende); zusammengefügte Serien zeigen den
+    Rahmen gedämpft; das Flyout „Serien“ bekommt eine Legende. Gebaut mit Stufe 2.
+
+**Weiter offen (nicht Teil dieses ADR):** Sicherung der Fotos selbst (Issue #6, ADR-0069) — Herbert entscheidet später.
