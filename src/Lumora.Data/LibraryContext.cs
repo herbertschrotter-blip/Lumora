@@ -52,6 +52,9 @@ public sealed class LibraryContext : DbContext
     public DbSet<AssistantAlias> AssistantAliases => Set<AssistantAlias>();
     public DbSet<FileUsageDay> FileUsageDays => Set<FileUsageDay>(); // Nutzungs-Signale (ADR-0072)
     public DbSet<PhotoVariant> PhotoVariants => Set<PhotoVariant>(); // Foto verbessern: Fassungen (ADR-0071)
+    public DbSet<MergedPhoto> MergedPhotos => Set<MergedPhoto>(); // Zusammenfügen: Ergebnisse (ADR-0078)
+    public DbSet<MergedPhotoSource> MergedPhotoSources => Set<MergedPhotoSource>();
+    public DbSet<MergedPhotoUndo> MergedPhotoUndo => Set<MergedPhotoUndo>(); // gesicherte Ergebnis-Zeile entfernter Ergebnisse
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

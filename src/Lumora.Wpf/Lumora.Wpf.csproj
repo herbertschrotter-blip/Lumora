@@ -50,7 +50,26 @@
     <ProjectReference Include="..\Lumora.Data\Lumora.Data.csproj" />
     <ProjectReference Include="..\Lumora.Services\Lumora.Services.csproj" />
     <ProjectReference Include="..\Lumora.AppConnect\Lumora.AppConnect.csproj" />
+    <!-- Zusammenfügen (ADR-0078): Merge-Dienst und Client des Hilfsprozesses — ohne OpenCV -->
+    <ProjectReference Include="..\Lumora.Imaging\Lumora.Imaging.csproj" />
+    <!-- Hilfsprozess nur bauen und daneben kopieren (CopyImagingWorker), NICHT referenzieren: OpenCvSharp bleibt aus dem
+         Lumora-Prozess und aus Lumora.deps.json heraus. Das portable Paket veröffentlicht ihn build/publish.ps1. -->
+    <ProjectReference Include="..\Lumora.Imaging.Worker\Lumora.Imaging.Worker.csproj" ReferenceOutputAssembly="false" Private="false" />
   </ItemGroup>
+
+  <!-- Hilfsprozess „Zusammenfügen“ neben Lumora.exe (Debug-Ausgabe; Rauchtest und Alltag starten ihn von dort) -->
+  <Target Name="CopyImagingWorker" AfterTargets="Build" Condition="'$(_IsPublishing)' != 'true'">
+    <MSBuild Projects="..\Lumora.Imaging.Worker\Lumora.Imaging.Worker.csproj" Targets="GetTargetPath" Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_ImagingWorkerTarget" />
+    </MSBuild>
+    <PropertyGroup>
+      <_ImagingWorkerDir>$([System.IO.Path]::GetDirectoryName('%(_ImagingWorkerTarget.Identity)'))</_ImagingWorkerDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <_ImagingWorkerFiles Include="$(_ImagingWorkerDir)\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_ImagingWorkerFiles)" DestinationFiles="@(_ImagingWorkerFiles->'$(OutDir)%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" />

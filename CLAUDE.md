@@ -17,11 +17,11 @@ Ablösung im Alltag läuft.
 Branch-Policy: current
 
 ### Commit
-- Module: Domain, Data, Services, Wpf, Tests, Docs, Deps, Build
+- Module: Domain, Data, Services, Imaging, Wpf, Tests, Docs, Deps, Build
 - Versionsquelle: changelog:CHANGELOG.md
 - Versionsregel: Vorabversion 0.x — jede eingespielte Änderung zählt hoch; Feature → MINOR nur beim Abschluss einer Welle/eines Releases, sonst PATCH
 - Push-Policy: nie automatisch — Herbert pusht selbst (`git push origin main --tags`); am Ende einer Sitzung den Push anbieten
-- Pre-Commit-Checks: build, unit
+- Pre-Commit-Checks: build, unit, imaging
 - Doku-Check:
   - CHANGELOG.md → bei jedem Commit (oberster Eintrag = Version)
   - docs/adr/ → neue oder revidierte Architekturentscheidung (neues ADR; altes auf „Superseded“, nie überschreiben)
@@ -32,14 +32,15 @@ Branch-Policy: current
 ### Checks
 - build: `dotnet build Lumora.slnx -c Debug --nologo -v q` (src/**, tests/**, *.props, *.slnx)
 - unit: `dotnet test tests/Lumora.Tests --nologo -v q` (src/**, tests/Lumora.Tests/**)
+- imaging: `dotnet test tests/Lumora.Imaging.Tests --nologo -v q` (src/Lumora.Imaging*/**, src/Lumora.Services/**, tests/Lumora.Imaging.Tests/**)
 
 ## Code-Profil
 - Stacks: csharp-wpf
 - Build/Lint: siehe Checks (`build`)
 - Pflicht-Docs: PLAN.md Kap. 3 (Solution-Layout), 4 (Schema), 12 (Offline-vs-Missing), 13 (Thumbnails) → betroffene ADRs in docs/adr/ → docs/spikes/ bei Performance-Fragen
 - Aufgabenquelle: GitHub Issues in `herbertschrotter-blip/Lumora` (seit 0.4.34; Labels „in Arbeit“, „Entscheidung“, „Test bei Herbert“, „geplant“, `bug`, `enhancement`) plus Auftrag im Chat bzw. Brief des Agenten (Ziel + Akzeptanzkriterien); kein ClickUp. Das Repo ist **öffentlich**: Issue-Texte neutral halten — keine Namen echter Personen, keine Dateinamen/Pfade echter Fotos, keine Details zu Herberts Containern/Laufwerken. Commits schließen Issues mit „(closes #n)“ in der zweiten Zeile.
-- Schichten / Kopplung: Domain (keine Abhängigkeiten) ← Data (EF Core CRUD + RawSql für Bulk/FTS) ← Services (WPF-frei: Interfaces + Implementierungen, `AddLumoraServices`) ← AppConnect (WPF-frei, App-Verbindung nach dem Vertrag im Repo `herbertschrotter-blip/app-verbindung`, ADR-0073 — nie eigene Endpunkte/Felder/Rechte, Änderungen nur per Vorschlag dort) ← Wpf (Views/ViewModels mit CommunityToolkit.Mvvm, DI in `App.xaml.cs`). Entkopplung zwischen Modulen über `WeakReferenceMessenger` mit den Records aus `Services/Messaging`. Neuer Service = Interface + Registrierung; neues Modul registriert sich in einer eigenen Datei `XyzServiceCollectionExtensions.cs` (`AddXyz()`), die in `App.xaml.cs` bzw. `AddLumoraServices` mit einer Zeile aufgerufen wird.
-- Tests: unit (xUnit + FluentAssertions, `tests/Lumora.Tests`); Perf- und Spike-Harness: `tests/Lumora.PerfTests`
+- Schichten / Kopplung: Domain (keine Abhängigkeiten) ← Data (EF Core CRUD + RawSql für Bulk/FTS) ← Services (WPF-frei: Interfaces + Implementierungen, `AddLumoraServices`) ← AppConnect (WPF-frei, App-Verbindung nach dem Vertrag im Repo `herbertschrotter-blip/app-verbindung`, ADR-0073 — nie eigene Endpunkte/Felder/Rechte, Änderungen nur per Vorschlag dort) ← Imaging (WPF-frei, OHNE OpenCV: Merge-Dienst, Client des Hilfsprozesses, `AddImaging()`, ADR-0078) ← Wpf. Natives OpenCV (OpenCvSharp4) lebt nur im Hilfsprozess `Lumora.Imaging.Worker` (eigene Exe, spricht `Lumora.Imaging.Protocol` über stdin/stdout, kennt keinen Katalog, schreibt nur in `ICatalogStoragePaths.TempRoot`); Wpf baut ihn mit und kopiert ihn neben Lumora.exe, referenziert ihn aber nie — der Lumora-Prozess lädt OpenCV nie (Views/ViewModels mit CommunityToolkit.Mvvm, DI in `App.xaml.cs`). Entkopplung zwischen Modulen über `WeakReferenceMessenger` mit den Records aus `Services/Messaging`. Neuer Service = Interface + Registrierung; neues Modul registriert sich in einer eigenen Datei `XyzServiceCollectionExtensions.cs` (`AddXyz()`), die in `App.xaml.cs` bzw. `AddLumoraServices` mit einer Zeile aufgerufen wird.
+- Tests: unit (xUnit + FluentAssertions, `tests/Lumora.Tests` — frei von nativem OpenCV); imaging (`tests/Lumora.Imaging.Tests`: Rechenkette mit synthetischen Bildern, Hilfsprozess, Merge-Dienst); Perf- und Spike-Harness: `tests/Lumora.PerfTests`
 - Auslieferung: keine nach jedem Commit (Alltag: lokaler Debug-Build). Portables Paket bei Bedarf bzw. zum Release: `pwsh -File build/publish.ps1` (self-contained win-x64 → `artifacts/Lumora-<Version>-win-x64` + ZIP), danach `pwsh -File build/run-smoke.ps1 -Exe <Paket>\Lumora.exe -TestLib <Testbibliothek>`. Produktname „Lumora“ (ADR-0047); seit 0.4.3 auch Projekte/Namespaces `Lumora.*`, Datenordner `%LocalAppData%\Lumora` (einmaliger Umzug aus `PhotoViewerV3` beim Start), Variablen `LUMORA_*`, Protokolle `lumora-*.log` (ADR-0056)
 - Mockup-Pflicht: nein (HTML-Mockups in `mockups/` sind die Design-Vorlage)
 - Notiz-Ort: PLAN.md Kap. 15 (Risiken) bzw. CHANGELOG.md Abschnitt „Offen“

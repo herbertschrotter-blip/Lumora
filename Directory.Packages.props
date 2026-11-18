@@ -49,6 +49,11 @@
     <!-- Gesichtserkennung (ADR-0035): ONNX Runtime mit DirectML (Grafikkarte, Rückfall CPU); nur im Services-Projekt -->
     <PackageVersion Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.24.4" />
 
+    <!-- Zusammenfügen (ADR-0078, Stufe 1): OpenCV-Bausteine (Apache-2.0) NUR im Hilfsprozess Lumora.Imaging.Worker und
+         in dessen Testprojekt — der Lumora-Prozess lädt die native OpenCvSharpExtern.dll nie (Hilfsprozess, Nachtrag 0.5.44). -->
+    <PackageVersion Include="OpenCvSharp4" Version="4.13.0.20261107" />
+    <PackageVersion Include="OpenCvSharp4.runtime.win" Version="4.13.0.20261107" />
+
     <!-- Logging via Serilog -->
     <PackageVersion Include="Serilog.Extensions.Hosting" Version="9.0.0" />
     <PackageVersion Include="Serilog.Sinks.File" Version="6.0.0" />

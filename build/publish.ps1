@@ -12,6 +12,7 @@
       artifacts\Lumora-<Version>-win-x64\        Ordner mit Lumora.exe
       artifacts\Lumora-<Version>-win-x64.zip     derselbe Ordner gepackt
 
+    Im Paket seit 0.5.46: der Hilfsprozess „Zusammenfügen“ Lumora.Imaging.Worker.exe mit OpenCV (ADR-0078).
     Nicht im Paket: FFmpeg (Video-Vorschaubilder) — wird wie im Debug-Build im PATH bzw. unter den winget-Links gesucht
     („winget install Gyan.FFmpeg“). Daten liegen unabhängig vom Paketordner unter %LocalAppData%\Lumora
     (bzw. im Ordner aus database-location.json) — außer mit -Portable (ADR-0069).
@@ -92,6 +93,26 @@ $publishArgs = @(
 & dotnet @publishArgs
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish fehlgeschlagen (ExitCode $LASTEXITCODE)." }
 
+# --- Hilfsprozess „Zusammenfügen“ (ADR-0078) ----------------------------------------------------------------------
+# Eigene EXE mit OpenCV (native OpenCvSharpExtern.dll, ≈ 69 MB) im selben Ordner wie Lumora.exe; Lumora selbst referenziert
+# OpenCV nicht. Gleiche Laufzeit wie die App (self-contained, gleiche Version) — gemeinsame Dateien sind identisch.
+$worker = Join-Path $repo 'src\Lumora.Imaging.Worker\Lumora.Imaging.Worker.csproj'
+$workerArgs = @(
+    'publish', $worker,
+    '-c', 'Release',
+    '-r', $Runtime,
+    '--self-contained', $(if ($FrameworkDependent) { 'false' } else { 'true' }),
+    '-o', $outDir,
+    "-p:Version=$version",
+    '-p:PublishSingleFile=false',
+    '-p:PublishTrimmed=false',
+    '-p:PublishReadyToRun=false',
+    '-p:SatelliteResourceLanguages=de',
+    '--nologo'
+)
+& dotnet @workerArgs
+if ($LASTEXITCODE -ne 0) { throw "dotnet publish des Hilfsprozesses fehlgeschlagen (ExitCode $LASTEXITCODE)." }
+
 # --- Prüfen -------------------------------------------------------------------------------------------------------
 $exe = Join-Path $outDir 'Lumora.exe'
 if (-not (Test-Path -LiteralPath $exe)) { throw "EXE fehlt im Paket: $exe" }
@@ -103,12 +124,16 @@ if ($productVersion -ne $version) {
     throw "Produktversion der EXE ($productVersion) weicht vom CHANGELOG ($version) ab."
 }
 
-$required = @('e_sqlite3.dll', 'libvlc\win-x64\libvlc.dll', 'libvlc\win-x64\plugins')
+$required = @('e_sqlite3.dll', 'libvlc\win-x64\libvlc.dll', 'libvlc\win-x64\plugins',
+    'Lumora.Imaging.Worker.exe', 'Lumora.Imaging.Worker.dll', 'OpenCvSharp.dll', 'OpenCvSharpExtern.dll') # Zusammenfügen (ADR-0078)
 if (-not $FrameworkDependent) { $required += @('coreclr.dll', 'PresentationFramework.dll') }
 foreach ($item in $required) {
     if (-not (Test-Path -LiteralPath (Join-Path $outDir $item))) { throw "Pflichtbestandteil fehlt im Paket: $item" }
 }
 if (Test-Path -LiteralPath (Join-Path $outDir 'libvlc\win-x86')) { throw 'libvlc\win-x86 sollte nicht im x64-Paket liegen.' }
+# OpenCV nur im Hilfsprozess: nicht in den Abhängigkeiten von Lumora.exe; FFmpeg von OpenCV (Video-Ein-/Ausgabe) nicht im Paket
+if (Select-String -LiteralPath (Join-Path $outDir 'Lumora.deps.json') -Pattern 'OpenCvSharp' -Quiet) { throw 'Lumora.deps.json nennt OpenCvSharp — OpenCV gehört nur in den Hilfsprozess.' }
+if (Get-ChildItem -LiteralPath $outDir -Filter 'opencv_videoio_ffmpeg*' -File) { throw 'opencv_videoio_ffmpeg gehört nicht ins Paket.' }
 # Nie Daten im Paket (kein Katalog, keine Protokolle); ein Ordner Daten neben der EXE schaltete den portablen Modus ein
 if (Test-Path -LiteralPath (Join-Path $outDir 'Daten')) { throw 'Ordner Daten darf nicht im Paket liegen.' }
 

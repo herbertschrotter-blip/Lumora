@@ -3,6 +3,71 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.46] — 2026-11-18
+
+### Imaging — Zusammenfügen Stufe 1 Teil A: Panorama-Kette, Hilfsprozess, Merge-Dienst (ADR-0078)
+- **Neue Projekte:** `Lumora.Imaging` (Merge-Dienst und Client, ohne OpenCV), `Lumora.Imaging.Protocol` (Zeilen-Protokoll)
+  und `Lumora.Imaging.Worker` — der **Hilfsprozess**: liest die Quellen selbst über WIC (JPEG, HEIC, PNG, TIFF, EXIF-Ausrichtung,
+  DJI-Gimbal-Winkel), rechnet mit OpenCV und schreibt Vorschau bzw. Ergebnis in den Temp-Ordner des Katalogs. Der
+  Lumora-Prozess lädt OpenCV nie; stürzt der Hilfsprozess ab, hängt er oder läuft der Speicher voll, scheitert nur der Vorgang
+  mit verständlichem Grund. OpenCL aus, TEMP im Katalog, ein schwerer Lauf zur Zeit. Pakete `OpenCvSharp4` +
+  `OpenCvSharp4.runtime.win` 4.13.0.20261107 (ohne `opencv_videoio_ffmpeg`).
+- **Panorama-Kette** aus Spike 20 Runde 2 sauber portiert (SIFT, Paarabgleich, Bündelausgleich, Gimbal-Startwerte,
+  Wellenkorrektur, Photometrie, Blockausgleich je Kanal, Graph-Cut-Naht mit Schärfe, Entgeisterung, Mehrband-Überblendung) in
+  zwei Phasen (`IPanoramaStitcher`: ausrichten einmal, zusammensetzen beliebig oft): alle Aufnahmearten — Kugel 360° als
+  Horizontstreifen oder 2 : 1 mit gefülltem Zenit/Nadir und GPano, Zylinder (Mercator-Teilung bei hohen Schwenks),
+  Perspektive, Vertikal, Nur verschieben (Scans) — und ein Vorschlag aus Gimbal, Abdeckung und Bildwinkel.
+- **Feste Startwerte** für RANSAC je Bildpaar; **Prüfung vor dem Speichern** (Restfehler, gekippte Kette, Zuschnitthöhe und
+  -fläche, eingebundene Bilder, Nahtgüte) — gekippte Läufe werden mit anderem Startwert wiederholt, sonst nicht gespeichert.
+  Restverzeichnung k1/k2 nur mit Brennweite aus dem EXIF (sonst tauschen Brennweite und Verzeichnung).
+- **Farbe und Kontrast** (Herberts Urteil über Spike 20): neuer Tonwert-Angleich an die Quellen nach dem Überblenden.
+  Handy-2: Helligkeits-Streuung L* 17,7 ohne Angleich (wie Runde 2: 17,6) → 19,7 mit (Quellen 20,7, Photoshop 21,4).
+- **Farbverstärkung „Farbe kräftiger“** (Herbert nach den Vergleichsbildern: „Farben wie in Photoshop, nicht so blass, aber
+  abschaltbar“): eigener Schritt nach dem Tonwert-Angleich im Hilfsprozess — Dynamik (blasse Farben stärker als kräftige) plus
+  leichte Sättigung, im linearen Licht um die Leuchtdichte (L* bleibt), Hauttöne gedämpft, Grau bleibt grau, weiches Knie an
+  der Farbraumgrenze (kein zusätzlich abgeschnittenes Pixel). Stärke in Prozent: 0 = aus, **100 = Standard**, bis 150; ein fester
+  Parametersatz, an beiden Testserien gegen Photoshop kalibriert: Buntheit C* Handy-2 26,2 → 34,1 (Photoshop 35,9),
+  Drohne-360-A 21,6 → 31,9 (31,7); Mittelfarbe näher an Photoshop (ΔE 6,0 → 4,4 bzw. 3,6 → 2,7, Runde 2: 4,9 bzw. 4,8);
+  L*-Verteilung unverändert; abgeschnittene Pixel nach dem JPEG auf Höhe der Quellen. Im Rezept (`colorBoost`), zuletzt gewählte Stärke
+  gemerkt (`merge.colorBoost`, erstes Mal 100). Ändert sich in der Vorschau nur die Stärke, tont der Hilfsprozess das letzte
+  Bild nur neu — kein neues Ausrichten, kein neues Zusammensetzen.
+- **Volle Auflösung ist Standard**; reicht der Arbeitsspeicher nicht oder wäre eine Kante länger als 65 500 px, nimmt der
+  Hilfsprozess die größte passende Stufe und meldet es („größte passende Größe“).
+- **Merge-Dienst** (`IMergeService`): Analyse der Auswahl (nach Aufnahmezeit, Zeit-Nachbarn bei einem Foto, Videos/Archive/
+  fehlende/Offline/OneDrive-Platzhalter, gemischte Bibliotheken gesperrt, RAW → JPEG-Geschwister), Vorschau-Sitzung mit
+  Umschalten der Aufnahmeart ohne neues Ausrichten, Vorrang nur beim Rechnen, Schätzung, Speichern, Abbrechen,
+  „Im Hintergrund weiterrechnen“; `ActivityKind.Merge` (Vorschau ohne Eintrag unter „Zuletzt fertig“, Speichern mit Öffnen
+  und Rückgängig, `ActivityActionKind.ShowResult`). Die Oberfläche folgt in Teil B.
+- **Speichern als neue Datei** neben dem ersten Einzelbild (`<erstes Bild>_panorama.jpg`, nie überschreiben):
+  `CreateMergedAsync` (CreateMerged-Batch, Rückgängig in den Papierkorb), Zeit der frühesten Quelle mit Zeit, Ort der ersten
+  Quelle mit Ort (echtes GPS vor geschätztem) samt **ganzem GPS-Block mit Höhe und GPS-Zeit** in der Datei, Kamera, höchste
+  Sterne, Favorit, gemeinsame Tags, Rezept; Fassungen und Ergebnisse teilen jetzt den Element-Schritt `ExecuteCreateDerivedItemAsync`.
+- **Schema:** Migration `AddMergedPhotos` (nur CREATE TABLE): `MergedPhotos`, `MergedPhotoSources`, `MergedPhotoUndo`.
+  `FileLinkUndo` 6/7 sichert die Verknüpfung beim Papierkorb von Ergebnis bzw. Quelle, `MergedPhotoUndo` die Ergebnis-Zeile
+  samt Verfahren, Aufnahmeart und Rezept — Rückgängig stellt beides her. „Neu aufbauen“ trägt Ergebnisse mit und schreibt
+  gesicherte Datei-Verknüpfungen (`FileLinkUndo` 4–7, auch Fassungen) auf die neuen FileIds um (`UserDataCarryOver.Merges.cs`);
+  Abfragen für Ergebnis-Marke, Lightbox-Zeile und „Suchen ▸ Quellen / Zusammengefügtes Ergebnis“ (`IMergedPhotoStore`).
+- Ins Ergebnis zählen nur eingebundene Quellen (ausgelassene stehen nur im Rezept); eine vorläufige OneDrive-Zeit weicht der
+  frisch aus der Datei gelesenen. Schließen der Vorschau-Sitzung bricht eine laufende Vorschau ab (kein verwaister
+  Hilfsprozess), ein laufendes Speichern rechnet zu Ende; ein Abbrechen, das vor dem Start einer Arbeit ankommt, wirkt beim
+  Start; Fehler aus parallelen Abschnitten des Hilfsprozesses kommen mit ihrem Grund an (z. B. „Foto nicht lesbar“).
+- **Versteckte Bibliothek:** Vorschau, Ergebnis-Zwischenstand und Temp des Hilfsprozesses nur im Container; das Protokoll nennt
+  nur Verfahren, Zahl und FileId.
+- **Tests:** neues Projekt `tests/Lumora.Imaging.Tests` (synthetische Szenen: Schwenk, Kugel mit Gimbal, Vertikal, Scans,
+  Belichtung, feste Startwerte, gekippte Kette, keine Überlappung, Tonwert, Farbverstärkung (aus = Byte für Byte gleich, Grau
+  bleibt grau, kein Abschneiden, Dynamik, Haut gedämpft, L* bleibt); Hilfsprozess: Absturz, Hängen, Abbrechen auch vor dem
+  Start, Sammelfehler; Merge-Dienst bis zur Katalogzeile, Neu-Tonen ohne Ausrichten, versteckte Sitzung) und Merge-Tests in `tests/Lumora.Tests` (Katalog, Rückgängig, FileLinkUndo,
+  „Neu aufbauen“, Metadaten, EXIF des Ergebnisses). Check `imaging` im Skill-Profil.
+- `build/publish.ps1` veröffentlicht den Hilfsprozess ins portable Paket und prüft, dass OpenCV nicht in `Lumora.deps.json` steht.
+- In der Wpf-Schicht heißt `Imaging.CreateBitmapSourceFromHBitmap` jetzt voll qualifiziert (Namensraum `Lumora.Imaging`).
+
+### Offen
+- Stufe 1 Teil B: Fenster „Zusammenfügen“ (mit Regler „Farbe kräftiger“ samt Aus-Stellung), Einstellungen › Zusammenfügen
+  (Farbverstärkung), Rechtsklick, Aktionsleiste, Ergebnis-Marke, Lightbox-Zeile, Suchen ▸, Rauchtest-Schritt; Mockup 28 nachziehen
+  (volle Auflösung, Sterne, Farbe kräftiger).
+- Farbe gegenüber Photoshop: Buntheit jetzt auf Photoshop-Niveau; Herberts Bearbeitung ist zusätzlich kühler (Himmel blauer) —
+  Weißabgleich bleibt Sache von „Foto verbessern“.
+
 ## [0.5.45] — 2026-11-18
 
 ### Docs — Abnahmen: OneDrive-Bibliothek und Serien/Zusammenfügen

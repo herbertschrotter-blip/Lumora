@@ -243,6 +243,18 @@ public sealed class ActivityTrackingFileOperationService : IFileOperationService
             token => _inner.CreateVariantsAsync(requests, token),
             r => Batch(r, r.Succeeded == 1 ? "Verbesserte Fassung gespeichert" : $"{Files(r.Succeeded)} verbessert gespeichert", undoable: true));
 
+    /// <summary>
+    /// „Als neue Datei speichern“ im Fenster „Zusammenfügen“ (ADR-0078) mit „Rückgängig“; im Vorgang des Merge-Dienstes
+    /// (ActivityKind.Merge) ohne eigenen Eintrag.
+    /// </summary>
+    public Task<FileOperationBatchResult> CreateMergedAsync(IReadOnlyList<MergeCreateRequest> requests, CancellationToken ct = default)
+        => TrackAsync(
+            new ActivityStartInfo(ActivityKind.FileOperation, requests.Count == 1 ? "Zusammengefügtes Ergebnis speichern" : $"{requests.Count:N0} Ergebnisse speichern", UserInitiated: true),
+            0,
+            ct,
+            token => _inner.CreateMergedAsync(requests, token),
+            r => Batch(r, r.Succeeded == 1 ? "Zusammengefügtes Ergebnis gespeichert" : $"{r.Succeeded:N0} Ergebnisse gespeichert", undoable: true));
+
 
     // ------------------------------------------------------------------ Rahmen
 

@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Tests für „Zusammenfügen“ (ADR-0078 Punkt 18): Rechenkette im Hilfsprozess (OpenCV, synthetische Bilder), Client des
+       Hilfsprozesses (Absturz, Abbrechen, Zeitüberschreitung), Merge-Dienst. Eigenes Projekt, damit tests/Lumora.Tests frei von
+       nativem OpenCV bleibt. Keine persönlichen Fotos: alle Bilder entstehen im Test. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Lumora.Imaging.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="FluentAssertions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="FluentAssertions" />
+    <Using Include="System.IO" />
+    <Using Remove="System.Windows" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Lumora.Imaging\Lumora.Imaging.csproj" />
+    <ProjectReference Include="..\..\src\Lumora.Imaging.Worker\Lumora.Imaging.Worker.csproj" />
+    <!-- Fixtures (TempLibraryFixture, FakeRecycleBin, TestStoragePaths) für den Merge-Dienst gegen einen echten Katalog -->
+    <ProjectReference Include="..\Lumora.Tests\Lumora.Tests.csproj" />
+  </ItemGroup>
+
+</Project>

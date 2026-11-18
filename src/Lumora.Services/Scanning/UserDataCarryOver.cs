@@ -103,7 +103,10 @@ public sealed partial class UserDataCarryOver
                OR EXISTS (SELECT 1 FROM Stories st WHERE st.CoverFileId = f.Id)
                OR EXISTS (SELECT 1 FROM Folders fo WHERE fo.CoverFileId = f.Id) -- Ordner-Titelbild (ADR-0068)
                OR EXISTS (SELECT 1 FROM FileUsageDays u WHERE u.FileId = f.Id) -- Nutzungs-Signale (ADR-0072)
-               OR EXISTS (SELECT 1 FROM PhotoVariants pv WHERE pv.FileId = f.Id OR pv.OriginalFileId = f.Id)) -- Fassungen (ADR-0071)
+               OR EXISTS (SELECT 1 FROM PhotoVariants pv WHERE pv.FileId = f.Id OR pv.OriginalFileId = f.Id) -- Fassungen (ADR-0071)
+               OR EXISTS (SELECT 1 FROM MergedPhotos mp WHERE mp.FileId = f.Id) -- Zusammenfügen: Ergebnis (ADR-0078)
+               OR EXISTS (SELECT 1 FROM MergedPhotoSources ms WHERE ms.SourceFileId = f.Id) -- … und Quelle
+               OR f.Id IN (SELECT u.TargetId FROM FileLinkUndo u WHERE u.Kind BETWEEN 4 AND 7)) -- Ziel gesicherter Datei-Verknüpfungen (ADR-0071/0078)
         ORDER BY f.Missing, f.Id;
         """;
 
@@ -232,6 +235,7 @@ public sealed partial class UserDataCarryOver
         carry.ParkStories(); // Story-Einträge und Titelbilder (ADR-0058, UserDataCarryOver.Stories.cs)
         carry.ParkUsage(); // Nutzungs-Signale (ADR-0072, UserDataCarryOver.Usage.cs)
         carry.ParkVariants(); // Fassungen aus „Foto verbessern“ (ADR-0071, UserDataCarryOver.Variants.cs)
+        carry.ParkMerges(); // zusammengefügte Ergebnisse und ihre Quellen (ADR-0078, UserDataCarryOver.Merges.cs)
         carry.CaptureDuration = sw.Elapsed;
         return carry;
     }
@@ -271,6 +275,7 @@ public sealed partial class UserDataCarryOver
         RestoreStories(); // ADR-0058
         RestoreUsage(); // ADR-0072
         RestoreVariants(); // ADR-0071
+        RestoreMerges(); // ADR-0078
 
         return new RestoreReport(CapturedFiles, mapped, CapturedFiles - mapped, files, tags, sw.Elapsed, categories, faces, captureDates, geo);
     }

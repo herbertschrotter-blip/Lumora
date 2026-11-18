@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Hilfsprozess „Zusammenfügen“ (ADR-0078, Nachtrag 0.5.44 Punkt 5 und Nachtrag „Bau Stufe 1 Teil A“): liest die Quellen
+       selbst (WIC: JPEG, HEIC, PNG, TIFF, EXIF-Ausrichtung), rechnet mit OpenCV und schreibt Vorschau bzw. Ergebnis in den
+       Temp-Ordner des Katalogs. Ohne Fenster, Protokoll über stdin/stdout (Lumora.Imaging.Protocol). Nur dieser Prozess lädt
+       die native OpenCvSharpExtern.dll — stürzt sie ab oder läuft der Speicher voll, läuft Lumora weiter.
+       Kein Verweis auf Lumora.Services/Data/Domain: der Prozess kennt keinen Katalog. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>Lumora.Imaging.Worker</RootNamespace>
+    <AssemblyName>Lumora.Imaging.Worker</AssemblyName>
+    <Product>Lumora</Product>
+    <AssemblyTitle>Lumora – Zusammenfügen (Hilfsprozess)</AssemblyTitle>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <!-- Version wie Lumora.exe aus dem obersten CHANGELOG-Eintrag (Einstellungen › Zusammenfügen › Werkzeuge) -->
+    <ChangelogFile>$(MSBuildThisFileDirectory)..\..\CHANGELOG.md</ChangelogFile>
+    <Version Condition="Exists('$(ChangelogFile)')">$([System.Text.RegularExpressions.Regex]::Match($([System.IO.File]::ReadAllText('$(ChangelogFile)')), '(?m)(?&lt;=^## \[)\d+\.\d+\.\d+(?=\])').Value)</Version>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Lumora.Imaging.Tests" />
+    <!-- WPF-Usings nur für WIC; Point/Size/Rect kämen sonst doppelt (OpenCvSharp) -->
+    <Using Remove="System.Windows" />
+    <Using Include="System.IO" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Lumora.Imaging.Protocol\Lumora.Imaging.Protocol.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="OpenCvSharp4" />
+    <PackageReference Include="OpenCvSharp4.runtime.win" />
+  </ItemGroup>
+
+  <!-- opencv_videoio_ffmpeg (≈ 27 MB, FFmpeg für Video-Ein-/Ausgabe) braucht die Kette nicht — nicht ins Paket -->
+  <Target Name="DropOpenCvFfmpeg" AfterTargets="ResolvePackageAssets">
+    <ItemGroup>
+      <RuntimeTargetsCopyLocalItems Remove="@(RuntimeTargetsCopyLocalItems)" Condition="$([System.String]::Copy('%(Filename)').StartsWith('opencv_videoio_ffmpeg'))" />
+      <NativeCopyLocalItems Remove="@(NativeCopyLocalItems)" Condition="$([System.String]::Copy('%(Filename)').StartsWith('opencv_videoio_ffmpeg'))" />
+    </ItemGroup>
+  </Target>
+
+</Project>

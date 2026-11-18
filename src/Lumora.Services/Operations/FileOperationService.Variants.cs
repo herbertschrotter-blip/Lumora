@@ -132,14 +132,53 @@ public sealed partial class FileOperationService
     }
 
     /// <summary>Eine Fassung: Ergebnis an das Ziel verschieben, dann Katalog buchen. true, wenn dabei ein Ordner neu entstand.</summary>
-    private async Task<bool> ExecuteCreateVariantItemAsync(LibraryContext ctx, BatchRun run, CatalogFile original, FileOperation op, VariantCreateRequest request)
+    private Task<bool> ExecuteCreateVariantItemAsync(LibraryContext ctx, BatchRun run, CatalogFile original, FileOperation op, VariantCreateRequest request)
+        => ExecuteCreateDerivedItemAsync(ctx, run, original, op, request.ResultPath, "Das Ziel liegt außerhalb der Bibliothek des Originals.", async (row, token) =>
+        {
+            // Fassung einer Fassung: an das ursprüngliche Original hängen (eine Ebene, Marke „n Fassungen“ bleibt eindeutig)
+            var originalId = original.File.Id;
+            var rootOriginal = await ctx.PhotoVariants.AsNoTracking().Where(v => v.FileId == originalId).Select(v => (int?)v.OriginalFileId)
+                .FirstOrDefaultAsync(token).ConfigureAwait(false);
+            CopyVariantMetadata(original.File, row, request);
+            ctx.PhotoVariants.Add(new PhotoVariant
+            {
+                FileId = row.Id,
+                OriginalFileId = rootOriginal ?? originalId,
+                Tools = request.Tools,
+                CreatedAtUtc = DateTime.UtcNow,
+                BatchId = run.Batch.Id,
+            });
+            await ctx.SaveChangesAsync(token).ConfigureAwait(false);
+            if (request.CopyRatingAndTags)
+            {
+                await ctx.Database.ExecuteSqlAsync(
+                    $"INSERT OR IGNORE INTO FileTags (FileId, TagId) SELECT {row.Id}, TagId FROM FileTags WHERE FileId = {original.File.Id}", token)
+                    .ConfigureAwait(false);
+            }
+        });
+
+    /// <summary>
+    /// Element-Schritt für neue, abgeleitete Dateien (Fassungen ADR-0071, Zusammenfügen ADR-0078): fertige Ergebnis-Datei an das
+    /// Ziel verschieben (nur unter einer Wurzel der Bibliothek von <paramref name="anchor"/>, nie überschreiben), dann in einer
+    /// Transaktion Files-Zeile, FTS und Ordnerkette buchen und <paramref name="link"/> (Metadaten, Verknüpfung) aufrufen.
+    /// true, wenn dabei ein Ordner neu entstand.
+    /// </summary>
+    private async Task<bool> ExecuteCreateDerivedItemAsync(
+        LibraryContext ctx,
+        BatchRun run,
+        CatalogFile anchor,
+        FileOperation op,
+        string resultPath,
+        string outsideLibraryMessage,
+        Func<MediaFile, CancellationToken, Task> link)
     {
+        var original = anchor;
         var dest = op.DestPath!;
         var destDir = Path.GetDirectoryName(dest)!;
         var root = FindRootContaining(run.Roots, original.Library.Id, destDir);
         if (root is null)
         {
-            await FailItemAsync(ctx, run, original, op, "Das Ziel liegt außerhalb der Bibliothek des Originals.", CancellationToken.None).ConfigureAwait(false);
+            await FailItemAsync(ctx, run, original, op, outsideLibraryMessage, CancellationToken.None).ConfigureAwait(false);
             return false;
         }
 
@@ -157,7 +196,7 @@ public sealed partial class FileOperationService
         try
         {
             Directory.CreateDirectory(destDir);
-            File.Move(request.ResultPath, dest);
+            File.Move(resultPath, dest);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -180,10 +219,6 @@ public sealed partial class FileOperationService
                 await ctx.SaveChangesAsync(token).ConfigureAwait(false);
             }
 
-            // Fassung einer Fassung: an das ursprüngliche Original hängen (eine Ebene, Marke „n Fassungen“ bleibt eindeutig)
-            var originalId = original.File.Id;
-            var rootOriginal = await ctx.PhotoVariants.AsNoTracking().Where(v => v.FileId == originalId).Select(v => (int?)v.OriginalFileId)
-                .FirstOrDefaultAsync(token).ConfigureAwait(false);
             var row = await InsertCatalogRowAsync(ctx, original.Library, folder, dest, token).ConfigureAwait(false);
             created = row;
             if (row is null)
@@ -192,23 +227,8 @@ public sealed partial class FileOperationService
                 return;
             }
 
-            CopyVariantMetadata(original.File, row, request);
             op.FileId = row.Id;
-            ctx.PhotoVariants.Add(new PhotoVariant
-            {
-                FileId = row.Id,
-                OriginalFileId = rootOriginal ?? originalId,
-                Tools = request.Tools,
-                CreatedAtUtc = DateTime.UtcNow,
-                BatchId = run.Batch.Id,
-            });
-            await ctx.SaveChangesAsync(token).ConfigureAwait(false);
-            if (request.CopyRatingAndTags)
-            {
-                await ctx.Database.ExecuteSqlAsync(
-                    $"INSERT OR IGNORE INTO FileTags (FileId, TagId) SELECT {row.Id}, TagId FROM FileTags WHERE FileId = {original.File.Id}", token)
-                    .ConfigureAwait(false);
-            }
+            await link(row, token).ConfigureAwait(false);
         }).ConfigureAwait(false);
 
         if (error is not null)
@@ -287,7 +307,8 @@ public sealed partial class FileOperationService
     /// samt FTS, Vorschaubildern und Verknüpfung entfernen. Die Zeile wird über den Pfad gesucht, sonst über die protokollierte
     /// FileId — nur, wenn sie noch auf das Ziel zeigt.
     /// </summary>
-    private async Task<FileOperationItemResult> UndoCreateVariantItemAsync(LibraryContext ctx, FileOperation op, ChangeSet changes, IOwnChangeScope own, CancellationToken ct)
+    private async Task<FileOperationItemResult> UndoCreateVariantItemAsync(LibraryContext ctx, FileOperation op, ChangeSet changes, IOwnChangeScope own, CancellationToken ct,
+        string missingHint = "Die verbesserte Datei war nicht mehr vorhanden; Katalog bereinigt.")
     {
         var dest = op.DestPath;
         if (string.IsNullOrEmpty(dest))
@@ -313,7 +334,7 @@ public sealed partial class FileOperationService
         }
         else
         {
-            hint = "Die verbesserte Datei war nicht mehr vorhanden; Katalog bereinigt.";
+            hint = missingHint;
         }
 
         var libraryId = row?.LibraryId;
@@ -322,7 +343,7 @@ public sealed partial class FileOperationService
         {
             if (row is not null)
             {
-                await RemoveCatalogEntryAsync(ctx, row, token).ConfigureAwait(false); // PhotoVariants per Kaskade
+                await RemoveCatalogEntryAsync(ctx, row, token).ConfigureAwait(false); // PhotoVariants bzw. MergedPhotos per Kaskade
             }
         }).ConfigureAwait(false);
 

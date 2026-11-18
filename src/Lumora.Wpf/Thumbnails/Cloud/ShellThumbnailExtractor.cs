@@ -136,7 +136,8 @@ public sealed class ShellThumbnailExtractor : ICloudPreviewSource, IDisposable
     /// <summary>HBITMAP → eigenständiges, eingefrorenes Bitmap (Bgr24: Fotos sind deckend, JPEG kennt kein Alpha).</summary>
     private static BitmapSource Copy(IntPtr bitmap)
     {
-        var source = Imaging.CreateBitmapSourceFromHBitmap(bitmap, IntPtr.Zero, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+        // voll qualifiziert: „Imaging“ allein träfe seit 0.5.46 den Namensraum Lumora.Imaging (ADR-0078)
+        var source = System.Windows.Interop.Imaging.CreateBitmapSourceFromHBitmap(bitmap, IntPtr.Zero, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
         var converted = new FormatConvertedBitmap(source, PixelFormats.Bgr24, null, 0);
         var cached = new CachedBitmap(converted, BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
         cached.Freeze();

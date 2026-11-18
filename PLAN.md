@@ -107,6 +107,9 @@ src/
     RawSql/                           # BulkScanWriter, FtsIndexer, FtsQueryBuilder
     Migrations/                       # EF Core (InitialV01)
   Lumora.AppConnect/              # → Services, WPF-frei, ASP.NET Core (Kestrel): App-Verbindung nach Vertrag 1.1 (ADR-0073) — AppConnectServer (127.0.0.1, Schutzregeln, Fehler), RegistrationFiles (Anmeldedatei), SingleInstance (Mutex + Pipe), AppConnectHost
+  Lumora.Imaging/                 # → Services + Imaging.Protocol, WPF-frei, OHNE OpenCV (ADR-0078): AddImaging(); Merge/ = IMergeService, MergeService (Analyse, Zeit-Nachbarn), MergePreviewSession (Vorschau, Umschalten, Speichern), MergeRecipe, MergeSettingsStore (merge.*), MergeNaming, MergeMemoryBudget, MergeTexts, Panorama/IPanoramaStitcher; Worker/ = ImagingWorkerProcess (Start, Protokoll, Abbrechen, Absturz/Zeitüberschreitung), ImagingWorkerHost (ein schwerer Lauf zur Zeit)
+  Lumora.Imaging.Protocol/        # net10.0, keine Deps: Zeilen-Protokoll zwischen Lumora und dem Hilfsprozess (WorkerMessages, WorkerProtocol)
+  Lumora.Imaging.Worker/          # net10.0-windows Exe (ohne Fenster) → Imaging.Protocol + OpenCvSharp4: Hilfsprozess „Zusammenfügen“ — Decoding/ (WIC: JPEG/HEIC/PNG/TIFF, Ausrichtung, DJI-Gimbal), Panorama/ (eigene Kette aus Spike 20: PanoAligner, BundleAdjust, Photometric, BlocksGain, GraphCutSeam, Deghost, MultiBandBlender, Warper, PanoComposer, ToneMatcher, ColorBooster), Output/ (JPEG); einzige Stelle mit nativem OpenCV
   Lumora.Services/                # → Domain + Data, WPF-frei; AddLumoraServices()
     Catalog/                          # CatalogUpdateService (Favorit/Bewertung)
     Database/                         # LibraryContextFactory (+ IDatabaseAccessGate), DatabaseInitializer, SqlitePragmaInterceptor
@@ -147,7 +150,8 @@ src/
     Sorter/                           # Sortieren-Seite (File Sorter, Flatten & Move)
     Thumbnails/                       # WicImageThumbnailRenderer (WIC lebt im Wpf-Projekt, Interface in Services)
 tests/
-  Lumora.Tests/                   # xUnit: Services + Data
+  Lumora.Tests/                   # xUnit: Services + Data (ohne natives OpenCV; Merge-Katalog, EXIF des Ergebnisses)
+  Lumora.Imaging.Tests/           # xUnit: Rechenkette mit synthetischen Bildern, Hilfsprozess (Absturz, Abbrechen), Merge-Dienst (ADR-0078 Punkt 18)
   Lumora.Wpf.Tests/               # xUnit: WPF-gebundener Code (WIC, GalleryQuery, Converter)
   Lumora.PerfTests/               # Benchmark/Console-Harness der Spikes
 ```
@@ -160,8 +164,11 @@ Noch nicht angelegt (Plan bleibt): `Services/Storage/` (StorageProfileService, A
 - Domain: keine Projekt-Abhängigkeiten
 - Data → Domain
 - Services → Domain + Data
-- Wpf → Domain + Data + Services
-- Keine WPF-Referenz in Domain/Data/Services
+- Imaging → Services + Imaging.Protocol (wie AppConnect über den Services; kein OpenCV)
+- Imaging.Worker → nur Imaging.Protocol + OpenCvSharp4 (kein Katalog); Wpf baut ihn mit und kopiert ihn neben Lumora.exe,
+  referenziert ihn aber nicht (ADR-0078)
+- Wpf → Domain + Data + Services + AppConnect + Imaging
+- Keine WPF-Referenz in Domain/Data/Services/Imaging; natives OpenCV nur im Hilfsprozess
 
 ---
 
@@ -383,6 +390,21 @@ FilesFts           -- FTS5 virtual table (Files.Name, Extension)
   MinLatitude/MinLongitude/MaxLatitude/MaxLongitude, HasTrack, Summits (JSON), UpdatedAtUtc; UX_AppTours_App_External
   (AppId, ExternalId) eindeutig, IX_AppTours_Time (StartUtc, EndUtc))` — für den ganzen Katalog. An `GpsTracks`
   `AppTourId` (NULL, ohne Fremdschlüssel; `IX_GpsTracks_AppTour` gefiltert) und `Source` 4 = aus verbundener App.
+- Zusammenfügen, Stufe 1 — umgesetzt in 0.5.46 (Migration `AddMergedPhotos`, ADR-0078 Punkt 11, nur CREATE TABLE):
+  `MergedPhotos (FileId PK → Files ON DELETE CASCADE (das Ergebnis), Method INT (MergeMethod: Panorama 0 …), Projection INT
+  NULL (PanoramaProjection: Auto 0, Spherical360 1, Cylindrical 2, Perspective 3, Vertical 4, ShiftOnly 5), SourceCount
+  (bleibt, wenn eine Quelle verschwindet), SeriesId NULL (ohne FK, Stufe 2), Tools („merge:panorama“), RecipeJson (Verfahren,
+  Optionen, Aufnahmeart, Ausrichtung der Kameras, Maßstab — keine Pfade), CreatedAtUtc, BatchId (ohne FK))` und
+  `MergedPhotoSources (ResultFileId → MergedPhotos ON DELETE CASCADE, SourceFileId → Files ON DELETE CASCADE, Position;
+  PK (ResultFileId, SourceFileId), IX_MergedPhotoSources_Source)` und `MergedPhotoUndo (FileOperationId PK → FileOperations ON
+  DELETE CASCADE, dieselben Spalten wie MergedPhotos ohne FileId)` — gesicherte Ergebnis-Zeile für Papierkorb/Rückgängig. Neue Werte: `OperationType.CreateMerged = 16`
+  (Rückgängig = Ergebnis in den Papierkorb), `FileLinkKind` 6 (war Ergebnis; je Quelle eine Zeile, Id-Folge = Position) /
+  7 (war Quelle), `ActivityKind.Merge = 18`, `ActivityActionKind.ShowResult = 3`. Settings: `merge.panorama.sphereForm`
+  (`Band` | `Full`, zuletzt gewählt, beim ersten Mal Band), `merge.location` (NextToFirst | Subfolder), `merge.subfolder`
+  (`zusammengefügt`), `merge.suffix.panorama` (`_panorama`), `merge.jpegQuality` (92), `merge.copyTags` (an),
+  `merge.copyRating` (an), `merge.droneOneUp` (aus), `merge.colorBoost` (Farbverstärkung in Prozent 0–150, zuletzt gewählt,
+  beim ersten Mal 100) — je Katalog. „Neu aufbauen“ trägt Ergebnis, Quellen und Rezept sowie die Ziele gesicherter
+  Datei-Verknüpfungen (`FileLinkUndo` 4–7) mit (`UserDataCarryOver.Merges.cs`); die Serie wird in Stufe 2 neu erkannt.
 
 ### Pflicht-Indizes V0.1
 ```sql
@@ -521,7 +543,7 @@ Status (Stand 0.2.0): ✅ umgesetzt · 🟡 teilweise · ⬜ offen
 | 🟡 | **Produktivbetrieb** | Katalog-Sicherung vor Migrationen (konsistent, versteckt nur im Container, ohne Sicherung keine Migration), von Hand + Wiederherstellen beim nächsten Start, portabler Modus (`lumora.portable`/`Daten\` neben der EXE, `publish.ps1 -Portable`) für eine getrennte Release-Installation mit frischem Katalog, Datenordner in Info; offen: Sicherung der Fotos (Herberts Entscheidung, README „Produktivbetrieb“) | Issue #6, ADR-0069, umgesetzt in 0.4.40; Release 0.5.0 als portables Paket gebaut und mit dem Rauchtest geprüft |
 | ✅ | **OneDrive-Bibliothek** | OneDrive-Ordner mit „Dateien bei Bedarf“ als normale Bibliothek: Platzhalter einlesen (Scanner liest Cloud-Reparse-Punkte), Vorschaubilder nur über die Shell und nur für Sichtbares, Aufnahmedatum ohne Download, Analysen lassen Platzhalter aus und holen sie nach, Lightbox mit 1024-px-Vorschau und „Wird von OneDrive geladen …“ (Abbrechen, offline Meldung), Wolken-Marke, „Immer auf diesem Gerät behalten“/„Speicherplatz freigeben“; nie „fehlt“ | Spike 19, Mockup 27 (abgenommen 2026-11-18), ADR-0077 (Accepted 2026-11-18), umgesetzt in 0.5.41 |
 | ✅ | **Update-Manager „Modelle & Daten“** | alle Modelle und Datenpakete mit Zweck, Größe, Version, Quelle, Lizenz und Zustand; Laden nur nach Bestätigung mit SHA-256 und Fortschritt in der Aktivitäts-Anzeige, Prüfen, Entfernen, „Update suchen“ nur auf Klick; Register für die Modelle von „Foto verbessern“ | Mockup 19 (abgenommen 2026-10-25), ADR-0070, Issue #19, umgesetzt in 0.4.42 |
-| ⬜ | **Serien und Zusammenfügen** | aus mehreren Fotos eines: Panorama mit Aufnahmeart wie in Photoshop (Automatisch, Kugel 360° als 2 : 1 mit gefüllten Lücken, Zylinder, Perspektive, Vertikal, Nur verschieben; Vorschlag aus Bildzahl und Gimbal-Winkeln, RAW/DNG als Quelle), Belichtungsreihe (HDR), Entrauschen/mehr Details, Leute entfernen, Langzeitbelichtung, Fokus-Stapel, HDR-Panorama, Zeitraffer (FFmpeg), Bestes Gruppenfoto (Gesichtserkennung); Serien still im Hintergrund-Planer erkennen (Zeitlücken, gleiche Kamera, DJI-Panorama-Ordner, Belichtungs-/Fokusreihen, Intervalle; Vorrang 3 vor Prüfsummen und Vorschaubildern auf Vorrat; OneDrive-Platzhalter ohne Download), Galerie-Filter „Serien“ und farbiger Rahmen je Serien-Art auf allen Kacheln einer Serie mit Ein-Klick, Rechtsklick „Zusammenfügen…“ (Galerie, Liste, Lightbox, damit auch Alben und aus einer Story über die Lightbox; Ergebnis kommt ins Album), Fenster mit Vorschau, Vorrang nur beim Rechnen, Fortschritt/Abbrechen in der Aktivitäts-Anzeige, Ergebnis als neue verknüpfte Datei neben dem ersten Einzelbild mit Rückgängig, Hochskalieren optional danach (gedämpft, Standard aus); Standard volle Auflösung; Sterne/Favorit/gemeinsame Tags übernehmen; Hugin als Wahl (über „Modelle & Daten“); OpenCV im Hilfsprozess; versteckte Bibliothek nur im Container; neues Projekt `Lumora.Imaging` (OpenCvSharp) mit eigenem Testprojekt. Bau: Spike 20 → Panorama → Serien → Panorama vollständig (eigene DNG-Entwicklung, Hugin) → 360°-Rundum-Ansicht → Belichtung/Entrauschen/Leute/Langzeit → Fokus/Zeitraffer/HDR-Panorama → Gruppenfoto | Herbert 2026-11-17, ADR-0078 (Accepted 2026-11-18, Abnahme mit Abweichungen), Mockup 28 (abgenommen 2026-11-18), Spike 20 (gelb; Farbe und Kontrast werden in Stufe 1 nachgeschärft) |
+| 🟡 | **Serien und Zusammenfügen** (Stufe 1 Teil A in 0.5.46: Panorama-Kette, Hilfsprozess, Merge-Dienst, Speichern mit Rückgängig; Oberfläche = Teil B) | aus mehreren Fotos eines: Panorama mit Aufnahmeart wie in Photoshop (Automatisch, Kugel 360° als 2 : 1 mit gefüllten Lücken, Zylinder, Perspektive, Vertikal, Nur verschieben; Vorschlag aus Bildzahl und Gimbal-Winkeln, RAW/DNG als Quelle), Belichtungsreihe (HDR), Entrauschen/mehr Details, Leute entfernen, Langzeitbelichtung, Fokus-Stapel, HDR-Panorama, Zeitraffer (FFmpeg), Bestes Gruppenfoto (Gesichtserkennung); Serien still im Hintergrund-Planer erkennen (Zeitlücken, gleiche Kamera, DJI-Panorama-Ordner, Belichtungs-/Fokusreihen, Intervalle; Vorrang 3 vor Prüfsummen und Vorschaubildern auf Vorrat; OneDrive-Platzhalter ohne Download), Galerie-Filter „Serien“ und farbiger Rahmen je Serien-Art auf allen Kacheln einer Serie mit Ein-Klick, Rechtsklick „Zusammenfügen…“ (Galerie, Liste, Lightbox, damit auch Alben und aus einer Story über die Lightbox; Ergebnis kommt ins Album), Fenster mit Vorschau, Vorrang nur beim Rechnen, Fortschritt/Abbrechen in der Aktivitäts-Anzeige, Ergebnis als neue verknüpfte Datei neben dem ersten Einzelbild mit Rückgängig, Hochskalieren optional danach (gedämpft, Standard aus); Standard volle Auflösung; Sterne/Favorit/gemeinsame Tags übernehmen; Hugin als Wahl (über „Modelle & Daten“); OpenCV im Hilfsprozess; versteckte Bibliothek nur im Container; neues Projekt `Lumora.Imaging` (OpenCvSharp) mit eigenem Testprojekt. Bau: Spike 20 → Panorama → Serien → Panorama vollständig (eigene DNG-Entwicklung, Hugin) → 360°-Rundum-Ansicht → Belichtung/Entrauschen/Leute/Langzeit → Fokus/Zeitraffer/HDR-Panorama → Gruppenfoto | Herbert 2026-11-17, ADR-0078 (Accepted 2026-11-18, Abnahme mit Abweichungen), Mockup 28 (abgenommen 2026-11-18), Spike 20 (gelb; Farbe und Kontrast werden in Stufe 1 nachgeschärft) |
 
 ---
 
@@ -661,6 +683,8 @@ Status (Stand 0.2.0): ✅ umgesetzt · 🟡 teilweise · ⬜ offen
 - **WpfAnimatedGif** erst in Phase 8 (nicht V0.1)
 - **SharpCompress** erst in Phase 8 (nicht V0.1)
 - **Microsoft.ML.OnnxRuntime** erst in Phase 9
+- **OpenCvSharp4 + OpenCvSharp4.runtime.win** (4.13.0.20261107, Apache-2.0) seit 0.5.46 nur im Hilfsprozess
+  `Lumora.Imaging.Worker` und seinem Testprojekt (ADR-0078); `opencv_videoio_ffmpeg` wird nicht mitkopiert
 
 ---
 

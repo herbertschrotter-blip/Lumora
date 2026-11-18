@@ -1153,6 +1153,97 @@ namespace Lumora.Data.Migrations
                     b.ToTable("Files", (string)null);
                 });
 
+            modelBuilder.Entity("Lumora.Domain.Entities.MergedPhoto", b =>
+                {
+                    b.Property<int>("FileId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("BatchId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("CreatedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Method")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("Projection")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("RecipeJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("SeriesId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SourceCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Tools")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("FileId");
+
+                    b.ToTable("MergedPhotos", (string)null);
+                });
+
+            modelBuilder.Entity("Lumora.Domain.Entities.MergedPhotoSource", b =>
+                {
+                    b.Property<int>("ResultFileId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SourceFileId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("ResultFileId", "SourceFileId");
+
+                    b.HasIndex("SourceFileId")
+                        .HasDatabaseName("IX_MergedPhotoSources_Source");
+
+                    b.ToTable("MergedPhotoSources", (string)null);
+                });
+
+            modelBuilder.Entity("Lumora.Domain.Entities.MergedPhotoUndo", b =>
+                {
+                    b.Property<int>("FileOperationId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("BatchId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("CreatedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Method")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("Projection")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("RecipeJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("SeriesId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SourceCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Tools")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("FileOperationId");
+
+                    b.ToTable("MergedPhotoUndo", (string)null);
+                });
+
             modelBuilder.Entity("Lumora.Domain.Entities.MotifTerm", b =>
                 {
                     b.Property<int>("Id")
@@ -1792,6 +1883,39 @@ namespace Lumora.Data.Migrations
                     b.HasOne("Lumora.Domain.Entities.FileOperation", null)
                         .WithOne()
                         .HasForeignKey("Lumora.Domain.Entities.GeoTagUndo", "FileOperationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Lumora.Domain.Entities.MergedPhoto", b =>
+                {
+                    b.HasOne("Lumora.Domain.Entities.MediaFile", null)
+                        .WithOne()
+                        .HasForeignKey("Lumora.Domain.Entities.MergedPhoto", "FileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Lumora.Domain.Entities.MergedPhotoSource", b =>
+                {
+                    b.HasOne("Lumora.Domain.Entities.MergedPhoto", null)
+                        .WithMany()
+                        .HasForeignKey("ResultFileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Lumora.Domain.Entities.MediaFile", null)
+                        .WithMany()
+                        .HasForeignKey("SourceFileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Lumora.Domain.Entities.MergedPhotoUndo", b =>
+                {
+                    b.HasOne("Lumora.Domain.Entities.FileOperation", null)
+                        .WithOne()
+                        .HasForeignKey("Lumora.Domain.Entities.MergedPhotoUndo", "FileOperationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

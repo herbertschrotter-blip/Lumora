@@ -131,6 +131,8 @@ public static class ServiceCollectionExtensions
         Related.RelatedServiceCollectionExtensions.AddRelatedPhotoSearch(services);
         // Nutzungs-Signale: Ansehen/Verwenden/Weitergeben als Tagessummen, Zuschlag in Highlights, „Vergessene Schätze“ (Services/Usage, ADR-0072)
         Usage.UsageServiceCollectionExtensions.AddUsageSignals(services);
+        // Zusammenfügen, Katalog-Teil: Ergebnis-Marke, Quellen, „Suchen ▸“ (Services/Merge, ADR-0078); Rechnen in Lumora.Imaging
+        Merge.MergeCatalogServiceCollectionExtensions.AddMergeCatalog(services);
 
         return services;
     }

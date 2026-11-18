@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Zusammenfügen (ADR-0078, Nachtrag „Bau Stufe 1 Teil A“): Nachrichten zwischen Lumora (Lumora.Imaging, Client) und dem
+       Hilfsprozess Lumora.Imaging.Worker (OpenCV). Ohne Abhängigkeiten — weder Services noch OpenCV —, damit der Hilfsprozess
+       schlank bleibt und der Lumora-Prozess nie OpenCV-Typen sieht. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

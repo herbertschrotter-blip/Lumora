@@ -177,6 +177,8 @@ public partial class App : Application, ICatalogHostSwitcher
         // Katalog-Sitzung normal/versteckt (ADR-0049) — vor AddLumoraServices (dort TryAdd)
         services.AddCatalogSession(paths, session);
         services.AddLumoraServices();
+        // Zusammenfügen: Merge-Dienst + Client des Hilfsprozesses (OpenCV nur im Hilfsprozess, Lumora.Imaging, ADR-0078)
+        Lumora.Imaging.ImagingServiceCollectionExtensions.AddImaging(services);
 
         // WIC-Bild-Renderer (WPF-Framework) — Implementierung des in Services
         // definierten IImageThumbnailRenderer-Interfaces.

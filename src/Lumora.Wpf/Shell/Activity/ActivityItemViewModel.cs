@@ -185,6 +185,7 @@ public sealed partial class ActivityItemViewModel : ObservableObject
         ActivityKind.CatalogWrite => SymbolRegular.Clock16,
         ActivityKind.ModelDownload => SymbolRegular.ArrowDownload24, // ADR-0070
         ActivityKind.Enhance => SymbolRegular.Wand24, // ADR-0071
+        ActivityKind.Merge => SymbolRegular.ImageMultiple24, // ADR-0078 (Knopf „Öffnen“ baut Stufe 1 Teil B)
         _ => SymbolRegular.ArrowSync16, // Einlesen, Ordnerüberwachung
     };
 

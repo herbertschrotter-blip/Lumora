@@ -84,4 +84,13 @@ public enum OperationType
     /// entfernt ihre Katalogzeile samt Verknüpfung.
     /// </summary>
     CreateVariant = 15,
+
+    // ---- ADR-0078: Zusammenfügen ----
+
+    /// <summary>
+    /// Aus mehreren Fotos zusammengefügtes Ergebnis als neue Datei angelegt (ADR-0078 Punkt 10): je Ergebnis eine Operation
+    /// (SourcePath = erstes Einzelbild, DestPath = neue Datei, FileId = neue Files-Zeile). Die Einzelbilder werden nie angefasst.
+    /// „Rückgängig“ legt die neue Datei in den Papierkorb und entfernt ihre Katalogzeile samt <c>MergedPhotos</c>/<c>MergedPhotoSources</c>.
+    /// </summary>
+    CreateMerged = 16,
 }

@@ -444,7 +444,8 @@ public sealed partial class FileOperationService : IFileOperationService, IDispo
                                 || b.OperationType == OperationType.RecycleFolder || b.OperationType == OperationType.RemoveFromCatalog // ADR-0065
                                 || b.OperationType == OperationType.MoveFolder || b.OperationType == OperationType.ExcludeFromCatalog // ADR-0066
                                 || b.OperationType == OperationType.Copy // ADR-0068: Kopieren nach…
-                                || b.OperationType == OperationType.CreateVariant)) // ADR-0071
+                                || b.OperationType == OperationType.CreateVariant // ADR-0071
+                                || b.OperationType == OperationType.CreateMerged)) // ADR-0078
                 .OrderByDescending(b => b.Id)
                 .Select(b => (int?)b.Id)
                 .FirstOrDefaultAsync(ct)
@@ -1106,6 +1107,15 @@ public sealed partial class FileOperationService : IFileOperationService, IDispo
                 {
                     ct.ThrowIfCancellationRequested();
                     results.Add(await UndoCreateVariantItemAsync(ctx, op, changes, own, ct).ConfigureAwait(false));
+                }
+            }
+            else if (batch.OperationType == OperationType.CreateMerged)
+            {
+                // ADR-0078: zusammengefügte Ergebnisse in den Papierkorb, Einzelbilder bleiben (FileOperationService.Merge.cs)
+                foreach (var op in ops.Where(o => o.Status == FileOperationStatus.Applied))
+                {
+                    ct.ThrowIfCancellationRequested();
+                    results.Add(await UndoCreateMergedItemAsync(ctx, op, changes, own, ct).ConfigureAwait(false));
                 }
             }
             else
@@ -2049,7 +2059,8 @@ public sealed partial class FileOperationService : IFileOperationService, IDispo
             or OperationType.RecycleFolder or OperationType.RemoveFromCatalog // ADR-0065
             or OperationType.MoveFolder or OperationType.ExcludeFromCatalog // ADR-0066
             or OperationType.Copy // ADR-0068
-            or OperationType.CreateVariant; // ADR-0071
+            or OperationType.CreateVariant // ADR-0071
+            or OperationType.CreateMerged; // ADR-0078
 
     /// <summary>Voller Pfad ohne abschließende Trennzeichen; Laufwerks-/UNC-Wurzeln behalten ihres („E:\“).</summary>
     private static string NormalizeDirectoryPath(string path)

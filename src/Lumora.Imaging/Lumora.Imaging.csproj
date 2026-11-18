@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Zusammenfügen (ADR-0078): Merge-Dienst, Vorschau-Sitzung, Rezept, Einstellungen und der Client des Hilfsprozesses
+       Lumora.Imaging.Worker. WPF-frei und OHNE OpenCV — gerechnet wird nur im Hilfsprozess (Nachtrag 0.5.44 Punkt 5), damit
+       ein nativer Absturz oder eine Speicherspitze Lumora nicht beendet. Steht wie Lumora.AppConnect über den Services:
+       Domain ← Data ← Services ← Imaging ← Wpf. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Lumora.Services\Lumora.Services.csproj" />
+    <ProjectReference Include="..\Lumora.Imaging.Protocol\Lumora.Imaging.Protocol.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Lumora.Imaging.Tests" />
+  </ItemGroup>
+
+</Project>

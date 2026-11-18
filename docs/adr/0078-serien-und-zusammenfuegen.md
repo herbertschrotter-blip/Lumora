@@ -794,7 +794,8 @@ beim Bau der betroffenen Stufe nachgezogen. Mit „Detail (Claude)“ markiert i
 
 1. **Urteil über die Vergleichsbilder:** Die Geometrie reicht, **Farbe und Kontrast müssen besser werden**. Nachgeschärft wird
    in Stufe 1 selbst, ohne eigene Spike-Runde; die Abnahme von Stufe 1 enthält einen Farb- und Kontrastvergleich gegen
-   Photoshop an denselben Serien wie Spike 20.
+   Photoshop an denselben Serien wie Spike 20. Herbert 2026-11-18 nach den Vergleichsbildern: Farben wie Photoshop
+   (Farbverstärkung Standard an), einstellbar und abschaltbar.
 2. **Werkzeug:** Die eigene Kette auf OpenCV-Bausteinen ist Standard (Punkt 3, Option 1). **Hugin kommt dazu**, als Wahl im
    Fenster („Mit Hugin rechnen“, zum Vergleich, etwa bei Felsen im Nahbereich) — als zweite Umsetzung von `IPanoramaStitcher`
    in Stufe 3. Hugin (GPL) wird nicht eingebunden, sondern als eigenes Programm aufgerufen; es kommt nur über „Modelle &
@@ -850,3 +851,116 @@ beim Bau der betroffenen Stufe nachgezogen. Mit „Detail (Claude)“ markiert i
     Rahmen gedämpft; das Flyout „Serien“ bekommt eine Legende. Gebaut mit Stufe 2.
 
 **Weiter offen (nicht Teil dieses ADR):** Sicherung der Fotos selbst (Issue #6, ADR-0069) — Herbert entscheidet später.
+
+## Nachtrag 0.5.46 — Bau Stufe 1 Teil A (Claude; Kette, Hilfsprozess, Merge-Dienst, Speichern)
+
+Teil A baut alles außer der Oberfläche; Teil B (Fenster, Rechtsklick, Aktionsleiste, Marke, Lightbox-Zeile, Suchen ▸,
+Rauchtest-Schritt) setzt auf die Schnittstellen unten. Entscheidungen beim Bau, wo der Text oben offen war oder abweicht:
+
+1. **Drei Projekte statt einem.** `Lumora.Imaging` (Merge-Dienst, Vorschau-Sitzung, Rezept, Einstellungen, Client des
+   Hilfsprozesses; WPF-frei und **ohne** OpenCV), `Lumora.Imaging.Protocol` (Nachrichten, keine Abhängigkeiten) und
+   `Lumora.Imaging.Worker` (Exe ohne Fenster, OpenCvSharp4, einzige Stelle mit nativem OpenCV). Lumora.Wpf baut den
+   Hilfsprozess mit und kopiert ihn neben Lumora.exe (`CopyImagingWorker`), referenziert ihn aber nicht — `Lumora.deps.json`
+   nennt OpenCV nicht (prüft `build/publish.ps1`, das den Hilfsprozess ins portable Paket veröffentlicht).
+2. **Dekodieren im Hilfsprozess (Abweichung von Punkt 2, WIC im Wpf-Projekt).** Der Hilfsprozess liest die Quellen selbst über
+   WIC (WPF-Bildklassen, gleiche Ausrichtungslogik wie Lumora; JPEG, HEIC, PNG, TIFF), verkleinert schon beim Dekodieren und
+   liest Brennweite KB, Kamera und die DJI-Gimbal-Winkel aus dem Kopf. Grund: sonst wanderten Puffer von 26 × 60 MB über die
+   Prozessgrenze, und Lumora hielte die volle Auflösung selbst im Speicher — genau die Spitze, die der Hilfsprozess abfangen
+   soll. OpenCV allein kann kein HEIC. Die eigene DNG-Entwicklung (Stufe 3) kommt ebenfalls in den Hilfsprozess.
+3. **Protokoll:** eine JSON-Zeile je Nachricht mit Kennung `@lumora` über stdin/stdout (fremde Ausgabe nativer Bibliotheken
+   wird überlesen, stderr verworfen — sie kann Pfade enthalten). Fortschritt je Schritt, Abbrechen erst höflich (zwischen Stufen,
+   Bildern, Bändern), nach 15 s hart; Absturz oder Ende des Prozesses → Fehler des Vorgangs, Stille über 10 min bzw. 2 h je
+   Arbeit → Prozess beendet. Schließt Lumora die Leitung, endet der Hilfsprozess. Prüfhaken (Absturz, Hängen) nur mit
+   `LUMORA_IMAGING_WORKER_TEST=1`.
+4. **OpenCvRuntime-Regeln im Hilfsprozess:** OpenCL aus über die Umgebung beim Start (`OPENCV_OPENCL_RUNTIME=disabled`,
+   `OPENCV_OPENCL_CACHE_ENABLE=0` — die C-Laufzeit liest sie nur einmal, OpenCvSharp 4.13 bindet `setUseOpenCL` nicht an), TEMP,
+   TMP und `OPENCV_TEMP_PATH` = `TempRoot\merge` des Katalogs (versteckte Sitzung: im Container), Threads zentral (`--threads`,
+   „Im Hintergrund weiterrechnen“ stellt per Nachricht auf `BackgroundCpu.MaxThreads`), **ein** schwerer Lauf zur Zeit
+   (`ImagingWorkerHost`). `opencv_videoio_ffmpeg` (≈ 27 MB) wird nicht mitkopiert.
+5. **`IPanoramaStitcher` als Sitzung:** `OpenSessionAsync` → `EstimateAsync` (einmal) und `ComposeAsync` (beliebig oft) in
+   einem Hilfsprozess, der Quellen (≈ 1 600 px) und Ausrichtung hält; `RenderAsync` rechnet volle Auflösung in einem frischen
+   Prozess aus dem Rezept (keine zweite Ausrichtung). Ergebnis ist eine JPEG-Datei im Temp-Ordner des Katalogs statt eines
+   `PixelBuffer` (Prozessgrenze). Hugin (Stufe 3) wird eine zweite Umsetzung derselben Schnittstelle.
+6. **Kette:** Port von Spike 20 Runde 2 ohne DNG-Teile. Neu: fester RANSAC-Startwert je Bildpaar (`theRNG` ist je Thread),
+   Brennweite KB über die Bilddiagonale, Brennweite je Bildgröße, Restverzeichnung k1/k2 **nur mit Brennweite aus dem EXIF**
+   (ohne sie tauschen Brennweite und Verzeichnung — im Test „blähten“ sich die Bilder auf; Rückfall bei |k| > 0,3).
+   Aufnahmearten: Kugel 360° als Horizontstreifen (längstes voll gedecktes Band, höchstens 80° hoch ≈ 4,5 : 1 wie die
+   Photoshop-Ergebnisse) oder 2 : 1 mit einfach gefülltem Zenit/Nadir (Spalte fortsetzen, weich verwischen) und GPano;
+   Zylinder mit Mercator-Teilung, wenn der Schwenk über ±45° hoch reicht (DJI 21 Bilder, Handy hoch); Perspektive auf das
+   mittlere Bild bei waagrechtem Horizont (bei Bildwinkeln nahe 180° abgelehnt mit Hinweis); Vertikal als Zylinder mit
+   waagrechter Achse; Nur verschieben als Ähnlichkeit je Bild aus denselben Treffern. Vorschlag: mit Gimbal nach Punkt 6,
+   ohne Kamera im EXIF und flach besser erklärt → Nur verschieben, sonst aus Gier-/Neigungsspanne der Bildmitten.
+7. **Prüfung vor dem Speichern (Abnahme Nr. 7):** Restfehler (Median > 0,35 % bzw. 90 % > 1,2 % der Bilddiagonale), gekippte
+   Kette (über ein Viertel der laut Ausrichtung stark überlappenden Paare ohne Treffer), Zuschnitthöhe (< 0,45 Bildhöhen),
+   Zuschnittfläche (< 55 % der gedeckten Fläche), eingebundene Bilder (< ⅔), Nahtgüte (NCC < 0). Der Hilfsprozess probiert
+   bei Ausrichtungsproblemen drei feste Startwerte, die Sitzung bei Problemen des Zusammensetzens zweimal drei weitere;
+   bleibt es dabei, zeigt die Vorschau die Gründe und Speichern ist gesperrt — auch das Rendern prüft noch einmal.
+8. **Farbe und Kontrast (Abnahme Nr. 1):** neuer Tonwert-Angleich nach dem Überblenden: Helligkeitsverteilung (L*) aller
+   Quellen als Ziel, glatte, monotone, steigungsbegrenzte Tonkurve (Stärke 0,75), Buntheit folgt der Helligkeit und wird global
+   nur angehoben. Grund (gemessen): Blockausgleich und Überblenden gleichen die Automatik-Belichtung an, das Panorama wird
+   flacher als seine Quellen. Danach — auf Herberts Wunsch nach den ersten Vergleichsbildern (Abnahme Nr. 1, Nachsatz) — die
+   **Farbverstärkung** (`ColorBooster`): Dynamik in LCh (Zusatz fällt mit der Buntheit, halb bei C* 55) plus gleichmäßige
+   Sättigung, angewandt im linearen Licht um die Leuchtdichte (L* und damit Kontrast bleiben), Hauttöne (Farbwinkel um 50°)
+   mit 45 % der Wirkung, Grau (C* < 1,5) unverändert, Tiefen/Lichter sanft ausgenommen, weiches Knie an der Farbraumgrenze
+   statt Abschneiden — mit Abstand (Kanäle bleiben in sRGB 16…251), weil sonst erst das JPEG (Farb-Unterabtastung 4 : 2 : 0)
+   die knapp unter die Grenze geschobenen Farben abschneidet (gemessen bei Abstand 0,75: 5,5 % statt 1,8 % abgeschnittene
+   Pixel). Stärke 0–150 %, Standard 100 — ein Parametersatz (gleichmäßig +40 %, Dynamik bis +65 %), an beiden Testserien
+   gegen Photoshop auf Buntheit und Mittelfarbe kalibriert (verkleinert, Werkzeug `Harness kalibrieren`), nie je Bild. Die
+   erste Variante im sRGB um die Luma traf Photoshop in der Mittelfarbe besser, verschob aber die L*-Verteilung (Handy-2
+   1,7 → 2,1) — verworfen. JPEG 4 : 4 : 4 nähme das restliche Abschneiden in den Tiefen weg, macht die Datei aber ≈ 30 %
+   größer — nicht gewählt (Q92 4 : 2 : 0 wie bisher). Kennzahlen (Werkzeug und Bilder außerhalb des Repos,
+   `werkzeuge\runs\stufe1-vergleich`; volle Auflösung, „Stufe 1“ = Standard 100):
+
+   | Serie | Fassung | L* Std (Kontrast) | C* Mittel | ΔE Mittelfarbe zu Photoshop | Abstand L*-Verteilung zu Photoshop | abgeschnitten (Kanal 0/255) |
+   |---|---|---|---|---|---|---|
+   | Handy-2 | Quellen | 20,7 | 25,9 | 4,5 | 1,4 | 2,29 % |
+   | Handy-2 | Spike Runde 2 | 17,6 | 26,7 | 4,9 | 3,5 | 0,39 % |
+   | Handy-2 | Stufe 1 ohne Tonwert-Angleich | 17,7 | 26,1 | 6,2 | 3,3 | – |
+   | Handy-2 | Stufe 1, Farbverstärkung aus (0) | 19,7 | 26,2 | 6,0 | 1,7 | 1,83 % |
+   | Handy-2 | **Stufe 1 Standard (100)** | **19,7** | **34,1** | **4,4** | **1,7** | **2,52 %** |
+   | Handy-2 | Photoshop (bearbeitet) | 21,4 | 35,9 | 0 | 0 | 27,05 % |
+   | Drohne-360-A | Quellen (eigene DNG-Entwicklung) | 19,6 | 20,1 | 11,4 | 2,4 | 0,13 % |
+   | Drohne-360-A | Spike Runde 2 | 19,0 | 22,5 | 4,8 | 3,9 | 0,01 % |
+   | Drohne-360-A | Stufe 1 ohne Tonwert-Angleich | 18,3 | 22,5 | 4,6 | 3,6 | – |
+   | Drohne-360-A | Stufe 1, Farbverstärkung aus (0) | 19,0 | 21,6 | 3,6 | 1,5 | 0,05 % |
+   | Drohne-360-A | **Stufe 1 Standard (100)** | **19,0** | **31,9** | **2,7** | **1,5** | **0,15 %** |
+   | Drohne-360-A | Photoshop (bearbeitet) | 20,2 | 31,7 | 0 | 0 | 23,16 % |
+
+   Ergebnis: Buntheit 95 % bzw. 101 % von Photoshop, Mittelfarbe näher an Photoshop als ohne Verstärkung und als Runde 2,
+   L*-Verteilung unverändert. Abgeschnitten wird im Bild selbst nichts; nach dem JPEG liegen die Anteile auf der Höhe der
+   Quellen (der Rest entsteht in gesättigten Tiefen durch die Farb-Unterabtastung). Photoshop ist zusätzlich kühler (b* −22
+   bzw. −12) — Weißabgleich bleibt „Foto verbessern“. Laufzeit und Speicherspitze (Herberts PC, Release, Hilfsprozess):
+   Handy-2 (25 Fotos) ausrichten 20,5 s / 1,43 GB, Vorschau 3,6 s, volle Auflösung 77 MP 42,9 s / 4,4 GB; Drohne-360-A
+   (26 Fotos) ausrichten 13,0 s / 1,69 GB, Vorschau 4,8 s, volle Auflösung 169 MP (Horizontstreifen 27 182 × 6 200)
+   78,9 s / 5,5 GB. Neu tonen in der Vorschau-Sitzung ohne Ausrichten und Zusammensetzen.
+9. **Größe (Abnahme Nr. 11):** volle Auflösung; der Hilfsprozess wählt die größte passende Stufe (1 · 0,9 · 0,8 · … · 0,1),
+   wenn das Budget (freier Arbeitsspeicher − 1,5 GB, Schätzung 1,25 × (Quellen + Leinwand × 13,4 B) + 0,3 GB, an Spike 20
+   geeicht) oder die JPEG-Kante überschritten wäre, und meldet `size-reduced:memory` bzw. `size-reduced:jpeg-edge`. Grenze
+   **65 500 px** statt 65 535: libjpeg in OpenCV schreibt nicht mehr (`JPEG_MAX_DIMENSION`).
+10. **RAW in der Auswahl (Stufe 1):** ein RAW mit JPEG-Geschwister im selben Ordner wird durch dieses ersetzt (Hinweis), sonst
+    nicht eingebunden (Hinweis „RAW/DNG kommt mit Stufe 3“). Grund: WIC liefert DNG nur als 960 × 640-Vorschau bzw. in 8 bit;
+    eine eingebettete Vorschau neben Vollbildern ergäbe ein unbrauchbares Panorama.
+11. **Metadaten:** `MergeMetadataPicker` (Services) wählt Zeit, Ort, Kamera und Bewertung einmal für Datei und Katalog.
+    `MergeExifWriter` schreibt den EXIF-Block der Zeitquelle (JPEG) mit Ausrichtung 1, **ohne IFD1** (sonst zeigte das
+    eingebettete Vorschaubild das erste Einzelbild) und mit den Maßen des Ergebnisses; das GPS-Verzeichnis kommt **ganz** von
+    der Ortsquelle (jeder Container, Byte-Reihenfolge angeglichen), sonst Breite/Länge des Katalogs; ist die Zeitquelle kein
+    JPEG, entsteht ein neuer Block (Kamera, Aufnahmezeit, Zeitversatz, GPS). XMP: `CreatorTool` Lumora, Verfahren,
+    Quellenzahl, GPano bei 2 : 1. Fehlt einer Quelle Zeit/Ort im Katalog (bis eben OneDrive-Platzhalter), liest der Dienst sie
+    aus der jetzt lokalen Datei.
+12. **`FileLinkUndo` 6/7 und `MergedPhotoUndo`:** Papierkorb des Ergebnisses sichert je Quelle eine Zeile (Id-Folge =
+    Position) und die ganze `MergedPhotos`-Zeile (Verfahren, Aufnahmeart, Rezept, Serie, Batch) in der neuen Tabelle
+    `MergedPhotoUndo` (Schlüssel `FileOperationId`, Kaskade mit der Operation — die Migration bleibt bei CREATE TABLE, weil
+    `FileLinkUndo` keine Spalte dafür hat); die Rückkehr legt `MergedPhotos` daraus neu an und hängt die noch vorhandenen
+    Quellen in alter Reihenfolge an. Papierkorb einer Quelle sichert die Verknüpfung, die Rückkehr hängt die Quelle hinten an.
+    Beim Rückgängig des CreateMerged-Batches gehen die Verknüpfungen bewusst mit (Ergebnis weg). „Neu aufbauen“ trägt die Ziele
+    gesicherter Datei-Verknüpfungen (`FileLinkUndo` 4–7, auch Fassungen) mit und schreibt sie auf die neuen FileIds um; ohne
+    Gegenstück verfällt die Sicherung (sonst zeigte sie auf eine fremde Datei). Ins Ergebnis zählen nur die eingebundenen
+    Quellen: ausgelassene (`Dropped`) stehen im Rezept, aber nicht in `MergedPhotoSources`, nicht in der Quellenzahl und nicht
+    in der Wahl von Zeit, Ort, Kamera und Tags. Eine vorläufige OneDrive-Zeit im Katalog weicht der frisch gelesenen.
+13. **Schnittstellen für Teil B:** `IMergeService` (`GetAvailabilityAsync`, `AnalyzeAsync`, `OpenPreviewSession`,
+    `Load/SaveSettingsAsync`), `IMergePreviewSession` (`StartAsync`, `UpdateAsync`, `Estimate`, `SaveAsync`,
+    `ContinueInBackground`, `Cancel`, `ProgressChanged`, `Current`, `Analysis`), `IMergedPhotoStore` (Services: Marken,
+    Quellen, Ergebnisse einer Quelle, Lightbox-Info), `MergeSavedMessage`, `ActivityKind.Merge`,
+    `ActivityAction.ShowResult(FileIds)`. Farbverstärkung: `MergeOptions.ColorBoost` (Prozent 0–150, null = zuletzt gewählt),
+    `MergeSettings.ColorBoost` (Einstellung `merge.colorBoost`, erstes Mal 100), `IMergeSettingsStore.RememberColorBoostAsync`,
+    Rezept-Feld `colorBoost`. Schließen der Sitzung bricht eine laufende Vorschau ab; ein laufendes Speichern rechnet zu Ende.

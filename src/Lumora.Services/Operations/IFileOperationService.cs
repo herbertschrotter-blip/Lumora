@@ -165,6 +165,18 @@ public interface IFileOperationService
     /// </summary>
     Task<FileOperationBatchResult> CreateVariantsAsync(IReadOnlyList<VariantCreateRequest> requests, CancellationToken ct = default)
         => throw new NotSupportedException("Fassungen anlegen wird nicht unterstützt.");
+
+    // ---- ADR-0078: Zusammenfügen (FileOperationService.Merge.cs) ----
+
+    /// <summary>
+    /// Zusammengefügte Ergebnisse als neue Dateien anlegen (CreateMerged-Batch, ein Batch für alle Anfragen — ein Stapel ruft je
+    /// Ergebnis einzeln auf): Ergebnis-Datei neben das erste Einzelbild verschieben (nie überschreiben), Files-Zeile mit Zeit,
+    /// Ort, Kamera, Bewertung und gemeinsamen Tags der Quellen, <c>MergedPhotos</c> und <c>MergedPhotoSources</c> buchen. Quellen
+    /// aus verschiedenen Bibliotheken werden abgelehnt. Die Einzelbilder bleiben unverändert. Ergebnis je Anfrage: FileId = neue
+    /// Zeile, DestPath = Datei. Rückgängig machbar (neue Dateien in den Papierkorb). Standard: nicht unterstützt.
+    /// </summary>
+    Task<FileOperationBatchResult> CreateMergedAsync(IReadOnlyList<MergeCreateRequest> requests, CancellationToken ct = default)
+        => throw new NotSupportedException("Zusammenfügen wird nicht unterstützt.");
 }
 
 /// <summary>Ergebnis von <see cref="IFileOperationService.RemoveExcludedAsync"/> (ADR-0066).</summary>

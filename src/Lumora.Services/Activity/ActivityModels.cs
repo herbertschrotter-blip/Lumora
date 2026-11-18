@@ -56,6 +56,9 @@ public enum ActivityKind
 
     /// <summary>Foto verbessern über mehrere Fotos (ADR-0071).</summary>
     Enhance = 17,
+
+    /// <summary>Zusammenfügen: Vorschau rechnen bzw. Ergebnis speichern (ADR-0078 Punkt 12).</summary>
+    Merge = 18,
 }
 
 /// <summary>Zustand eines Vorgangs.</summary>
@@ -86,15 +89,22 @@ public enum ActivityActionKind
 
     /// <summary>„Details“ bei Fehlern/Übersprungenen — die Oberfläche zeigt <see cref="ActivitySnapshot.Details"/>.</summary>
     Details = 2,
+
+    /// <summary>„Öffnen“ bzw. „Ergebnisse zeigen“ (ADR-0078) — die Oberfläche öffnet <see cref="ActivityAction.FileIds"/>.</summary>
+    ShowResult = 3,
 }
 
 /// <summary>
 /// Eine Aktion; <paramref name="Run"/> nur bei <see cref="ActivityActionKind.Undo"/> (liefert die Ergebnis-Zeile), die übrigen
-/// führt die Oberfläche selbst aus.
+/// führt die Oberfläche selbst aus. <paramref name="FileIds"/> trägt bei <see cref="ActivityActionKind.ShowResult"/> die Ergebnisse.
 /// </summary>
-public sealed record ActivityAction(ActivityActionKind Kind, string Label, Func<CancellationToken, Task<string>>? Run = null)
+public sealed record ActivityAction(ActivityActionKind Kind, string Label, Func<CancellationToken, Task<string>>? Run = null, IReadOnlyList<int>? FileIds = null)
 {
     public static ActivityAction Undo(Func<CancellationToken, Task<string>> run) => new(ActivityActionKind.Undo, "Rückgängig", run);
+
+    /// <summary>„Öffnen“ (ein Ergebnis) bzw. „Ergebnisse zeigen“ (mehrere).</summary>
+    public static ActivityAction ShowResult(IReadOnlyList<int> fileIds)
+        => new(ActivityActionKind.ShowResult, fileIds.Count == 1 ? "Öffnen" : "Ergebnisse zeigen", null, fileIds);
 
     public static ActivityAction ShowMissing { get; } = new(ActivityActionKind.ShowMissing, "Fehlende zeigen");
 

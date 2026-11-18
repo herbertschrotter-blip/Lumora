@@ -6,7 +6,7 @@ namespace Lumora.Services.Albums;
 
 /// <summary>
 /// Verknüpfungen über das Entfernen einer Files-Zeile hinweg (ADR-0054, ADR-0012). Wer eine Files-Zeile löscht, nimmt
-/// per Fremdschlüssel-Kaskade auch ihre Album- und Ordner-Verknüpfungen (seit ADR-0058 auch manuelle Story-Einträge, seit ADR-0071 Fassungen) mit. Datei-Operationen (Papierkorb, aus der
+/// per Fremdschlüssel-Kaskade auch ihre Album- und Ordner-Verknüpfungen (seit ADR-0058 auch manuelle Story-Einträge, seit ADR-0071 Fassungen, seit ADR-0078 zusammengefügte Ergebnisse) mit. Datei-Operationen (Papierkorb, aus der
 /// Bibliothek heraus verschieben, Reste einer Ordner-Übernahme) sichern sie VORHER mit <see cref="CaptureAsync"/> in
 /// <c>FileLinkUndo</c> zur protokollierten <c>FileOperation</c> — mit Pfad, Größe und Änderungszeit der Datei.
 /// „Rückgängig“ (neue Files-Zeile) stellt sie über die Operation wieder her; kehrt die Datei sonst zurück (Windows
@@ -31,6 +31,45 @@ internal static class FileLinkUndoStore
         UNION ALL
         SELECT $op, 5, v.FileId, v.CreatedAtUtc, d.Path || '\' || f.Name, f.Size, f.ModifiedAtUtc
         FROM PhotoVariants v JOIN Files f ON f.Id = v.OriginalFileId JOIN Folders d ON d.Id = f.FolderId WHERE v.OriginalFileId = $file;
+        -- Zusammenfügen (ADR-0078): diese Datei als Ergebnis (6, Ziel = Quelle; in Positionsreihenfolge, die Id-Folge trägt die
+        -- Position) bzw. als Quelle (7, Ziel = Ergebnis)
+        INSERT INTO FileLinkUndo (FileOperationId, Kind, TargetId, AddedAtUtc, SourcePath, FileSize, FileModifiedAtUtc)
+        SELECT $op, 6, s.SourceFileId, m.CreatedAtUtc, d.Path || '\' || f.Name, f.Size, f.ModifiedAtUtc
+        FROM MergedPhotos m JOIN MergedPhotoSources s ON s.ResultFileId = m.FileId JOIN Files f ON f.Id = m.FileId JOIN Folders d ON d.Id = f.FolderId
+        WHERE m.FileId = $file ORDER BY s.Position;
+        INSERT INTO FileLinkUndo (FileOperationId, Kind, TargetId, AddedAtUtc, SourcePath, FileSize, FileModifiedAtUtc)
+        SELECT $op, 7, s.ResultFileId, m.CreatedAtUtc, d.Path || '\' || f.Name, f.Size, f.ModifiedAtUtc
+        FROM MergedPhotoSources s JOIN MergedPhotos m ON m.FileId = s.ResultFileId JOIN Files f ON f.Id = s.SourceFileId JOIN Folders d ON d.Id = f.FolderId
+        WHERE s.SourceFileId = $file;
+        -- … und die Ergebnis-Zeile selbst (Verfahren, Aufnahmeart, Rezept)
+        INSERT OR REPLACE INTO MergedPhotoUndo (FileOperationId, Method, Projection, SourceCount, SeriesId, Tools, RecipeJson, CreatedAtUtc, BatchId)
+        SELECT $op, Method, Projection, SourceCount, SeriesId, Tools, RecipeJson, CreatedAtUtc, BatchId FROM MergedPhotos WHERE FileId = $file;
+        """;
+
+    // Zusammenfügen (ADR-0078): ein zurückkehrendes Ergebnis bekommt seine gesicherte MergedPhotos-Zeile zurück (Verfahren,
+    // Aufnahmeart, Rezept; Serie und Batch wie gesichert) und seine noch vorhandenen Quellen derselben Bibliothek in alter
+    // Reihenfolge — nur, wenn noch mindestens eine Quelle da ist; eine zurückkehrende Quelle hängt sich hinten an ihr noch
+    // vorhandenes Ergebnis. Fehlt die gesicherte Zeile (Sicherung älter als MergedPhotoUndo), Panorama ohne Rezept.
+    private const string RestoreMergesSql = """
+        INSERT OR IGNORE INTO MergedPhotos (FileId, Method, Projection, SourceCount, SeriesId, Tools, RecipeJson, CreatedAtUtc, BatchId)
+        SELECT $file, COALESCE(g.Method, 0), g.Projection, COALESCE(g.SourceCount, c.cnt), g.SeriesId, COALESCE(g.Tools, 'restored'),
+               COALESCE(g.RecipeJson, char(123) || char(125)), COALESCE(g.CreatedAtUtc, c.t), COALESCE(g.BatchId, 0) -- leeres JSON ohne geschweifte Klammern im Text: ExecuteSqlRaw formatiert
+        FROM (SELECT COUNT(*) AS cnt, MIN(u.AddedAtUtc) AS t FROM FileLinkUndo u
+              WHERE u.FileOperationId = $op AND u.Kind = 6 AND u.TargetId <> $file
+                AND EXISTS (SELECT 1 FROM Files s JOIN Files n ON n.LibraryId = s.LibraryId WHERE s.Id = u.TargetId AND n.Id = $file)) c
+        LEFT JOIN MergedPhotoUndo g ON g.FileOperationId = $op
+        WHERE c.cnt > 0;
+        INSERT OR IGNORE INTO MergedPhotoSources (ResultFileId, SourceFileId, Position)
+        SELECT $file, u.TargetId, (SELECT COUNT(*) FROM FileLinkUndo p WHERE p.FileOperationId = $op AND p.Kind = 6 AND p.Id < u.Id)
+        FROM FileLinkUndo u
+        WHERE u.FileOperationId = $op AND u.Kind = 6 AND u.TargetId <> $file
+          AND EXISTS (SELECT 1 FROM MergedPhotos m WHERE m.FileId = $file)
+          AND EXISTS (SELECT 1 FROM Files s JOIN Files n ON n.LibraryId = s.LibraryId WHERE s.Id = u.TargetId AND n.Id = $file);
+        INSERT OR IGNORE INTO MergedPhotoSources (ResultFileId, SourceFileId, Position)
+        SELECT u.TargetId, $file, COALESCE((SELECT MAX(x.Position) + 1 FROM MergedPhotoSources x WHERE x.ResultFileId = u.TargetId), 0)
+        FROM FileLinkUndo u
+        WHERE u.FileOperationId = $op AND u.Kind = 7 AND u.TargetId <> $file
+          AND EXISTS (SELECT 1 FROM MergedPhotos m JOIN Files r ON r.Id = m.FileId JOIN Files n ON n.LibraryId = r.LibraryId WHERE m.FileId = u.TargetId AND n.Id = $file);
         """;
 
     // Fassungen (ADR-0071): nur, wenn die andere Datei noch existiert und in derselben Bibliothek liegt; die Werkzeuge sind
@@ -88,7 +127,7 @@ internal static class FileLinkUndoStore
         WHERE Stories.Id = a.Id;
         """;
 
-    private const string DeleteSql = "DELETE FROM FileLinkUndo WHERE FileOperationId = $op;";
+    private const string DeleteSql = "DELETE FROM FileLinkUndo WHERE FileOperationId = $op; DELETE FROM MergedPhotoUndo WHERE FileOperationId = $op;";
 
     /// <summary>Sichert die Verknüpfungen der Datei zur Operation (vor dem Löschen der Files-Zeile); liefert ihre Zahl.</summary>
     public static Task<int> CaptureAsync(LibraryContext ctx, int operationId, int fileId, CancellationToken ct)
@@ -101,6 +140,7 @@ internal static class FileLinkUndoStore
         restored += await ctx.Database.ExecuteSqlRawAsync(RestoreFoldersSql, [Param("$op", operationId), Param("$file", newFileId)], ct).ConfigureAwait(false);
         restored += await ctx.Database.ExecuteSqlRawAsync(RestoreStoriesSql, [Param("$op", operationId), Param("$file", newFileId)], ct).ConfigureAwait(false); // ADR-0058
         restored += await ctx.Database.ExecuteSqlRawAsync(RestoreVariantsSql, [Param("$op", operationId), Param("$file", newFileId)], ct).ConfigureAwait(false); // ADR-0071
+        restored += await ctx.Database.ExecuteSqlRawAsync(RestoreMergesSql, [Param("$op", operationId), Param("$file", newFileId)], ct).ConfigureAwait(false); // ADR-0078
         await ctx.Database.ExecuteSqlRawAsync(DeleteSql, [Param("$op", operationId)], ct).ConfigureAwait(false);
         return restored;
     }
@@ -116,6 +156,7 @@ internal static class FileLinkUndoStore
         restored += Execute(connection, tx, RestoreFoldersSql, operationId, newFileId);
         restored += Execute(connection, tx, RestoreStoriesSql, operationId, newFileId); // ADR-0058
         restored += Execute(connection, tx, RestoreVariantsSql, operationId, newFileId); // ADR-0071
+        restored += Execute(connection, tx, RestoreMergesSql, operationId, newFileId); // ADR-0078
         Execute(connection, tx, DeleteSql, operationId, null);
         return restored;
     }
