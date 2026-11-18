@@ -1045,3 +1045,51 @@ oben offen war oder abweicht:
     9-Bilder-Weitwinkel (3 × 3) und den Vertikal-Schwenk gibt es in Spike 20 keine Quellen (dort nur Handy-1 bis -3 und die
     Drohnen-Kugeln A/B; „nicht gemessen: 3 × 3, Vertikal“) — dieser Abnahme-Lauf steht aus. Rauchtest-Schritt
     `SmokeScenario.Merge.cs` mit zur Laufzeit gezeichneten, überlappenden Bildern (keine externen Assets).
+
+## Nachtrag 0.5.48 — Befunde der Prüfung (Claude; Entscheidungen beim Beheben)
+
+Eine unabhängige Code-Prüfung von Stufe 1 fand 19 Befunde und zwei unsichere Stellen; behoben in 0.5.48 (Liste im CHANGELOG).
+Entscheidungen, wo der Text oben offen war oder sich ändert:
+
+1. **Sitzungsende wartet auf ein Speichern.** Zusperren, Wechsel normal ↔ versteckt, Verschieben des Containers und Beenden
+   schließen die Dienste der Sitzung bzw. hängen den Container aus — ein Rechen-Prozess mit offenen Quellen und Arbeitsordner im
+   Container darf dabei nicht weiterlaufen, und das fertige Ergebnis darf nicht still verloren gehen. Speichert
+   „Zusammenfügen“ (auch nach „Im Hintergrund weiterrechnen“ ohne Fenster): **automatisches Zusperren verschiebt sich** (wie bei
+   einem laufenden Scan), **von Hand fragt Lumora „Warten / Abbrechen und …“** (`MergeSessionGuard` über `IDialogService`;
+   „Zurück“ lässt die Sitzung offen); Beenden aus dem Infobereich fragt ebenso, das Hintergrund-Ende wartet still. Danach
+   beendet `MergeService.DisposeAsync` alle Sitzungen — auch ein Speichern — und wartet, bis ihre Hilfsprozesse weg sind,
+   **bevor** die Dienste entsorgt werden bzw. ausgehängt wird. Schließen nur des Fensters rechnet weiterhin zu Ende (Punkt 12).
+2. **Optionen gehören zur gezeigten Vorschau.** `IMergePreviewSession.Options` ändert sich erst mit einer fertigen Vorschau;
+   gespeichert wird genau diese (Optionen, Aufnahmeart, Ausrichtung — auch im Rezept). Ein abgebrochenes Umstellen sperrt
+   „Speichern“, bis die Vorschau wieder zu den Einstellungen passt; neu gerechnet wird nach einem Abbruch nur durch eine
+   Änderung oder den Knopf „Vorschau rechnen“, nie von selbst.
+3. **Farbprofile:** Quellen mit eingebettetem Nicht-sRGB-Profil (Display P3, Adobe RGB …) rechnet der Hilfsprozess beim Lesen
+   per WIC nach sRGB um; sRGB-Profile und Quellen ohne Profil bleiben unverändert. Das Ergebnis trägt kein Profil und
+   `ColorSpace` = 1 (sRGB) im EXIF.
+4. **Ort:** maßgeblich ist der Katalog-Ort der Ortsquelle. Rang aus Herkunft **und** Genauigkeit (ergänzt Punkt 10): echtes GPS
+   aus der Datei (genau) vor in Lumora gesetztem bzw. übernommenem Ort (gleich welche Genauigkeit die Zeile noch nennt — „Ort
+   setzen…“ lässt sie stehen) und unbewertetem GPS, das vor geschätztem. Das ganze GPS-Verzeichnis der Datei (Höhe, GPS-Zeit)
+   wird nur übernommen, wenn die Datei genau diesen Ort trägt; sonst (in Lumora gesetzt, nur im Katalog verschoben,
+   XMP-Begleitdatei) entsteht es aus dem Katalog-Ort (Breite/Länge). Frisch gelesene Orte berücksichtigen wie der Katalog die
+   XMP-Begleitdatei.
+5. **Zeitversatz:** `OffsetTimeOriginal` nur, wenn die Zeitquelle selbst einen nennt (`ExifTimeOffset` bzw. frisch gelesen) —
+   nie die Zeitzone dieses PCs.
+6. **XMP-Namensraum** der Lumora-Felder neutral: `urn:lumora:merge:1.0` (bis 0.5.47 eine Adresse mit Kontonamen).
+7. **Rückgängig und Verknüpfungen** (ändert Nachtrag 0.5.46 Nr. 12 „gehen bewusst mit“): Rückgängig eines Ergebnisses bzw. einer
+   Fassung legt nur die Datei dieses Vorgangs in den Papierkorb (FileId, Pfad, Größe und Änderungszeit müssen passen — ein
+   späteres Ergebnis am frei gewordenen Namen bleibt) und sichert ihre Verknüpfungen zur Operation: holt jemand die Datei aus dem
+   Papierkorb zurück, kommen sie mit. Datei-Verknüpfungen (`FileLinkUndo` 4–7) zu einer Datei, die selbst noch fehlt, bleiben
+   offen; kehrt eine Datei mit neuer Id zurück, werden offene Verknüpfungen auf sie umgeschrieben und nachgeholt — die
+   Reihenfolge der Rückkehr ist egal. Der Abzug der Katalogzeile (Ordner in den Papierkorb, Fehlende entfernen, Aus dem Katalog
+   entfernen/Ausschließen, Doppelte aufräumen) nimmt die Quellen eines Ergebnisses mit (Enkel an `MergedPhotos.FileId`).
+8. **Vorauswahl:** das Fenster merkt nur die eigenen Schlüssel (Farbe kräftiger, Kugel-Form), nie die übrigen Einstellungen;
+   „Neu berechnen…“ ändert die Vorauswahl erst, wenn der Benutzer den Regler bewegt bzw. speichert.
+9. **Hilfsprozess:** die Thread-Zahl erreicht OpenCV nur zwischen zwei Arbeiten (`cv::setNumThreads` baut den Thread-Pool ohne
+   Sperre neu); „Im Hintergrund weiterrechnen“ wirkt sofort auf die eigenen parallelen Abschnitte und senkt die
+   Prozess-Priorität. Abstürze: `SetErrorMode` (kein Fehlerbericht-Dialog), verwaltete Ausnahme ohne Fänger → sofort
+   `TerminateProcess`, keine Absturz-Abbilder der .NET-Laufzeit (Umgebung des Kindprozesses). **Restrisiko:** ein nativer
+   Absturz in OpenCV beendet die .NET-Laufzeit per Fast-Fail; ein eigener Filter kommt dabei nicht zum Zug (gemessen, daher
+   nicht eingebaut). Der Prozess endet ohne Dialog sofort, die Windows-Fehlerberichterstattung kann aber einen Bericht außerhalb
+   des Containers ablegen (PLAN Kap. 15) — ohne Registry- oder Systemeinstellung nicht abschaltbar.
+10. **Verfügbarkeit:** gemerkt wird nur „Programmdatei fehlt“ bzw. „OpenCV geladen“; ein einmaliger Startfehler wird beim
+    nächsten Versuch neu geprüft (`MergeAvailability.Transient`) und sperrt das Menü nicht — das Fenster nennt den Grund.

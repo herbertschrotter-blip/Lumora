@@ -15,6 +15,7 @@ public static class MergeUiServiceCollectionExtensions
         services.TryAddSingleton<IMergeWindowService, MergeWindowService>();
         services.TryAddSingleton<IMergeThumbnailLoader, MergeThumbnailLoader>();
         services.TryAddSingleton<MergeGalleryActions>();
+        services.TryAddSingleton(sp => new MergeSessionGuard(sp.GetRequiredService<IMergeService>(), sp.GetService<Lumora.Shell.IDialogService>()));
         services.TryAddSingleton(sp => new MergeSettingsViewModel(sp.GetRequiredService<IMergeService>(), sp.GetService<Microsoft.Extensions.Logging.ILogger<MergeSettingsViewModel>>()));
         return services;
     }

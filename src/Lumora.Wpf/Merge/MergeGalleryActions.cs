@@ -78,7 +78,13 @@ public sealed class MergeGalleryActions : IMergeResultActions
             return MergeTexts.BlockedNoPhotos;
         }
 
-        return photos.Select(p => p.LibraryId).Distinct().Count() > 1 ? MergeTexts.BlockedMixedLibraries : null;
+        if (photos.Select(p => p.LibraryId).Distinct().Count() > 1)
+        {
+            return MergeTexts.BlockedMixedLibraries;
+        }
+
+        // mehr, als ein Panorama aufnimmt: gar nicht erst ein Fenster mit Tausenden Zeilen öffnen (0.5.48)
+        return photos.Count > MergeLimits.MaxPanoramaSources ? MergeTexts.BlockedTooMany : null;
     }
 
     /// <summary>Fenster öffnen (prüft beim ersten Mal, ob der Rechen-Prozess da ist).</summary>
@@ -89,7 +95,9 @@ public sealed class MergeGalleryActions : IMergeResultActions
         {
             try
             {
-                _availability = await Service.GetAvailabilityAsync().ConfigureAwait(true);
+                // ein nur vorübergehender Startfehler sperrt das Menü nicht für die Sitzung — das Fenster zeigt den Grund (0.5.48)
+                var availability = await Service.GetAvailabilityAsync().ConfigureAwait(true);
+                _availability = availability.Transient ? null : availability;
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
@@ -129,7 +137,7 @@ public sealed class MergeGalleryActions : IMergeResultActions
             }
 
             var start = startAtSources && entries.Count > 1 ? 1 : 0;
-            _services.GetRequiredService<ILightboxService>().Open(entries, start, owner ?? Application.Current?.MainWindow);
+            _services.GetRequiredService<ILightboxService>().Open(entries, start, LightboxOwner(owner));
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
@@ -165,15 +173,14 @@ public sealed class MergeGalleryActions : IMergeResultActions
         Application.Current?.MainWindow?.Activate();
     }
 
-    public async Task<string> UndoAsync(int batchId)
+    public async Task<MergeUndoOutcome> UndoAsync(int batchId)
     {
         if (_fileOps is null)
         {
-            return "Rückgängig nicht verfügbar.";
+            return new MergeUndoOutcome(false, "Rückgängig nicht verfügbar.");
         }
 
-        var result = await _fileOps.UndoBatchAsync(batchId).ConfigureAwait(true);
-        return result is null ? "Nichts rückgängig zu machen." : "Ergebnis in den Papierkorb — die Einzelbilder sind unverändert.";
+        return await MergeUndo.UndoAsync(_fileOps, batchId, MergeTexts.Method(MergeMethod.Panorama)).ConfigureAwait(true);
     }
 
     public async Task EnhanceAsync(int resultFileId, Window? owner)
@@ -185,8 +192,18 @@ public sealed class MergeGalleryActions : IMergeResultActions
         }
 
         var lightbox = _services.GetRequiredService<ILightboxService>();
-        lightbox.Open(entries, 0, owner ?? Application.Current?.MainWindow);
+        lightbox.Open(entries, 0, LightboxOwner(owner));
         lightbox.ShowEnhancePanel();
+    }
+
+    /// <summary>
+    /// Owner der Lightbox: nie das Fenster „Zusammenfügen“ — es schließt gleich danach („Danach verbessern…“) bzw. wird durch
+    /// „Neu berechnen…“ ersetzt und nähme die Lightbox mit (0.5.48). Dann das Hauptfenster.
+    /// </summary>
+    internal static Window? LightboxOwner(Window? owner)
+    {
+        var candidate = owner is null or MergeWindow ? Application.Current?.MainWindow : owner;
+        return candidate is MergeWindow ? null : candidate;
     }
 
     public bool IsExplorerBlocked => HiddenSessionPrivacy.IsHiddenSessionActive;

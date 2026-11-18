@@ -50,10 +50,13 @@ internal static class WicSourceDecoder
         int storedWidth, storedHeight, orientation;
         double? focal35;
         bool hasCamera;
+        ColorContext? profile;
         using (var header = OpenShared(path))
         {
-            var decoder = BitmapDecoder.Create(header, BitmapCreateOptions.IgnoreColorProfile | BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
+            // ohne IgnoreColorProfile, damit das eingebettete Profil lesbar ist (Pixel werden hier nicht dekodiert)
+            var decoder = BitmapDecoder.Create(header, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
             var first = decoder.Frames[0];
+            profile = NonSrgbProfile(first);
             storedWidth = first.PixelWidth;
             storedHeight = first.PixelHeight;
             var metadata = first.Metadata as BitmapMetadata;
@@ -95,23 +98,15 @@ internal static class WicSourceDecoder
         }
 
         bitmap.Freeze();
-        var oriented = ApplyOrientation(bitmap, orientation);
-        BitmapSource bgr = oriented.Format == PixelFormats.Bgr24 ? oriented : new FormatConvertedBitmap(oriented, PixelFormats.Bgr24, null, 0);
-        if (!bgr.IsFrozen)
-        {
-            bgr.Freeze();
-        }
-
-        int w = bgr.PixelWidth, h = bgr.PixelHeight;
-        var mat = new Mat(h, w, MatType.CV_8UC3);
+        var srgb = ToSrgb(bitmap, profile);
+        Mat mat;
         try
         {
-            bgr.CopyPixels(System.Windows.Int32Rect.Empty, mat.Data, (int)(mat.Step() * h), (int)mat.Step());
+            mat = ToMat(srgb, orientation);
         }
-        catch
+        catch (Exception ex) when (!ReferenceEquals(srgb, bitmap) && ex is System.Runtime.InteropServices.COMException or NotSupportedException or ArgumentException or FileFormatException or InvalidOperationException)
         {
-            mat.Dispose();
-            throw;
+            mat = ToMat(bitmap, orientation); // die Farbumwandlung scheitert erst beim Lesen der Pixel: ohne sie, wie bisher
         }
 
         var swap = orientation is >= 5 and <= 8;
@@ -130,6 +125,77 @@ internal static class WicSourceDecoder
             FullSize = swap ? new OpenCvSharp.Size(storedHeight, storedWidth) : new OpenCvSharp.Size(storedWidth, storedHeight),
             Meta = meta,
         };
+    }
+
+    /// <summary>
+    /// Eingebettetes Farbprofil, wenn es nicht sRGB ist (Display P3 vom Handy, Adobe RGB von Kameras …), sonst null. Die Pixel
+    /// werden dann beim Lesen nach sRGB umgerechnet (0.5.48) — sonst wirkten solche Quellen im Ergebnis blass bzw. verschoben, weil
+    /// das Ergebnis (JPEG aus OpenCV) kein Profil trägt und als sRGB gilt.
+    /// </summary>
+    private static ColorContext? NonSrgbProfile(BitmapFrame frame)
+    {
+        try
+        {
+            var contexts = frame.ColorContexts;
+            if (contexts is null || contexts.Count == 0)
+            {
+                return null;
+            }
+
+            var context = contexts[0];
+            using var stream = context.OpenProfileStream();
+            using var buffer = new MemoryStream();
+            stream.CopyTo(buffer);
+            return IccProfile.IsSrgb(buffer.ToArray()) ? null : context;
+        }
+        catch (Exception ex) when (ex is NotSupportedException or InvalidOperationException or IOException or ArgumentException or System.Runtime.InteropServices.COMException or UnauthorizedAccessException)
+        {
+            return null; // ohne lesbares Profil: wie bisher als sRGB
+        }
+    }
+
+    /// <summary>Ausrichten, nach BGR 8 Bit wandeln und in eine OpenCV-Matrix kopieren.</summary>
+    private static Mat ToMat(BitmapSource source, int orientation)
+    {
+        var oriented = ApplyOrientation(source, orientation);
+        BitmapSource bgr = oriented.Format == PixelFormats.Bgr24 ? oriented : new FormatConvertedBitmap(oriented, PixelFormats.Bgr24, null, 0);
+        if (!bgr.IsFrozen)
+        {
+            bgr.Freeze();
+        }
+
+        int w = bgr.PixelWidth, h = bgr.PixelHeight;
+        var mat = new Mat(h, w, MatType.CV_8UC3);
+        try
+        {
+            bgr.CopyPixels(System.Windows.Int32Rect.Empty, mat.Data, (int)(mat.Step() * h), (int)mat.Step());
+            return mat;
+        }
+        catch
+        {
+            mat.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>Pixel aus dem Quellprofil nach sRGB (WIC-Farbumwandlung); scheitert sie, bleiben die Pixel, wie sie sind.</summary>
+    private static BitmapSource ToSrgb(BitmapSource source, ColorContext? profile)
+    {
+        if (profile is null)
+        {
+            return source;
+        }
+
+        try
+        {
+            var converted = new ColorConvertedBitmap(source, profile, new ColorContext(PixelFormats.Bgra32), PixelFormats.Bgra32);
+            converted.Freeze();
+            return converted;
+        }
+        catch (Exception ex) when (ex is NotSupportedException or InvalidOperationException or ArgumentException or System.Runtime.InteropServices.COMException or FileFormatException)
+        {
+            return source;
+        }
     }
 
     /// <summary>Gimbal-Winkel aus dem DJI-XMP im Dateikopf (Klartext in den ersten 600 KB), sonst null.</summary>

@@ -129,6 +129,35 @@ public sealed class ImagingWorkerProcessTests : IDisposable
     }
 
     [Fact]
+    public async Task Verwaltete_Ausnahme_ohne_Faenger_endet_sofort_mit_eigenem_Code_ohne_Fehlerbericht()
+    {
+        // 0.5.48: SetErrorMode + Handler → TerminateProcess; die Windows-Fehlerberichterstattung hielte den Prozess sonst offen
+        // (Lumora wartete bis zur Stille-Grenze) und legte Berichte außerhalb des Containers ab
+        const string action = "unhandled";
+        const int exitCode = 5;
+        await using var worker = await StartAsync(Options(silence: TimeSpan.FromSeconds(30)));
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+
+        var act = () => worker.RunAsync<ReadyMessage>(id => new DebugRequest { Id = id, Action = action }, null, CancellationToken.None);
+
+        (await act.Should().ThrowAsync<ImagingWorkerException>()).Which.Failure.Should().Be(ImagingFailure.Crashed);
+        clock.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(15), "kein Warten auf einen Fehlerbericht");
+        worker.ExitCode.Should().Be(exitCode, "beendet über den eigenen Handler, nicht über Fast-Fail und Fehlerberichterstattung");
+    }
+
+    [Fact]
+    public async Task Threadzahl_erreicht_OpenCV_erst_zwischen_zwei_Arbeiten()
+    {
+        await using var worker = await StartAsync();
+        (await worker.RunAsync<ReadyMessage>(id => new DebugRequest { Id = id, Action = "native-threads" }, null, CancellationToken.None)).Threads.Should().Be(2);
+
+        worker.SetThreads(1); // „Im Hintergrund weiterrechnen“ — kommt auf dem Lese-Thread an, nicht während OpenCV rechnet
+
+        var echo = await worker.RunAsync<ReadyMessage>(id => new DebugRequest { Id = id, Action = "native-threads" }, null, CancellationToken.None);
+        echo.Threads.Should().Be(1, "vor der nächsten Arbeit an OpenCV gegeben");
+    }
+
+    [Fact]
     public async Task Fehlende_Programmdatei_ist_ein_verstaendlicher_Fehler()
     {
         var act = () => ImagingWorkerProcess.StartAsync(new ImagingWorkerOptions { ExePath = Path.Combine(_dir, "fehlt.exe") }, _dir, 1);

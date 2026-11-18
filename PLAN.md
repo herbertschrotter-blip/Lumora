@@ -916,6 +916,7 @@ Fehler: <Message>
 | **Katalog-Umzug verliert Daten** | Kopie per Backup-API, `integrity_check` + Zeilenzahlen, Umschalten erst danach; Scans/Batches/Überwachung/Thumbnails ruhig, Factory gesperrt (auch für ältere Kontexte), Schreibsperre der alten DB gehalten; Neustart statt Laufzeit-Umschaltung (ADR-0026) |
 | **Versteckte Bibliothek hinterlässt Spuren** | Eigener Katalog + Logger je Sitzung im Container, Container-Wechsel statt Umschalten einzelner Dienste, Shell-Aufrufe (Explorer, Standard-App) gesperrt, `AddToRecent = false`, Spurenprüfung in Unit- und Rauchtest (ADR-0049); Grenzen: Dateidialog-MRU, VeraCrypt-Verlauf, Auslagerungsdatei |
 | **Background-Worker blockiert UI** | WorkBudgetService mit StorageProfile-Limits + UI-Activity-Delay |
+| **Absturz des Rechen-Prozesses „Zusammenfügen“ hinterlässt einen Fehlerbericht außerhalb des Containers** | Hilfsprozess ohne Fehlerbericht-Dialog (`SetErrorMode`), verwaltete Ausnahmen → sofort `TerminateProcess`, keine .NET-Absturz-Abbilder; Sitzungsende wartet auf bzw. beendet ihn vor dem Aushängen (ADR-0078 Nachtrag 0.5.48). Rest: ein nativer Absturz in OpenCV läuft über Fast-Fail der Laufzeit — Windows kann dann einen Bericht (Modulliste, kleines Abbild) unter ProgramData bzw. LocalAppData ablegen; ohne Registry-/Systemeinstellung nicht abschaltbar |
 
 ---
 

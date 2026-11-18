@@ -73,13 +73,19 @@ public partial class App
 
     private void OnMainWindowClosing(object? sender, CancelEventArgs e)
     {
-        if (_exiting || _appConnect is null || _leases?.HasActive != true || sender is not Window window)
+        if (_exiting || sender is not Window window)
         {
             return;
         }
 
-        e.Cancel = true;
-        _ = MoveToBackgroundAsync(window);
+        if (_appConnect is not null && _leases?.HasActive == true)
+        {
+            e.Cancel = true;
+            _ = MoveToBackgroundAsync(window); // Lumora läuft weiter — ein Speichern von „Zusammenfügen“ auch
+            return;
+        }
+
+        InterceptExitWhileMerging(window, e); // Beenden während „Zusammenfügen“ speichert: nachfragen (ADR-0078, 0.5.48)
     }
 
     private async Task MoveToBackgroundAsync(Window window)
@@ -227,7 +233,7 @@ public partial class App
             return;
         }
 
-        _tray ??= new BackgroundTrayIcon(() => ShowMainWindow(), () => ShowMainWindow(connectedApps: true), ExitNow);
+        _tray ??= new BackgroundTrayIcon(() => ShowMainWindow(), () => ShowMainWindow(connectedApps: true), ExitFromTray);
         var names = _lifetime!.Requesters.Select(id => AppConnections?.Find(id)?.DisplayName ?? id).ToList();
         _tray.Show(BackgroundTrayIcon.TextFor(names, _lifetime.Since));
         if (_trayTimer is null)
@@ -240,16 +246,39 @@ public partial class App
         _trayTimer.Start();
     }
 
-    /// <summary>Hintergrund-Regeln sagen „niemand braucht Lumora mehr“ (Abschnitt 9).</summary>
-    private void ExitFromBackground()
+    /// <summary>Hintergrund-Regeln sagen „niemand braucht Lumora mehr“ (Abschnitt 9) — ein laufendes Speichern rechnet erst zu Ende.</summary>
+    private async void ExitFromBackground()
     {
-        if (_lifetime?.IsBackground == true)
+        try
         {
-            ExitNow();
+            if (_lifetime?.IsBackground == true && await MayExitAsync(automatic: true).ConfigureAwait(true) && _lifetime?.IsBackground == true)
+            {
+                ExitNow();
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Beenden aus dem Hintergrund fehlgeschlagen");
         }
     }
 
-    /// <summary>Beenden ohne Rückfrage (Infobereich „Beenden“ bzw. Hintergrund-Ende); das Fenster wird nicht mehr festgehalten.</summary>
+    /// <summary>Infobereich „Beenden“: speichert „Zusammenfügen“ noch, fragt Lumora nach (ADR-0078, 0.5.48).</summary>
+    private async void ExitFromTray()
+    {
+        try
+        {
+            if (await MayExitAsync(automatic: false).ConfigureAwait(true))
+            {
+                ExitNow();
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Beenden aus dem Infobereich fehlgeschlagen");
+        }
+    }
+
+    /// <summary>Beenden ohne Rückfrage; das Fenster wird nicht mehr festgehalten.</summary>
     private void ExitNow()
     {
         _exiting = true;

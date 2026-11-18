@@ -205,8 +205,53 @@ public sealed record MergeSaveResult(
     public static MergeSaveResult Failed(string error, IReadOnlyList<MergeNote>? notes = null) => new(false, 0, 0, null, 0, 0, 0, notes ?? [], error);
 }
 
+/// <summary>Ergebnis von „Rückgängig“ eines Ergebnisses (Fertig-Ansicht, Aktivität).</summary>
+public sealed record MergeUndoOutcome(bool Succeeded, string Message);
+
+/// <summary>Wertet das Rückgängig eines CreateMerged-Batches aus — Erfolg nur, wenn es wirklich gelang (0.5.48).</summary>
+public static class MergeUndo
+{
+    /// <summary>
+    /// Rückgängig des Batches samt Auswertung; war er schon zurückgenommen (z. B. über die Aktivitäts-Anzeige), gilt das als
+    /// erledigt statt als Fehlschlag.
+    /// </summary>
+    public static async Task<MergeUndoOutcome> UndoAsync(Lumora.Services.Operations.IFileOperationService ops, int batchId, string methodName, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(ops);
+        var result = await ops.UndoBatchAsync(batchId, ct).ConfigureAwait(false);
+        var outcome = Describe(result, methodName);
+        if (outcome.Succeeded || result is null)
+        {
+            return outcome;
+        }
+
+        var batches = await ops.GetRecentBatchesAsync(200, ct).ConfigureAwait(false);
+        return batches.FirstOrDefault(b => b.Id == batchId) is { Status: BatchStatus.Undone }
+            ? new MergeUndoOutcome(true, "Schon rückgängig gemacht — das Ergebnis liegt im Papierkorb.")
+            : outcome;
+    }
+
+    public static MergeUndoOutcome Describe(Lumora.Services.Operations.FileOperationBatchResult? result, string methodName)
+    {
+        if (result is null)
+        {
+            return new MergeUndoOutcome(false, "Rückgängig nicht möglich — der Vorgang steht nicht mehr im Protokoll.");
+        }
+
+        if (result.Succeeded > 0)
+        {
+            var hint = result.Items.FirstOrDefault(i => i.Success && !string.IsNullOrEmpty(i.Error))?.Error;
+            return new MergeUndoOutcome(true, hint ?? $"{methodName} in den Papierkorb — die Einzelbilder sind unverändert.");
+        }
+
+        var error = result.Items.FirstOrDefault(i => !i.Success)?.Error;
+        return new MergeUndoOutcome(false, "Rückgängig fehlgeschlagen" + (string.IsNullOrEmpty(error) ? "." : ": " + error));
+    }
+}
+
 /// <summary>Ist „Zusammenfügen“ verfügbar (Hilfsprozess vorhanden, OpenCV ladbar)?</summary>
-public sealed record MergeAvailability(bool Available, string? Reason, string? OpenCvVersion);
+/// <param name="Transient">Nicht verfügbar, aber nur gerade (Startfehler, 0.5.48): beim nächsten Versuch wird neu geprüft — nicht merken.</param>
+public sealed record MergeAvailability(bool Available, string? Reason, string? OpenCvVersion, bool Transient = false);
 
 /// <summary>Wo das Ergebnis liegt (ADR-0078 Punkt 10/17).</summary>
 public enum MergeSaveLocation

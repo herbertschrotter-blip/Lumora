@@ -315,6 +315,166 @@ public sealed class MergeCatalogTests : IAsyncLifetime
         }
     }
 
+    // ---- Befunde der Prüfung (0.5.48) ----------------------------------------------------------------------------------
+
+    private async Task<(int Results, int Sources)> MergedCountsAsync()
+    {
+        await using var ctx = _fx.CreateContext();
+        return (await ctx.MergedPhotos.CountAsync(), await ctx.MergedPhotoSources.CountAsync());
+    }
+
+    private async Task<List<int>> SourcesOfAsync(int resultId)
+    {
+        await using var ctx = _fx.CreateContext();
+        return await ctx.MergedPhotoSources.AsNoTracking().Where(s => s.ResultFileId == resultId).OrderBy(s => s.Position).Select(s => s.SourceFileId).ToListAsync();
+    }
+
+    [Fact]
+    public async Task Ordner_mit_dem_Ergebnis_in_den_Papierkorb_und_Rueckgaengig_bringt_die_Quellen_mit()
+    {
+        var (a, b, c, _, _) = await SeedAsync();
+        using var ops = _fx.CreateFileOperationService(new Lumora.Tests.Operations.MovingRecycleBin(Path.Combine(_fx.RootDir, "papierkorb")));
+        var created = await ops.CreateMergedAsync([Request([b, a, c], Path.Combine(_fx.LibraryRoot, "Tour", "zusammengefügt", "b_panorama.jpg"))]);
+        var resultId = created.Items.Single().FileId;
+        var folderId = (await _fx.FindFileByIdAsync(resultId))!.FolderId;
+
+        var recycled = await ops.RecycleFolderAsync(folderId);
+        recycled.Success.Should().BeTrue(recycled.Error);
+        (await MergedCountsAsync()).Should().Be((0, 0));
+
+        var undo = await ops.UndoBatchAsync(recycled.BatchId);
+
+        undo!.Failed.Should().Be(0);
+        (await _fx.FindFileByIdAsync(resultId)).Should().NotBeNull("dieselbe FileId");
+        (await SourcesOfAsync(resultId)).Should().Equal([b, a, c], "die Quellen kommen mit dem Ergebnis zurück, in alter Reihenfolge");
+        await using var ctx = _fx.CreateContext();
+        (await ctx.FileLinkUndo.CountAsync()).Should().Be(0);
+        (await ctx.MergedPhotoUndo.CountAsync()).Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Abzug_bringt_Ergebnis_und_Quelle_in_beiden_Reihenfolgen_zurueck(bool resultFirst)
+    {
+        // „Ordner in den Papierkorb“, „Fehlende entfernen“, „Aus dem Katalog entfernen“, „Doppelte aufräumen“: gleiche FileIds
+        var (a, b, c, _, _) = await SeedAsync();
+        var resultId = (await _ops.CreateMergedAsync([Request([b, a, c])])).Items.Single().FileId;
+        using var connection = _fx.ContextFactory.OpenSqliteConnection();
+        var snapshots = new Dictionary<int, (string Json, int FolderId, long Size, long Modified)>();
+        foreach (var id in new[] { resultId, a })
+        {
+            var row = (await _fx.FindFileByIdAsync(id))!;
+            snapshots[id] = (Lumora.Services.Duplicates.CatalogRowSnapshot.Capture(connection, null, id), row.FolderId, row.Size,
+                new DateTimeOffset(DateTime.SpecifyKind(row.ModifiedAtUtc, DateTimeKind.Utc)).ToUnixTimeSeconds());
+        }
+
+        await using (var ctx = _fx.CreateContext())
+        {
+            await ctx.Files.Where(f => f.Id == resultId || f.Id == a).ExecuteDeleteAsync();
+        }
+
+        (await MergedCountsAsync()).Should().Be((0, 0));
+        using (var tx = connection.BeginTransaction())
+        {
+            foreach (var id in resultFirst ? new[] { resultId, a } : new[] { a, resultId })
+            {
+                var (json, folderId, size, modified) = snapshots[id];
+                var snapshot = Lumora.Services.Duplicates.CatalogRowSnapshot.Parse(json);
+                Lumora.Services.Duplicates.CatalogRowSnapshot.RestoreFileRow(connection, tx, snapshot, folderId, size, modified).Should().BeTrue();
+                Lumora.Services.Duplicates.CatalogRowSnapshot.RestoreDependents(connection, tx, snapshot);
+            }
+
+            tx.Commit();
+        }
+
+        (await SourcesOfAsync(resultId)).Should().Equal([b, a, c], resultFirst ? "Quelle nach dem Ergebnis" : "Quelle vor dem Ergebnis — die Quellen stehen im Abzug des Ergebnisses");
+        (await MergedCountsAsync()).Should().Be((1, 3));
+    }
+
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(false, false)]
+    public async Task Ergebnis_und_Quelle_kehren_mit_neuen_FileIds_zurueck_in_jeder_Reihenfolge(bool resultRemovedFirst, bool resultReturnsFirst)
+    {
+        // Serie samt Panorama im Papierkorb, in Windows wiederhergestellt und eingelesen (bzw. Verschieben nach außen + Rückgängig)
+        var (a, b, c, _, _) = await SeedAsync();
+        var resultId = (await _ops.CreateMergedAsync([Request([b, a, c])])).Items.Single().FileId;
+        var originals = new Dictionary<int, MediaFile> { [resultId] = (await _fx.FindFileByIdAsync(resultId))!, [a] = (await _fx.FindFileByIdAsync(a))! };
+
+        var recycled = await _ops.RecycleAsync(resultRemovedFirst ? [resultId, a] : [a, resultId]);
+        recycled.Succeeded.Should().Be(2);
+        var operations = (await _fx.GetOperationsAsync(recycled.BatchId)).ToDictionary(o => o.FileId!.Value, o => o.Id);
+
+        async Task<int> ReturnAsync(int oldId)
+        {
+            var o = originals[oldId];
+            await using var ctx = _fx.CreateContext();
+            var back = new MediaFile { LibraryId = o.LibraryId, FolderId = o.FolderId, Name = o.Name, Extension = o.Extension, MediaType = o.MediaType, Size = o.Size, CreatedAtUtc = DateTime.UtcNow, ModifiedAtUtc = o.ModifiedAtUtc };
+            ctx.Files.Add(back);
+            await ctx.SaveChangesAsync();
+            await Lumora.Services.Albums.FileLinkUndoStore.RestoreAsync(ctx, operations[oldId], back.Id, CancellationToken.None);
+            return back.Id;
+        }
+
+        int newResult, newA;
+        if (resultReturnsFirst)
+        {
+            newResult = await ReturnAsync(resultId);
+            newA = await ReturnAsync(a);
+        }
+        else
+        {
+            newA = await ReturnAsync(a);
+            newResult = await ReturnAsync(resultId);
+        }
+
+        var sources = await SourcesOfAsync(newResult);
+        sources.Should().BeEquivalentTo([b, newA, c], "alle Quellen hängen wieder am Ergebnis, gleich in welcher Reihenfolge entfernt und zurückgekehrt");
+        if (resultRemovedFirst)
+        {
+            sources.Should().Equal([b, newA, c], "die Sicherung des Ergebnisses kennt die alte Position");
+        }
+
+        await using var check = _fx.CreateContext();
+        var merged = await check.MergedPhotos.AsNoTracking().SingleAsync();
+        (merged.FileId, merged.SourceCount, merged.RecipeJson).Should().Be((newResult, 3, "{\"version\":1}"));
+        (await check.FileLinkUndo.CountAsync()).Should().Be(0, "alles verknüpft — keine offenen Sicherungen");
+        (await check.MergedPhotoUndo.CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Altes_Rueckgaengig_legt_kein_neueres_Ergebnis_am_selben_Pfad_in_den_Papierkorb()
+    {
+        var (a, b, c, _, _) = await SeedAsync();
+        var first = await _ops.CreateMergedAsync([Request([b, a, c])]);
+        var firstItem = first.Items.Single();
+        await _ops.RecycleAsync([firstItem.FileId]); // Ergebnis in der Galerie in den Papierkorb — der Name ist wieder frei
+        var secondBatch = await _ops.CreateMergedAsync([Request([b, a, c])]);
+        var second = secondBatch.Items.Single();
+        second.DestPath.Should().Be(firstItem.DestPath);
+        var recycledBefore = _bin.Recycled.Count;
+
+        var undo = await _ops.UndoBatchAsync(first.BatchId);
+
+        undo!.Items.Single().Error.Should().Be(FileOperationService.NotOursHint);
+        File.Exists(second.DestPath).Should().BeTrue("das neuere Ergebnis bleibt");
+        _bin.Recycled.Count.Should().Be(recycledBefore, "nichts in den Papierkorb");
+        (await _fx.FindFileByIdAsync(second.FileId)).Should().NotBeNull();
+        (await MergedCountsAsync()).Should().Be((1, 3));
+
+        // das eigene Rückgängig des neueren Ergebnisses wirkt weiter — und sichert seine Quellen zur Operation (kehrt die Datei
+        // aus dem Papierkorb zurück, kommt die Verknüpfung mit)
+        (await _ops.UndoBatchAsync(secondBatch.BatchId))!.Succeeded.Should().Be(1);
+        File.Exists(second.DestPath).Should().BeFalse();
+        var secondOp = (await _fx.GetOperationsAsync(secondBatch.BatchId)).Single().Id;
+        await using var ctx = _fx.CreateContext();
+        (await ctx.FileLinkUndo.Where(u => u.FileOperationId == secondOp).OrderBy(u => u.Id).Select(u => u.TargetId).ToListAsync()).Should().Equal(b, a, c);
+        (await ctx.MergedPhotoUndo.CountAsync(u => u.FileOperationId == secondOp)).Should().Be(1);
+    }
+
     [Fact]
     public async Task Neu_aufbauen_traegt_Ergebnis_Quellen_und_Rezept_mit()
     {

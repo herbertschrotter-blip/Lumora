@@ -113,6 +113,114 @@ public sealed class MergeExifWriterTests : IDisposable
         File.ReadAllBytes(target).Should().Equal(0x89, (byte)'P', (byte)'N', (byte)'G');
     }
 
+    // ---- Befunde der Prüfung (0.5.48) ----------------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("leer")]
+    [InlineData("kurz")]
+    [InlineData("ifd0-ueberlauf")]
+    [InlineData("exif-ueberlauf")]
+    public void Kaputter_EXIF_Block_der_Zeitquelle_ergibt_einen_neuen_Block_statt_einer_Ausnahme(string kind)
+    {
+        byte[] tiff = kind switch
+        {
+            "leer" => [],
+            "kurz" => [(byte)'I', (byte)'I', 42, 0],
+            "ifd0-ueberlauf" => [(byte)'I', (byte)'I', 42, 0, 0xFF, 0xFF, 0xFF, 0xFF],
+            _ => ExifIfdPointerBeyondEnd(),
+        };
+        var primary = Put("a.jpg", JpegWithApp1([.. "Exif\0\0"u8.ToArray(), .. tiff]));
+        var result = Put("r.jpg", ExifTestJpeg.Plain());
+
+        var act = () => MergeExifWriter.Write(result, new MergeExifInput(primary, null, null, new DateTime(2024, 7, 12, 10, 15, 30), null, "TestCam TC-1", 100, 50, "Panorama", 2, false));
+
+        act.Should().NotThrow("ein kaputter Block einer Quelle kostet nie das fertige Ergebnis");
+        JpegExifCopier.ReadExifSegment(File.ReadAllBytes(result)).Should().NotBeNull();
+        if (kind != "exif-ueberlauf")
+        {
+            // unlesbar: neuer Block mit der Aufnahmezeit (ein lesbares IFD0 mit Verweis ins Leere wird übernommen, ohne den Verweis zu lesen)
+            MediaDateReader.Read(result)!.Value.Local.Should().Be(new DateTime(2024, 7, 12, 10, 15, 30));
+        }
+    }
+
+    [Fact]
+    public void Ergebnis_ist_als_sRGB_gekennzeichnet_ohne_geratenen_Zeitversatz_und_mit_neutralem_Namensraum()
+    {
+        var heic = Put("a.heic", [0, 0, 0, 0x18, (byte)'f', (byte)'t', (byte)'y', (byte)'p']);
+        var result = Put("r.jpg", ExifTestJpeg.Plain());
+
+        MergeExifWriter.Write(result, new MergeExifInput(heic, null, null, new DateTime(2023, 1, 2, 0, 4, 5), null, "Apple iPhone 15", 8000, 2000, "Panorama", 5, false));
+
+        var segment = JpegExifCopier.ReadExifSegment(File.ReadAllBytes(result))!;
+        ExifTag(segment, 0xA001).Should().Be(1u, "ColorSpace sRGB — die Pixel sind umgerechnet");
+        ExifTag(segment, 0x9011).Should().BeNull("die Quelle nennt keinen Versatz: nie die Zeitzone dieses PCs schreiben");
+        var text = Encoding.UTF8.GetString(File.ReadAllBytes(result));
+        text.Should().Contain("xmlns:lumora=\"" + MergeExifWriter.XmpNamespace + "\"").And.NotContain("github", "kein Kontoname in jeder Ergebnis-Datei");
+        MergeExifWriter.XmpNamespace.Should().Be("urn:lumora:merge:1.0");
+
+        // EXIF-Block einer JPEG-Quelle: ColorSpace „Uncalibrated“ (Display P3) wird sRGB
+        var p3 = Put("p3.jpg", ExifTestJpeg.Build(little: true, colorSpace: 0xFFFF));
+        var fromJpeg = Put("r2.jpg", ExifTestJpeg.Plain());
+        MergeExifWriter.Write(fromJpeg, new MergeExifInput(p3, null, null, null, null, null, 100, 50, "Panorama", 2, false));
+        ExifTag(JpegExifCopier.ReadExifSegment(File.ReadAllBytes(fromJpeg))!, 0xA001).Should().Be(1u);
+    }
+
+    /// <summary>JPEG-förmig: SOI, ein APP1 mit genau diesem Inhalt, dann der Bildteil.</summary>
+    private static byte[] JpegWithApp1(byte[] payload)
+    {
+        var length = payload.Length + 2;
+        return [0xFF, 0xD8, 0xFF, 0xE1, (byte)(length >> 8), (byte)length, .. payload, .. ExifTestJpeg.ImageBody()];
+    }
+
+    /// <summary>Gültiges IFD0 mit einem Verweis auf ein EXIF-Verzeichnis weit hinter dem Ende.</summary>
+    private static byte[] ExifIfdPointerBeyondEnd()
+    {
+        var t = new byte[8 + 2 + 12 + 4];
+        "II"u8.CopyTo(t);
+        t[2] = 42;
+        t[4] = 8;
+        t[8] = 1; // ein Eintrag
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(t.AsSpan(10), 0x8769);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(t.AsSpan(12), 4);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(t.AsSpan(14), 1);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(t.AsSpan(18), 0xFFFFFFFE);
+        return t;
+    }
+
+    /// <summary>Wert (SHORT/LONG) eines Tags im EXIF-Verzeichnis des Blocks, sonst null.</summary>
+    private static uint? ExifTag(byte[] segment, ushort wanted)
+    {
+        var tiff = segment.AsSpan(10).ToArray();
+        var little = tiff[0] == 'I';
+        uint U32(ReadOnlySpan<byte> b) => little ? System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(b) : System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(b);
+        ushort U16(ReadOnlySpan<byte> b) => little ? System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(b) : System.Buffers.Binary.BinaryPrimitives.ReadUInt16BigEndian(b);
+        uint? Find(int ifd, ushort tag, out ushort type)
+        {
+            type = 0;
+            var count = U16(tiff.AsSpan(ifd));
+            for (var i = 0; i < count; i++)
+            {
+                var e = tiff.AsSpan(ifd + 2 + i * 12, 12);
+                if (U16(e) == tag)
+                {
+                    type = U16(e[2..]);
+                    return type == 3 ? U16(e[8..]) : U32(e[8..]);
+                }
+            }
+
+            return null;
+        }
+
+        var exif = Find((int)U32(tiff.AsSpan(4)), 0x8769, out _);
+        if (exif is null)
+        {
+            return null;
+        }
+
+        var value = Find((int)exif.Value, wanted, out var t);
+        return t == 2 ? 0u + (value is null ? 0u : 1u) : value; // ASCII (OffsetTimeOriginal): nur „vorhanden“
+    }
+
     private static uint NextIfdOfIfd0(byte[] segment)
     {
         var tiff = segment.AsSpan(10);

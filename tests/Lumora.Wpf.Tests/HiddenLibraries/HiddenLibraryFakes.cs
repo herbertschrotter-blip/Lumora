@@ -104,6 +104,17 @@ internal sealed class FakeHostSwitcher : ICatalogHostSwitcher
         return Task.FromResult(WindowsClose);
     }
 
+    /// <summary>Antwort auf „darf die Sitzung enden?“ (z. B. „Zusammenfügen“ speichert noch, ADR-0078 0.5.48).</summary>
+    public bool MaySessionEnd { get; set; } = true;
+
+    public List<(string Action, bool Automatic)> SessionEndChecks { get; } = new();
+
+    public Task<bool> ConfirmSessionEndAsync(string action, bool automatic)
+    {
+        SessionEndChecks.Add((action, automatic));
+        return Task.FromResult(MaySessionEnd);
+    }
+
     /// <summary>Einstellungen des Sicherheits-Checks im versteckten Katalog (ADR-0064); null = nicht registriert.</summary>
     public ISecurityCheckSettingsStore? HiddenSecuritySettings { get; set; }
 

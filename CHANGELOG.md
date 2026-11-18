@@ -3,6 +3,56 @@
 Alle nennenswerten Änderungen an Lumora (bis 0.2.48 „PhotoViewer V3“). Format: `[Version] — Datum`, oberster Eintrag = aktuelle Version
 (Versionsquelle für das Commit-Profil in `CLAUDE.md`).
 
+## [0.5.48] — 2026-11-18
+
+### Services + Wpf — Zusammenfügen Stufe 1: Befunde aus der Prüfung (ADR-0078 Nachtrag 0.5.48)
+- **Sitzungsende während „Speichern“:** Zusperren, Wechsel normal ↔ versteckt, Verschieben des Containers und Beenden warten
+  auf ein laufendes Speichern (auch im Hintergrund ohne Fenster) — automatisches Zusperren verschiebt sich, von Hand fragt
+  Lumora „Warten / Abbrechen und …“; Beenden aus dem Infobereich fragt ebenso, das Hintergrund-Ende wartet. Danach bricht der
+  Merge-Dienst alle Sitzungen ab und wartet auf das Ende ihrer Rechen-Prozesse, bevor die Dienste entsorgt bzw. der Container
+  ausgehängt wird (vorher lief der Prozess mit offenen Quellen im Container weiter und das Ergebnis ging still verloren).
+- **Rückgängig bringt die Quellen mit:** „Ordner in den Papierkorb“, „Fehlende entfernen“, „Aus dem Katalog entfernen“/
+  „Ausschließen“ und „Doppelte aufräumen“ stellten ein Ergebnis ohne Quellen wieder her — der Abzug nimmt sie jetzt mit, die
+  gesicherten Verknüpfungen werden eingespielt statt verworfen, in jeder Reihenfolge von Ergebnis und Quelle.
+- **Ergebnis und Quellen kehren mit neuen FileIds zurück** (Windows „Wiederherstellen“ + Scan, Verschieben nach außen +
+  Rückgängig): offene Datei-Verknüpfungen werden auf die neue Id umgeschrieben und nachgeholt; die Sicherung verfällt erst, wenn
+  wirklich verknüpft ist. Gilt auch für Fassungen.
+- **Altes Rückgängig** legt kein neueres Ergebnis bzw. keine neuere Fassung am frei gewordenen Namen mehr in den Papierkorb (nur
+  die Datei des Vorgangs, geprüft über FileId, Größe und Änderungszeit) und sichert die Verknüpfungen zur Operation.
+- **Vorschau:** nach einer abgebrochenen bzw. gescheiterten Neu-Ausrichtung richtet die nächste Vorschau neu aus (vorher „Die
+  Berechnung passt nicht zur Auswahl“); nach einem abgebrochenen Umstellen speichert „Speichern“ nie mehr eine nie gezeigte
+  Mischung — gesperrt, bis die Vorschau passt, Knopf „Vorschau rechnen“; „Abbrechen“ der ersten Vorschau startet sie nicht mehr
+  von selbst neu.
+- **Ort und Zeit im Ergebnis:** GPS aus dem Katalog-Ort der Ortsquelle (in Lumora gesetzte bzw. nur im Katalog verschobene Orte
+  und XMP-Begleitdateien zählen), das ganze GPS-Verzeichnis nur, wenn die Datei genau diesen Ort trägt; Rang der Ortsquelle aus
+  Herkunft und Genauigkeit; `OffsetTimeOriginal` nur, wenn die Quelle einen Versatz nennt.
+- **Robust:** ein kaputter EXIF-Block der Zeitquelle ergibt einen neuen Block statt das fertige Ergebnis zu verwerfen; Fehler
+  nach dem Katalogeintrag (Album, Meldung, Vorauswahl) werden Hinweis statt „Nicht gespeichert“; unerwartete Fehler beim
+  Speichern führen zur Vorschau zurück statt zu hängen; Rückgängig meldet einen Fehlschlag und bleibt in der Fertig-Ansicht (ein
+  zweites Rückgängig, etwa schon über die Aktivitäts-Anzeige, gilt als erledigt).
+- **Farbe:** Quellen mit Display-P3-/Adobe-RGB-Profil werden beim Lesen nach sRGB umgerechnet; das Ergebnis ist als sRGB
+  gekennzeichnet (`ColorSpace` = 1).
+- **Fenster:** „Danach verbessern…“ und „Öffnen“ geben die Lightbox dem Hauptfenster (sie schloss sonst mit dem Fenster
+  „Zusammenfügen“ bzw. bei „Neu berechnen…“); das Fenster merkt nur Farbe und Kugel-Form statt alle Einstellungen zu
+  überschreiben, „Neu berechnen…“ ändert die Vorauswahl erst beim Bewegen des Reglers; große Auswahl ohne Hänger
+  (Filmstreifen einmal zusammengefasst), Menü und Aktionsleiste über 200 Fotos gesperrt mit Grund.
+- **Hilfsprozess:** Thread-Zahl erreicht OpenCV nur zwischen zwei Arbeiten, „Im Hintergrund weiterrechnen“ senkt sofort die
+  Priorität; Abstürze ohne Fehlerbericht-Dialog, verwaltete Ausnahmen beenden sofort, keine .NET-Absturz-Abbilder; ein
+  einmaliger Startfehler sperrt „Zusammenfügen“ nicht mehr für die ganze Sitzung. XMP-Namensraum neutral
+  (`urn:lumora:merge:1.0`).
+- **Tests:** `MergeSessionLifecycleTests` (Sitzungsende, Fenster zu, Neu-Ausrichtung, abgebrochenes Umstellen, Abbrechen vor dem
+  Rendern, zweites Rückgängig, Startfehler),
+  `ColorProfileTests`, Hilfsprozess (Absturz-Code, Thread-Zahl), `MergeCatalogTests` (Ordner-Papierkorb, Abzug in beiden
+  Reihenfolgen, neue FileIds in jeder Reihenfolge, altes Rückgängig), `MergeExifWriterTests`/`MergeMetadataPickerTests`
+  (kaputter Block, sRGB, Versatz, Namensraum, Ortsrang, Datei-GPS), `MergeUiTests` und `CatalogSessionManagerTests`.
+- Doku: ADR-0078 Nachtrag 0.5.48, ADR-Übersicht, PLAN Kap. 15 (Restrisiko Fehlerbericht bei nativem Absturz).
+
+### Offen
+- Ein nativer Absturz in OpenCV läuft über Fast-Fail der .NET-Laufzeit: Windows kann einen Fehlerbericht außerhalb des
+  Containers ablegen (ohne Registry-/Systemeinstellung nicht abschaltbar, PLAN Kap. 15).
+- „Im Hintergrund weiterrechnen“ mitten in einer Arbeit: OpenCVs eigene Threads folgen erst ab der nächsten Arbeit (bis dahin
+  drosseln eigene Abschnitte und Priorität).
+
 ## [0.5.47] — 2026-11-18
 
 ### Wpf — Zusammenfügen Stufe 1 Teil B: Fenster, Menüs, Marke, Lightbox (ADR-0078)

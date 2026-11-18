@@ -98,11 +98,12 @@ public sealed partial class MergeViewModel
             Notes.Add(new MergeNoteItem("Abgebrochen — nichts gespeichert.", MergeNoteKind.Info));
             return;
         }
-        catch (Exception ex) when (ex is MergeException or IOException or InvalidOperationException or ObjectDisposedException)
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
+            // jeder Fehler endet in der Vorschau mit Meldung — nie ein hängendes „Speichern läuft“ (0.5.48)
             _logger.LogWarning(ex, "Zusammenfügen: Speichern fehlgeschlagen");
             Phase = MergePhase.Setup;
-            Notes.Add(new MergeNoteItem("Nicht gespeichert: " + ex.Message, MergeNoteKind.Error));
+            Notes.Add(new MergeNoteItem("Nicht gespeichert: " + (ex is MergeException or IOException or InvalidOperationException ? ex.Message : ex.GetType().Name), MergeNoteKind.Error));
             return;
         }
 
@@ -117,7 +118,9 @@ public sealed partial class MergeViewModel
         ShowDone(result, count, preview);
     }
 
-    private bool CanSave() => Phase == MergePhase.Setup && !IsLocked && !IsComputing && !_selectionDirty && _ready && Preview is { CanSave: true } && _session is not null;
+    /// <summary>Speichern nur, was die Bühne zeigt: fertige Vorschau zu genau den eingestellten Optionen (0.5.48).</summary>
+    private bool CanSave() => Phase == MergePhase.Setup && !IsLocked && !IsComputing && !_selectionDirty && _ready && Preview is { CanSave: true } && _session is not null
+                              && _applied == CurrentOptions;
 
     private void OnSaveProgress(MergeProgress progress)
     {
@@ -222,7 +225,10 @@ public sealed partial class MergeViewModel
         }
     }
 
-    /// <summary>Rückgängig: Ergebnis in den Papierkorb, zurück zur Vorschau (die Sitzung bleibt, nochmals speichern geht).</summary>
+    /// <summary>
+    /// Rückgängig: Ergebnis in den Papierkorb, zurück zur Vorschau (die Sitzung bleibt, nochmals speichern geht). Scheitert es,
+    /// bleibt die Fertig-Ansicht mit Meldung — das Ergebnis ist ja noch da (0.5.48).
+    /// </summary>
     [RelayCommand(CanExecute = nameof(HasResult))]
     private async Task UndoAsync()
     {
@@ -231,20 +237,28 @@ public sealed partial class MergeViewModel
             return;
         }
 
-        string text;
+        MergeUndoOutcome outcome;
         try
         {
-            text = await _results.UndoAsync(saved.BatchId).ConfigureAwait(true);
+            outcome = await _results.UndoAsync(saved.BatchId).ConfigureAwait(true);
         }
-        catch (Exception ex) when (ex is IOException or InvalidOperationException)
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            text = "Rückgängig fehlgeschlagen: " + ex.Message;
+            _logger.LogWarning(ex, "Zusammenfügen: Rückgängig fehlgeschlagen");
+            outcome = new MergeUndoOutcome(false, "Rückgängig fehlgeschlagen: " + (ex is IOException or InvalidOperationException ? ex.Message : ex.GetType().Name));
+        }
+
+        if (!outcome.Succeeded)
+        {
+            RemoveNotes(MergeNoteKind.Error);
+            Notes.Add(new MergeNoteItem(outcome.Message, MergeNoteKind.Error));
+            return;
         }
 
         _saved = null;
         Phase = MergePhase.Setup;
         Notes.Clear();
-        Notes.Add(new MergeNoteItem("Rückgängig: " + text, MergeNoteKind.Info));
+        Notes.Add(new MergeNoteItem("Rückgängig: " + outcome.Message, MergeNoteKind.Info));
         OnPropertyChanged(nameof(ResultFileId));
         SaveCommand.NotifyCanExecuteChanged();
     }

@@ -203,6 +203,12 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- abgebrochen bzw. passt nicht mehr zu den Einstellungen: neu rechnen nur auf Wunsch -->
+                        <ui:Button HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,18" Appearance="Secondary"
+                                   Content="Vorschau rechnen" Command="{Binding RecomputePreviewCommand}"
+                                   AutomationProperties.AutomationId="MergeRecompute" AutomationProperties.Name="Vorschau rechnen"
+                                   Visibility="{Binding CanRecompute, Converter={StaticResource BoolToVis}}" />
+
                         <!-- Speichern: Schrittliste -->
                         <Border HorizontalAlignment="Center" VerticalAlignment="Center" Padding="22,18" CornerRadius="10" MaxWidth="560"
                                 Background="{DynamicResource ApplicationBackgroundBrush}" AutomationProperties.AutomationId="MergeSaving"

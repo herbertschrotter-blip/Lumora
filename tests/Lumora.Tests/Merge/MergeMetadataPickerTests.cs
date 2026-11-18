@@ -44,6 +44,40 @@ public sealed class MergeMetadataPickerTests
     }
 
     [Fact]
+    public void In_Lumora_gesetzter_Ort_zaehlt_nach_echtem_GPS_auch_wenn_die_Zeile_noch_genau_sagt()
+    {
+        // „Ort setzen…“ lässt GeoAccuracy stehen (GeoLocationService): die Herkunft entscheidet mit (0.5.48)
+        var moved = F(1, 0, 47.0, GeoAccuracy.Exact);
+        moved.GeoSource = GeoSource.Manual;
+        var gps = F(2, 1, 48.0, GeoAccuracy.Exact);
+        var estimated = F(3, 2, 49.0, GeoAccuracy.Estimated);
+
+        MergeMetadataPicker.Pick([moved, gps, estimated]).LocationSourceId.Should().Be(2, "echtes GPS aus der Datei zuerst");
+        MergeMetadataPicker.Pick([estimated, moved]).LocationSourceId.Should().Be(1, "in Lumora gesetzt vor geschätztem GPS");
+        MergeMetadataPicker.LocationRank(GeoSource.Exif, GeoAccuracy.Exact).Should().Be(0);
+        MergeMetadataPicker.LocationRank(GeoSource.Manual, GeoAccuracy.Exact).Should().Be(1);
+        MergeMetadataPicker.LocationRank(GeoSource.Neighbors, GeoAccuracy.Estimated).Should().Be(1);
+        MergeMetadataPicker.LocationRank(GeoSource.Exif, null).Should().Be(1);
+        MergeMetadataPicker.LocationRank(GeoSource.Exif, GeoAccuracy.Estimated).Should().Be(2);
+    }
+
+    [Fact]
+    public void Datei_GPS_nur_wenn_es_den_massgeblichen_Katalog_Ort_traegt()
+    {
+        var exif = F(1, 0, 47.0, GeoAccuracy.Exact); // Breite 47, Länge 48
+        var same = new Lumora.Services.Metadata.GeoCoordinate(47.0, 48.0);
+        var other = new Lumora.Services.Metadata.GeoCoordinate(46.5, 12.0);
+
+        MergeMetadataPicker.FileLocation(exif, null, same).Should().Be((same, true), "ganzes GPS-Verzeichnis samt Höhe");
+        MergeMetadataPicker.FileLocation(exif, null, other).Should().Be((same, false), "Ort aus einer Begleitdatei bzw. nur im Katalog korrigiert");
+        MergeMetadataPicker.FileLocation(exif, null, null).Should().Be((same, false));
+        exif.GeoSource = GeoSource.Manual;
+        MergeMetadataPicker.FileLocation(exif, null, same).Should().Be((same, false), "in Lumora gesetzt: Katalog-Ort");
+        MergeMetadataPicker.FileLocation(F(2, 0), null, same).Should().Be(((Lumora.Services.Metadata.GeoCoordinate?)null, false));
+        MergeMetadataPicker.FileLocation(null, null, same).Location.Should().BeNull();
+    }
+
+    [Fact]
     public void Zeit_der_fruehesten_Quelle_mit_Zeit_auch_wenn_sie_nicht_vorne_steht()
     {
         MergeMetadataPicker.Pick([F(1), F(2, 30), F(3, 10)]).TimeSourceId.Should().Be(3);

@@ -18,9 +18,11 @@ namespace Lumora.Imaging.Merge;
 
 /// <summary>
 /// Merge-Dienst (ADR-0078, Bau Stufe 1 Teil A): Analyse der Auswahl aus dem Katalog, Vorschau-Sitzungen über den Hilfsprozess,
-/// Einstellungen. Das Rechnen und Speichern steckt in <see cref="MergePreviewSession"/>.
+/// Einstellungen. Das Rechnen und Speichern steckt in <see cref="MergePreviewSession"/>. Kennt seine offenen Sitzungen: Ende der
+/// Katalog-Sitzung (<see cref="DisposeAsync"/>, vor dem Entsorgen der Dienste bzw. dem Aushängen) bricht alle ab — auch ein
+/// laufendes Speichern — und wartet, bis ihre Hilfsprozesse beendet sind (0.5.48).
 /// </summary>
-public sealed class MergeService : IMergeService
+public sealed class MergeService : IMergeService, IAsyncDisposable, IDisposable
 {
     /// <summary>Zeit-Nachbarn: gleicher Ordner, gleiche Kamera, ± 2 min (ADR-0078 Punkt 7).</summary>
     public static readonly TimeSpan NeighborWindow = TimeSpan.FromMinutes(2);
@@ -39,8 +41,12 @@ public sealed class MergeService : IMergeService
     private readonly IMessenger _messenger;
     private readonly ILogger _logger;
     private readonly SemaphoreSlim _availabilityLock = new(1, 1);
+    private readonly Lock _sessionsLock = new();
+    private readonly HashSet<MergePreviewSession> _sessions = [];
+    private readonly TaskCompletionSource _disposed = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private MergeAvailability? _availability;
     private int _tempCleaned;
+    private int _disposing;
 
     public MergeService(
         ILibraryContextFactory factory,
@@ -90,6 +96,10 @@ public sealed class MergeService : IMergeService
 
     internal ILogger Logger => _logger;
 
+    /// <summary>
+    /// Verfügbarkeit; gemerkt wird nur, was sich in dieser Sitzung nicht mehr ändert (Programmdatei fehlt bzw. OpenCV geladen) —
+    /// ein einmaliger Startfehler (Virenscanner, zu wenig Speicher, Zeitgrenze) wird beim nächsten Versuch neu geprüft (0.5.48).
+    /// </summary>
     public async Task<MergeAvailability> GetAvailabilityAsync(CancellationToken ct = default)
     {
         if (_availability is { } known)
@@ -113,15 +123,17 @@ public sealed class MergeService : IMergeService
             try
             {
                 await using var probe = await _host.StartAsync(1, ct).ConfigureAwait(false);
-                _availability = new MergeAvailability(true, null, probe.OpenCvVersion);
+                return _availability = new MergeAvailability(true, null, probe.OpenCvVersion);
+            }
+            catch (ImagingWorkerException ex) when (ex.Failure == ImagingFailure.NotFound)
+            {
+                return _availability = new MergeAvailability(false, ex.Message, null);
             }
             catch (ImagingWorkerException ex)
             {
                 _logger.LogWarning("Zusammenfügen: OpenCV nicht verfügbar ({Failure})", ex.Failure);
-                _availability = new MergeAvailability(false, "OpenCV ließ sich nicht laden (VC-Laufzeit oder Virenscanner?) — „Zusammenfügen“ ist aus.", null);
+                return new MergeAvailability(false, "OpenCV ließ sich nicht laden (VC-Laufzeit oder Virenscanner?) — „Zusammenfügen“ ist gerade nicht verfügbar.", null, Transient: true);
             }
-
-            return _availability;
         }
         finally
         {
@@ -133,11 +145,117 @@ public sealed class MergeService : IMergeService
 
     public Task SaveSettingsAsync(MergeSettings settings, CancellationToken ct = default) => _settings.SaveAsync(settings, ct);
 
+    public Task RememberColorBoostAsync(int percent, CancellationToken ct = default) => _settings.RememberColorBoostAsync(percent, ct);
+
+    public Task RememberSphereFormAsync(MergeSphereForm form, CancellationToken ct = default) => _settings.RememberSphereFormAsync(form, ct);
+
     public IMergePreviewSession OpenPreviewSession(MergeRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
         CleanStaleTempOnce();
-        return new MergePreviewSession(this, request);
+        var session = new MergePreviewSession(this, request);
+        lock (_sessionsLock)
+        {
+            // unter der Sperre: DisposeAsync setzt das Ende vor seinem Schnappschuss — keine Sitzung rutscht durch
+            if (Volatile.Read(ref _disposing) != 0)
+            {
+                throw new MergeException("„Zusammenfügen“ ist beendet — die Bibliothek wird gerade geschlossen.");
+            }
+
+            _sessions.Add(session);
+        }
+
+        return session;
+    }
+
+    // ------------------------------------------------------------------ Sitzungen und Ende
+
+    /// <summary>true, solange eine Sitzung speichert (auch nach „Im Hintergrund weiterrechnen“, Fenster zu).</summary>
+    public bool IsSaving
+    {
+        get
+        {
+            lock (_sessionsLock)
+            {
+                return _sessions.Any(s => s.IsSaving);
+            }
+        }
+    }
+
+    /// <summary>Bricht laufende Speichern ab (Rückfrage „Abbrechen und …“ beim Zusperren, Wechseln, Beenden).</summary>
+    public void CancelSaves()
+    {
+        foreach (var session in Snapshot().Where(s => s.IsSaving))
+        {
+            session.CancelSave();
+        }
+    }
+
+    internal void Forget(MergePreviewSession session)
+    {
+        lock (_sessionsLock)
+        {
+            _sessions.Remove(session);
+        }
+    }
+
+    private List<MergePreviewSession> Snapshot()
+    {
+        lock (_sessionsLock)
+        {
+            return [.. _sessions];
+        }
+    }
+
+    /// <summary>
+    /// Ende der Katalog-Sitzung: keine neuen Sitzungen, alle offenen abbrechen (auch ein Speichern) und warten, bis sie
+    /// aufgeräumt und ihre Hilfsprozesse beendet sind. Mehrfach aufrufbar.
+    /// </summary>
+    public async ValueTask DisposeAsync()
+    {
+        if (Interlocked.Exchange(ref _disposing, 1) != 0)
+        {
+            await _disposed.Task.ConfigureAwait(false);
+            return;
+        }
+
+        try
+        {
+            var sessions = Snapshot();
+            if (sessions.Count > 0)
+            {
+                _logger.LogInformation("Zusammenfügen: Sitzungsende — {Count} offene Sitzung(en) werden abgebrochen", sessions.Count);
+            }
+
+            foreach (var session in sessions)
+            {
+                session.Abandon();
+            }
+
+            await Task.WhenAll(sessions.Select(s => s.DisposeAsync().AsTask())).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            _logger.LogWarning("Zusammenfügen: Sitzungsende nicht sauber ({Error})", ex.GetType().Name);
+        }
+        finally
+        {
+            _disposed.TrySetResult();
+        }
+    }
+
+    /// <summary>Synchron für den DI-Container (Beenden): wie <see cref="DisposeAsync"/>, höchstens 20 s.</summary>
+    public void Dispose()
+    {
+        if (_disposed.Task.IsCompleted)
+        {
+            return;
+        }
+
+        if (!DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(20)))
+        {
+            _logger.LogWarning("Zusammenfügen: Sitzungsende dauerte zu lange");
+        }
     }
 
     // ------------------------------------------------------------------ Analyse

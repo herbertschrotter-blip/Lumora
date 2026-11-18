@@ -24,7 +24,8 @@ public static class ExifTestJpeg
         bool little = true,
         bool withThumbnailIfd = true,
         int pixelX = 4000,
-        int pixelY = 3000)
+        int pixelY = 3000,
+        ushort? colorSpace = null)
     {
         var ifd0 = new List<E>();
         if (make is not null)
@@ -47,6 +48,11 @@ public static class ExifTestJpeg
         if (offset is not null)
         {
             exif.Add(Ascii(0x9011, offset));
+        }
+
+        if (colorSpace is { } cs)
+        {
+            exif.Add(new E(0xA001, 3, 1, Short(cs, little))); // ColorSpace (1 = sRGB, 0xFFFF = „Uncalibrated“, z. B. Display P3)
         }
 
         exif.Add(new E(0xA002, 4, 1, Long((uint)pixelX, little)));

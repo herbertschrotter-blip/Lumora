@@ -248,6 +248,236 @@ public sealed class MergeUiTests : IDisposable
         vm.IsDone.Should().BeTrue();
     });
 
+    // ---- Befunde der Prüfung (0.5.48) ----------------------------------------------------------------------------------
+
+    [Fact]
+    public Task Abbrechen_der_ersten_Vorschau_startet_sie_nicht_von_selbst_neu() => OnUiAsync(async () =>
+    {
+        var service = new FakeMergeService(_root) { Sources = [Source(1, 0, 0), Source(2, 1, 2)], HoldPreview = true };
+        await using var vm = new MergeViewModel(service, new MergeStart([1, 2]));
+        var load = vm.LoadAsync();
+        await WaitUntilAsync(() => service.Sessions.Count == 1 && service.Sessions[0].PreviewWaiting, "erste Vorschau läuft");
+
+        service.Sessions[0].Cancel(); // „Abbrechen“ in der Aktivitäts-Anzeige
+        await load;
+        await Task.Delay(150); // ein Nachziehen hätte jetzt schon eine zweite Sitzung geöffnet
+
+        service.Sessions.Should().ContainSingle("Abbrechen startet nicht von selbst neu");
+        vm.StageMessage.Should().Be(MergeViewModel.CanceledMessage);
+        vm.CanRecompute.Should().BeTrue("Neustart nur über den Knopf oder eine Änderung");
+        vm.SaveCommand.CanExecute(null).Should().BeFalse();
+
+        service.HoldPreview = false;
+        await vm.RecomputePreviewCommand.ExecuteAsync(null);
+        service.Sessions.Should().HaveCount(2, "„Vorschau rechnen“ richtet neu aus");
+        vm.Preview.Should().NotBeNull();
+        vm.CanRecompute.Should().BeFalse();
+        vm.SaveCommand.CanExecute(null).Should().BeTrue();
+    });
+
+    [Fact]
+    public Task Abgebrochene_Umstellung_sperrt_Speichern_bis_die_Vorschau_zu_den_Optionen_passt() => OnUiAsync(async () =>
+    {
+        var service = new FakeMergeService(_root) { Sources = [Source(1, 0, 0), Source(2, 1, 2), Source(3, 2, 4)] };
+        await using var vm = new MergeViewModel(service, new MergeStart([1, 2, 3]));
+        await vm.LoadAsync();
+        await WaitUntilAsync(() => vm.Preview is not null);
+        var session = service.Sessions.Single();
+        service.HoldPreview = true;
+
+        vm.ChooseProjectionCommand.Execute(PanoramaProjection.Spherical360);
+        await WaitUntilAsync(() => session.PreviewWaiting, "Umstellen läuft");
+        session.Cancel();
+        await WaitUntilAsync(() => vm.Notes.Any(n => n.Text == MergeViewModel.StaleNote), "Hinweis „noch die vorigen Einstellungen“");
+
+        vm.SaveCommand.CanExecute(null).Should().BeFalse("die Bühne zeigt noch die vorige Aufnahmeart — gespeichert würde eine nie gezeigte Mischung");
+        session.Options.Projection.Should().Be(PanoramaProjection.Auto, "die Sitzung hält die Optionen der gezeigten Vorschau");
+        vm.CanRecompute.Should().BeTrue();
+
+        service.HoldPreview = false;
+        await vm.RecomputePreviewCommand.ExecuteAsync(null);
+        vm.Preview!.Projection.Should().Be(PanoramaProjection.Spherical360);
+        vm.SaveCommand.CanExecute(null).Should().BeTrue();
+        await vm.SaveCommand.ExecuteAsync(null);
+        session.SaveOptions.Single().Options!.Projection.Should().Be(PanoramaProjection.Spherical360);
+    });
+
+    [Fact]
+    public Task Abgebrochene_Neu_Ausrichtung_gibt_Speichern_auch_nach_dem_Zurueckstellen_nicht_frei() => OnUiAsync(async () =>
+    {
+        var service = new FakeMergeService(_root) { Sources = [Source(1, 0, 0), Source(2, 1, 2)] };
+        await using var vm = new MergeViewModel(service, new MergeStart([1, 2]));
+        await vm.LoadAsync();
+        await WaitUntilAsync(() => vm.Preview is not null);
+        var session = service.Sessions.Single();
+        service.HoldPreview = true;
+        service.Reestimate = true;
+
+        vm.ChooseProjectionCommand.Execute(PanoramaProjection.Perspective);
+        await WaitUntilAsync(() => session.PreviewWaiting, "Neu-Ausrichtung läuft");
+        session.Cancel();
+        await WaitUntilAsync(() => vm.CanRecompute, "Knopf „Vorschau rechnen“");
+        service.HoldPreview = false;
+        vm.ChooseProjectionCommand.Execute(PanoramaProjection.Auto); // zurück zur gezeigten Aufnahmeart
+
+        await WaitUntilAsync(() => !vm.IsComputing && session.Updates.Count == 2, "neu gerechnet");
+        vm.Preview.Should().NotBeNull();
+        vm.SaveCommand.CanExecute(null).Should().BeTrue("erst eine neue Vorschau gibt Speichern frei, nicht das Zurückstellen allein");
+    });
+
+    [Fact]
+    public async Task Voruebergehender_Startfehler_sperrt_das_Menue_nicht_fuer_die_Sitzung()
+    {
+        var service = new FakeMergeService(_root) { Availability = new MergeAvailability(false, "OpenCV ließ sich nicht laden", null, Transient: true) };
+        var actions = new MergeGalleryActions(new ServiceCollection().BuildServiceProvider(), new FakeStore(), null!, new FakeWindows(), service);
+
+        await actions.StartAsync(new MergeStart([1, 2]));
+
+        actions.KnownAvailability.Should().BeNull("nur gerade nicht verfügbar — beim nächsten Start neu prüfen");
+        actions.BlockReason([(1, MediaType.Image, false), (1, MediaType.Image, false)]).Should().BeNull();
+
+        service.Availability = new MergeAvailability(false, "Der Rechen-Prozess fehlt", null);
+        await actions.StartAsync(new MergeStart([1, 2]));
+        actions.BlockReason([(1, MediaType.Image, false), (1, MediaType.Image, false)]).Should().Be("Der Rechen-Prozess fehlt", "bleibt so");
+    }
+
+    [Fact]
+    public Task Fenster_merkt_nur_Farbe_und_Neu_berechnen_aendert_die_Vorauswahl_nicht_von_selbst() => OnUiAsync(async () =>
+    {
+        var service = new FakeMergeService(_root) { Sources = [Source(1, 0, 0), Source(2, 1, 2)] };
+        // „Neu berechnen…“ mit der Stärke aus dem Rezept, Regler nicht bewegt
+        await using (var recompute = new MergeViewModel(service, new MergeStart([1, 2], Options: new MergeOptions(ColorBoost: 40), RecomputeOf: 9)))
+        {
+            await recompute.LoadAsync();
+            await WaitUntilAsync(() => recompute.Preview is not null);
+            recompute.ColorBoost.Should().Be(40);
+        }
+
+        service.Saved.Should().BeEmpty("ohne Bewegen des Reglers bleibt die Vorauswahl");
+
+        await using var vm = new MergeViewModel(service, new MergeStart([1, 2]));
+        await vm.LoadAsync();
+        await WaitUntilAsync(() => vm.Preview is not null);
+        service.Settings = service.Settings with { PanoramaSuffix = "_pano", JpegQuality = 80 }; // inzwischen unter Einstellungen geändert
+        vm.ColorBoost = 120;
+        await WaitUntilAsync(() => service.Saved.Count == 1, "Stärke gemerkt");
+        vm.IsSphereFull = true;
+        await WaitUntilAsync(() => service.Saved.Count == 2, "Form gemerkt");
+
+        service.FullSaves.Should().Be(0, "das Fenster schreibt nur seine eigenen Schlüssel");
+        (service.Settings.PanoramaSuffix, service.Settings.JpegQuality, service.Settings.ColorBoost, service.Settings.SphereForm)
+            .Should().Be(("_pano", 80, 120, MergeSphereForm.Full));
+    });
+
+    [Fact]
+    public Task Gescheitertes_Rueckgaengig_bleibt_in_der_Fertig_Ansicht_mit_Grund() => OnUiAsync(async () =>
+    {
+        var service = new FakeMergeService(_root) { Sources = [Source(1, 0, 0), Source(2, 1, 2)] };
+        var results = new FakeResults { UndoOutcome = new MergeUndoOutcome(false, "Rückgängig fehlgeschlagen: Datei gesperrt") };
+        await using var vm = new MergeViewModel(service, new MergeStart([1, 2]), results: results);
+        await vm.LoadAsync();
+        await WaitUntilAsync(() => vm.Preview is not null);
+        await vm.SaveCommand.ExecuteAsync(null);
+
+        await vm.UndoCommand.ExecuteAsync(null);
+
+        results.Undone.Should().Equal(5);
+        vm.IsDone.Should().BeTrue("das Ergebnis ist ja noch da");
+        vm.ResultFileId.Should().Be(77);
+        vm.Notes.Should().Contain(n => n.Kind == MergeNoteKind.Error && n.Text.Contains("gesperrt", StringComparison.Ordinal));
+        vm.UndoCommand.CanExecute(null).Should().BeTrue("erneut versuchbar");
+    });
+
+    [Fact]
+    public Task Unerwarteter_Fehler_beim_Speichern_fuehrt_zur_Vorschau_zurueck() => OnUiAsync(async () =>
+    {
+        var service = new FakeMergeService(_root) { Sources = [Source(1, 0, 0), Source(2, 1, 2)], SaveThrows = new NotSupportedException("Katalog") };
+        await using var vm = new MergeViewModel(service, new MergeStart([1, 2]));
+        await vm.LoadAsync();
+        await WaitUntilAsync(() => vm.Preview is not null);
+
+        await vm.SaveCommand.ExecuteAsync(null); // wirft nicht bis zum globalen Fehlerdialog
+
+        vm.IsSetup.Should().BeTrue("nie ein hängendes „Speichern läuft“");
+        vm.Notes.Should().Contain(n => n.Kind == MergeNoteKind.Error && n.Text.StartsWith("Nicht gespeichert", StringComparison.Ordinal));
+    });
+
+    [Fact]
+    public Task Grosse_Auswahl_fasst_den_Filmstreifen_einmal_zusammen_und_ist_ueber_200_gesperrt() => OnUiAsync(async () =>
+    {
+        var sources = Enumerable.Range(1, 400).Select(i => Source(i, i - 1, i)).ToList();
+        var service = new FakeMergeService(_root) { Sources = sources };
+        await using var vm = new MergeViewModel(service, new MergeStart(sources.Select(s => s.FileId).ToList()));
+        var summaries = 0;
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MergeViewModel.SourceSummary))
+            {
+                summaries++;
+            }
+        };
+
+        await vm.LoadAsync();
+
+        summaries.Should().BeLessThan(5, "die Zusammenfassung entsteht nach dem Füllen, nicht bei jeder Zeile");
+        vm.SourceSummary.Should().Be("400 von 400 angehakt");
+        service.Sessions.Should().BeEmpty("mehr als 200 Fotos: keine Vorschau");
+        var actions = new MergeGalleryActions(new ServiceCollection().BuildServiceProvider(), new FakeStore(), null!, new FakeWindows());
+        actions.BlockReason(Enumerable.Repeat((1, MediaType.Image, false), MergeLimits.MaxPanoramaSources + 1).ToList()).Should().Be(MergeTexts.BlockedTooMany);
+        actions.BlockReason(Enumerable.Repeat((1, MediaType.Image, false), MergeLimits.MaxPanoramaSources).ToList()).Should().BeNull();
+    });
+
+    [Fact]
+    public Task Lightbox_gehoert_nie_dem_Fenster_Zusammenfuegen() => OnUiAsync(async () =>
+    {
+        // „Danach verbessern…“ schließt das Fenster, „Neu berechnen…“ ersetzt es — eine Lightbox als Kind ginge mit
+        var vm = new MergeViewModel(new FakeMergeService(_root), new MergeStart([1, 2]));
+        var window = new MergeWindow(vm);
+        var other = new Window();
+
+        var main = Application.Current?.MainWindow is MergeWindow ? null : Application.Current?.MainWindow; // im Test ggf. das erste Fenster
+        MergeGalleryActions.LightboxOwner(window).Should().NotBeSameAs(window);
+        MergeGalleryActions.LightboxOwner(window).Should().BeSameAs(main, "das Hauptfenster");
+        MergeGalleryActions.LightboxOwner(other).Should().BeSameAs(other);
+        MergeGalleryActions.LightboxOwner(null).Should().BeSameAs(main);
+        window.Close();
+        other.Close();
+        await vm.DisposeAsync();
+    });
+
+    [Fact]
+    public async Task Waechter_verschiebt_automatisch_und_fragt_von_Hand_Warten_oder_Abbrechen()
+    {
+        MergeSessionGuard.PollInterval = TimeSpan.FromMilliseconds(10);
+        var service = new FakeMergeService(_root) { SavingNow = true };
+        var dialogs = new ChoosingDialogs();
+        var guard = new MergeSessionGuard(service, dialogs);
+
+        (await guard.ConfirmEndAsync("zusperren", automatic: true)).Should().BeFalse("automatisches Zusperren verschiebt sich");
+        dialogs.Asked.Should().BeEmpty("ohne Rückfrage");
+
+        dialogs.Answer = DialogChoice.None;
+        (await guard.ConfirmEndAsync("zusperren", automatic: false)).Should().BeFalse("„Zurück“");
+        dialogs.Asked.Should().ContainSingle().Which.Should().Contain("Abbrechen und zusperren");
+
+        dialogs.Answer = DialogChoice.Primary; // Warten
+        var waiting = guard.ConfirmEndAsync("beenden", automatic: false);
+        await Task.Delay(100);
+        waiting.IsCompleted.Should().BeFalse("wartet, bis gespeichert ist");
+        service.SavingNow = false;
+        (await waiting.WaitAsync(Timeout)).Should().BeTrue();
+        service.CancelSavesCalls.Should().Be(0);
+
+        service.SavingNow = true;
+        dialogs.Answer = DialogChoice.Secondary; // Abbrechen und …
+        var canceling = guard.ConfirmEndAsync("wechseln", automatic: false);
+        await WaitUntilAsync(() => service.CancelSavesCalls == 1, "Speichern abgebrochen");
+        service.SavingNow = false; // der Abbruch ist durch
+        (await canceling.WaitAsync(Timeout)).Should().BeTrue();
+
+        (await guard.ConfirmEndAsync("zusperren", automatic: true)).Should().BeTrue("nichts läuft: sofort");
+    }
+
     [Fact]
     public Task Fenster_hell_und_dunkel_ohne_Binding_Fehler() => OnUiAsync(async () =>
     {
@@ -504,9 +734,32 @@ public sealed class MergeUiTests : IDisposable
 
         public List<MergeSettings> Saved { get; } = [];
 
+        /// <summary>Aufrufe von SaveSettingsAsync (alle Schlüssel) — das Fenster merkt nur gezielt (0.5.48).</summary>
+        public int FullSaves { get; private set; }
+
+        /// <summary>Vorschau-Rechnungen warten auf <see cref="FakeSession.ReleasePreview"/> bzw. enden mit Cancel als Abbruch.</summary>
+        public bool HoldPreview { get; set; }
+
+        /// <summary>Speichern wirft diese Ausnahme (Fehler, den das Fenster nicht einzeln kennt).</summary>
+        public Exception? SaveThrows { get; set; }
+
+        /// <summary>„Ein Speichern läuft“ für den Sitzungs-Wächter.</summary>
+        public bool SavingNow { get; set; }
+
+        public int CancelSavesCalls { get; private set; }
+
+        public bool IsSaving => SavingNow;
+
+        public void CancelSaves() => CancelSavesCalls++;
+
         public MergeSettings Settings { get; set; } = MergeSettings.Default;
 
-        public Task<MergeAvailability> GetAvailabilityAsync(CancellationToken ct = default) => Task.FromResult(new MergeAvailability(true, null, "4.13"));
+        public MergeAvailability Availability { get; set; } = new(true, null, "4.13");
+
+        /// <summary>Umstellen richtet neu aus: die gezeigte Vorschau gilt sofort nicht mehr (wie die echte Sitzung).</summary>
+        public bool Reestimate { get; set; }
+
+        public Task<MergeAvailability> GetAvailabilityAsync(CancellationToken ct = default) => Task.FromResult(Availability);
 
         public Task<MergeAnalysis> AnalyzeAsync(IReadOnlyList<int> fileIds, CancellationToken ct = default)
         {
@@ -528,8 +781,23 @@ public sealed class MergeUiTests : IDisposable
 
         public Task SaveSettingsAsync(MergeSettings settings, CancellationToken ct = default)
         {
+            FullSaves++;
             Saved.Add(settings);
             Settings = settings;
+            return Task.CompletedTask;
+        }
+
+        public Task RememberColorBoostAsync(int percent, CancellationToken ct = default)
+        {
+            Settings = Settings with { ColorBoost = percent };
+            Saved.Add(Settings);
+            return Task.CompletedTask;
+        }
+
+        public Task RememberSphereFormAsync(MergeSphereForm form, CancellationToken ct = default)
+        {
+            Settings = Settings with { SphereForm = form };
+            Saved.Add(Settings);
             return Task.CompletedTask;
         }
     }
@@ -558,17 +826,42 @@ public sealed class MergeUiTests : IDisposable
 
         public event Action<MergeProgress>? ProgressChanged;
 
-        public Task<MergePreview> StartAsync(CancellationToken ct = default)
+        private TaskCompletionSource? _preview;
+
+        public async Task<MergePreview> StartAsync(CancellationToken ct = default)
         {
             StartCalls++;
-            return Task.FromResult(Make(Options));
+            await WaitPreviewAsync();
+            return Make(Options);
         }
 
-        public Task<MergePreview> UpdateAsync(MergeOptions options, CancellationToken ct = default)
+        public async Task<MergePreview> UpdateAsync(MergeOptions options, CancellationToken ct = default)
         {
             Updates.Add(options);
-            Options = options;
-            return Task.FromResult(Make(options));
+            if (owner.Reestimate)
+            {
+                Current = null;
+            }
+
+            await WaitPreviewAsync();
+            Options = options; // wie die echte Sitzung: erst mit der fertigen Vorschau
+            return Make(options);
+        }
+
+        /// <summary>true, solange eine gehaltene Vorschau-Rechnung wartet.</summary>
+        public bool PreviewWaiting => _preview is { Task.IsCompleted: false };
+
+        public void ReleasePreview() => _preview?.TrySetResult();
+
+        private Task WaitPreviewAsync()
+        {
+            if (!owner.HoldPreview)
+            {
+                return Task.CompletedTask;
+            }
+
+            _preview = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            return _preview.Task;
         }
 
         public MergeEstimate Estimate() => new(2000, 800, 1, null, 2_000_000_000, 9_000_000_000, TimeSpan.FromSeconds(40), 400_000);
@@ -577,6 +870,11 @@ public sealed class MergeUiTests : IDisposable
         {
             SaveOptions.Add(options!);
             ProgressChanged?.Invoke(new MergeProgress(true, WorkerStep.Seams, "Nähte suchen", 1, 1, 0.4));
+            if (owner.SaveThrows is { } error)
+            {
+                throw error;
+            }
+
             if (owner.HoldSave)
             {
                 await _release.Task;
@@ -589,9 +887,8 @@ public sealed class MergeUiTests : IDisposable
 
         public void ContinueInBackground() => Backgrounded = true;
 
-        public void Cancel()
-        {
-        }
+        /// <summary>„Abbrechen“ der Aktivitäts-Anzeige: eine gehaltene Vorschau endet als Abbruch.</summary>
+        public void Cancel() => _preview?.TrySetCanceled();
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
@@ -622,6 +919,9 @@ public sealed class MergeUiTests : IDisposable
 
         public List<int> Undone { get; } = [];
 
+        /// <summary>Antwort auf „Rückgängig“.</summary>
+        public MergeUndoOutcome UndoOutcome { get; set; } = new(true, "Ergebnis in den Papierkorb");
+
         public bool IsExplorerBlocked => true;
 
         public Task OpenResultAsync(int resultFileId, Window? owner)
@@ -632,10 +932,10 @@ public sealed class MergeUiTests : IDisposable
 
         public Task ShowInGalleryAsync(int resultFileId, string name) => Task.CompletedTask;
 
-        public Task<string> UndoAsync(int batchId)
+        public Task<MergeUndoOutcome> UndoAsync(int batchId)
         {
             Undone.Add(batchId);
-            return Task.FromResult("Ergebnis in den Papierkorb");
+            return Task.FromResult(UndoOutcome);
         }
 
         public Task EnhanceAsync(int resultFileId, Window? owner) => Task.CompletedTask;
@@ -664,6 +964,28 @@ public sealed class MergeUiTests : IDisposable
         public Task<IReadOnlyList<int>> GetSourcesAsync(int resultFileId, CancellationToken ct = default) => Task.FromResult(Sources.GetValueOrDefault(resultFileId) ?? []);
 
         public Task<IReadOnlyList<int>> GetResultsOfSourceAsync(int sourceFileId, CancellationToken ct = default) => Task.FromResult(Results.GetValueOrDefault(sourceFileId) ?? []);
+    }
+
+    /// <summary>Drei-Knopf-Dialog mit vorgegebener Antwort; merkt sich die Knöpfe.</summary>
+    private sealed class ChoosingDialogs : IDialogService
+    {
+        public DialogChoice Answer { get; set; }
+
+        public List<string> Asked { get; } = [];
+
+        public Task<bool> ConfirmAsync(string title, string message, string confirmText, bool isDestructive = false, string cancelText = "Abbrechen") => Task.FromResult(false);
+
+        public Task<DialogChoice> ChooseAsync(string title, string message, string primaryText, string secondaryText, string closeText = "Abbrechen", bool secondaryIsDestructive = false)
+        {
+            Asked.Add($"{title} | {primaryText} | {secondaryText} | {closeText}");
+            return Task.FromResult(Answer);
+        }
+
+        public Task<string?> PromptTextAsync(string title, string message, string initialValue, string confirmText = "OK") => Task.FromResult<string?>(null);
+
+        public Task ShowErrorAsync(string title, string message) => Task.CompletedTask;
+
+        public string? PickFolder(string title) => null;
     }
 
     private sealed class FakeWindows : IMergeWindowService

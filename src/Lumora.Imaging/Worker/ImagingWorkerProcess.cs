@@ -83,6 +83,22 @@ public sealed class ImagingWorkerProcess : IAsyncDisposable
     /// <summary>Prozess-Id (Tests: Absturz nachstellen).</summary>
     internal int ProcessId => _process.Id;
 
+    /// <summary>Exit-Code nach dem Ende (Tests: Absturz ohne Fehlerbericht), sonst null.</summary>
+    internal int? ExitCode
+    {
+        get
+        {
+            try
+            {
+                return _process.WaitForExit(5000) ? _process.ExitCode : null;
+            }
+            catch (InvalidOperationException)
+            {
+                return null;
+            }
+        }
+    }
+
     public bool HasExited
     {
         get
@@ -133,6 +149,9 @@ public sealed class ImagingWorkerProcess : IAsyncDisposable
         info.Environment["OPENCV_OPENCL_DEVICE"] = "disabled";
         info.Environment["OPENCV_OPENCL_CACHE_ENABLE"] = "0";
         info.Environment["OPENCV_TEMP_PATH"] = tempRoot;
+        // Keine Absturz-Abbilder der .NET-Laufzeit (sie lägen außerhalb des Containers, 0.5.48) — nur für diesen Prozess
+        info.Environment["DOTNET_DbgEnableMiniDump"] = "0";
+        info.Environment["DOTNET_EnableCrashReport"] = "0";
         foreach (var (key, value) in options.Environment)
         {
             info.Environment[key] = value;
@@ -440,6 +459,17 @@ public sealed class ImagingWorkerProcess : IAsyncDisposable
         }
 
         Kill("Sitzung geschlossen");
+        try
+        {
+            // erst zurück, wenn der Prozess wirklich weg ist (offene Quellen, Arbeitsordner, Container aushängen — 0.5.48)
+            using var exited = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await _process.WaitForExitAsync(exited.Token).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or InvalidOperationException)
+        {
+            _logger.LogWarning("Zusammenfügen: Rechen-Prozess hat sich nicht beendet");
+        }
+
         try
         {
             await Task.WhenAll(_reader, _errorReader).WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false);

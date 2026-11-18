@@ -102,6 +102,9 @@ public static class MergeTexts
 
     public const string BlockedBusy = "Ein Zusammenfügen wird gerade gespeichert — bitte warten, bis es fertig ist.";
 
+    /// <summary>Mehr Fotos gewählt, als ein Panorama aufnimmt (Menü und Aktionsleiste gesperrt, 0.5.48).</summary>
+    public static string BlockedTooMany => $"Panorama: höchstens {MergeLimits.MaxPanoramaSources} Fotos — bitte weniger auswählen.";
+
     /// <summary>Ergebnis-Marke der Galerie: „Panorama · aus 26 Fotos“.</summary>
     public static string ResultMark(MergeMethod method, int sourceCount) => string.Create(De, $"{Method(method)} · aus {sourceCount:N0} Fotos");
 

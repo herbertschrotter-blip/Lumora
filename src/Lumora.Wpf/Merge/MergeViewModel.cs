@@ -28,8 +28,8 @@ public interface IMergeResultActions
     /// <summary>Galerie mit dem Ergebnis als Bedingung.</summary>
     Task ShowInGalleryAsync(int resultFileId, string name);
 
-    /// <summary>CreateMerged-Batch zurücknehmen (Ergebnis in den Papierkorb, Verknüpfungen weg); liefert die Meldung.</summary>
-    Task<string> UndoAsync(int batchId);
+    /// <summary>CreateMerged-Batch zurücknehmen (Ergebnis in den Papierkorb, Verknüpfungen weg); Erfolg nur, wenn es gelang.</summary>
+    Task<MergeUndoOutcome> UndoAsync(int batchId);
 
     /// <summary>„Danach verbessern…“: Lightbox mit dem Ergebnis und der Leiste „Verbessern“.</summary>
     Task EnhanceAsync(int resultFileId, Window? owner);
@@ -99,6 +99,8 @@ public sealed partial class MergeViewModel : ObservableObject, IAsyncDisposable
     private int _updatingFor = -1;
     private bool _ready;
     private bool _selectionDirty;
+    private bool _userCanceled;
+    private bool _boostPending;
     private int _disposed;
     private int _cameraCount;
 
@@ -133,7 +135,14 @@ public sealed partial class MergeViewModel : ObservableObject, IAsyncDisposable
             Projections.Add(new MergeProjectionItem(p) { IsSelected = p == PanoramaProjection.Auto });
         }
 
-        Sources.CollectionChanged += (_, _) => UpdateSourceSummary();
+        // Füllen (FillSources) fasst erst am Ende zusammen — sonst kostete jede Zeile einen Durchlauf über alle (0.5.48)
+        Sources.CollectionChanged += (_, _) =>
+        {
+            if (!_suppress)
+            {
+                UpdateSourceSummary();
+            }
+        };
     }
 
     /// <summary>Fenster schließen (Verwerfen, Im Hintergrund weiterrechnen, Fertig).</summary>
@@ -491,6 +500,7 @@ public sealed partial class MergeViewModel : ObservableObject, IAsyncDisposable
         _sourceTimer.Stop();
         _sourceTimer.Interval = SourceDebounce;
         _sourceTimer.Start();
+        RefreshRecompute();
     }
 
     public IReadOnlyList<int> CheckedIds => Sources.Where(s => s.IsChecked && s.IsUsable).Select(s => s.FileId).ToList();
@@ -522,7 +532,8 @@ public sealed partial class MergeViewModel : ObservableObject, IAsyncDisposable
         var span = times.Count > 1 ? times[^1] - times[0] : TimeSpan.Zero;
         var when = times.Count > 0 ? times[0].ToString("ddd, dd.MM.yyyy", De) : "ohne Aufnahmezeit";
         SourceInfo = string.Create(De, $"{checkedSources.Count:N0} {(checkedSources.Count == 1 ? "Foto" : "Fotos")} · {when}") + (times.Count > 1 ? " · " + Span(span) : string.Empty);
-        var cameras = _analysis?.Sources.Concat(_analysis.Neighbors).Where(s => checkedSources.Any(c => c.FileId == s.FileId)).Select(s => s.Camera).Where(c => !string.IsNullOrWhiteSpace(c)).Distinct().ToList() ?? [];
+        var checkedIds = checkedSources.Select(c => c.FileId).ToHashSet();
+        var cameras = _analysis?.Sources.Concat(_analysis.Neighbors).Where(s => checkedIds.Contains(s.FileId)).Select(s => s.Camera).Where(c => !string.IsNullOrWhiteSpace(c)).Distinct().ToList() ?? [];
         _cameraCount = cameras.Count;
         SourceInfoDetail = cameras.Count switch
         {
@@ -731,8 +742,10 @@ public sealed partial class MergeViewModel : ObservableObject, IAsyncDisposable
         _wanted = null;
         _ready = false;
         _selectionDirty = false;
+        _userCanceled = false;
         _sourceTimer.Stop();
         SaveCommand.NotifyCanExecuteChanged();
+        RefreshRecompute();
         if (old is not null)
         {
             old.ProgressChanged -= OnProgress;
@@ -754,7 +767,17 @@ public sealed partial class MergeViewModel : ObservableObject, IAsyncDisposable
         }
 
         var options = CurrentOptions;
-        var session = _service.OpenPreviewSession(new MergeRequest(ids, MergeMethod.Panorama, options, _start.SeriesId, _allowOnlineOnly));
+        IMergePreviewSession session;
+        try
+        {
+            session = _service.OpenPreviewSession(new MergeRequest(ids, MergeMethod.Panorama, options, _start.SeriesId, _allowOnlineOnly));
+        }
+        catch (MergeException ex)
+        {
+            ShowFailure(ex.Message); // z. B. die Bibliothek wird gerade geschlossen
+            return;
+        }
+
         _session = session;
         session.ProgressChanged += OnProgress;
         IsComputing = true;
@@ -775,6 +798,12 @@ public sealed partial class MergeViewModel : ObservableObject, IAsyncDisposable
         }
         catch (OperationCanceledException)
         {
+            if (version == _sessionVersion && !_life.IsCancellationRequested)
+            {
+                // „Abbrechen“ in der Aktivitäts-Anzeige: nicht von selbst neu starten (0.5.48) — erst eine Änderung oder der Knopf
+                _userCanceled = true;
+                StageMessage = Preview is null ? CanceledMessage : StageMessage;
+            }
         }
         catch (MergeException ex)
         {
@@ -789,15 +818,54 @@ public sealed partial class MergeViewModel : ObservableObject, IAsyncDisposable
             if (version == _sessionVersion)
             {
                 IsComputing = false;
+                RefreshRecompute();
             }
         }
 
-        // während der ersten Vorschau geänderte Optionen nachziehen
-        if (version == _sessionVersion && _session is not null && CurrentOptions != _applied)
+        // während der ersten Vorschau geänderte Optionen nachziehen (nicht nach einem Abbruch durch den Benutzer)
+        if (version == _sessionVersion && _session is not null && !_userCanceled && CurrentOptions != _applied)
         {
             RequestUpdate();
         }
     }
+
+    /// <summary>Bühnentext nach einem Abbruch der Vorschau.</summary>
+    internal const string CanceledMessage = "Vorschau abgebrochen — „Vorschau rechnen“ rechnet sie neu.";
+
+    /// <summary>Knopf „Vorschau rechnen“ zeigen: abgebrochen bzw. die Vorschau passt nicht mehr zu den Einstellungen.</summary>
+    [ObservableProperty] private bool _canRecompute;
+
+    private void RefreshRecompute()
+    {
+        CanRecompute = Phase == MergePhase.Setup && !IsLocked && !IsComputing && Volatile.Read(ref _disposed) == 0
+                       && !_sourceTimer.IsEnabled && _updatingFor != _sessionVersion
+                       && CheckedIds.Count is >= MergeLimits.MinSources and <= MergeLimits.MaxPanoramaSources
+                       && (_userCanceled || _session is null || !_ready || Preview is null || _applied != CurrentOptions);
+        RecomputePreviewCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>„Vorschau rechnen“: nach einem Abbruch bzw. mit den aktuellen Einstellungen neu (nur auf Wunsch).</summary>
+    [RelayCommand(CanExecute = nameof(CanRecompute))]
+    private async Task RecomputePreviewAsync()
+    {
+        _userCanceled = false;
+        if (_session is null || !_ready)
+        {
+            await RestartPreviewAsync().ConfigureAwait(true);
+            return;
+        }
+
+        _applied = Preview is null ? null : _applied; // nach einem Fehler ganz neu zusammensetzen
+        _wanted = CurrentOptions;
+        if (_updatingFor != _sessionVersion)
+        {
+            await RunUpdatesAsync().ConfigureAwait(true);
+        }
+    }
+
+    partial void OnIsComputingChanged(bool value) => RefreshRecompute();
+
+    partial void OnPhaseChanged(MergePhase value) => RefreshRecompute();
 
     private void ClearStage(string message)
     {
@@ -836,11 +904,26 @@ public sealed partial class MergeViewModel : ObservableObject, IAsyncDisposable
     /// <summary>Optionen geändert: dieselbe Sitzung setzt neu zusammen bzw. tont nur neu (jüngster Wunsch gewinnt).</summary>
     private void RequestUpdate()
     {
+        // Speichern nur, wenn die gezeigte Vorschau zu den Einstellungen passt (0.5.48)
+        SaveCommand.NotifyCanExecuteChanged();
+        try
+        {
+            RequestUpdateCore();
+        }
+        finally
+        {
+            RefreshRecompute(); // nach dem Anstoßen: eine laufende Neuberechnung blendet den Knopf aus
+        }
+    }
+
+    private void RequestUpdateCore()
+    {
         if (_suppress || _session is null || IsLocked || Phase != MergePhase.Setup || Volatile.Read(ref _disposed) != 0)
         {
             return;
         }
 
+        _userCanceled = false; // eine Änderung startet neu, auch nach einem Abbruch
         _wanted = CurrentOptions;
         if (!_ready)
         {
@@ -890,6 +973,20 @@ public sealed partial class MergeViewModel : ObservableObject, IAsyncDisposable
                 }
                 catch (OperationCanceledException)
                 {
+                    if (version == _sessionVersion && !_life.IsCancellationRequested)
+                    {
+                        // abgebrochen: die Bühne zeigt noch die vorige Vorschau — Speichern gesperrt, neu nur auf Wunsch (0.5.48).
+                        // Galt der Abbruch einer neuen Ausrichtung, ist auch die gezeigte Vorschau nicht mehr speicherbar.
+                        _userCanceled = true;
+                        if (session.Current is null)
+                        {
+                            _applied = null;
+                        }
+
+                        RemoveNotes(MergeNoteKind.Warning);
+                        Notes.Add(new MergeNoteItem(StaleNote, MergeNoteKind.Warning));
+                    }
+
                     return;
                 }
                 catch (MergeException ex)
@@ -913,9 +1010,14 @@ public sealed partial class MergeViewModel : ObservableObject, IAsyncDisposable
             if (version == _sessionVersion)
             {
                 IsComputing = false; // eine inzwischen neue Sitzung behält ihren Zustand
+                SaveCommand.NotifyCanExecuteChanged();
+                RefreshRecompute();
             }
         }
     }
+
+    /// <summary>Hinweis, wenn eine Neuberechnung abgebrochen wurde und die Bühne noch die vorige Vorschau zeigt.</summary>
+    internal const string StaleNote = "Abgebrochen — die Vorschau zeigt noch die vorigen Einstellungen. „Vorschau rechnen“ rechnet mit den neuen.";
 
     private void OnProgress(MergeProgress progress)
     {
@@ -1101,8 +1203,8 @@ public sealed partial class MergeViewModel : ObservableObject, IAsyncDisposable
         RequestUpdate();
         if (!_suppress && _loaded)
         {
-            _settings = _settings with { SphereForm = value };
-            _ = SaveSettingsQuietlyAsync(); // zuletzt gewählte Form vorausgewählt (Abnahme Nr. 4)
+            // zuletzt gewählte Form vorausgewählt (Abnahme Nr. 4) — nur dieser Schlüssel, nie die übrigen Einstellungen (0.5.48)
+            _ = RememberQuietlyAsync(() => _service.RememberSphereFormAsync(value, CancellationToken.None));
         }
     }
 
@@ -1118,6 +1220,7 @@ public sealed partial class MergeViewModel : ObservableObject, IAsyncDisposable
             return;
         }
 
+        _boostPending = true; // vom Benutzer bewegt: erst dann wird die Stärke zur Vorauswahl (auch nach „Neu berechnen…“)
         _boostTimer.Stop();
         _boostTimer.Interval = BoostDebounce;
         _boostTimer.Start();
@@ -1132,22 +1235,25 @@ public sealed partial class MergeViewModel : ObservableObject, IAsyncDisposable
         }
     }
 
+    /// <summary>Vom Benutzer gewählte Stärke merken — nur den einen Schlüssel (Einstellungen › Zusammenfügen bleibt, wie sie ist).</summary>
     private async Task RememberBoostAsync()
     {
-        if (_settings.ColorBoost == ColorBoost)
+        if (!_boostPending)
         {
             return;
         }
 
-        _settings = _settings with { ColorBoost = ColorBoost };
-        await SaveSettingsQuietlyAsync().ConfigureAwait(true);
+        _boostPending = false;
+        var boost = ColorBoost;
+        _settings = _settings with { ColorBoost = boost };
+        await RememberQuietlyAsync(() => _service.RememberColorBoostAsync(boost, CancellationToken.None)).ConfigureAwait(true);
     }
 
-    private async Task SaveSettingsQuietlyAsync()
+    private async Task RememberQuietlyAsync(Func<Task> remember)
     {
         try
         {
-            await _service.SaveSettingsAsync(_settings, CancellationToken.None).ConfigureAwait(true);
+            await remember().ConfigureAwait(true);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
@@ -1174,10 +1280,7 @@ public sealed partial class MergeViewModel : ObservableObject, IAsyncDisposable
 
         _sourceTimer.Stop();
         _boostTimer.Stop();
-        if (_settings.ColorBoost != ColorBoost)
-        {
-            await RememberBoostAsync().ConfigureAwait(true);
-        }
+        await RememberBoostAsync().ConfigureAwait(true); // nur, wenn der Benutzer den Regler bewegt hat und es noch aussteht
 
         await _life.CancelAsync().ConfigureAwait(true);
         var session = _session;

@@ -630,6 +630,11 @@ public partial class App : Application, ICatalogHostSwitcher
     public async Task<bool> IsCatalogBusyAsync()
     {
         var services = _host.Services;
+        if (IsMergeSaving())
+        {
+            return true; // „Zusammenfügen“ speichert (Quellen im Container offen): das automatische Zusperren wartet (0.5.48)
+        }
+
         var gate = services.GetRequiredService<IScanGate>();
         var libraries = await services.GetRequiredService<ILibraryService>().GetAllAsync().ConfigureAwait(true);
         return libraries.Any(l => gate.IsBusy(l.Id)) || gate.GetWaits().Count > 0;
@@ -689,23 +694,33 @@ public partial class App : Application, ICatalogHostSwitcher
     /// </summary>
     private async Task TearDownSessionAsync()
     {
-        foreach (var window in Windows.OfType<Window>().ToList())
+        _sessionClosing = true;
+        try
         {
-            try
+            foreach (var window in Windows.OfType<Window>().ToList())
             {
-                window.Close();
-                if (window.IsVisible)
+                try
                 {
-                    window.Hide();
+                    window.Close();
+                    if (window.IsVisible)
+                    {
+                        window.Hide();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Debug(ex, "Fenster ließ sich beim Katalogwechsel nicht schließen");
                 }
             }
-            catch (Exception ex)
-            {
-                Log.Debug(ex, "Fenster ließ sich beim Katalogwechsel nicht schließen");
-            }
+        }
+        finally
+        {
+            _sessionClosing = false;
         }
 
         var host = _host;
+        // „Zusammenfügen“ zuerst: Sitzungen abbrechen und Hilfsprozesse abwarten, solange die Dienste noch leben (ADR-0078, 0.5.48)
+        await StopMergeAsync(host);
         try
         {
             await host.StopAsync(TimeSpan.FromSeconds(5));
@@ -784,6 +799,7 @@ public partial class App : Application, ICatalogHostSwitcher
         _exiting = true;
         DisposeBackground();
         StopAppConnect();
+        StopMergeOnExit(); // Rechen-Prozesse von „Zusammenfügen“ vor dem Entsorgen der Dienste bzw. dem Aushängen beenden (0.5.48)
         try
         {
             // IDisposable-Singletons (GalleryPageSource, ThumbnailService, LightboxService → LibVlcHost …)

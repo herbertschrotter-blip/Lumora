@@ -168,6 +168,12 @@ public sealed partial class CatalogSessionManager
             return false;
         }
 
+        if (!await Switcher.ConfirmSessionEndAsync("verschieben", automatic: false).ConfigureAwait(true))
+        {
+            Volatile.Write(ref _switching, 0); // „Zusammenfügen“ speichert noch (ADR-0078, 0.5.48): Sitzung bleibt offen
+            return false;
+        }
+
         try
         {
             try

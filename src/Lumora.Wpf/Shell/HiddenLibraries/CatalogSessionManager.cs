@@ -43,6 +43,13 @@ public interface ICatalogHostSwitcher
     Task<bool> CloseSecondaryWindowsAsync();
 
     /// <summary>
+    /// Vor dem Ende der Sitzung (Zusperren, Wechsel, Verschieben des Containers): speichert „Zusammenfügen“ gerade, lehnt das
+    /// automatische Zusperren ab (es verschiebt sich), von Hand fragt Lumora „Warten / Abbrechen und …“ (ADR-0078, 0.5.48);
+    /// false = die Sitzung bleibt offen. <paramref name="action"/> klein als Verb („zusperren“).
+    /// </summary>
+    Task<bool> ConfirmSessionEndAsync(string action, bool automatic) => Task.FromResult(true);
+
+    /// <summary>
     /// Sicherheits-Check (ADR-0064), Option „Lumora nach dem Zusperren ganz beenden“: beendet Lumora, statt die normale
     /// Bibliothek aufzubauen. <c>App.OnExit</c> schließt dann die versteckte Sitzung wie beim normalen Beenden
     /// (Sitzung, Protokoll im Container, ggf. Aushängen).
@@ -338,6 +345,12 @@ public sealed partial class CatalogSessionManager : ICatalogSessionManager
 
         try
         {
+            // die normale Sitzung endet: ein laufendes Speichern von „Zusammenfügen“ zuerst fertig rechnen lassen oder abbrechen
+            if (!await Switcher.ConfirmSessionEndAsync("wechseln", automatic: false).ConfigureAwait(true))
+            {
+                return HiddenSessionResult.Fail("Nicht gewechselt — „Zusammenfügen“ speichert noch.");
+            }
+
             InitialScan = null;
             ActiveLibrary = library;
             ActiveManifest = manifest;
@@ -421,6 +434,26 @@ public sealed partial class CatalogSessionManager : ICatalogSessionManager
 
         var library = ActiveLibrary!;
         var manifest = ActiveManifest;
+        // Ein laufendes Speichern von „Zusammenfügen“ hält Quellen im Container offen: automatisch verschieben, von Hand nachfragen
+        bool mayEnd;
+        try
+        {
+            mayEnd = await Switcher.ConfirmSessionEndAsync("zusperren", automatic).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning("Prüfung vor dem Zusperren fehlgeschlagen ({Type})", ex.GetType().Name);
+            mayEnd = !automatic;
+        }
+
+        if (!mayEnd)
+        {
+            Volatile.Write(ref _switching, 0);
+            return HiddenSessionResult.Fail(automatic
+                ? "„Zusammenfügen“ speichert noch — automatisch zugesperrt wird danach."
+                : "Nicht zugesperrt — „Zusammenfügen“ speichert noch.");
+        }
+
         try
         {
             // Lightbox und Dialoge zuerst schließen, solange die Dienste noch leben; lehnt ein Fenster ab (laufendes

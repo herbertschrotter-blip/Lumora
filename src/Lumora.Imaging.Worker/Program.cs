@@ -21,6 +21,7 @@ internal static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        CrashGuard.Install(); // vor allem anderen: Abstürze enden sofort, ohne Fehlerbericht-Dialog (0.5.48)
         CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
         CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
         Console.InputEncoding = new UTF8Encoding(false);
@@ -45,6 +46,7 @@ internal static class Program
             return 2;
         }
 
+        CrashGuard.ApplyPriority(WorkerThreads.Count);
         Send(stdout, new ReadyMessage { ProtocolVersion = WorkerProtocol.Version, OpenCvVersion = version, Threads = WorkerThreads.Count });
         var testHooks = Environment.GetEnvironmentVariable(WorkerLimits.TestHooksVariable) == "1";
         var queue = new BlockingCollection<WorkerMessage>();
@@ -64,8 +66,10 @@ internal static class Program
                     current.Cancel(cancel.TargetId);
                     continue;
                 case ThreadsRequest threadsRequest:
+                    // „Im Hintergrund weiterrechnen“ mitten in einer Arbeit: eigene parallele Abschnitte und Priorität sofort,
+                    // OpenCV erst vor der nächsten Arbeit (cv::setNumThreads ist nicht sicher, während gerechnet wird — 0.5.48)
                     WorkerThreads.Set(threadsRequest.Threads);
-                    Cv2.SetNumThreads(WorkerThreads.Count);
+                    CrashGuard.ApplyPriority(WorkerThreads.Count);
                     continue;
                 case QuitRequest:
                     current.Cancel(null);
@@ -80,6 +84,10 @@ internal static class Program
                             break;
                         case "exit":
                             Environment.Exit(3);
+                            break;
+                        case "unhandled":
+                            // verwaltete Ausnahme ohne Fänger auf einem eigenen Thread
+                            new Thread(() => throw new InvalidOperationException("Testausnahme ohne Fänger")) { IsBackground = true }.Start();
                             break;
                         default:
                             queue.Add(debug);
@@ -105,6 +113,7 @@ internal static class Program
         using var jobs = new PanoramaJobs();
         foreach (var message in queue.GetConsumingEnumerable())
         {
+            WorkerThreads.ApplyNative(); // zwischen zwei Arbeiten: vorgemerkte Thread-Zahl an OpenCV
             using var cts = current.Begin(message.Id);
             var ct = cts.Token;
             var throttle = Stopwatch.StartNew();
@@ -133,6 +142,7 @@ internal static class Program
                         ComposeRequest c => jobs.Compose(c, Progress, ct),
                         RenderRequest r => jobs.Render(r, Progress, ct),
                         DebugRequest { Action: "hang" } => Hang(),
+                        DebugRequest { Action: "native-threads" } n => new ReadyMessage { Id = n.Id, ProtocolVersion = WorkerProtocol.Version, OpenCvVersion = Cv2.GetVersionString() ?? string.Empty, Threads = WorkerThreads.Native },
                         DebugRequest d => new ReadyMessage { Id = d.Id, ProtocolVersion = WorkerProtocol.Version, OpenCvVersion = Cv2.GetVersionString() ?? string.Empty, Threads = WorkerThreads.Count },
                         _ => new ErrorMessage { Id = message.Id, Code = WorkerErrorCode.BadRequest, Detail = "Unbekannte Anfrage." },
                     };

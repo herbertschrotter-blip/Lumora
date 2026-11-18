@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Lumora.Data;
 
 namespace Lumora.Services.Albums;
@@ -11,7 +12,9 @@ namespace Lumora.Services.Albums;
 /// <c>FileLinkUndo</c> zur protokollierten <c>FileOperation</c> — mit Pfad, Größe und Änderungszeit der Datei.
 /// „Rückgängig“ (neue Files-Zeile) stellt sie über die Operation wieder her; kehrt die Datei sonst zurück (Windows
 /// „Wiederherstellen“ + Scan, <see cref="AlbumService"/>), nur, wenn am alten Pfad eine Datei gleicher Größe und
-/// Änderungszeit auftaucht — ein neuer Import gleichen Namens erbt nichts. Alle Aufrufe in der Transaktion des Aufrufers.
+/// Änderungszeit auftaucht — ein neuer Import gleichen Namens erbt nichts. Datei-Verknüpfungen (Fassungen, Zusammenfügen)
+/// zu einer Datei, die selbst noch fehlt, bleiben offen und werden nachgeholt, wenn sie zurückkehrt — auch mit neuer Id
+/// (0.5.48). Alle Aufrufe in der Transaktion des Aufrufers.
 /// </summary>
 internal static class FileLinkUndoStore
 {
@@ -48,17 +51,19 @@ internal static class FileLinkUndoStore
 
     // Zusammenfügen (ADR-0078): ein zurückkehrendes Ergebnis bekommt seine gesicherte MergedPhotos-Zeile zurück (Verfahren,
     // Aufnahmeart, Rezept; Serie und Batch wie gesichert) und seine noch vorhandenen Quellen derselben Bibliothek in alter
-    // Reihenfolge — nur, wenn noch mindestens eine Quelle da ist; eine zurückkehrende Quelle hängt sich hinten an ihr noch
-    // vorhandenes Ergebnis. Fehlt die gesicherte Zeile (Sicherung älter als MergedPhotoUndo), Panorama ohne Rezept.
+    // Reihenfolge — nur, wenn noch mindestens eine Quelle da ist oder eine entfernte Quelle ihre Verknüpfung noch offen hält
+    // (Art 7 einer anderen Operation, 0.5.48: Quelle und Ergebnis kehren einzeln zurück); eine zurückkehrende Quelle hängt sich
+    // hinten an ihr vorhandenes Ergebnis. Fehlt die gesicherte Zeile (Sicherung älter als MergedPhotoUndo), Panorama ohne Rezept.
     private const string RestoreMergesSql = """
         INSERT OR IGNORE INTO MergedPhotos (FileId, Method, Projection, SourceCount, SeriesId, Tools, RecipeJson, CreatedAtUtc, BatchId)
         SELECT $file, COALESCE(g.Method, 0), g.Projection, COALESCE(g.SourceCount, c.cnt), g.SeriesId, COALESCE(g.Tools, 'restored'),
-               COALESCE(g.RecipeJson, char(123) || char(125)), COALESCE(g.CreatedAtUtc, c.t), COALESCE(g.BatchId, 0) -- leeres JSON ohne geschweifte Klammern im Text: ExecuteSqlRaw formatiert
+               COALESCE(g.RecipeJson, char(123) || char(125)), COALESCE(g.CreatedAtUtc, c.t), COALESCE(g.BatchId, 0) -- leeres JSON ohne geschweifte Klammern im Text
         FROM (SELECT COUNT(*) AS cnt, MIN(u.AddedAtUtc) AS t FROM FileLinkUndo u
               WHERE u.FileOperationId = $op AND u.Kind = 6 AND u.TargetId <> $file
                 AND EXISTS (SELECT 1 FROM Files s JOIN Files n ON n.LibraryId = s.LibraryId WHERE s.Id = u.TargetId AND n.Id = $file)) c
         LEFT JOIN MergedPhotoUndo g ON g.FileOperationId = $op
-        WHERE c.cnt > 0;
+        WHERE c.cnt > 0
+           OR (g.FileOperationId IS NOT NULL AND EXISTS (SELECT 1 FROM FileLinkUndo k WHERE k.Kind = 7 AND k.TargetId = $file AND k.FileOperationId <> $op));
         INSERT OR IGNORE INTO MergedPhotoSources (ResultFileId, SourceFileId, Position)
         SELECT $file, u.TargetId, (SELECT COUNT(*) FROM FileLinkUndo p WHERE p.FileOperationId = $op AND p.Kind = 6 AND p.Id < u.Id)
         FROM FileLinkUndo u
@@ -127,38 +132,141 @@ internal static class FileLinkUndoStore
         WHERE Stories.Id = a.Id;
         """;
 
-    private const string DeleteSql = "DELETE FROM FileLinkUndo WHERE FileOperationId = $op; DELETE FROM MergedPhotoUndo WHERE FileOperationId = $op;";
+    // Kehrt eine Datei mit NEUER Id zurück (Windows „Wiederherstellen“ + Scan, Rückgängig eines Verschiebens nach außen), zeigen
+    // offene Datei-Verknüpfungen anderer Operationen (Art 4–7) noch auf ihre alte Id (= FileOperations.FileId): auf die neue
+    // umschreiben (ADR-0078, 0.5.48). Files-Ids werden nie neu vergeben (AUTOINCREMENT) — die alte zeigt auf keine fremde Datei.
+    private const string RewriteTargetsSql = """
+        UPDATE FileLinkUndo SET TargetId = $file
+        WHERE Kind BETWEEN 4 AND 7 AND FileOperationId <> $op
+          AND TargetId = (SELECT o.FileId FROM FileOperations o WHERE o.Id = $op AND o.FileId IS NOT NULL AND o.FileId <> $file);
+        """;
+
+    // Erledigt bzw. nicht mehr herstellbar ist alles außer Datei-Verknüpfungen (Art 4–7) zu einer Datei, die (noch) fehlt: kehrt
+    // sie zurück, holt Restore die Verknüpfung nach (0.5.48). Die Quellen eines Ergebnisses (Art 6) bleiben beisammen, solange eine
+    // fehlt — ihre Id-Folge trägt die Position; mit ihnen die gesicherte MergedPhotos-Zeile.
+    private const string DeleteSettledSql = """
+        DELETE FROM FileLinkUndo WHERE FileOperationId = $op
+          AND NOT (Kind IN (4, 5, 7) AND NOT EXISTS (SELECT 1 FROM Files t WHERE t.Id = FileLinkUndo.TargetId))
+          AND NOT (Kind = 6 AND EXISTS (SELECT 1 FROM FileLinkUndo k WHERE k.FileOperationId = $op AND k.Kind = 6
+                                         AND NOT EXISTS (SELECT 1 FROM Files t WHERE t.Id = k.TargetId)));
+        DELETE FROM MergedPhotoUndo WHERE FileOperationId = $op
+          AND NOT EXISTS (SELECT 1 FROM FileLinkUndo k WHERE k.FileOperationId = $op AND k.Kind = 6);
+        """;
+
+    // Andere Operationen, deren offene Datei-Verknüpfung auf die eben zurückgekehrte Datei zeigt — mit dem, woran ihre eigene
+    // Datei zu erkennen ist (alte Id; Pfad, Größe, Änderungszeit wie beim Abgleich in AlbumService).
+    private const string WaitingSql = """
+        SELECT DISTINCT u.FileOperationId, o.FileId, u.SourcePath, u.FileSize, u.FileModifiedAtUtc
+        FROM FileLinkUndo u JOIN FileOperations o ON o.Id = u.FileOperationId
+        WHERE u.Kind BETWEEN 4 AND 7 AND u.TargetId = $file AND u.FileOperationId <> $op
+        ORDER BY u.FileOperationId;
+        """;
+
+    private const string FileByIdentitySql = """
+        SELECT f.Id FROM Files f JOIN Folders d ON d.Id = f.FolderId
+        WHERE f.Size = $size AND f.ModifiedAtUtc = $modified AND (d.Path || '\' || f.Name) = $path COLLATE NOCASE
+        ORDER BY f.Id DESC LIMIT 1;
+        """;
 
     /// <summary>Sichert die Verknüpfungen der Datei zur Operation (vor dem Löschen der Files-Zeile); liefert ihre Zahl.</summary>
     public static Task<int> CaptureAsync(LibraryContext ctx, int operationId, int fileId, CancellationToken ct)
         => ctx.Database.ExecuteSqlRawAsync(CaptureSql, [Param("$op", operationId), Param("$file", fileId)], ct);
 
-    /// <summary>Stellt die gesicherten Verknüpfungen auf <paramref name="newFileId"/> wieder her und verwirft die Sicherung.</summary>
+    /// <summary>
+    /// Stellt die gesicherten Verknüpfungen auf <paramref name="newFileId"/> wieder her (innerhalb der laufenden Transaktion des
+    /// Contexts, falls eine läuft) und verwirft, was erledigt ist — siehe <see cref="Restore"/>.
+    /// </summary>
     public static async Task<int> RestoreAsync(LibraryContext ctx, int operationId, int newFileId, CancellationToken ct)
     {
-        var restored = await ctx.Database.ExecuteSqlRawAsync(RestoreAlbumsSql, [Param("$op", operationId), Param("$file", newFileId)], ct).ConfigureAwait(false);
-        restored += await ctx.Database.ExecuteSqlRawAsync(RestoreFoldersSql, [Param("$op", operationId), Param("$file", newFileId)], ct).ConfigureAwait(false);
-        restored += await ctx.Database.ExecuteSqlRawAsync(RestoreStoriesSql, [Param("$op", operationId), Param("$file", newFileId)], ct).ConfigureAwait(false); // ADR-0058
-        restored += await ctx.Database.ExecuteSqlRawAsync(RestoreVariantsSql, [Param("$op", operationId), Param("$file", newFileId)], ct).ConfigureAwait(false); // ADR-0071
-        restored += await ctx.Database.ExecuteSqlRawAsync(RestoreMergesSql, [Param("$op", operationId), Param("$file", newFileId)], ct).ConfigureAwait(false); // ADR-0078
-        await ctx.Database.ExecuteSqlRawAsync(DeleteSql, [Param("$op", operationId)], ct).ConfigureAwait(false);
+        await ctx.Database.OpenConnectionAsync(ct).ConfigureAwait(false);
+        try
+        {
+            var connection = (SqliteConnection)ctx.Database.GetDbConnection();
+            var tx = ctx.Database.CurrentTransaction?.GetDbTransaction() as SqliteTransaction;
+            return Restore(connection, tx, operationId, newFileId);
+        }
+        finally
+        {
+            await ctx.Database.CloseConnectionAsync().ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Stellt die gesicherten Verknüpfungen auf <paramref name="newFileId"/> wieder her. Kehrt die Datei mit neuer Id zurück,
+    /// zeigen offene Datei-Verknüpfungen anderer Operationen danach auf die neue Id; Verknüpfungen zu Dateien, die selbst noch
+    /// fehlen (Ergebnis und Quellen gemeinsam im Papierkorb), bleiben offen. Wartet eine schon zurückgekehrte Datei auf diese,
+    /// wird ihre Verknüpfung jetzt nachgeholt — so ist die Reihenfolge der Rückkehr egal (ADR-0078, 0.5.48; gilt auch für
+    /// Fassungen, ADR-0071). Liefert die Zahl der wiederhergestellten Verknüpfungen.
+    /// </summary>
+    public static int Restore(SqliteConnection connection, SqliteTransaction? tx, int operationId, int newFileId)
+    {
+        Execute(connection, tx, RewriteTargetsSql, operationId, newFileId);
+        var restored = RestoreLinks(connection, tx, operationId, newFileId);
+        Execute(connection, tx, DeleteSettledSql, operationId, newFileId);
+        foreach (var (waitingOperation, waitingFileId) in Waiting(connection, tx, operationId, newFileId))
+        {
+            restored += RestoreLinks(connection, tx, waitingOperation, waitingFileId);
+            Execute(connection, tx, DeleteSettledSql, waitingOperation, waitingFileId);
+        }
+
         return restored;
     }
 
-    /// <summary>Verwirft die Sicherung ohne Wiederherstellen — die Verknüpfungen kamen auf anderem Weg zurück (Abzug der Katalogzeile, ADR-0065).</summary>
-    public static Task<int> DiscardAsync(LibraryContext ctx, int operationId, CancellationToken ct)
-        => ctx.Database.ExecuteSqlRawAsync(DeleteSql, [Param("$op", operationId)], ct);
-
-    /// <summary>Wie <see cref="RestoreAsync(LibraryContext, int, int, CancellationToken)"/> auf einer rohen Verbindung.</summary>
-    public static int Restore(SqliteConnection connection, SqliteTransaction tx, int operationId, int newFileId)
+    private static int RestoreLinks(SqliteConnection connection, SqliteTransaction? tx, int operationId, int fileId)
     {
-        var restored = Execute(connection, tx, RestoreAlbumsSql, operationId, newFileId);
-        restored += Execute(connection, tx, RestoreFoldersSql, operationId, newFileId);
-        restored += Execute(connection, tx, RestoreStoriesSql, operationId, newFileId); // ADR-0058
-        restored += Execute(connection, tx, RestoreVariantsSql, operationId, newFileId); // ADR-0071
-        restored += Execute(connection, tx, RestoreMergesSql, operationId, newFileId); // ADR-0078
-        Execute(connection, tx, DeleteSql, operationId, null);
+        var restored = Execute(connection, tx, RestoreAlbumsSql, operationId, fileId);
+        restored += Execute(connection, tx, RestoreFoldersSql, operationId, fileId);
+        restored += Execute(connection, tx, RestoreStoriesSql, operationId, fileId); // ADR-0058
+        restored += Execute(connection, tx, RestoreVariantsSql, operationId, fileId); // ADR-0071
+        restored += Execute(connection, tx, RestoreMergesSql, operationId, fileId); // ADR-0078
         return restored;
+    }
+
+    /// <summary>Operationen mit offener Verknüpfung auf <paramref name="fileId"/>, deren eigene Datei schon zurück ist (Operation, ihre FileId).</summary>
+    private static List<(int OperationId, int FileId)> Waiting(SqliteConnection connection, SqliteTransaction? tx, int operationId, int fileId)
+    {
+        var candidates = new List<(int Op, long? OldId, string Path, long Size, long Modified)>();
+        using (var cmd = connection.CreateCommand())
+        {
+            cmd.Transaction = tx;
+            cmd.CommandText = WaitingSql;
+            cmd.Parameters.AddWithValue("$op", operationId);
+            cmd.Parameters.AddWithValue("$file", fileId);
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                candidates.Add((reader.GetInt32(0), reader.IsDBNull(1) ? null : reader.GetInt64(1), reader.GetString(2), reader.GetInt64(3), reader.GetInt64(4)));
+            }
+        }
+
+        var list = new List<(int, int)>();
+        foreach (var (op, oldId, path, size, modified) in candidates)
+        {
+            // mit alter Id zurück (Abzug der Katalogzeile), sonst über Pfad, Größe und Änderungszeit
+            var current = oldId is { } id && Scalar(connection, tx, "SELECT Id FROM Files WHERE Id = $id;", ("$id", id)) is long same
+                ? same
+                : Scalar(connection, tx, FileByIdentitySql, ("$path", path), ("$size", size), ("$modified", modified)) as long?;
+            if (current is { } found && found != fileId && !list.Any(x => x.Item1 == op))
+            {
+                list.Add((op, (int)found));
+            }
+        }
+
+        return list;
+    }
+
+    private static object? Scalar(SqliteConnection connection, SqliteTransaction? tx, string sql, params (string Name, object Value)[] parameters)
+    {
+        using var cmd = connection.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.CommandText = sql;
+        foreach (var (name, value) in parameters)
+        {
+            cmd.Parameters.AddWithValue(name, value);
+        }
+
+        var result = cmd.ExecuteScalar();
+        return result is DBNull ? null : result;
     }
 
     /// <summary>Gesicherte Operationen mit Pfad, Größe und Änderungszeit (Unix-Sekunden) der entfernten Datei.</summary>
@@ -176,7 +284,7 @@ internal static class FileLinkUndoStore
         return list;
     }
 
-    private static int Execute(SqliteConnection connection, SqliteTransaction tx, string sql, int operationId, int? fileId)
+    private static int Execute(SqliteConnection connection, SqliteTransaction? tx, string sql, int operationId, int? fileId)
     {
         using var cmd = connection.CreateCommand();
         cmd.Transaction = tx;

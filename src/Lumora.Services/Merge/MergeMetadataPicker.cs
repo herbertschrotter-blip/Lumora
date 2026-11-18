@@ -1,5 +1,6 @@
 using Lumora.Domain.Entities;
 using Lumora.Domain.Enums;
+using Lumora.Services.Metadata;
 
 namespace Lumora.Services.Merge;
 
@@ -34,8 +35,9 @@ public sealed record MergeMetadataChoice(int? TimeSourceId, int? LocationSourceI
 /// <list type="bullet">
 /// <item>Zeit: die früheste Quelle, die eine Aufnahmezeit hat (Quellen ohne Zeit zählen nicht; keine = leer, nie das
 /// Erstelldatum der Ergebnisdatei). Eine vorläufige OneDrive-Zeit im Katalog weicht der frisch aus der Datei gelesenen.</item>
-/// <item>Ort: die erste Quelle mit Ort — echtes GPS vor in Lumora gesetztem bzw. unbewertetem, das vor geschätztem; bei
-/// gleicher Güte die früheste. Maßgeblich sind die Katalogwerte, ergänzt um frisch gelesene Werte.</item>
+/// <item>Ort: die erste Quelle mit Ort — echtes GPS (EXIF, genau) vor in Lumora gesetztem bzw. übernommenem und unbewertetem,
+/// das vor geschätztem (<see cref="LocationRank"/>); bei gleicher Güte die früheste. Maßgeblich sind die Katalogwerte, ergänzt
+/// um frisch gelesene Werte.</item>
 /// <item>Kamera: die erste Quelle mit Kamera.</item>
 /// <item>Bewertung: höchste Sternezahl, Favorit, wenn mindestens eine Quelle Favorit ist (die gemeinsamen Tags bucht SQL).</item>
 /// </list>
@@ -63,18 +65,13 @@ public static class MergeMetadataPicker
         var bestRank = int.MaxValue;
         for (var i = 0; i < sources.Count; i++)
         {
-            var (lat, _, accuracy) = LocationOf(sources[i], fromFiles);
+            var (lat, _, accuracy, source) = LocationOf(sources[i], fromFiles);
             if (lat is null)
             {
                 continue;
             }
 
-            var rank = accuracy switch
-            {
-                GeoAccuracy.Exact => 0,
-                GeoAccuracy.Estimated => 2,
-                _ => 1,
-            };
+            var rank = LocationRank(source, accuracy);
             if (rank < bestRank)
             {
                 bestRank = rank;
@@ -162,6 +159,37 @@ public static class MergeMetadataPicker
         }
     }
 
+    /// <summary>Höchster Abstand (Grad, ≈ 1 m), bei dem die Koordinate in der Datei als „dieselbe“ wie im Katalog gilt.</summary>
+    public const double SameCoordinateTolerance = 1e-5;
+
+    /// <summary>
+    /// Ort für die Datei des Ergebnisses (ADR-0078 Punkt 10, 0.5.48): maßgeblich ist der Katalog-Ort der Ortsquelle (ergänzt um
+    /// frisch gelesene Werte). Ihr ganzes GPS-Verzeichnis (Höhe, GPS-Zeit) wird nur übernommen, wenn der Ort aus der Datei selbst
+    /// stammt und die Datei genau diese Koordinate trägt (<paramref name="embedded"/>, ohne XMP-Begleitdatei gelesen); sonst — in
+    /// Lumora gesetzt oder nur im Katalog verschoben, Ort aus einer Begleitdatei — entsteht das Verzeichnis aus dem Katalog-Ort.
+    /// </summary>
+    /// <returns>Ort (null = keiner) und ob das GPS-Verzeichnis der Datei übernommen wird.</returns>
+    public static (GeoCoordinate? Location, bool UseFileGps) FileLocation(MediaFile? source, IReadOnlyDictionary<int, MergeSourceMetadata>? fromFiles, GeoCoordinate? embedded)
+    {
+        if (source is null)
+        {
+            return (null, false);
+        }
+
+        var (lat, lon, _, origin) = LocationOf(source, fromFiles);
+        if (lat is not { } latitude || lon is not { } longitude)
+        {
+            return (null, false);
+        }
+
+        var location = new GeoCoordinate(latitude, longitude);
+        var fromFile = origin is null or GeoSource.Exif;
+        var same = embedded is { } e
+                   && Math.Abs(e.Latitude - latitude) <= SameCoordinateTolerance
+                   && Math.Abs(e.Longitude - longitude) <= SameCoordinateTolerance;
+        return (location, fromFile && same);
+    }
+
     /// <summary>
     /// Maßgebliche Aufnahmezeit einer Quelle (UTC und Zeitzonen-Versatz): frisch aus der Datei gelesen, wenn der Katalog keine
     /// oder nur die vorläufige OneDrive-Zeit hat (<see cref="CaptureDateSource.Cloud"/>), sonst der Katalogwert.
@@ -178,13 +206,35 @@ public static class MergeMetadataPicker
     private static DateTime? TimeOf(MediaFile f, IReadOnlyDictionary<int, MergeSourceMetadata>? fromFiles)
         => EffectiveTime(f, fromFiles).Utc;
 
-    private static (double? Lat, double? Lon, GeoAccuracy? Accuracy) LocationOf(MediaFile f, IReadOnlyDictionary<int, MergeSourceMetadata>? fromFiles)
+    /// <summary>
+    /// Rang eines Orts (kleiner = besser, ADR-0078 Punkt 10, 0.5.48): echtes GPS aus der Datei (<see cref="GeoSource.Exif"/> bzw.
+    /// noch nicht gelesen, Genauigkeit <see cref="GeoAccuracy.Exact"/>) vor dem in Lumora gesetzten bzw. übernommenen Ort
+    /// (<see cref="GeoSource.Manual"/>, Spur, Nachbarn — gleich welche Genauigkeit noch in der Zeile steht: Setzen lässt sie
+    /// stehen) und unbewertetem GPS, das vor geschätztem GPS aus der Datei.
+    /// </summary>
+    public static int LocationRank(GeoSource? source, GeoAccuracy? accuracy)
+    {
+        var fromFile = source is null or GeoSource.Exif or GeoSource.Video;
+        if (!fromFile)
+        {
+            return 1;
+        }
+
+        return accuracy switch
+        {
+            GeoAccuracy.Exact => 0,
+            GeoAccuracy.Estimated => 2,
+            _ => 1,
+        };
+    }
+
+    private static (double? Lat, double? Lon, GeoAccuracy? Accuracy, GeoSource? Source) LocationOf(MediaFile f, IReadOnlyDictionary<int, MergeSourceMetadata>? fromFiles)
     {
         if (f.Latitude is not null && f.Longitude is not null)
         {
-            return (f.Latitude, f.Longitude, f.GeoAccuracy);
+            return (f.Latitude, f.Longitude, f.GeoAccuracy, f.GeoSource);
         }
 
-        return fromFiles?.GetValueOrDefault(f.Id) is { Latitude: not null, Longitude: not null } m ? (m.Latitude, m.Longitude, m.GeoAccuracy) : (null, null, null);
+        return fromFiles?.GetValueOrDefault(f.Id) is { Latitude: not null, Longitude: not null } m ? (m.Latitude, m.Longitude, m.GeoAccuracy, GeoSource.Exif) : (null, null, null, null);
     }
 }

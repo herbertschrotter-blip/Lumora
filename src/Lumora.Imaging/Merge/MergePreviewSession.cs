@@ -47,7 +47,10 @@ internal sealed class MergePreviewSession : IMergePreviewSession
     private IDisposable? _saveClaim;
     private Action<int>? _setSaveThreads;
     private int _disposed;
-    private int _saving;
+    private int _saveRequests;
+    private int _abandoned;
+    private int _saveCanceled;
+    private readonly Lazy<Task> _disposal;
 
     public MergePreviewSession(MergeService owner, MergeRequest request)
     {
@@ -56,7 +59,14 @@ internal sealed class MergePreviewSession : IMergePreviewSession
         Options = request.Options ?? new MergeOptions();
         _workDir = Path.Combine(owner.Host.WorkRoot, Guid.NewGuid().ToString("N"));
         _hold = new ForegroundHold(owner.Foreground, ForegroundNeed.Cpu, "Zusammenfügen");
+        _disposal = new Lazy<Task>(DisposeCoreAsync, LazyThreadSafetyMode.ExecutionAndPublication);
     }
+
+    /// <summary>
+    /// true vom Aufruf von <see cref="SaveAsync"/> bis zu seinem Ende (auch nach „Im Hintergrund weiterrechnen“) — Sitzungsende,
+    /// Zusperren und Beenden warten darauf bzw. fragen nach (0.5.48).
+    /// </summary>
+    public bool IsSaving => Volatile.Read(ref _saveRequests) > 0;
 
     public MergeRequest Request { get; }
 
@@ -99,8 +109,8 @@ internal sealed class MergePreviewSession : IMergePreviewSession
 
             var paths = await PathsAsync(_sources.Select(s => s.FileId).ToList(), ct).ConfigureAwait(false);
             _specs = _sources.Select((s, i) => new SourceSpec { Path = paths[s.FileId], Index = i }).ToList();
-            Options = await ResolveAsync(Options, ct).ConfigureAwait(false);
-            return await RunPreviewAsync(Options, estimate: true, ct).ConfigureAwait(false);
+            var options = await ResolveAsync(Options, ct).ConfigureAwait(false);
+            return await RunPreviewAsync(options, estimate: true, ct).ConfigureAwait(false);
         }
         finally
         {
@@ -123,12 +133,12 @@ internal sealed class MergePreviewSession : IMergePreviewSession
 
             var resolved = await ResolveAsync(options, ct).ConfigureAwait(false);
             // nur Tonwert-Angleich bzw. Farbverstärkung geändert: der Hilfsprozess tont nur neu — nie neu ausrichten, auch nicht
-            // als Wiederholung nach einer nicht bestandenen Prüfung (die hängt nicht am Look)
+            // als Wiederholung nach einer nicht bestandenen Prüfung (die hängt nicht am Look). Options bleibt die der gezeigten
+            // Vorschau, bis die neue fertig ist (0.5.48: ein abgebrochenes Umstellen speichert nie eine nie gezeigte Mischung).
             var lookOnly = Current is not null && resolved.SameGeometry(Options);
-            Options = resolved;
-            // abgestürzter Hilfsprozess: neu öffnen und mit demselben Startwert neu ausrichten
+            // abgestürzter Hilfsprozess bzw. abgebrochene oder gescheiterte Neu-Ausrichtung: neu öffnen und ausrichten
             var estimate = _stitch is null || !_stitch.IsAlive || _estimate is null;
-            return await RunPreviewAsync(Options, estimate, ct, allowRetry: !lookOnly).ConfigureAwait(false);
+            return await RunPreviewAsync(resolved, estimate, ct, allowRetry: !lookOnly).ConfigureAwait(false);
         }
         finally
         {
@@ -185,6 +195,10 @@ internal sealed class MergePreviewSession : IMergePreviewSession
                         }
                     }
 
+                    // Der Hilfsprozess verwirft Quellen und Ausrichtung schon vor dem Lesen: scheitert bzw. endet die Schätzung als
+                    // Abbruch, gilt auch die alte nicht mehr (sonst setzte die nächste Vorschau ohne Ausrichtung zusammen, 0.5.48)
+                    _estimate = null;
+                    Current = null; // die gezeigte Vorschau gehört zur alten Ausrichtung — speicherbar erst wieder mit einer neuen
                     _estimate = await stitch.EstimateAsync(_specs, MergeLimits.PreviewDecodeEdge, _seed, p => Report(p, saving: false, estimating: true, activity), token).ConfigureAwait(false);
                 }
 
@@ -213,6 +227,7 @@ internal sealed class MergePreviewSession : IMergePreviewSession
             DeleteOlderPreviews(composed.OutputPath, composed.Frame?.Path);
             var preview = ToPreview(composed, options, clock.Elapsed);
             Current = preview;
+            Options = options; // Optionen und Ausrichtung der gezeigten Vorschau — nur diese rendert SaveAsync
             activity?.Dismiss();
             return preview;
         }
@@ -349,43 +364,69 @@ internal sealed class MergePreviewSession : IMergePreviewSession
     public async Task<MergeSaveResult> SaveAsync(MergeSaveOptions? options = null, CancellationToken ct = default)
     {
         options ??= new MergeSaveOptions();
-        if (options.Options is { } changed && changed != Options)
-        {
-            await UpdateAsync(changed, ct).ConfigureAwait(false);
-        }
-
-        await _lock.WaitAsync(ct).ConfigureAwait(false);
+        Interlocked.Increment(ref _saveRequests);
         try
         {
+            // nach dem Schließen beginnt kein Speichern mehr (ein schon begonnenes rechnet zu Ende, DisposeAsync wartet)
             ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-            var preview = Current;
-            if (preview is null || _estimate is null)
+            if (options.Options is { } changed && await ResolveAsync(changed, ct).ConfigureAwait(false) is var wanted && wanted != Options)
             {
-                return MergeSaveResult.Failed("Erst die Vorschau rechnen.");
+                await UpdateAsync(wanted, ct).ConfigureAwait(false);
             }
 
-            if (!preview.CanSave)
-            {
-                return MergeSaveResult.Failed("Nicht gespeichert: " + string.Join(" ", preview.Quality.Problems.Select(p => p.Text)));
-            }
-
-            Volatile.Write(ref _saving, 1);
+            await _lock.WaitAsync(ct).ConfigureAwait(false);
             try
             {
-                return await RenderAndSaveAsync(preview, options, ct).ConfigureAwait(false);
+                // Fenster zu (DisposeAsync wartet auf dieses Speichern) rechnet zu Ende; abgebrochen nur über CancelSave bzw. das
+                // Ende der Katalog-Sitzung — auch wenn das Speichern noch auf die laufende Vorschau wartete
+                if (Volatile.Read(ref _abandoned) != 0 || Volatile.Read(ref _saveCanceled) != 0)
+                {
+                    throw new OperationCanceledException("Speichern abgebrochen.");
+                }
+
+                // Vorschau, Optionen und Ausrichtung gehören zusammen (gesetzt nur nach einer fertigen Vorschau)
+                var preview = Current;
+                var shown = Options;
+                if (preview is null || _estimate is null)
+                {
+                    return MergeSaveResult.Failed("Erst die Vorschau rechnen.");
+                }
+
+                if (!preview.CanSave)
+                {
+                    return MergeSaveResult.Failed("Nicht gespeichert: " + string.Join(" ", preview.Quality.Problems.Select(p => p.Text)));
+                }
+
+                return await RenderAndSaveAsync(preview, shown, options, ct).ConfigureAwait(false);
             }
             finally
             {
-                Volatile.Write(ref _saving, 0);
+                _lock.Release();
             }
         }
         finally
         {
-            _lock.Release();
+            if (Interlocked.Decrement(ref _saveRequests) == 0)
+            {
+                Volatile.Write(ref _saveCanceled, 0);
+            }
         }
     }
 
-    private async Task<MergeSaveResult> RenderAndSaveAsync(MergePreview preview, MergeSaveOptions options, CancellationToken ct)
+    /// <summary>
+    /// Bricht ein laufendes Speichern ab — auch eines, das noch auf die laufende Vorschau bzw. die Sperre wartet (Rückfrage
+    /// „Abbrechen und …“ beim Sitzungsende, 0.5.48).
+    /// </summary>
+    internal void CancelSave()
+    {
+        if (IsSaving)
+        {
+            Volatile.Write(ref _saveCanceled, 1);
+            Cancel();
+        }
+    }
+
+    private async Task<MergeSaveResult> RenderAndSaveAsync(MergePreview preview, MergeOptions shown, MergeSaveOptions options, CancellationToken ct)
     {
         using var linked = Begin(ct);
         var token = linked.Token;
@@ -408,7 +449,7 @@ internal sealed class MergePreviewSession : IMergePreviewSession
             var settings = await _owner.SettingsStore.LoadAsync(token).ConfigureAwait(false);
             using var heavy = await EnterHeavyAsync(activity, token).ConfigureAwait(false);
             Directory.CreateDirectory(_workDir);
-            var spec = Spec(Options, preview: false);
+            var spec = Spec(shown, preview: false);
             var request = new RenderRequestData(_specs, _estimate!.Alignment, spec with { Projection = (WireProjection)(int)preview.Projection }, resultPath, settings.JpegQuality, MergeMemoryBudget.Budget());
             var rendered = await _owner.Stitcher.RenderAsync(
                 request,
@@ -427,7 +468,7 @@ internal sealed class MergePreviewSession : IMergePreviewSession
 
             activity?.Report(980, 1000, "Aufnahmedaten schreiben");
             var notes = rendered.Notes.Select(code => MergeTexts.Note(code, rendered.FullWidth, rendered.FullHeight, rendered.Scale, rendered.FullPeakBytes)).Where(n => n is not null).Select(n => n!).ToList();
-            var saved = await StoreAsync(preview, options, settings, rendered, resultPath, activity, token).ConfigureAwait(false);
+            var saved = await StoreAsync(preview, shown, options, settings, rendered, resultPath, activity, token).ConfigureAwait(false);
             if (!saved.Success)
             {
                 activity?.Fail("Nicht gespeichert", saved.Error);
@@ -442,8 +483,9 @@ internal sealed class MergePreviewSession : IMergePreviewSession
             {
                 actions.Add(ActivityAction.Undo(async t =>
                 {
-                    var undone = await _owner.FileOps.UndoBatchAsync(batch, t).ConfigureAwait(false);
-                    return undone is null ? "Nichts rückgängig zu machen" : $"{methodName} in den Papierkorb";
+                    // Fehlschlag als Ausnahme: „Rückgängig“ bleibt dann stehen und meldet den Grund (0.5.48)
+                    var outcome = await MergeUndo.UndoAsync(_owner.FileOps, batch, methodName, t).ConfigureAwait(false);
+                    return outcome.Succeeded ? outcome.Message : throw new InvalidOperationException(outcome.Message);
                 }));
             }
 
@@ -452,7 +494,7 @@ internal sealed class MergePreviewSession : IMergePreviewSession
                 headline is not null ? $"{methodName} gespeichert · {headline.Text}" : $"{methodName} gespeichert",
                 ActivityState.Succeeded,
                 actions));
-            return saved with { Notes = notes };
+            return saved with { Notes = [.. notes, .. saved.Notes] };
         }
         catch (OperationCanceledException)
         {
@@ -493,8 +535,12 @@ internal sealed class MergePreviewSession : IMergePreviewSession
         }
     }
 
-    /// <summary>Aufnahmedaten in die Datei, dann als neue Datei in den Katalog (CreateMerged-Batch), Album, Nutzung, Meldung.</summary>
-    private async Task<MergeSaveResult> StoreAsync(MergePreview preview, MergeSaveOptions options, MergeSettings settings, ComposeResult rendered, string resultPath,
+    /// <summary>
+    /// Aufnahmedaten in die Datei (nach bestem Können: ein kaputter EXIF-Block einer Quelle kostet nie das fertige Ergebnis), dann
+    /// als neue Datei in den Katalog (CreateMerged-Batch); danach Album, Nutzung, Meldung und Vorauswahl — jeder dieser Schritte
+    /// einzeln abgefangen: nach dem Katalogeintrag ist das Ergebnis gespeichert, ein Fehler dort wird nur Hinweis (0.5.48).
+    /// </summary>
+    private async Task<MergeSaveResult> StoreAsync(MergePreview preview, MergeOptions shown, MergeSaveOptions options, MergeSettings settings, ComposeResult rendered, string resultPath,
         IActivityHandle? activity, CancellationToken ct)
     {
         // Nur die im Ergebnis verwendeten Quellen zählen (Katalog-Verknüpfung, Zeit/Ort/Kamera, gemeinsame Tags, Anzahl);
@@ -523,35 +569,16 @@ internal sealed class MergePreviewSession : IMergePreviewSession
         var time = choice.TimeSourceId is { } tid ? rows.First(r => r.Id == tid) : null;
         var location = choice.LocationSourceId is { } lid ? rows.First(r => r.Id == lid) : null;
         var camera = choice.CameraSourceId is { } cid ? rows.First(r => r.Id == cid) : null;
-        DateTime? wall = null;
-        int? offset = null;
-        if (time is not null && MergeMetadataPicker.EffectiveTime(time, fromFiles) is ({ } utc, var timeOffset))
-        {
-            offset = timeOffset;
-            wall = offset is int o ? DateTime.SpecifyKind(utc.AddMinutes(o), DateTimeKind.Unspecified) : utc.ToLocalTime();
-        }
-
-        var equirect = preview.Projection == PanoramaProjection.Spherical360 && (Options.SphereForm ?? MergeSphereForm.Band) == MergeSphereForm.Full
-                       && !rendered.Notes.Contains("sphere-not-closed");
-        var fallback = location is { Latitude: { } lat, Longitude: { } lon } ? new GeoCoordinate(lat, lon) : (GeoCoordinate?)null;
+        var notes = new List<MergeNote>();
         try
         {
-            MergeExifWriter.Write(resultPath, new MergeExifInput(
-                time is not null ? pathOf[time.Id] : pathOf[rows[0].Id],
-                location is not null ? pathOf[location.Id] : null,
-                fallback,
-                wall,
-                offset,
-                camera?.CameraModel,
-                rendered.Width,
-                rendered.Height,
-                MergeTexts.Method(Request.Method),
-                rows.Count,
-                equirect));
+            WriteFileMetadata(resultPath, preview, shown, rendered, rows, pathOf, fromFiles, time, location, camera);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
+            // nach bestem Können: ohne Aufnahmedaten in der Datei, im Katalog stehen sie trotzdem (CreateMergedAsync)
             _owner.Logger.LogWarning("Zusammenfügen: Aufnahmedaten nicht in die Datei geschrieben ({Error})", ex.GetType().Name);
+            notes.Add(new MergeNote("metadata-not-written", "Aufnahmedaten stehen nur im Katalog, nicht in der Datei."));
         }
 
         var first = rows[0];
@@ -559,14 +586,14 @@ internal sealed class MergePreviewSession : IMergePreviewSession
         var recipe = new MergeRecipe(
             MergeRecipe.CurrentVersion,
             Request.Method,
-            Options,
+            shown,
             preview.Projection,
-            Options.SphereForm ?? MergeSphereForm.Band,
+            shown.SphereForm ?? MergeSphereForm.Band,
             _sources.Select((s, i) => new MergeRecipeSource(s.FileId, _specs[i].Index)).ToList(),
             _estimate!.Alignment,
             rendered.Scale,
             AppName(),
-            Options.ColorBoost ?? MergeLimits.ColorBoostDefault);
+            shown.ColorBoost ?? MergeLimits.ColorBoostDefault);
         var create = new MergeCreateRequest(
             rows.Select(r => r.Id).ToList(),
             resultPath,
@@ -594,31 +621,108 @@ internal sealed class MergePreviewSession : IMergePreviewSession
             return MergeSaveResult.Failed(result.Items.FirstOrDefault(i => !i.Success)?.Error ?? "Speichern fehlgeschlagen.");
         }
 
+        // Ab hier ist das Ergebnis gespeichert (Datei am Ziel, Katalogzeile, Rückgängig möglich): jeder weitere Schritt einzeln,
+        // ein Fehler wird nur Hinweis — nie „Nicht gespeichert“ (sonst entstünde beim erneuten Speichern eine zweite Datei)
         if (options.AlbumId is { } albumId && _owner.Albums is { } albums)
         {
-            try
-            {
-                await albums.AddFilesAsync(albumId, [item.FileId], CancellationToken.None).ConfigureAwait(false);
-            }
-            catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or DbUpdateException)
-            {
-                _owner.Logger.LogWarning("Zusammenfügen: Ergebnis {FileId} nicht ins Album {AlbumId} ({Error})", item.FileId, albumId, ex.GetType().Name);
-            }
+            await AfterSaveAsync("Album", () => albums.AddFilesAsync(albumId, [item.FileId], CancellationToken.None),
+                notes, new MergeNote("album-failed", "Gespeichert, aber nicht ins Album aufgenommen.")).ConfigureAwait(false);
         }
 
-        UsageReport.Used(rows.Select(r => r.Id).ToList(), _owner.Messenger); // Verwendung der Quellen (ADR-0072)
-        _owner.Messenger.Send(new MergeSavedMessage(first.LibraryId, item.FileId, rows.Select(r => r.Id).ToList(), Request.Method, result.BatchId));
-        if (preview.Projection == PanoramaProjection.Spherical360 && Options.SphereForm is { } form)
+        await AfterSaveAsync("Nutzung", () =>
         {
-            await _owner.SettingsStore.RememberSphereFormAsync(form, CancellationToken.None).ConfigureAwait(false);
-        }
-
-        if (Options.ColorBoost is { } boost)
+            UsageReport.Used(rows.Select(r => r.Id).ToList(), _owner.Messenger); // Verwendung der Quellen (ADR-0072)
+            return Task.CompletedTask;
+        }, notes, null).ConfigureAwait(false);
+        await AfterSaveAsync("Meldung", () =>
         {
-            await _owner.SettingsStore.RememberColorBoostAsync(boost, CancellationToken.None).ConfigureAwait(false); // Vorauswahl beim nächsten Mal
+            _owner.Messenger.Send(new MergeSavedMessage(first.LibraryId, item.FileId, rows.Select(r => r.Id).ToList(), Request.Method, result.BatchId));
+            return Task.CompletedTask;
+        }, notes, null).ConfigureAwait(false);
+        if (preview.Projection == PanoramaProjection.Spherical360 && shown.SphereForm is { } form)
+        {
+            await AfterSaveAsync("Kugel-Form", () => _owner.SettingsStore.RememberSphereFormAsync(form, CancellationToken.None), notes, null).ConfigureAwait(false);
         }
 
-        return new MergeSaveResult(true, item.FileId, result.BatchId, item.DestPath, rendered.Width, rendered.Height, rendered.Scale, [], null);
+        if (shown.ColorBoost is { } boost)
+        {
+            // Vorauswahl beim nächsten Mal
+            await AfterSaveAsync("Farbe kräftiger", () => _owner.SettingsStore.RememberColorBoostAsync(boost, CancellationToken.None), notes, null).ConfigureAwait(false);
+        }
+
+        return new MergeSaveResult(true, item.FileId, result.BatchId, item.DestPath, rendered.Width, rendered.Height, rendered.Scale, notes, null);
+    }
+
+    /// <summary>Ein Schritt nach dem Katalogeintrag: Fehler protokollieren (nur Art, keine Namen) und ggf. als Hinweis melden.</summary>
+    private async Task AfterSaveAsync(string step, Func<Task> work, List<MergeNote> notes, MergeNote? note)
+    {
+        try
+        {
+            await work().ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            _owner.Logger.LogWarning("Zusammenfügen: nach dem Speichern „{Step}“ fehlgeschlagen ({Error})", step, ex.GetType().Name);
+            if (note is not null)
+            {
+                notes.Add(note);
+            }
+        }
+    }
+
+    /// <summary>
+    /// EXIF/XMP des Ergebnisses: Zeit (Versatz nur, wie ihn die Zeitquelle selbst nennt — nie die PC-Zeitzone), Ort aus dem
+    /// Katalog der Ortsquelle (ihr ganzes GPS-Verzeichnis nur, wenn die Datei genau diesen Ort trägt), Kamera, Maße, GPano.
+    /// </summary>
+    private void WriteFileMetadata(string resultPath, MergePreview preview, MergeOptions shown, ComposeResult rendered, List<MediaFile> rows,
+        Dictionary<int, string> pathOf, Dictionary<int, MergeSourceMetadata> fromFiles, MediaFile? time, MediaFile? location, MediaFile? camera)
+    {
+        DateTime? wall = null;
+        int? explicitOffset = null;
+        if (time is not null && MergeMetadataPicker.EffectiveTime(time, fromFiles) is ({ } utc, var timeOffset))
+        {
+            // Wanduhrzeit mit dem Versatz, aus dem die UTC-Zeit entstand (ohne Angabe in der Datei die damalige PC-Zeitzone)
+            wall = timeOffset is int o ? DateTime.SpecifyKind(utc.AddMinutes(o), DateTimeKind.Unspecified) : utc.ToLocalTime();
+            explicitOffset = ExplicitOffset(time, pathOf[time.Id]);
+        }
+
+        var equirect = preview.Projection == PanoramaProjection.Spherical360 && (shown.SphereForm ?? MergeSphereForm.Band) == MergeSphereForm.Full
+                       && !rendered.Notes.Contains("sphere-not-closed");
+        string? gpsPath = null;
+        GeoCoordinate? fallback = null;
+        if (location is not null)
+        {
+            var path = pathOf[location.Id];
+            var embedded = Lumora.Services.Cloud.CloudFiles.IsLocallyAvailable(path) ? MediaGpsReader.Read(path)?.Coordinate : null;
+            var (coordinate, useFileGps) = MergeMetadataPicker.FileLocation(location, fromFiles, embedded);
+            gpsPath = useFileGps ? path : null;
+            fallback = useFileGps ? null : coordinate;
+        }
+
+        MergeExifWriter.Write(resultPath, new MergeExifInput(
+            time is not null ? pathOf[time.Id] : pathOf[rows[0].Id],
+            gpsPath,
+            fallback,
+            wall,
+            explicitOffset,
+            camera?.CameraModel,
+            rendered.Width,
+            rendered.Height,
+            MergeTexts.Method(Request.Method),
+            rows.Count,
+            equirect));
+    }
+
+    /// <summary>Zeitversatz, wie ihn die Datei selbst nennt (<c>OffsetTimeOriginal</c>; Katalog bzw. frisch gelesen), sonst null.</summary>
+    private static int? ExplicitOffset(MediaFile time, string path)
+    {
+        if (time.ExifTimeOffset is { } known)
+        {
+            return known;
+        }
+
+        // noch nicht bewertet (die Genauigkeits-Prüfung füllt ExifTimeOffset): aus der Datei
+        return time.GeoAccuracy is null && Lumora.Services.Cloud.CloudFiles.IsLocallyAvailable(path) ? ExifGpsDetailsReader.Read(path)?.OffsetMinutes : null;
     }
 
     /// <summary>
@@ -644,12 +748,17 @@ internal sealed class MergePreviewSession : IMergePreviewSession
             }
 
             var date = needTime ? MediaDateReader.Read(path) : null;
-            var gps = needGeo ? MediaGpsReader.Read(path) : null;
+            // wie der Katalog (ADR-0050): eine XMP-Begleitdatei mit GPS gewinnt vor dem EXIF der Datei
+            var gps = needGeo ? new GeoLocationReader().Read(path) : null;
             GeoAccuracy? accuracy = null;
             GeoAccuracyReason? reason = null;
             DateTime? gpsTime = null;
-            if (gps is not null && ExifGpsDetailsReader.Read(path) is { } details)
+            var embedded = gps is not null ? MediaGpsReader.Read(path) : null;
+            if (gps is { } g && embedded is { } e && Math.Abs(e.Coordinate.Latitude - g.Coordinate.Latitude) <= MergeMetadataPicker.SameCoordinateTolerance
+                && Math.Abs(e.Coordinate.Longitude - g.Coordinate.Longitude) <= MergeMetadataPicker.SameCoordinateTolerance
+                && ExifGpsDetailsReader.Read(path) is { } details)
             {
+                // Genauigkeit nur aus dem GPS-Verzeichnis, das diesen Ort trägt
                 (accuracy, reason) = GeoAccuracyRules.Classify(details);
                 gpsTime = details.GpsTimeUtc;
             }
@@ -704,13 +813,25 @@ internal sealed class MergePreviewSession : IMergePreviewSession
         lock (_ctsLock)
         {
             _current = linked;
-            if (Volatile.Read(ref _disposed) != 0)
+            // nach dem Schließen beginnt nichts mehr — außer den Schritten eines laufenden Speicherns (das rechnet zu Ende); nach
+            // Abandon (Ende der Katalog-Sitzung) gar nichts
+            if (Volatile.Read(ref _abandoned) != 0 || (IsSaving && Volatile.Read(ref _saveCanceled) != 0) || (Volatile.Read(ref _disposed) != 0 && !IsSaving))
             {
-                linked.Cancel(); // nach dem Schließen beginnt nichts mehr
+                linked.Cancel();
             }
         }
 
         return linked;
+    }
+
+    /// <summary>
+    /// Ende der Katalog-Sitzung (<see cref="MergeService.DisposeAsync"/>): alles abbrechen, auch ein laufendes Speichern — der
+    /// Hilfsprozess endet, bevor die Dienste der Sitzung entsorgt bzw. der Container ausgehängt wird (0.5.48).
+    /// </summary>
+    internal void Abandon()
+    {
+        Volatile.Write(ref _abandoned, 1);
+        Cancel();
     }
 
     private void End(CancellationTokenSource linked)
@@ -830,47 +951,59 @@ internal sealed class MergePreviewSession : IMergePreviewSession
         }
     }
 
-    public async ValueTask DisposeAsync()
+    /// <summary>Mehrfach aufrufbar (Fenster und Merge-Dienst): jeder Aufruf wartet auf dasselbe Aufräumen.</summary>
+    public ValueTask DisposeAsync() => new(_disposal.Value);
+
+    private async Task DisposeCoreAsync()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0)
-        {
-            return;
-        }
-
-        // Eine laufende Vorschau endet als Abbruch (ihr Prozess wird sofort beendet); ein laufendes Speichern rechnet in
-        // eigenem Prozess zu Ende — auch nach „Im Hintergrund weiterrechnen“ — und erst danach wird aufgeräumt.
-        if (Volatile.Read(ref _saving) == 0)
-        {
-            Cancel();
-        }
-
-        await DisposeStitchAsync().ConfigureAwait(false);
-        await _lock.WaitAsync().ConfigureAwait(false);
+        Volatile.Write(ref _disposed, 1);
         try
         {
-            await DisposeStitchAsync().ConfigureAwait(false); // falls eine Vorschau in der Lücke noch einen geöffnet hatte
-            _hold.Dispose();
-            lock (_ctsLock)
+            // Eine laufende Vorschau endet als Abbruch (ihr Prozess wird sofort beendet); ein laufendes Speichern rechnet in
+            // eigenem Prozess zu Ende — auch nach „Im Hintergrund weiterrechnen“ — und erst danach wird aufgeräumt (außer nach
+            // Abandon: dann bricht es ab und sein Prozess endet).
+            if (!IsSaving)
             {
-                _saveClaim?.Dispose();
-                _saveClaim = null;
+                Cancel();
+                await DisposeStitchAsync().ConfigureAwait(false);
             }
 
+            while (IsSaving)
+            {
+                await Task.Delay(100).ConfigureAwait(false);
+            }
+
+            await _lock.WaitAsync().ConfigureAwait(false);
             try
             {
-                if (Directory.Exists(_workDir))
+                await DisposeStitchAsync().ConfigureAwait(false); // falls eine Vorschau in der Lücke noch einen geöffnet hatte
+                _hold.Dispose();
+                lock (_ctsLock)
                 {
-                    Directory.Delete(_workDir, recursive: true);
+                    _saveClaim?.Dispose();
+                    _saveClaim = null;
+                }
+
+                try
+                {
+                    if (Directory.Exists(_workDir))
+                    {
+                        Directory.Delete(_workDir, recursive: true);
+                    }
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    _owner.Logger.LogDebug(ex, "Zusammenfügen: Zwischenstände nicht gelöscht");
                 }
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            finally
             {
-                _owner.Logger.LogDebug(ex, "Zusammenfügen: Zwischenstände nicht gelöscht");
+                _lock.Release();
             }
         }
         finally
         {
-            _lock.Release();
+            _owner.Forget(this);
         }
     }
 

@@ -179,6 +179,43 @@ public sealed class CatalogSessionManagerTests : IDisposable
     }
 
     [Fact]
+    public async Task Zusperren_und_Wechseln_warten_auf_ein_laufendes_Speichern_von_Zusammenfuegen()
+    {
+        // ADR-0078 (0.5.48): ein Rechen-Prozess mit offenen Quellen darf beim Zusperren/Aushängen nicht weiterlaufen
+        var manager = CreateManager();
+        var folder = NewContainerFolder();
+        await manager.CreateAsync(folder, "Tresor", "kennwort-1");
+        _switcher.SessionEndChecks.Should().Equal(new[] { ("wechseln", false) }, "auch die normale Sitzung endet beim Öffnen");
+        _switcher.MaySessionEnd = false;
+        _time.Advance(TimeSpan.FromMinutes(11));
+
+        (await manager.CheckIdleAsync()).Should().BeFalse("das automatische Zusperren verschiebt sich");
+        manager.IsHiddenSessionActive.Should().BeTrue();
+        _switcher.SessionEndChecks[^1].Should().Be(("zusperren", true));
+        _switcher.CloseWindowsCalls.Should().Be(0, "nichts wird geschlossen, solange gespeichert wird");
+
+        var manual = await manager.LockAsync();
+        manual.Success.Should().BeFalse("„Zurück“ in der Rückfrage");
+        manual.Message.Should().Contain("Zusammenfügen");
+        manager.IsHiddenSessionActive.Should().BeTrue();
+        _switcher.Calls.Should().NotContain("normal");
+
+        _switcher.MaySessionEnd = true; // „Warten“ bzw. „Abbrechen und zusperren“: das Speichern ist vorbei
+        (await manager.LockAsync()).Success.Should().BeTrue();
+        manager.IsHiddenSessionActive.Should().BeFalse();
+        _switcher.Calls.Last().Should().Be("normal");
+
+        manager = CreateManager();
+        _switcher.Calls.Clear();
+        _switcher.MaySessionEnd = false;
+        var open = await manager.OpenAsync(new HiddenLibraryInfo(folder, "Tresor"), "kennwort-1");
+        open.Success.Should().BeFalse();
+        open.Message.Should().Contain("Zusammenfügen");
+        _switcher.Calls.Should().BeEmpty("kein Wechsel, solange gespeichert wird");
+        manager.IsHiddenSessionActive.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Container_mounted_under_another_drive_letter_is_refused_with_a_hint()
     {
         var manager = CreateManager();

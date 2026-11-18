@@ -303,9 +303,11 @@ public sealed partial class FileOperationService
     }
 
     /// <summary>
-    /// Rückgängig einer Fassung: die neue Datei in den Papierkorb (war sie schon weg, nur den Katalog bereinigen), Katalogzeile
-    /// samt FTS, Vorschaubildern und Verknüpfung entfernen. Die Zeile wird über den Pfad gesucht, sonst über die protokollierte
-    /// FileId — nur, wenn sie noch auf das Ziel zeigt.
+    /// Rückgängig einer Fassung bzw. eines zusammengefügten Ergebnisses: die neue Datei in den Papierkorb (war sie schon weg, nur
+    /// den Katalog bereinigen), Katalogzeile samt FTS, Vorschaubildern und Verknüpfung entfernen. Maßgeblich ist die protokollierte
+    /// FileId, nur solange ihre Zeile noch auf das Ziel zeigt und Größe und Änderungszeit der Datei passen (0.5.48): der Name wird
+    /// frei vergeben, sobald die Datei weg ist — ein späteres Ergebnis am selben Pfad wird nie angefasst. Die Verknüpfungen werden
+    /// zur Operation gesichert (ADR-0054): holt jemand die Datei aus dem Papierkorb zurück, kommen sie mit.
     /// </summary>
     private async Task<FileOperationItemResult> UndoCreateVariantItemAsync(LibraryContext ctx, FileOperation op, ChangeSet changes, IOwnChangeScope own, CancellationToken ct,
         string missingHint = "Die verbesserte Datei war nicht mehr vorhanden; Katalog bereinigt.")
@@ -316,8 +318,19 @@ public sealed partial class FileOperationService
             return await UndoFailAsync(ctx, op, "Kein Zielpfad protokolliert.", ct).ConfigureAwait(false);
         }
 
-        var row = await FindCatalogRowByPathAsync(ctx, dest, ct).ConfigureAwait(false)
-                  ?? await FindCatalogRowByIdAsync(ctx, op.FileId, dest, dest, ct).ConfigureAwait(false);
+        var row = await FindCatalogRowByIdAsync(ctx, op.FileId, dest, dest, ct).ConfigureAwait(false);
+        if (row is null && File.Exists(dest))
+        {
+            // Am Ziel liegt eine andere Datei (das Ergebnis wurde inzwischen gelöscht, verschoben oder aus dem Katalog genommen
+            // und der Name neu vergeben) bzw. eine, die Lumora nicht mehr zuordnen kann: nichts anfassen.
+            return await UndoNothingAsync(ctx, op, NotOursHint).ConfigureAwait(false);
+        }
+
+        if (row is not null && File.Exists(dest) && !SameFile(row, dest))
+        {
+            return await UndoFailAsync(ctx, op, "Die Datei wurde inzwischen verändert — nicht in den Papierkorb gelegt.", ct).ConfigureAwait(false);
+        }
+
         string? hint = null;
         if (File.Exists(dest))
         {
@@ -343,7 +356,8 @@ public sealed partial class FileOperationService
         {
             if (row is not null)
             {
-                await RemoveCatalogEntryAsync(ctx, row, token).ConfigureAwait(false); // PhotoVariants bzw. MergedPhotos per Kaskade
+                // PhotoVariants bzw. MergedPhotos per Kaskade — vorher zur Operation gesichert (ADR-0054)
+                await RemoveCatalogEntryAsync(ctx, row, token, op.Id).ConfigureAwait(false);
             }
         }).ConfigureAwait(false);
 
@@ -358,5 +372,29 @@ public sealed partial class FileOperationService
         }
 
         return new FileOperationItemResult(fileId ?? op.FileId ?? 0, op.SourcePath, dest, error is null, error ?? hint);
+    }
+
+    /// <summary>Hinweis, wenn am Ziel nicht mehr die Datei dieser Operation liegt.</summary>
+    internal const string NotOursHint = "Die Datei dieses Vorgangs ist nicht mehr vorhanden (am Ziel liegt eine andere Datei) — nichts geändert.";
+
+    /// <summary>Nichts mehr zurückzunehmen: Operation erledigt mit Hinweis, Platte und Katalog unberührt.</summary>
+    private async Task<FileOperationItemResult> UndoNothingAsync(LibraryContext ctx, FileOperation op, string hint)
+    {
+        var error = await CommitItemAsync(ctx, op, undo: true, hint, _ => Task.CompletedTask).ConfigureAwait(false);
+        return new FileOperationItemResult(op.FileId ?? 0, op.SourcePath, op.DestPath, error is null, error ?? hint);
+    }
+
+    /// <summary>Datei am Ziel ist noch die der Katalogzeile (Größe, Änderungszeit auf die Sekunde).</summary>
+    private static bool SameFile(MediaFile row, string path)
+    {
+        try
+        {
+            var info = new FileInfo(path);
+            return info.Length == row.Size && Math.Abs((info.LastWriteTimeUtc - row.ModifiedAtUtc).TotalSeconds) < 2;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 }

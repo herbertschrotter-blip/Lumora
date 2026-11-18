@@ -10,7 +10,9 @@ namespace Lumora.Services.Duplicates;
 /// Papierkorb“ die Datei mit derselben FileId und all ihren Angaben zurückbringt. Welche Tabellen dazugehören, liest der
 /// Abzug aus dem Schema: alle Tabellen mit einem Fremdschlüssel auf <c>Files.Id</c> und ON DELETE CASCADE (Tags,
 /// Kategorien, Gesichter, Gesichts-Merker, Motiv-Vektoren und -Treffer, Fingerabdrücke … und künftige wie Alben), dazu
-/// eine Ebene tiefer, was per Kaskade an deren <c>Id</c> hängt (abgelehnte Vorschläge an Gesichtern). Ausgenommen sind
+/// eine Ebene tiefer, was per Kaskade an einer ihrer Spalten hängt (abgelehnte Vorschläge an <c>Faces.Id</c>, seit 0.5.48 die
+/// Quellen eines zusammengefügten Ergebnisses an <c>MergedPhotos.FileId</c> — ADR-0078); Enkel stehen im Abzug direkt hinter
+/// ihrer Elterntabelle und werden danach zurückgeschrieben. Ausgenommen sind
 /// die Vorschaubild-Zeilen (die Cache-Datei ist mit der Datei gelöscht worden und entsteht neu). Ids bleiben gleich — die
 /// Tabellen sind AUTOINCREMENT, gelöschte Ids werden nie neu vergeben. Zeilen, deren Bezug inzwischen fehlt (Tag gelöscht),
 /// werden beim Zurückschreiben einzeln übersprungen.
@@ -28,7 +30,7 @@ public static class CatalogRowSnapshot
         var folderPath = Scalar(connection, tx, "SELECT Path FROM Folders WHERE Id = $id", ToLong(file["FolderId"])) as string ?? string.Empty;
 
         var tables = new List<(string Table, List<Dictionary<string, object?>> Rows)>();
-        foreach (var (table, column) in Children(connection, tx, "Files"))
+        foreach (var (table, column, _) in Children(connection, tx, "Files", parentColumn: "Id"))
         {
             var rows = ReadRows(connection, tx, table, column, [fileId]);
             if (rows.Count == 0)
@@ -37,15 +39,21 @@ public static class CatalogRowSnapshot
             }
 
             tables.Add((table, rows));
-            if (!rows[0].ContainsKey("Id"))
+            // eine Ebene tiefer: Kaskade an einer Spalte dieser Zeilen (Faces.Id, MergedPhotos.FileId …) — nur ganzzahlige Schlüssel
+            foreach (var (grandChild, grandColumn, keyColumn) in Children(connection, tx, table, parentColumn: null))
             {
-                continue;
-            }
+                if (!rows[0].ContainsKey(keyColumn))
+                {
+                    continue;
+                }
 
-            var ids = rows.Select(r => ToLong(r["Id"])).ToList();
-            foreach (var (grandChild, grandColumn) in Children(connection, tx, table))
-            {
-                var nested = ReadRows(connection, tx, grandChild, grandColumn, ids);
+                var keys = rows.Select(r => r[keyColumn]).OfType<long>().Distinct().ToList();
+                if (keys.Count == 0)
+                {
+                    continue;
+                }
+
+                var nested = ReadRows(connection, tx, grandChild, grandColumn, keys);
                 if (nested.Count > 0)
                 {
                     tables.Add((grandChild, nested));
@@ -242,25 +250,29 @@ public static class CatalogRowSnapshot
         }
     }
 
-    /// <summary>Tabellen mit Fremdschlüssel ON DELETE CASCADE auf <paramref name="parent"/>.Id (Tabelle, Spalte).</summary>
-    private static List<(string Table, string Column)> Children(SqliteConnection connection, SqliteTransaction? tx, string parent)
+    /// <summary>
+    /// Tabellen mit Fremdschlüssel ON DELETE CASCADE auf <paramref name="parent"/> (Tabelle, Spalte, Spalte in
+    /// <paramref name="parent"/>); <paramref name="parentColumn"/> null = jede Spalte der Elterntabelle.
+    /// </summary>
+    private static List<(string Table, string Column, string ParentColumn)> Children(SqliteConnection connection, SqliteTransaction? tx, string parent, string? parentColumn)
     {
         using var cmd = connection.CreateCommand();
         cmd.Transaction = tx;
         cmd.CommandText = """
-            SELECT m.name, p."from" FROM sqlite_master m JOIN pragma_foreign_key_list(m.name) p
-            WHERE m.type = 'table' AND p."table" = $parent AND p."to" = 'Id' AND p.on_delete = 'CASCADE'
-            ORDER BY m.name;
+            SELECT m.name, p."from", p."to" FROM sqlite_master m JOIN pragma_foreign_key_list(m.name) p
+            WHERE m.type = 'table' AND p."table" = $parent AND p."to" IS NOT NULL AND ($column IS NULL OR p."to" = $column) AND p.on_delete = 'CASCADE'
+            ORDER BY m.name, p."from";
             """;
         cmd.Parameters.AddWithValue("$parent", parent);
-        var list = new List<(string, string)>();
+        cmd.Parameters.AddWithValue("$column", (object?)parentColumn ?? DBNull.Value);
+        var list = new List<(string, string, string)>();
         using var reader = cmd.ExecuteReader();
         while (reader.Read())
         {
             var table = reader.GetString(0);
             if (!s_excluded.Contains(table) && !table.StartsWith("sqlite_", StringComparison.Ordinal))
             {
-                list.Add((table, reader.GetString(1)));
+                list.Add((table, reader.GetString(1), reader.GetString(2)));
             }
         }
 

@@ -476,8 +476,8 @@ public sealed partial class FileOperationService
 
     /// <summary>
     /// Files-Zeile aus dem Abzug zurückschreiben (innerhalb der laufenden Transaktion): Ordner über den Pfad (zurückgeholte Zeile
-    /// oder neu angelegte Kette), alte FileId und Angaben, „fehlt“ nach der Platte, abhängige Zeilen, FTS; die Sicherung der
-    /// Verknüpfungen (ADR-0054) wird verworfen. Liefert die FileId oder null, wenn Id bzw. Platz belegt sind.
+    /// oder neu angelegte Kette), alte FileId und Angaben, „fehlt“ nach der Platte, abhängige Zeilen, FTS; danach die Sicherung
+    /// der Verknüpfungen (ADR-0054). Liefert die FileId oder null, wenn Id bzw. Platz belegt sind.
     /// </summary>
     private async Task<int?> RestoreSnapshotRowAsync(LibraryContext ctx, Duplicates.CatalogRowSnapshot.Snapshot snapshot, FileOperation op, CancellationToken ct)
     {
@@ -505,7 +505,10 @@ public sealed partial class FileOperationService
 
         Duplicates.CatalogRowSnapshot.RestoreDependents(connection, transaction, snapshot);
         await FtsInsertAsync(ctx, snapshot.FileId, snapshot.Name, snapshot.Extension, ct).ConfigureAwait(false);
-        await Albums.FileLinkUndoStore.DiscardAsync(ctx, op.Id, ct).ConfigureAwait(false);
+        // Die Sicherung der Verknüpfungen (ADR-0054) nicht verwerfen, sondern einspielen (alles mit INSERT OR IGNORE): was der
+        // Abzug schon brachte, bleibt; was er nicht kennt (Quellen eines Ergebnisses, dessen Quelle noch im Papierkorb liegt),
+        // bleibt offen und wird nachgeholt, wenn die andere Datei zurückkehrt (ADR-0078, 0.5.48).
+        await Albums.FileLinkUndoStore.RestoreAsync(ctx, op.Id, snapshot.FileId, ct).ConfigureAwait(false);
         return snapshot.FileId;
     }
 }
